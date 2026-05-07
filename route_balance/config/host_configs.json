@@ -1,0 +1,182 @@
+{
+    "c4130-110233.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.24",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d7525-10s10311.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.41",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d7525-10s10329.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.32",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "c4130-110133.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.25",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d7525-10s10317.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.38",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d7525-10s10333.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.30",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "c240g5-110221.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.144.69",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "c240g5-110227.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.144.72",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "c240g5-110231.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.144.74",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "c240g5-110225.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.144.71",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "c4130-110433.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.23",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "c240g5-110217.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.144.67",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d7525-10s10339.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.27",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d8545-10s10301.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.44",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d7525-10s10323.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.35",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d7525-10s10327.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.33",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d7525-10s10321.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.36",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    },
+    "d8545-10s10305.cluster.example": {
+        "backend_port": 8000,
+        "ip_address": "128.105.146.43",
+        "predictor_ports": [
+            8100,
+            8101,
+            8102,
+            8103
+        ]
+    }
+}

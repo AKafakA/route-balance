@@ -1,0 +1,25 @@
+{
+  "pd_settings": {
+    "bandwidth_key": "a30_tcp",
+    "ttft_slo_ms": 5000,
+    "tpot_slo_ms": 200
+  },
+  "prefill_instances": [
+    {
+      "id": "prefill_7b_node0",
+      "ip_address": "128.105.146.38",
+      "port": 7100,
+      "model_name": "Qwen/Qwen2.5-7B",
+      "sidecar_port": null
+    }
+  ],
+  "decode_instances": [
+    {
+      "id": "decode_7b_node1",
+      "ip_address": "128.105.146.37",
+      "port": 7200,
+      "model_name": "Qwen/Qwen2.5-7B",
+      "sidecar_port": null
+    }
+  ]
+}

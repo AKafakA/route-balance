@@ -1,0 +1,228 @@
+import asyncio
+import json
+import time
+import codecs
+
+import aiohttp
+
+from route_balance.global_scheduler.route_balance.route_balance_instance.Instance import Instance
+from route_balance.global_scheduler.route_balance.utils import MAX_EMPTY_READS_BEFORE_TIMEOUT
+
+
+class OllamaInstance(Instance):
+
+    def __init__(self, instance_id,
+                 hostname,
+                 ip_address,
+                 predictor_ports,
+                 model_name,
+                 query_predictor_timeout=10,
+                 query_backend_timeout=2 * 60 * 60,  # 60 minutes timeout for Ollama
+                 backend_port=11434,  # Default Ollama port
+                 enable_predictor_feedback=False,
+                 feedback_sample_rate=1.0):
+        super().__init__(instance_id,
+                         hostname,
+                         ip_address,
+                         predictor_ports,
+                         model_name,
+                         query_predictor_timeout,
+                         query_backend_timeout,
+                         backend_port,
+                         enable_predictor_feedback,
+                         feedback_sample_rate)
+        # Store base URLs for both endpoints
+        self.generate_url = f"http://{ip_address}:{backend_port}/api/generate"
+        self.chat_url = f"http://{ip_address}:{backend_port}/api/chat"
+
+    async def query_backend(self, payload: dict, headers: dict = None):
+
+        generated_text = ""
+        st = time.perf_counter()  # Server-side E2E start time
+        most_recent_timestamp = st
+        ttft = 0
+        itl = []
+        output_tokens = 0
+        success = False
+        error = ""
+        server_e2e_latency = 0.0  # Total time from request start to response complete
+
+        # Determine which endpoint to use based on payload
+        use_chat = payload.get("use_chat_endpoint", False)
+        api_url = self.chat_url if use_chat else self.generate_url
+
+        # Build appropriate payload based on endpoint type
+        if use_chat:
+            # Chat endpoint - use messages format
+            ollama_payload = {
+                "model": self._model_name,
+                "messages": payload["messages"],
+                "stream": True,
+                "options": {
+                    "temperature": 0.0,
+                    "repeat_penalty": payload.get("repetition_penalty", 1.0),
+                    "num_predict": min(payload["max_tokens"], 8192),
+                }
+            }
+        else:
+            # Generate endpoint - use prompt format
+            ollama_payload = {
+                "model": self._model_name,
+                "prompt": payload["prompt"],
+                "stream": True,
+                "raw": True,
+                "options": {
+                    "temperature": 0.0,
+                    "repeat_penalty": payload.get("repetition_penalty", 1.0),
+                    "num_predict": min(payload["max_tokens"], 8192),
+                    "stop": payload.get("stop", []),
+                }
+            }
+
+        # Ollama generally doesn't require an API key, but we keep headers logic flexible
+        if not headers:
+            headers = {}
+
+        # Create incremental UTF-8 decoder for robust handling of multi-byte characters
+        decoder = codecs.getincrementaldecoder('utf-8')(errors='strict')
+
+        async with aiohttp.ClientSession(timeout=self._backend_timeout) as session:
+            try:
+                async with session.post(api_url, json=ollama_payload, headers=headers) as response:
+                    if response.status == 200:
+                        first_token_with_text_received = False  # Track first token with actual text for TTFT
+                        received_done_signal = False  # Track if we got the final done: true chunk
+                        chunks_received = 0
+                        last_chunk_data = None
+                        empty_read_count = 0  # Safety counter to prevent infinite loops
+
+                        # Read line by line for newline-delimited JSON
+                        try:
+                            while not received_done_signal:
+                                line = await response.content.readline()
+
+                                # Handle empty reads - check if truly EOF or just temporary
+                                if line == b'':
+                                    # Check if connection is actually closed
+                                    if response.content.at_eof():
+                                        # True EOF - stream ended
+                                        break
+
+                                    # Not EOF yet - might be slow generation, wait briefly
+                                    empty_read_count += 1
+
+                                    # Safety check: prevent infinite waiting
+                                    if empty_read_count >= MAX_EMPTY_READS_BEFORE_TIMEOUT:
+                                        error = (
+                                            f"Stream stalled: {MAX_EMPTY_READS_BEFORE_TIMEOUT} consecutive empty reads. "
+                                            f"Generated text length: {len(generated_text)}, "
+                                            f"Chunks received: {chunks_received}"
+                                        )
+                                        break
+
+                                    # Small delay to avoid busy waiting
+                                    await asyncio.sleep(0.001)  # 1ms instead of 10msBu
+                                    continue
+
+                                # Reset empty read counter when we get data
+                                empty_read_count = 0
+
+                                # Use incremental decoder for safe UTF-8 handling
+                                line_str = decoder.decode(line, final=False).strip()
+                                if not line_str:
+                                    continue
+
+                                chunks_received += 1
+
+                                # Parse the JSON line
+                                try:
+                                    data = json.loads(line_str)
+                                    last_chunk_data = data  # Keep track of last valid chunk
+                                except json.JSONDecodeError as je:
+                                    # Log the decode error but continue
+                                    continue
+
+                                # Process the JSON object based on endpoint type
+                                # Generate format: {"response": "token", "done": false, ...}
+                                # Chat format: {"message": {"content": "token"}, "done": false, ...}
+                                # Final response: {"done": true, "eval_count": 100, ...}
+
+                                if data.get("done"):
+                                    # Request is done, capture usage stats
+                                    # Ollama provides 'eval_count' as the output token count
+                                    output_tokens = data.get("eval_count", 0)
+                                    received_done_signal = True
+                                    success = True  # Successfully received the completion signal
+                                    break
+                                else:
+                                    # Extract text based on endpoint type
+                                    if use_chat:
+                                        # Chat format: message.content
+                                        text = data.get("message", {}).get("content", "")
+                                    else:
+                                        # Generate format: response
+                                        text = data.get("response", "")
+
+                                    timestamp = time.perf_counter()
+
+                                    # TTFT (Time To First Token) - only count if we got actual text
+                                    if not first_token_with_text_received and text:
+                                        first_token_with_text_received = True
+                                        ttft = time.perf_counter() - st
+                                    elif first_token_with_text_received and text:
+                                        # ITL (Inter-Token Latency) - only track for chunks with text
+                                        itl.append(timestamp - most_recent_timestamp)
+
+                                    if text:  # Only update timestamp for chunks with actual text
+                                        most_recent_timestamp = timestamp
+                                        generated_text += text
+                        except asyncio.TimeoutError:
+                            # Stream reading timed out - mark as failure
+                            success = False
+                            error = (
+                                f"Timeout while reading stream. "
+                                f"Generated text length: {len(generated_text)}, "
+                                f"Chunks received: {chunks_received}, "
+                                f"First token received: {first_token_with_text_received}"
+                            )
+
+                        # If we didn't receive the done signal, mark as failure
+                        if not received_done_signal and not error:
+                            success = False
+                            # Estimate output tokens for debugging
+                            estimated_tokens = len(generated_text) // 4
+                            expected_tokens = ollama_payload["options"]["num_predict"]
+                            completion_ratio = estimated_tokens / expected_tokens if expected_tokens > 0 else 0
+
+                            error = (
+                                f"Stream ended without 'done' signal. "
+                                f"Generated text length: {len(generated_text)}, "
+                                f"Estimated tokens: {estimated_tokens}/{expected_tokens} ({completion_ratio:.1%}), "
+                                f"Chunks received: {chunks_received}, "
+                                f"First token received: {first_token_with_text_received}"
+                            )
+                    else:
+                        error = f"HTTP {response.status}: {response.reason}"
+                        success = False
+            except asyncio.TimeoutError:
+                success = False
+                error = f"Request timeout after {self._backend_timeout.total}s"
+            except Exception as e:
+                success = False
+                error = f"{type(e).__name__}: {str(e)}"
+
+        # Calculate server-side E2E latency (total time from request start to completion)
+        server_e2e_latency = time.perf_counter() - st
+
+        return {
+            "generated_text": generated_text,
+            "ttft": ttft,
+            "itl": itl,
+            "output_tokens": output_tokens,
+            "success": success,
+            "error": error,
+            "model": self._model_name,
+            "server_latency": server_e2e_latency,  # Server-side E2E latency
+            "instance_id": self._instance_id,
+            "host": self._hostname,
+        }

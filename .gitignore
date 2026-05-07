@@ -1,0 +1,59 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+*.so
+
+# Large data files — tracked separately (HuggingFace)
+data/route_balance/latency_data/
+data/route_balance/training_data/
+data/route_balance/training_data_with_ref/
+data/route_balance/training_logs/
+data/route_balance/*.json
+data/route_balance/lmsys_*.json
+data/route_balance/lmsys_*.jsonl
+data/route_balance/broadcast_*.json
+
+# Keep test dataset
+!data/route_balance/best-route-v3-test-500.jsonl
+
+# Models (downloaded at deploy time)
+models/
+
+# Experiment output
+experiment_output/
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# Paper build artifacts
+paper/*.aux
+paper/*.bbl
+paper/*.blg
+paper/*.fdb_latexmk
+paper/*.fls
+paper/*.synctex.gz
+paper/*.pdf
+
+# Paper and docs (local only, not in repo)
+paper/
+
+# Claude session memory (local only)
+.claude/
+CLAUDE.md
+
+# Local-only working directories (not for public release)
+*_paper/
+*_dev_snapshot_*/
+nips_draft/
+
+# Editor / OS
+*.swp
+.DS_Store

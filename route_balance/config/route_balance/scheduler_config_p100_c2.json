@@ -1,0 +1,69 @@
+{
+  "scoring_weights": {
+    "w_latency": 0.3,
+    "w_cost": 0.2,
+    "w_quality": 0.3,
+    "w_balance": 0.2
+  },
+  "slo_defaults": {
+    "ttft_slo_ms": 10000,
+    "tpot_slo_ms": 200,
+    "budget_tokens": 256,
+    "quality_min": 0.0,
+    "budget_confidence_threshold": 0.5,
+    "constraint_mode": "TIERED",
+    "relax_order": ["ttft", "tpot", "quality", "budget"],
+    "lpt_sort_key": "max",
+    "batch_config": {
+      "max_batch_size": 8,
+      "batch_timeout_ms": 100,
+      "adaptive_sizing": true
+    },
+    "instance_capacity": {
+      "qwen2.5-3b_c240g5_0": 10,
+      "qwen2.5-3b_c240g5_1": 10
+    },
+    "model_kv_config": {
+      "Qwen/Qwen2.5-3B": {
+        "kv_bytes_per_token": 55296
+      }
+    },
+    "global_slo": {
+      "ttft_slo_ms": 10000,
+      "tpot_slo_ms": 200
+    },
+    "trace_sample_rate": 0
+  },
+  "model_estimator": {
+    "type": "default",
+    "score_type": "judge",
+    "bucket_config": {
+      "fused_model_dir": "/users/anon/RouteBalance/models/route_balance/length_bucket/deploy",
+      "bucket_size": 64,
+      "max_buckets": 16,
+      "max_length": 1024
+    },
+    "quality_config": {
+      "type": "knn",
+      "model_dir": "/users/anon/RouteBalance/models/route_balance/quality/judge/deploy",
+      "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+      "k": 10,
+      "index_type": "faiss_flat"
+    },
+    "length_config": {
+      "fused_model_dir": "/users/anon/RouteBalance/models/route_balance/length_regression/deploy"
+    }
+  },
+  "instance_metadata": {
+    "qwen2.5-3b_c240g5_0": {
+      "model_name": "Qwen/Qwen2.5-3B",
+      "gpu_type": "p100",
+      "cost_per_token": 0.001
+    },
+    "qwen2.5-3b_c240g5_1": {
+      "model_name": "Qwen/Qwen2.5-3B",
+      "gpu_type": "p100",
+      "cost_per_token": 0.001
+    }
+  }
+}

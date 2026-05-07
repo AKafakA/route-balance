@@ -1,0 +1,15 @@
+# Training dependencies for RouteBalance predictor models
+# Pin transformers to 5.4.0 for reproducibility across all training runs
+# Serving code uses whatever version vLLM brings — no conflict (saved model format is version-independent)
+
+transformers==5.4.0
+torch>=2.5.0
+accelerate>=1.0.0
+peft>=0.18.0
+datasets>=4.0.0
+sentence-transformers>=5.0.0
+faiss-cpu>=1.13.0
+scikit-learn>=1.8.0
+scipy>=1.17.0
+numpy>=2.0.0
+xgboost>=2.0.0
