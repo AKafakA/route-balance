@@ -52,7 +52,6 @@ CLAUDE.md
 # Local-only working directories (not for public release)
 *_paper/
 *_dev_snapshot_*/
-nips_draft/
 
 # Editor / OS
 *.swp
