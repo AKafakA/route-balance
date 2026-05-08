@@ -49,6 +49,7 @@ paper/
 .claude/
 CLAUDE.md
 AGENT.md
+AGENTS.md
 
 # Local-only working directories (not for public release)
 *_paper/
