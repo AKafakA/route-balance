@@ -48,6 +48,7 @@ paper/
 # Claude session memory (local only)
 .claude/
 CLAUDE.md
+AGENT.md
 
 # Local-only working directories (not for public release)
 *_paper/
