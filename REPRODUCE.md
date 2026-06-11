@@ -318,3 +318,27 @@ Total cluster-time to reproduce all numbers from a fresh reservation: **~28 h**.
 ---
 
 If something does not reproduce within 5% of paper values, please open an issue with: (i) which cell, (ii) `git rev-parse HEAD`, (iii) the per-cell JSON, (iv) `pip freeze`. Floating-point non-determinism in vLLM and XGBoost is bounded but non-zero across hardware revisions.
+
+---
+
+## 11. New env-gated experiments (App G fusion-isolation, non-stationary arrivals)
+
+These reviewer-driven ablations are reproduced by env toggles on the same serving stack
+(all **default-off**, so the main grid is unaffected). Drivers: `reproduce/route_balance_extras/`.
+Gates live in `route_balance/global_scheduler/route_balance/route_balance_serve.py` and
+`route_balance/benchmark/route_balance/benchmark_serving.py`. Each cell: `--seed 5`, `N=3534`,
+`best-route-v3-test-3534-eval.jsonl`. Quality via `reproduce/aggregate_results.py` (zero-safe).
+
+| Experiment (paper) | Gate / flag | Driver | Expected |
+|---|---|---|---|
+| App G **arm 3** (decoupled-predictive, Table latablation) | `ROUTE_BALANCE_TIEBREAK=that` | `p1_arm3.sh` | 3.42/3.50/3.75 s @ λ12/24/30, 72B 14%, q0.385 |
+| App G **arm 4** (static per-tier latency prior) | `ROUTE_BALANCE_STATIC_LAT="3b=12.3,7b=20.6,14b=18.4,72b=47.4"` (ms/tok) | `arm4_static_lat.sh` | matches arm 1: mix 58/11/31/0, q0.369, E2E 2.41 s (stat) / 3.12 s (40-6 overload) |
+| App G **non-stationary square wave** (Table nonstationary) | `ROUTE_BALANCE_SQUARE="lo,hi"` on serve+bench | `p3sq.sh` + `p3sq_avg.sh` | RB 2577 / enh-AvgPro 2733 / enh-BR4 7107 ms (30/6) |
+| App G **non-stationary Gamma burst** | `--burstiness 0.3` (bench flag) | `p3_bursty.sh` | RB 2524 / enh-AvgPro 2473 / enh-BR4 4392 ms (b=0.3, λ18) |
+| App G **overload probe** (40/6, peak>27.6 sustained max) | `ROUTE_BALANCE_SQUARE=6,40` | `ov_arm1_sq40.sh` | arm 1 E2E 3788 ms; per-phase tier mix stays flat |
+| Multi-seed latency stability (App A) | `--seed` variation (no gate) | `uni_reseed.sh` | uniform ±1.4/2.7/2.0% @ λ12/24/30 |
+
+**Native-mode contract (mandatory for `--scheduling route_balance`):** `CUDA_VISIBLE_DEVICES=""`
+(else XGBoost probes the co-located GPU → ~600× predict slowdown), `ROUTE_BALANCE_INPROC_PREDICTOR=1`
+(in-process predictor; else 200 ms/req sidecar fallback), and do **not** set `OMP_NUM_THREADS=1`
+(throttles the MiniLM embedder). Baselines run `--scheduling pipeline`.
