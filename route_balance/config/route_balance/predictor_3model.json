@@ -1,0 +1,52 @@
+{
+  "predictor_type": "xgboost_3model",
+  "schedule_trace_timeout": 5,
+  "enable_data_collection": false,
+  "xgboost_3model": {
+    "max_batch": 128,
+    "model_paths_by_instance": {
+      "qwen2.5-3b_a30": {
+        "ttft": "/users/asdwb/Block/models/route_balance/latency/deploy_ttft/qwen2.5-3b_a30.xgb",
+        "tpot": "/users/asdwb/Block/models/route_balance/latency/deploy_tpot/qwen2.5-3b_a30.xgb",
+        "e2e": "/users/asdwb/Block/models/route_balance/latency/deploy_e2e/qwen2.5-3b_a30.xgb"
+      },
+      "qwen2.5-3b_p100": {
+        "ttft": "/users/asdwb/Block/models/route_balance/latency/deploy_ttft/qwen2.5-3b_p100.xgb",
+        "tpot": "/users/asdwb/Block/models/route_balance/latency/deploy_tpot/qwen2.5-3b_p100.xgb",
+        "e2e": "/users/asdwb/Block/models/route_balance/latency/deploy_e2e/qwen2.5-3b_p100.xgb"
+      },
+      "qwen2.5-7b_a30": {
+        "ttft": "/users/asdwb/Block/models/route_balance/latency/deploy_ttft/qwen2.5-7b_a30.xgb",
+        "tpot": "/users/asdwb/Block/models/route_balance/latency/deploy_tpot/qwen2.5-7b_a30.xgb",
+        "e2e": "/users/asdwb/Block/models/route_balance/latency/deploy_e2e/qwen2.5-7b_a30.xgb"
+      },
+      "qwen2.5-14b_v100": {
+        "ttft": "/users/asdwb/Block/models/route_balance/latency/deploy_ttft/qwen2.5-14b_v100.xgb",
+        "tpot": "/users/asdwb/Block/models/route_balance/latency/deploy_tpot/qwen2.5-14b_v100.xgb",
+        "e2e": "/users/asdwb/Block/models/route_balance/latency/deploy_e2e/qwen2.5-14b_v100.xgb"
+      },
+      "qwen2.5-72b_a100": {
+        "ttft": "/users/asdwb/Block/models/route_balance/latency/deploy_ttft/qwen2.5-72b_a100.xgb",
+        "tpot": "/users/asdwb/Block/models/route_balance/latency/deploy_tpot/qwen2.5-72b_a100.xgb",
+        "e2e": "/users/asdwb/Block/models/route_balance/latency/deploy_e2e/qwen2.5-72b_a100.xgb"
+      }
+    }
+  },
+  "tpot_lookup": {
+    "qwen2.5-3b_p100": 0.045,
+    "qwen2.5-3b_a30": 0.025,
+    "qwen2.5-7b_a30": 0.035,
+    "qwen2.5-14b_v100": 0.055,
+    "qwen2.5-72b_a100": 0.065
+  },
+  "filter_enabled": false,
+  "xgboost_ttft": {
+    "model_dir": "/users/asdwb/Block/models/route_balance/latency/deploy_ttft"
+  },
+  "xgboost_tpot": {
+    "model_dir": "/users/asdwb/Block/models/route_balance/latency/deploy_tpot"
+  },
+  "xgboost_e2e": {
+    "model_dir": "/users/asdwb/Block/models/route_balance/latency/deploy_e2e"
+  }
+}

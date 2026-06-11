@@ -20,8 +20,8 @@ PREDICTOR_CONFIG=${PREDICTOR_CONFIG:-""}
 # All strategies to test
 STRATEGIES="random round_robin shortest_queue quality_greedy cost_greedy length_aware route_balance"
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p $RESULT_DIR experiment_output/logs
 
 PASS=0; FAIL=0

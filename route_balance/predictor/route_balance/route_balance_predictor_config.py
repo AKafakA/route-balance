@@ -1,7 +1,7 @@
 """
-Configuration for RouteBalance predictors.
+Configuration for ROUTE_BALANCE predictors.
 
-Unlike RouteBalance's PredictorConfig (which is for simulation-based approaches),
+Unlike Block's PredictorConfig (which is for simulation-based approaches),
 ROUTE_BALANCE configs are minimal and type-based for different predictor implementations.
 """
 from abc import ABC
@@ -12,7 +12,7 @@ import json
 
 @dataclass
 class RouteBalanceBasePredictorConfig(ABC):
-    """Base configuration for all RouteBalance predictors."""
+    """Base configuration for all ROUTE_BALANCE predictors."""
 
     predictor_type: str = field(
         metadata={"help": "Type of predictor: 'dummy' or 'lstm'"}

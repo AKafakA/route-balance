@@ -11,7 +11,7 @@
 
 set -e
 
-SCHEDULER_NODE=${1:-"d7525-10s10337.cluster.example"}
+SCHEDULER_NODE=${1:-"d7525-10s10337.wisc.cloudlab.us"}
 SCHEDULER_IP="128.105.146.28"
 SCHEDULER_PORT=8200
 NUM_REQUESTS=50
@@ -32,8 +32,8 @@ echo "QPS levels: $QPS_LEVELS"
 echo "Requests per run: $NUM_REQUESTS"
 echo ""
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p $RESULT_DIR
 
 for SCHED in $SCHEDULERS; do

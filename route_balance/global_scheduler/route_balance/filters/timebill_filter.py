@@ -1,4 +1,4 @@
-"""TimeBill-style pointwise budget filter ().
+"""TimeBill-style pointwise budget filter (A2.1 / #26).
 
 Paper story (for §L3 filter ablation vs RouteBalanceCDF): a deterministic, point-
 estimate budget filter. Reject an instance if the point estimate of the

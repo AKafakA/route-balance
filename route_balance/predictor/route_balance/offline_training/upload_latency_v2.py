@@ -104,7 +104,7 @@ def main():
     parser = argparse.ArgumentParser(description="Upload clean latency data to HF (v2)")
     parser.add_argument("--train-data", required=True, help="Enriched train JSONL")
     parser.add_argument("--test-data", required=True, help="Enriched test JSONL")
-    parser.add_argument("--repo", default="anon/route_balance_latency_prediction")
+    parser.add_argument("--repo", default="asdwb/route_balance_latency_prediction")
     parser.add_argument("--token", default=None)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--output-dir", default=None,

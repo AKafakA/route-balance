@@ -18,7 +18,7 @@ Usage:
     python -m route_balance.predictor.route_balance.offline_training.upload_latency_to_hf \
         --train-data data/route_balance/latency_data/all/latency_train_tagged.jsonl \
         --test-data data/route_balance/latency_data/all/latency_test_tagged.jsonl \
-        --repo anon/route_balance_latency_prediction \
+        --repo asdwb/route_balance_latency_prediction \
         --token $HF_TOKEN
 
     # Dry run (just print stats)
@@ -183,7 +183,7 @@ def main():
     parser = argparse.ArgumentParser(description="Upload latency data to HF")
     parser.add_argument("--train-data", required=True)
     parser.add_argument("--test-data", required=True)
-    parser.add_argument("--repo", default="anon/route_balance_latency_prediction")
+    parser.add_argument("--repo", default="asdwb/route_balance_latency_prediction")
     parser.add_argument("--token", default=None)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()

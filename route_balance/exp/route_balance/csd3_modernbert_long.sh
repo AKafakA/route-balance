@@ -5,16 +5,16 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:4
 #SBATCH --time=14:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/training_logs/modernbert_long_%j.log
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/training_logs/modernbert_long_%j.log
 
 # 4 ModernBERT regression jobs in parallel on 4 GPUs (main venv)
 # J1: MSE 100ep, J2: Huber 100ep, J3: sMAPE 100ep, J14: Fused MSE 100ep
 # Run with: sbatch route_balance/exp/route_balance/csd3_modernbert_long.sh
 
 set -e
-cd /rds/user/anon/hpc-work/llm/RouteBalance
-export PYTHONPATH=/rds/user/anon/hpc-work/llm/RouteBalance:$PYTHONPATH
-source /rds/user/anon/hpc-work/llm/RouteBalance/.venv/bin/activate
+cd /rds/user/wd312/hpc-work/llm/Block
+export PYTHONPATH=/rds/user/wd312/hpc-work/llm/Block:$PYTHONPATH
+source /rds/user/wd312/hpc-work/llm/Block/.venv/bin/activate
 mkdir -p training_logs models/route_balance/encoder_length models/route_balance/fused
 
 echo "=== ModernBERT Long Training — $(date) ==="

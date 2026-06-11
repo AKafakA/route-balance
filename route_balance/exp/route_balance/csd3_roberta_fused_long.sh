@@ -5,19 +5,19 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/training_logs/roberta_fused_long_%j.log
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/training_logs/roberta_fused_long_%j.log
 
 # Fused RoBERTa long training — deployment models
 # 6 targets, 4 GPUs, 2 rounds of 3 parallel jobs
-# Params matched to RouteBalance's original: lr=1e-5, batch=8, warmup=0.03, polynomial, 100ep
+# Params matched to Block's original: lr=1e-5, batch=8, warmup=0.03, polynomial, 100ep
 # Keeps best + last checkpoint for resume
 #
 # Run with: sbatch route_balance/exp/route_balance/csd3_roberta_fused_long.sh
 
 set -e
-cd /rds/user/anon/hpc-work/llm/RouteBalance
-export PYTHONPATH=/rds/user/anon/hpc-work/llm/RouteBalance:$PYTHONPATH
-source /rds/user/anon/hpc-work/venv_roberta/bin/activate
+cd /rds/user/wd312/hpc-work/llm/Block
+export PYTHONPATH=/rds/user/wd312/hpc-work/llm/Block:$PYTHONPATH
+source /rds/user/wd312/hpc-work/venv_roberta/bin/activate
 mkdir -p training_logs models/route_balance/roberta_fused_long
 
 echo "=== Fused RoBERTa Long Training — $(date) ==="
@@ -28,7 +28,7 @@ TEST="data/route_balance/training_data/test_fixed.jsonl"
 TRAIN_REF="data/route_balance/training_data/train_with_ref.jsonl"
 TEST_REF="data/route_balance/training_data/test_with_ref.jsonl"
 
-# Match RouteBalance params: lr=1e-5, batch=8, warmup=0.03, polynomial, fp16
+# Match Block params: lr=1e-5, batch=8, warmup=0.03, polynomial, fp16
 COMMON="--encoder-name roberta-base --lr 1e-5 --batch-size 8 --max-length 512 --precision fp16 --scheduler polynomial --seed 42 --save-total-limit 2 --epochs 100"
 FUSED="python3 -m route_balance.predictor.route_balance.offline_training.train_fused_bert_predictor"
 OUT="models/route_balance/roberta_fused_long"

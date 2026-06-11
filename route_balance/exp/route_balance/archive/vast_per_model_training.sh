@@ -2,11 +2,11 @@
 # Vast.ai training: per-model ModernBERT + Qwen LoRA (all targets)
 # Run: bash route_balance/exp/route_balance/vast_per_model_training.sh 2>&1 | tee /tmp/vast_training.log
 #
-# Expects: repo at ~/Code/llm/RouteBalance, training data synced, venv ready
+# Expects: repo at ~/Code/llm/Block, training data synced, venv ready
 # RTX 3090 24GB — ModernBERT-base fits easily
 
 set -o pipefail
-cd ~/Code/llm/RouteBalance
+cd ~/Code/llm/Block
 export PYTHONPATH=.
 export HF_HOME=~/.cache/huggingface
 PYTHON=python3  # or .venv/bin/python if venv used

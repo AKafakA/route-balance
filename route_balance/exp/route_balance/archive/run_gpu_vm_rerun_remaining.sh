@@ -1,6 +1,6 @@
 #!/bin/bash
 # Re-run remaining failed experiments (Qwen judge already done)
-cd ~/Code/llm/RouteBalance
+cd ~/Code/llm/Block
 export PYTHONPATH=.
 PYTHON=.venv/bin/python
 TRAIN=data/route_balance/training_data/train_fixed.jsonl
@@ -8,7 +8,7 @@ TEST=data/route_balance/training_data/test_fixed.jsonl
 LATENCY_DIR=data/route_balance/latency_data/tagged/
 
 check_disk() {
-    local avail_gb=$(df -BG /home/anon --output=avail | tail -1 | tr -d ' G')
+    local avail_gb=$(df -BG /home/wd312 --output=avail | tail -1 | tr -d ' G')
     if [ "$avail_gb" -lt 50 ]; then
         echo "[$(date)] DISK LOW: ${avail_gb}GB free. STOPPING."
         exit 1

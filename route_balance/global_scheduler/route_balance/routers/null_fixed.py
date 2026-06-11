@@ -1,8 +1,8 @@
 """Null/fixed router — always returns the same model.
 
 Use-cases:
-- RouteBalance-as-baseline: no model selection (always 72B), dispatch by predicted
-  latency. Matches the operator-documented framing that "RouteBalance is simple —
+- Block-as-baseline: no model selection (always 72B), dispatch by predicted
+  latency. Matches the operator-documented framing that "Block is simple —
   uses predicted latency for dispatching and ignores the model selection
   part".
 - Debugging other components (dispatch, filter) with a trivial router.

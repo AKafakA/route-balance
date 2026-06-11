@@ -10,7 +10,7 @@ an in-domain classifier trained directly on Qwen pair-wise preferences rather
 than the upstream Chatbot Arena MF embedding.
 
 Training pipeline: route_balance_paper/smoke_test_apr_13/scripts/train_best_route_wrapper.py
-. Produces `models/route_balance/best_route_wrapper_qwen/` with:
+(task #62). Produces `models/route_balance/best_route_wrapper_qwen/` with:
     - model.safetensors       DeBERTa-v3-small fine-tuned head
     - tokenizer/              slow tokenizer
     - config.json / training_args.json
@@ -49,7 +49,7 @@ class BestRouteWrapperRouter(RouterBase):
                 f"BEST-Route-wrapper checkpoint not found at {ckpt}. "
                 "Training pipeline lives at "
                 "route_balance_paper/smoke_test_apr_13/scripts/train_best_route_wrapper.py "
-                ". Run on a spare A30 with armoRM + Qwen-3B/7B "
+                "(task #62). Run on a spare A30 with armoRM + Qwen-3B/7B "
                 "responses; ~3-4h wall-clock."
             )
 

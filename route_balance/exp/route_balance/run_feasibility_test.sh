@@ -15,8 +15,8 @@ PREDICTOR_CONFIG="route_balance/config/route_balance/predictor_config_smoketest.
 DEPLOYMENT_CONFIG="route_balance/config/route_balance/model_deployment_smoketest.json"
 HOST_CONFIG="route_balance/config/host_configs.json"
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p $RESULT_DIR
 
 run_benchmark() {

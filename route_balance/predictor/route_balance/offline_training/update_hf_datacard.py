@@ -4,7 +4,7 @@ Update HuggingFace datacard for route_balance_model_estimator dataset.
 
 Usage:
     python3 -m route_balance.predictor.route_balance.offline_training.update_hf_datacard \
-        --token <HF_TOKEN> --repo anon/route_balance_model_estimator
+        --token <HF_TOKEN> --repo asdwb/route_balance_model_estimator
 """
 
 import argparse
@@ -111,7 +111,7 @@ All responses generated using vLLM with `temperature=0.0` (greedy decoding):
 
 ```python
 from datasets import load_dataset
-ds = load_dataset("anon/route_balance_model_estimator")
+ds = load_dataset("asdwb/route_balance_model_estimator")
 
 # Access a training example
 example = ds["train"][0]
@@ -130,7 +130,7 @@ for model_name, data in models.items():
 def main():
     parser = argparse.ArgumentParser(description="Update HF datacard")
     parser.add_argument("--token", required=True, help="HuggingFace token")
-    parser.add_argument("--repo", default="anon/route_balance_model_estimator")
+    parser.add_argument("--repo", default="asdwb/route_balance_model_estimator")
     parser.add_argument("--dry-run", action="store_true", help="Print but don't upload")
     args = parser.parse_args()
 

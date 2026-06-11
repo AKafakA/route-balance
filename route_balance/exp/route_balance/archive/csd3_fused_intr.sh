@@ -16,9 +16,9 @@
 # Run: sbatch route_balance/exp/route_balance/csd3_fused_intr.sh
 
 set -o pipefail
-cd /rds/user/anon/hpc-work/llm/RouteBalance
+cd /rds/user/wd312/hpc-work/llm/Block
 export PYTHONPATH=.
-export HF_HOME=/rds/user/anon/hpc-work/hf_cache
+export HF_HOME=/rds/user/wd312/hpc-work/hf_cache
 PYTHON=.venv/bin/python
 
 TRAIN=data/route_balance/training_data/train_fixed.jsonl

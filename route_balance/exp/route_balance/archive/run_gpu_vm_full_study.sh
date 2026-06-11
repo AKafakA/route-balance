@@ -5,7 +5,7 @@
 #
 # Usage: bash route_balance/exp/route_balance/run_gpu_vm_full_study.sh 2>&1 | tee /tmp/full_study.log
 # Don't set -e: skip failures and continue to next experiment
-cd ~/Code/llm/RouteBalance
+cd ~/Code/llm/Block
 export PYTHONPATH=.
 PYTHON=.venv/bin/python
 LATENCY_DIR=data/route_balance/latency_data/tagged/
@@ -14,7 +14,7 @@ TEST=data/route_balance/training_data/test_fixed.jsonl
 
 # Disk safety: stop if less than 50GB free
 check_disk() {
-    local avail_gb=$(df -BG /home/anon --output=avail | tail -1 | tr -d ' G')
+    local avail_gb=$(df -BG /home/wd312 --output=avail | tail -1 | tr -d ' G')
     if [ "$avail_gb" -lt 50 ]; then
         echo "[$(date)] DISK LOW: ${avail_gb}GB free. STOPPING to avoid filling disk."
         exit 1

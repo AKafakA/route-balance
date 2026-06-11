@@ -1,30 +1,34 @@
-"""Avengers-Pro router (DAI'25 Best Paper, arXiv:2508.12631) — wrapper
-around the upstream ``SimpleClusterRouter``.
+"""Avengers-Pro router (DAI'25 Best Paper, arXiv 2508.12631) — A3.6 / #31
+(refactored April 15, 2026 / task #36 to WRAP upstream SimpleClusterRouter).
 
-We import ``SimpleClusterRouter`` from a checkout of the AvengersPro repo
-(path supplied via the ``ROUTE_BALANCE_AVENGERS_REPO`` env var, default
-``$HOME/AvengersPro``) and delegate routing decisions to it via its
-``route_queries_batch([prompt])`` API.
+Wrapper design
+--------------
+We import `SimpleClusterRouter` from the cloned AvengersPro repo at
+`/home/wd312/Code/llm/AvengersPro` and delegate routing decisions to it
+via its `route_queries_batch([prompt])` API.
 
-The one necessary deviation: upstream's ``__init__`` hard-depends on an
-OpenAI-compatible embedding HTTP service (``EmbeddingCache``). To run
-without a remote embedding API we:
+The one necessary deviation: their `__init__` hard-depends on an
+OpenAI-compatible embedding HTTP service (`EmbeddingCache`). Our A30
+cluster nodes have no API access. We therefore:
 
-    1. Bypass their ``__init__`` (use ``__new__`` + manual attribute setup).
-    2. Inject a local ``sentence-transformers`` embedder shim that exposes
-       the same method upstream calls (``get_embeddings(list[str]) ->
-       list[np.ndarray]``).
-    3. Load the trained artifact (k-means / rankings / normalizer /
+    1. Bypass their __init__ (use `__new__` + manual attribute setup).
+    2. Inject a local sentence-transformers embedder object that exposes
+       the same method they call (`get_embeddings(list[str]) ->
+       list[np.ndarray]`).
+    3. Load the trained artifact (kmeans / rankings / normalizer /
        available_models) from a directory produced by upstream's
-       ``export_cluster_models()`` or our own retraining script.
+       `export_cluster_models()` OR our own retraining script.
 
-Runtime flow: ``choose_model(prompt)`` calls upstream's
-``route_queries_batch([prompt])`` → list of top-K models per query → take
-the first query's first model → map to our runtime pool.
+Runtime flow: `choose_model(prompt)` calls their
+`route_queries_batch([prompt])` → list of top-K models per query → take
+first query's first model → map to our runtime pool.
+
+Training / artifact generation lives in
+`route_balance_paper/smoke_test_apr_13/scripts/retrain_avengers_pro_qwen.py` and
+is run OUT OF BAND on node0.
 """
 import json
 import logging
-import os
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -34,9 +38,13 @@ from .base import RouterBase, RouterDecision, RouterRequest
 
 logger = logging.getLogger(__name__)
 
-_AVENGERS_REPO = os.environ.get(
-    "ROUTE_BALANCE_AVENGERS_REPO",
-    str(Path.home() / "AvengersPro"),
+_AVENGERS_REPO = next(
+    (p for p in (
+        "/users/asdwb/AvengersPro",          # cluster node (asdwb)
+        "/home/wd312/Code/llm/AvengersPro",   # openclaw / dev
+        str(Path.home() / "AvengersPro"),
+    ) if Path(p).exists()),
+    "/home/wd312/Code/llm/AvengersPro",
 )
 
 
@@ -51,13 +59,28 @@ class _LocalEmbedderShim:
 
     def __init__(self, model_name: str):
         from sentence_transformers import SentenceTransformer
-        self._st = SentenceTransformer(model_name)
+        # Pin to CPU. The scheduler is co-located with a GPU-resident LLM
+        # (e.g. 72B TP=4 on the A100 node), so the default CUDA device is
+        # saturated -> SentenceTransformer load raises CUDA OOM. That OOM is
+        # swallowed by _try_load (returns False), which silently degrades the
+        # router to _fallback_choice = max(pool, by size) = the LARGEST model,
+        # i.e. an all-72B flood. MiniLM is tiny and sub-ms/query on CPU, and
+        # the embeddings are numerically identical, so routing is unchanged.
+        self._st = SentenceTransformer(model_name, device="cpu")
         self._model_name = model_name
 
     def get_embeddings(self, queries: List[str], **kwargs):
-        # Upstream stores the result as a list of np.ndarray. Keep shape.
+        # Upstream (older API) stores the result as a list of np.ndarray.
         embs = self._st.encode(queries, normalize_embeddings=False)
         return [embs[i] for i in range(len(queries))]
+
+    def get(self, query: str, **kwargs):
+        # Upstream (current API, simple_cluster_router.py:_get_embedding_batch)
+        # calls embedder.get(single_query) -> 1D embedding. The EmbeddingCache
+        # this shim replaces exposed BOTH .get (single) and batch helpers; we
+        # mirror both so the wrapper survives upstream interface drift.
+        emb = self._st.encode([query], normalize_embeddings=False)
+        return emb[0]
 
 
 class AvengersProRouter(RouterBase):
@@ -129,7 +152,30 @@ class AvengersProRouter(RouterBase):
         cfg_kwargs.setdefault("top_k", 3)
         cfg_kwargs.setdefault("beta", 5.0)
         cfg_kwargs.setdefault("max_router", 1)
-        # Fill remaining with safe defaults where possible.
+        # Fill ALL remaining REQUIRED dataclass fields (no default) with
+        # type-appropriate dummies — routing never reads training-only fields
+        # like data_path / excluded_datasets, but the dataclass __init__ needs them.
+        import dataclasses as _dc
+        for _f in _fields(SimpleClusterConfig):
+            if _f.name in cfg_kwargs:
+                continue
+            _has_def = (_f.default is not _dc.MISSING) or (
+                _f.default_factory is not _dc.MISSING
+            )
+            if _has_def:
+                continue
+            _ann = _f.type
+            cfg_kwargs[_f.name] = (
+                "" if _ann in (str, "str")
+                else 0 if _ann in (int, "int")
+                else 0.0 if _ann in (float, "float")
+                else False if _ann in (bool, "bool")
+                else None
+            )
+        # config.__post_init__ validates data_path EXISTS — point it at an
+        # existing file (never read at route-time) to pass validation.
+        if not cfg_kwargs.get("data_path") or not Path(str(cfg_kwargs["data_path"])).exists():
+            cfg_kwargs["data_path"] = str(cfg_path)
         cfg = SimpleClusterConfig(**cfg_kwargs)
 
         upstream.config = cfg
@@ -141,6 +187,18 @@ class AvengersProRouter(RouterBase):
         except Exception as e:
             logger.warning("Local embedder init failed: %s", e)
             return False
+
+        # Inject tokenizer for upstream _truncate_text (cl100k_base matches
+        # upstream's own fallback at config.py / line 97). Without it the
+        # router logs "no attribute 'tokenizer'" and char-truncates; with
+        # max_tokens=7500 our short prompts are never truncated either way,
+        # but inject it for parity + to silence the error path.
+        try:
+            import tiktoken
+            upstream.tokenizer = tiktoken.get_encoding("cl100k_base")
+        except Exception as e:
+            logger.warning("tiktoken init failed (%s); truncation char-fallback", e)
+            upstream.tokenizer = None
 
         # Load artifacts
         try:
@@ -202,7 +260,11 @@ class AvengersProRouter(RouterBase):
             )
 
         try:
-            results = self._upstream.route_queries_batch([req.prompt])
+            import asyncio
+            loop = asyncio.get_event_loop()
+            results = await loop.run_in_executor(
+                None, self._upstream.route_queries_batch, [req.prompt]
+            )
         except Exception as e:
             return RouterDecision(
                 model_name=self._fallback_choice(model_pool),

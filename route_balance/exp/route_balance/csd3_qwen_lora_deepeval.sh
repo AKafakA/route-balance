@@ -10,12 +10,12 @@
 # Qwen LoRA fused + per-model training on deepeval + ref_score targets
 # Runs sequentially on 1 GPU
 
-cd /rds/user/anon/hpc-work/llm/RouteBalance
+cd /rds/user/wd312/hpc-work/llm/Block
 source .venv/bin/activate
-export PYTHONPATH=/rds/user/anon/hpc-work/llm/RouteBalance:$PYTHONPATH
+export PYTHONPATH=/rds/user/wd312/hpc-work/llm/Block:$PYTHONPATH
 
-DATA=/rds/user/anon/hpc-work/llm/RouteBalance/data/route_balance/train_scored_filtered.jsonl
-OUTBASE=/rds/user/anon/hpc-work/llm/RouteBalance/models/route_balance
+DATA=/rds/user/wd312/hpc-work/llm/Block/data/route_balance/train_scored_filtered.jsonl
+OUTBASE=/rds/user/wd312/hpc-work/llm/Block/models/route_balance
 
 # Fused LoRA: judge
 echo "=== Fused LoRA: judge ==="

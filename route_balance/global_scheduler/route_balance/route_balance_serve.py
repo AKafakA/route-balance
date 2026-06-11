@@ -179,7 +179,7 @@ class BatchQueue:
         batch = []
         deadline = None
 
-        # RouteBalance on first request (no busy-waiting)
+        # Block on first request (no busy-waiting)
         first = await self._queue.get()
         batch.append(first)
         deadline = time.monotonic() + self.batch_timeout_ms / 1000.0
@@ -867,6 +867,18 @@ async def _dispatch_and_resolve(
         # Attach scheduling overhead breakdown
         if overhead:
             response_dict["scheduling_overhead_breakdown"] = overhead
+            # T1-3: client-observed TTFT. The bare "ttft" is backend-only
+            # (clocked from query_backend start, i.e. AFTER route_balance routing/batch
+            # wait), which under-counts what the client actually experiences.
+            # client_ttft = (arrival -> dispatch: route_balance batch+routing wait) +
+            # (dispatch -> first token: backend prefill). Additive field; the
+            # legacy backend "ttft" is left unchanged.
+            _backend_ttft_s = response_dict.get("ttft")
+            if _backend_ttft_s is not None:
+                response_dict["client_ttft"] = (
+                    float(_backend_ttft_s)
+                    + float(overhead.get("total_scheduling_ms", 0.0)) / 1000.0
+                )
 
         # Attach model estimator quality metrics
         if req.model_estimates:
@@ -1461,7 +1473,30 @@ async def _score_and_pick_instance(
     #   score      = w_qual*qual + w_cost*cost + w_lat*lat + w_bal*bal
     eps = 1e-8
 
-    e2es = [p["e2e_latency"] for _, p in candidates]
+    # Arm-4 ablation (reviewer-W): optional STATIC per-tier latency prior replacing the
+    # live/learned e2e prediction in the model score, to test whether the learned latency
+    # signal is load-bearing for cross-tier shaping. ROUTE_BALANCE_STATIC_LAT="3b=12.3,7b=20.6,
+    # 14b=18.4,72b=47.4" (ms/tok nominal TPOT, low-load medians). latency value :=
+    # TPOT_nominal(tier) * predicted_length (length coupling kept; zero telemetry, no
+    # XGBoost). Identical normalization + queue tiebreak; default (unset) path unchanged.
+    _static_tpot = None
+    _sl = os.environ.get("ROUTE_BALANCE_STATIC_LAT")
+    if _sl:
+        _static_tpot = {}
+        for _kv in _sl.split(","):
+            _k, _v = _kv.split("=")
+            _static_tpot[_k.strip().lower()] = float(_v) / 1000.0  # ms/tok -> s/tok
+
+    def _lat_val(_inst, _pred):
+        if _static_tpot is None:
+            return _pred["e2e_latency"]
+        _nm = str(_pred.get("instance_type", getattr(_inst, "_model_name", ""))).lower()
+        for _t in ("72b", "14b", "7b", "3b"):
+            if _t in _nm:
+                return _static_tpot[_t] * _pred["expected_length"]
+        return _pred["e2e_latency"]
+
+    e2es = [_lat_val(inst, p) for inst, p in candidates]
     costs = [p["cost"] for _, p in candidates]
     max_lat = max(e2es) if e2es else 1.0
     max_cost = max(costs) if costs else 1.0
@@ -1507,10 +1542,28 @@ async def _score_and_pick_instance(
     # Per-candidate sub-score detail captured for sampled-debug logging.
     # Keyed by inst_id → dict of all sub-scores + raw inputs.
     score_detail = {}
+    # Optional symmetric quality normalization. Raw quality has a small natural
+    # spread (~0.5-0.6) while cost/lat are min-max'd across candidates to [0,1],
+    # so cost/lat dominate and the cheapest+fastest model floods. quality_norm
+    # puts quality on the same dynamic range as cost/lat. Modes:
+    #   "raw"    (default; unchanged behaviour)
+    #   "minmax" (stretch to [0,1] across the candidate models, per request)
+    #   "scaled" (multiply raw quality by quality_gain, clamp to 1.0)
+    _qnorm = str(slo_defaults.get("quality_norm", "raw")).lower()
+    _qgain = float(slo_defaults.get("quality_gain", 1.0) or 1.0)
+    _quals = [float(p.get("quality", 0.0)) for (_inst, p) in candidates]
+    _qmin = min(_quals) if _quals else 0.0
+    _qmax = max(_quals) if _quals else 1.0
     for (inst, pred), util_i in zip(candidates, util_list):
-        qual_score = float(pred.get("quality", 0.0))                    # raw [0,1]
+        _qraw = float(pred.get("quality", 0.0))                         # raw [0,1]
+        if _qnorm == "minmax":
+            qual_score = (_qraw - _qmin) / (_qmax - _qmin + eps)
+        elif _qnorm == "scaled":
+            qual_score = min(1.0, _qraw * _qgain)
+        else:
+            qual_score = _qraw
         cost_score = 1.0 - (pred["cost"]        / (max_cost + eps))
-        lat_score  = 1.0 - (pred["e2e_latency"] / (max_lat  + eps))
+        lat_score  = 1.0 - (_lat_val(inst, pred) / (max_lat  + eps))
         bal_score  = 1.0 - (util_i              / (max_util + eps))
 
         score = (
@@ -1568,7 +1621,14 @@ async def _score_and_pick_instance(
         (s, q, last_assigned_ts.get(inst._instance_id, 0.0), inst, pred)
         for (s, q, inst, pred) in scored
     ]
-    scored_lru.sort(key=lambda x: (-x[0], x[1], x[2]))
+    # ROUTE_BALANCE_TIEBREAK env: "queue" (default, reactive shortest-queue) or "that"
+    # (predictive T-hat = pred["e2e_latency"], for the decoupled-predictive
+    # ablation arm 3 — same per-model score/mix as w_lat=0, but within-tier
+    # instance choice by predicted latency instead of reactive queue depth).
+    if os.environ.get("ROUTE_BALANCE_TIEBREAK", "queue") == "that":
+        scored_lru.sort(key=lambda x: (-x[0], x[4]["e2e_latency"], x[2]))
+    else:
+        scored_lru.sort(key=lambda x: (-x[0], x[1], x[2]))
     best_score, _best_queue, _best_lru, best_inst, best_pred = scored_lru[0]
     last_assigned_ts[best_inst._instance_id] = time.monotonic()
     scheduling_counters["total_scheduled"] += 1
@@ -1607,6 +1667,12 @@ async def _score_and_pick_instance(
                      "lru_ts": last_assigned_ts.get(iid, 0.0)}
                     for iid in same_model_top
                 ],
+                # DIAG: best candidate per model (shows why losing models lose)
+                "best_per_model": list({
+                    d["model"]: {"id": iid, **d}
+                    for iid, d in sorted(score_detail.items(),
+                                         key=lambda kv: kv[1]["score"])
+                }.values()),
             }
             os.makedirs("experiment_output/logs", exist_ok=True)
             with open("experiment_output/logs/scheduling_debug.jsonl", "a") as _df:
@@ -2638,15 +2704,29 @@ def _load_scheduler_config(config_path: str, all_instances: list):
             if router is not None and hasattr(router, "_model_estimator"):
                 router._model_estimator = model_estimator
 
-        # Build instance_type mapping from instance metadata
+        # Build instance_type mapping from instance metadata.
+        # Hardware-aware: derive gpu_type from host node-type prefix so same-model
+        # instances on different GPUs (3B on A30 vs P100) get the correct latency
+        # tier. Model-name-only matching silently picks the first-listed tier.
+        _HOST_GPU = {"d7525": "a30", "c240g5": "p100", "c4130": "v100", "d8545": "a100"}
         inst_metadata = config_dict.get("instance_metadata", {})
         for inst in all_instances:
+            host = getattr(inst, "_hostname", "") or ""
+            prefix = host.split("-")[0].split(".")[0]
+            gpu = _HOST_GPU.get(prefix, "")
+            matched = None
             for inst_type, meta in inst_metadata.items():
-                if meta.get("model_name") == inst._model_name:
-                    instance_meta[inst._instance_id] = {
-                        **meta, "instance_type": inst_type
-                    }
-                    break
+                if meta.get("model_name") == inst._model_name and (
+                    not gpu or meta.get("gpu_type") == gpu
+                ):
+                    matched = (inst_type, meta); break
+            if matched is None:
+                for inst_type, meta in inst_metadata.items():
+                    if meta.get("model_name") == inst._model_name:
+                        matched = (inst_type, meta); break
+            if matched is not None:
+                inst_type, meta = matched
+                instance_meta[inst._instance_id] = {**meta, "instance_type": inst_type}
 
         logger.info(
             f"Scheduler config loaded: {len(instance_meta)} instances mapped, "
@@ -2758,7 +2838,7 @@ def _log_and_assert_deployed_predictors():
     """
     import os, json, hashlib
     from pathlib import Path
-    base = Path(os.environ.get('ROUTE_BALANCE_MODELS_DIR', '/users/anon/RouteBalance/models/route_balance'))
+    base = Path(os.environ.get('ROUTE_BALANCE_MODELS_DIR', '/users/asdwb/Block/models/route_balance'))
     for label, sub, env_var in [
         ('LENGTH_BUCKET', 'length_bucket/deploy', 'EXPECTED_LENGTH_BUCKET_ENCODER'),
         ('QUALITY_JUDGE', 'quality/judge/deploy', 'EXPECTED_QUALITY_JUDGE_ENCODER'),
@@ -2955,7 +3035,7 @@ async def init_app(
                 from route_balance.predictor.route_balance.estimators.xgboost_predictor import (
                     XGBoostLatencyPredictor,
                 )
-                tpot_dir = "/users/anon/RouteBalance/models/route_balance/latency/deploy_tpot"
+                tpot_dir = "/users/asdwb/Block/models/route_balance/latency/deploy_tpot"
                 if os.path.exists(tpot_dir):
                     _TPOT_BATCH_MODEL = XGBoostLatencyPredictor.load(tpot_dir)
                     print(

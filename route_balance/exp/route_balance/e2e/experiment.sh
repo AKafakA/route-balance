@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Configuration
-TARGET_HOST="anon@d8545-10s10301.cluster.example"
+TARGET_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"
 HOST_CONFIG_PATH="route_balance/config/host_configs.json"
 MODEL_CONFIG_PATH="route_balance/config/route_balance/model_config_template.json"
 DEPLOYMENT_CONFIG="route_balance/config/route_balance/model_deployment.json"
@@ -72,12 +72,12 @@ sleep 2
 # Create log directory on target host
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ${TARGET_HOST} \
-  "mkdir -p RouteBalance/experiment_output/logs"
+  "mkdir -p Block/experiment_output/logs"
 
 # Start ROUTE_BALANCE server in background
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ${TARGET_HOST} \
-  "cd RouteBalance && nohup python -m route_balance.global_scheduler.route_balance.route_balance_serve \
+  "cd Block && nohup python -m route_balance.global_scheduler.route_balance.route_balance_serve \
     --host 0.0.0.0 \
     --port ${ROUTE_BALANCE_PORT} \
     --model_config_path ${DEPLOYMENT_CONFIG} \
@@ -101,7 +101,7 @@ echo "-------------------------------"
 # Update test.sh with correct ROUTE_BALANCE host and run it on target host
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ${TARGET_HOST} \
-  "cd RouteBalance && \
+  "cd Block && \
    sed -i 's/ROUTE_BALANCE_HOST=\"127.0.0.1\"/ROUTE_BALANCE_HOST=\"127.0.0.1\"/' route_balance/exp/route_balance/test.sh && \
    bash route_balance/exp/route_balance/test.sh"
 
@@ -116,8 +116,8 @@ echo "  ✅ ROUTE_BALANCE server running at http://${ROUTE_BALANCE_HOST_IP}:${RO
 echo "  ✅ Benchmark test completed"
 echo ""
 echo "View results:"
-echo "  ssh ${TARGET_HOST} 'cat RouteBalance/experiment_output/route_balance_test_results/route_balance_simple_test.json | jq .'"
+echo "  ssh ${TARGET_HOST} 'cat Block/experiment_output/route_balance_test_results/route_balance_simple_test.json | jq .'"
 echo ""
 echo "Check ROUTE_BALANCE server logs:"
-echo "  ssh ${TARGET_HOST} 'tail -f RouteBalance/experiment_output/logs/route_balance_server.log'"
+echo "  ssh ${TARGET_HOST} 'tail -f Block/experiment_output/logs/route_balance_server.log'"
 echo ""

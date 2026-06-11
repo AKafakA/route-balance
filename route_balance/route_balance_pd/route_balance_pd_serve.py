@@ -1,7 +1,7 @@
 """
 RouteBalance P-D Disaggregated Scheduler.
 
-Isolated module — no imports from route_balance.route_balance_pd.
+Isolated module — no imports from route_balance.global_scheduler.route_balance_pd.
 Reuses predictors and estimators from route_balance.predictor.route_balance via imports.
 
 Architecture:
@@ -12,7 +12,7 @@ Architecture:
   - Proxy: send prefill (max_tokens=1) → wait → send decode (full generation)
 
 Usage:
-    python3 -m block.route_balance_pd.route_balance_pd_serve \
+    python3 -m route_balance.route_balance_pd.route_balance_pd_serve \
         --pd-config route_balance/route_balance_pd/config/pd_config.json \
         --port 8200
 """

@@ -1,9 +1,8 @@
-"""HTTP API server for the RouteBalance latency predictors.
+"""
+API server for ROUTE_BALANCE predictors.
 
-One instance of this server runs per vLLM backend (XGBoost / LSTM /
-roofline / dummy). The RouteBalance scheduler queries each sidecar at
-``/predict`` to obtain TTFT, TPOT, and end-to-end latency estimates for
-the prompts it is trying to assign.
+Separate from Block's predictor API server to avoid coupling with
+Block-specific configs and Vidur request transformations.
 """
 import argparse
 import asyncio
@@ -34,7 +33,7 @@ except ImportError:
 
 TIMEOUT_KEEP_ALIVE = 5  # seconds
 app = FastAPI()
-predictor: Optional[Any] = None  # RouteBalance predictor instance
+predictor: Optional[Any] = None  # ROUTE_BALANCE predictor instance
 start_time = 0
 
 logging.basicConfig(
@@ -111,7 +110,7 @@ async def log_actual(request: Request) -> Response:
         return JSONResponse({"error": "Predictor not initialized"}, status_code=503)
     request_dict = await request.json()
 
-    # Only RouteBalance predictors with data collection have this method
+    # Only ROUTE_BALANCE predictors with data collection have this method
     if hasattr(predictor, 'log_actual_result'):
         await predictor.log_actual_result(
             request_id=request_dict['request_id'],

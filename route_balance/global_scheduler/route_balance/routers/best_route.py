@@ -1,4 +1,4 @@
-"""best-route router — .
+"""best-route router — A3.3 / #28.
 
 Interpretation note (flagged in BASELINE_IMPL_TRACKER.md for user review):
     "best-route" in this project's prior docs (route_balance_paper/codex/codex-route_balance-plan.md,

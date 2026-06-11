@@ -5,18 +5,18 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/training_logs/roberta_test_%j.log
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/training_logs/roberta_test_%j.log
 
 # INTR test: verify RoBERTa training works with transformers==4.50.3
 # Run with: sbatch --qos=INTR route_balance/exp/route_balance/csd3_roberta_intr_test.sh
 
 set -e
-cd /rds/user/anon/hpc-work/llm/RouteBalance
-export PYTHONPATH=/rds/user/anon/hpc-work/llm/RouteBalance:$PYTHONPATH
+cd /rds/user/wd312/hpc-work/llm/Block
+export PYTHONPATH=/rds/user/wd312/hpc-work/llm/Block:$PYTHONPATH
 
 # Use SEPARATE venv for RoBERTa (transformers==4.50.3)
 # Main venv at /rds/.../venv/ is for ModernBERT (transformers 5.x) — DO NOT TOUCH
-source /rds/user/anon/hpc-work/venv_roberta/bin/activate
+source /rds/user/wd312/hpc-work/venv_roberta/bin/activate
 
 echo "=== Environment ==="
 python3 -c "import transformers, torch; print(f'tf={transformers.__version__}, torch={torch.__version__}, CUDA={torch.cuda.is_available()}')"

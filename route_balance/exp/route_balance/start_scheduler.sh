@@ -3,8 +3,8 @@
 # Usage: ./start_scheduler.sh [scheduling_strategy]
 STRATEGY=${1:-route_balance}
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:$PYTHONPATH
 
 pkill -f 'route_balance_serve' 2>/dev/null
 sleep 1

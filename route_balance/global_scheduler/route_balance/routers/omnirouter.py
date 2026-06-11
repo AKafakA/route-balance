@@ -1,4 +1,4 @@
-"""OmniRouter (arXiv 2502.20576) — .
+"""OmniRouter (arXiv 2502.20576) — A3.7 / #32.
 
 Paper mechanism
 ---------------

@@ -18,11 +18,11 @@ PRED_ROOFLINE="route_balance/config/route_balance/predictor_config_smoketest_roo
 PRED_STATIC_TPOT="route_balance/config/route_balance/predictor_config_smoketest_static_tpot.json"
 
 # CloudLab nodes
-NODE0="anon@d7525-10s10317.cluster.example"
-NODE1="anon@d7525-10s10319.cluster.example"
+NODE0="asdwb@d7525-10s10317.wisc.cloudlab.us"
+NODE1="asdwb@d7525-10s10319.wisc.cloudlab.us"
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p $RESULT_DIR experiment_output/logs experiment_output/traces
 
 PASS=0; FAIL=0; SKIP=0

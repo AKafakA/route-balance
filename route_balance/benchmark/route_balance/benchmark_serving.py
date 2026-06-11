@@ -149,6 +149,15 @@ def _get_current_request_rate(
     total_requests: int,
     request_rate: float,
 ) -> float:
+    import os
+    _sq = os.environ.get("ROUTE_BALANCE_SQUARE")
+    if _sq:
+        # square-wave arrivals: ROUTE_BALANCE_SQUARE="lo,hi" -> alternate ~30s phases
+        # (hi*30 requests at hi rps, then lo*30 at lo rps). Non-stationary
+        # load test (P3); env-gated so default behavior is unchanged.
+        lo, hi = (int(x) for x in _sq.split(","))
+        cyc = (hi + lo) * 30
+        return float(hi if (request_index % cyc) < hi * 30 else lo)
     if (
         ramp_up_strategy
         and ramp_up_start_rps is not None
@@ -936,6 +945,7 @@ async def benchmark(
                 "output_len": actual_output_lens[i] if i < len(actual_output_lens) else None,
                 "response": out.generated_text,
                 "ttft": out.ttft,
+                "client_ttft": getattr(out, "client_ttft", 0.0),
                 "itl": out.itl,
                 "e2el": out.latency,
                 "scheduling_overhead": getattr(out, "scheduling_overhead", 0.0),

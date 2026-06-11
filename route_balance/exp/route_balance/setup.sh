@@ -1,6 +1,6 @@
-BLOCK_GITHUB_LINK="https://github.com/anon/RouteBalance"
-VLLM_GITHUB_LINK="https://github.com/anon/vllm.git"
-OLLAMA_GITHUB_LINK="https://github.com/anon/ollama.git"
+BLOCK_GITHUB_LINK="https://github.com/AKafakA/Block"
+VLLM_GITHUB_LINK="https://github.com/AKafakA/vllm.git"
+OLLAMA_GITHUB_LINK="https://github.com/AKafakA/ollama.git"
 
 # general setup for all hosts
 echo "Install CUDA and dependencies on all hosts..."
@@ -44,7 +44,7 @@ echo "Install CUDA and dependencies on all hosts..."
 parallel-ssh -t 0 -h route_balance/config/hosts "sudo apt update && sudo apt full-upgrade -y"
 parallel-ssh -t 0 -h route_balance/config/hosts "sudo apt install -y python3-pip python3-venv ccache"
 parallel-ssh -t 0 -h route_balance/config/hosts "pip install --upgrade pip"
-parallel-ssh -t 0 -h route_balance/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd RouteBalance && git checkout route_balance  && pip install -r requirements.txt"
+parallel-ssh -t 0 -h route_balance/config/hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout route_balance  && pip install -r requirements.txt"
 parallel-ssh -t 0 -h route_balance/config/hosts "pip3 install torch torchvision"
 parallel-ssh -t 0 -h route_balance/config/hosts "pip install dacite"
 parallel-ssh -t 0 -h route_balance/config/hosts "wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-ubuntu2004.pin && sudo mv cuda-ubuntu2004.pin /etc/apt/preferences.d/cuda-repository-pin-600"
@@ -59,7 +59,7 @@ parallel-ssh -t 0 -h route_balance/config/volta_hosts "pip install --upgrade tor
 parallel-ssh -t 0 -h route_balance/config/hosts "pip install --upgrade "ray[cgraph]""
 # Set environment variables BEFORE the interactive guard in .bashrc
 # Uses a separate bash script (setup_env.sh) to avoid quoting issues with parallel-ssh
-parallel-ssh -t 0 -h route_balance/config/hosts "bash ~/RouteBalance/route_balance/exp/route_balance/setup_env.sh"
+parallel-ssh -t 0 -h route_balance/config/hosts "bash ~/Block/route_balance/exp/route_balance/setup_env.sh"
 
 echo "cuda installation completed on all hosts and now tested with nvidia-smi..."
 parallel-ssh -t 0 -h route_balance/config/hosts "sudo nvidia-smi -mig 0"
@@ -69,7 +69,7 @@ parallel-ssh -t 0 -h route_balance/config/hosts  "rm -r ~/cuda-repo-*.deb"
 echo "Starting setup for vllm hosts..."
 parallel-ssh -t 0 -h route_balance/config/ampere_hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && git checkout route_balance_v_11"
 parallel-ssh -t 0 -h route_balance/config/ampere_hosts  "cd vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
-parallel-ssh -t 0 -h route_balance/config/ampere_hosts "git clone ${BLOCK_GITHUB_LINK} && cd RouteBalance && git checkout route_balance  && pip install -r requirements.txt"
+parallel-ssh -t 0 -h route_balance/config/ampere_hosts "git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout route_balance  && pip install -r requirements.txt"
 parallel-ssh -t 0 -h route_balance/config/volta_hosts "git clone ${VLLM_GITHUB_LINK} && cd vllm && git checkout route_balance_v_11"
 parallel-ssh -t 0 -h route_balance/config/volta_hosts  "cd vllm && sudo VLLM_USE_PRECOMPILED=1 pip install --editable ."
 
@@ -99,7 +99,7 @@ parallel-ssh -t 0 -h route_balance/config/pascal_hosts "cd vllm && sudo CUDACXX=
 # fork's declared floor. Keep this pin in sync with the branches' requirements/common.txt.
 parallel-ssh -t 0 -h route_balance/config/hosts "pip install sentence-transformers faiss-cpu"
 # Pin transformers at BOTH user and system level.
-# 2026-04-13: bumped 4.50.3 → 4.56.0 after anon/vllm route_balance_v_11 rebased onto upstream
+# 2026-04-13: bumped 4.50.3 → 4.56.0 after AKafakA/vllm route_balance_v_11 rebased onto upstream
 # requiring transformers>=4.56 (commit 2894a9872 added predicted_decode_tokens to /schedule_trace).
 parallel-ssh -t 0 -h route_balance/config/hosts "pip install transformers==4.56.0"
 parallel-ssh -t 0 -h route_balance/config/hosts "sudo pip install transformers==4.56.0"

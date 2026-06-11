@@ -4,8 +4,8 @@
 HOSTNAME=${1:-$(hostname -f)}
 INSTANCE_TYPE=${2:-unknown}
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:$PYTHONPATH
 
 pkill -f 'route_balance_predictor_api_server' 2>/dev/null
 sleep 1

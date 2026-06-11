@@ -6,14 +6,14 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/logs/route_balance_combined_%j.out
-#SBATCH --error=/rds/user/anon/hpc-work/llm/RouteBalance/logs/route_balance_combined_%j.err
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/logs/route_balance_combined_%j.out
+#SBATCH --error=/rds/user/wd312/hpc-work/llm/Block/logs/route_balance_combined_%j.err
 
 # Combined 1h intr session:
 # 1. Judge 7B (~20 min)
 # 2. RoBERTa experiments with downgraded transformers (~35 min)
 
-cd /rds/user/anon/hpc-work/llm/RouteBalance
+cd /rds/user/wd312/hpc-work/llm/Block
 export PYTHONPATH=.
 PYTHON=.venv/bin/python
 TRAIN=data/route_balance/training_data/train_fixed.jsonl

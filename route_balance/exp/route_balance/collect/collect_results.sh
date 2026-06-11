@@ -17,16 +17,16 @@ while IFS= read -r host; do
     [ -z "$host" ] && continue
     hostname=$(echo $host | sed 's/.*@//' | cut -d. -f1)
     echo "  Collecting monitor from $hostname..."
-    scp -o StrictHostKeyChecking=no "$host:~/RouteBalance/experiment_output/monitor/*.csv" \
+    scp -o StrictHostKeyChecking=no "$host:~/Block/experiment_output/monitor/*.csv" \
       "$OUTPUT_DIR/monitor/" 2>/dev/null || echo "    (no monitor data)"
 done < "$HOSTS_FILE"
 
 # Collect experiment results from coordinator
 echo "  Collecting experiment results..."
 for dir in e2e sensitivity ablation comprehensive_smoketest filter_validation; do
-    if ssh -o StrictHostKeyChecking=no $COORDINATOR "test -d ~/RouteBalance/experiment_output/$dir" 2>/dev/null; then
+    if ssh -o StrictHostKeyChecking=no $COORDINATOR "test -d ~/Block/experiment_output/$dir" 2>/dev/null; then
         mkdir -p $OUTPUT_DIR/$dir
-        scp -r -o StrictHostKeyChecking=no "$COORDINATOR:~/RouteBalance/experiment_output/$dir/*.json" \
+        scp -r -o StrictHostKeyChecking=no "$COORDINATOR:~/Block/experiment_output/$dir/*.json" \
           "$OUTPUT_DIR/$dir/" 2>/dev/null && echo "    $dir: $(ls $OUTPUT_DIR/$dir/*.json 2>/dev/null | wc -l) files" \
           || echo "    $dir: no results"
     fi

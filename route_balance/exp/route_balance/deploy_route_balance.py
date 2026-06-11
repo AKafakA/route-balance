@@ -23,7 +23,7 @@ def parse_host_file(filepath: str) -> Dict[str, List[str]]:
     for line in lines:
         line = line.strip()
         if not line: continue
-        # Matches patterns like: anon@d8545-10s10301...
+        # Matches patterns like: asdwb@d8545-10s10301...
         match = re.search(r'@([a-zA-Z0-9]+)-', line)
         if match:
             node_type = match.group(1)
@@ -33,7 +33,7 @@ def parse_host_file(filepath: str) -> Dict[str, List[str]]:
     return node_pool
 
 
-
+    
 
 
 def run_ssh_cmd(host: str, commands: List[str], description: str) -> bool:
@@ -244,10 +244,10 @@ def get_predictor_deployment_commands(
     header_parts = [
         "echo 'Deploying ROUTE_BALANCE Predictors...'",
         # Anchor to python to avoid killing the remote 'sh -c' that contains this string in its command line
-        "pkill -f '^python.*route_balance\\.predictor\\.route_balance\\.route_balance_predictor_api_server' || echo 'No existing predictors'",
+        "pkill -f '^python.*block\\.predictor\\.route_balance\\.route_balance_predictor_api_server' || echo 'No existing predictors'",
         "sleep 2",
-        "mkdir -p RouteBalance/experiment_output/logs",
-        f"mkdir -p RouteBalance/{data_output_dir}",
+        "mkdir -p Block/experiment_output/logs",
+        f"mkdir -p Block/{data_output_dir}",
     ]
     header_cmd = " && ".join(header_parts)
 
@@ -279,9 +279,9 @@ def get_predictor_deployment_commands(
     # OMP/MKL=1: XGBoost predict is single-threaded fast; default per-CPU
     # forking adds latency on high-core nodes (96-core EPYC etc.).
     group_cmd = (
-        "cd RouteBalance && ( "
+        "cd Block && ( "
         "export PYTHONUNBUFFERED=1; "
-        "export PYTHONPATH=$HOME/RouteBalance:$PYTHONPATH; "
+        "export PYTHONPATH=$HOME/Block:$PYTHONPATH; "
         "export CUDA_VISIBLE_DEVICES=; "
         "export OMP_NUM_THREADS=1; "
         "export MKL_NUM_THREADS=1; "
@@ -333,8 +333,8 @@ def get_monitor_deployment_commands(
         # Kill existing monitor by PID file (pkill -f would kill the SSH session itself)
         "test -f /tmp/monitor_pid && kill $(cat /tmp/monitor_pid) 2>/dev/null ; true",
         "sleep 1",
-        "mkdir -p ~/RouteBalance/experiment_output/monitor ~/RouteBalance/experiment_output/logs",
-        "cd ~/RouteBalance",
+        "mkdir -p ~/Block/experiment_output/monitor ~/Block/experiment_output/logs",
+        "cd ~/Block",
     ]
 
     monitor_args = [
@@ -356,8 +356,8 @@ def get_monitor_deployment_commands(
     # Escape $ for SSH passthrough (run_ssh_cmd passes as double-quoted string)
     cmds = list(header_parts) + [
         f"echo '#!/bin/bash' > {script_path}",
-        f"echo 'cd ~/RouteBalance' >> {script_path}",
-        f"echo 'export PYTHONPATH=~/RouteBalance:\\$PYTHONPATH' >> {script_path}",
+        f"echo 'cd ~/Block' >> {script_path}",
+        f"echo 'export PYTHONPATH=~/Block:\\$PYTHONPATH' >> {script_path}",
         f"echo 'nohup python3 -u route_balance/exp/route_balance/monitor.py {monitor_args_str}"
         f" > experiment_output/logs/monitor_{node_id}.log 2>&1 &' >> {script_path}",
         f'echo "echo \\$! > /tmp/monitor_pid" >> {script_path}',
@@ -391,7 +391,7 @@ def get_scheduler_deployment_commands(
         "echo 'Deploying RouteBalance Scheduler...'",
         "(pkill -f '^python.*route_balance_serve' || true)",
         "sleep 2",
-        "cd ~/RouteBalance",
+        "cd ~/Block",
         "mkdir -p experiment_output/logs",
     ]
 
@@ -416,9 +416,9 @@ def get_scheduler_deployment_commands(
     script_path = "/tmp/start_route_balance_scheduler.sh"
     cmds = list(header_parts) + [
         f"echo '#!/bin/bash' > {script_path}",
-        f"echo 'cd ~/RouteBalance' >> {script_path}",
+        f"echo 'cd ~/Block' >> {script_path}",
         f"echo 'export CUDA_VISIBLE_DEVICES=' >> {script_path}",
-        f"echo 'export PYTHONPATH=~/RouteBalance:~/vllm:\\$PYTHONPATH' >> {script_path}",
+        f"echo 'export PYTHONPATH=~/Block:~/vllm:\\$PYTHONPATH' >> {script_path}",
         f"echo '{sched_cmd} > experiment_output/logs/route_balance_scheduler.log 2>&1 &' >> {script_path}",
         f'echo "echo \\$! > /tmp/scheduler_pid" >> {script_path}',
         f"bash {script_path}",

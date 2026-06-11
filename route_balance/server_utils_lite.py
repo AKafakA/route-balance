@@ -1,8 +1,8 @@
 """
 Lightweight server utilities for ROUTE_BALANCE sidecar deployment.
 
-Only includes serve_http — no vidur/RouteBalance dependencies.
-Used on worker nodes that don't have the full RouteBalance package.
+Only includes serve_http — no vidur/Block dependencies.
+Used on worker nodes that don't have the full Block package.
 """
 import asyncio
 import logging

@@ -5,16 +5,16 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/training_logs/roberta_deberta_long_%j.log
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/training_logs/roberta_deberta_long_%j.log
 
 # 4 RoBERTa/DeBERTa regression jobs in parallel on 4 GPUs (roberta venv)
 # J4: RoBERTa MSE 100ep, J5: RoBERTa log 20ep, J12: DeBERTa MSE 100ep, J13: DeBERTa log 20ep
 # Run with: sbatch route_balance/exp/route_balance/csd3_roberta_deberta_long.sh
 
 set -e
-cd /rds/user/anon/hpc-work/llm/RouteBalance
-export PYTHONPATH=/rds/user/anon/hpc-work/llm/RouteBalance:$PYTHONPATH
-source /rds/user/anon/hpc-work/venv_roberta/bin/activate
+cd /rds/user/wd312/hpc-work/llm/Block
+export PYTHONPATH=/rds/user/wd312/hpc-work/llm/Block:$PYTHONPATH
+source /rds/user/wd312/hpc-work/venv_roberta/bin/activate
 mkdir -p training_logs models/route_balance/encoder_length
 
 echo "=== RoBERTa + DeBERTa Long Training — $(date) ==="

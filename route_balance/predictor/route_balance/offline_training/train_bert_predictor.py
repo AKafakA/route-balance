@@ -20,7 +20,7 @@ Usage:
     python -m route_balance.predictor.route_balance.offline_training.train_bert_predictor \
         --regression-model-name microsoft/deberta-v3-base ...
 
-    # RoBERTa (RouteBalance paper baseline)
+    # RoBERTa (Block paper baseline)
     python -m route_balance.predictor.route_balance.offline_training.train_bert_predictor \
         --regression-model-name roberta-base ...
 """

@@ -37,7 +37,7 @@ def build_host_to_model_map(config_path: str) -> dict:
         # e.g. "Qwen/Qwen2.5-72B" -> "qwen2.5-72b"
         model_short = hf_name.split("/")[-1].lower()
         for host_entry in model_cfg.get("node_hosts", []):
-            # "anon@d8545-10s10301.cluster.example" -> "d8545-10s10301"
+            # "asdwb@d8545-10s10301.wisc.cloudlab.us" -> "d8545-10s10301"
             hostname = host_entry.split("@")[-1].split(".")[0]
             node_prefix = hostname.split("-")[0]
             gpu_type = NODE_GPU_MAP.get(node_prefix, "unknown")
@@ -72,7 +72,7 @@ def main():
             total += 1
 
             inst_id = record.get("instance_id", "")
-            # Extract hostname: "d8545-10s10301.cluster.example_port8300" -> "d8545-10s10301"
+            # Extract hostname: "d8545-10s10301.wisc.cloudlab.us_port8300" -> "d8545-10s10301"
             hostname = inst_id.split(".")[0] if inst_id else ""
 
             instance_type = host_map.get(hostname)

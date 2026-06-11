@@ -10,8 +10,8 @@ MODEL_DEPLOY=${MODEL_DEPLOY:-"route_balance/config/route_balance/model_deploymen
 SCHEDULER_CONFIG=${SCHEDULER_CONFIG:-"route_balance/config/route_balance/scheduler_config_smoketest.json"}
 export MODEL_DEPLOY SCHEDULER_CONFIG
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p experiment_output/logs
 
 PASS=0; FAIL=0; SKIP=0

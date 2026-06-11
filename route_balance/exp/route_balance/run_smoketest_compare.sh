@@ -34,8 +34,8 @@ echo "QPS levels: $QPS_LEVELS"
 echo "Requests per run: $NUM_REQUESTS"
 echo ""
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p $RESULT_DIR experiment_output/logs
 
 # 1. Test baseline schedulers (no model estimator)

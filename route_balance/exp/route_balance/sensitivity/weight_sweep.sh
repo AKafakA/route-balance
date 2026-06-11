@@ -11,8 +11,8 @@ QPS_LEVELS=${3:-"5 10 15"}
 DATASET="data/route_balance/best-route-v3-test-500.jsonl"
 PORT=8200
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p $RESULT_DIR
 
 run() {

@@ -17,12 +17,12 @@
 #
 # Examples:
 #   # Collect data from all 4 models using v3 custom dataset (default)
-#   ./run_broadcasting_remote.sh anon@d8545-10s10301.cluster.example \
+#   ./run_broadcasting_remote.sh asdwb@d8545-10s10301.wisc.cloudlab.us \
 #       "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B" \
 #       custom 500 inf test1 data/route_balance/best-route-v3-test-500.jsonl
 #
 #   # Full 20k run with rate limiting
-#   ./run_broadcasting_remote.sh anon@d8545-10s10301.cluster.example \
+#   ./run_broadcasting_remote.sh asdwb@d8545-10s10301.wisc.cloudlab.us \
 #       "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B" \
 #       custom 20000 4.0 full_20k data/route_balance/best-route-v3.jsonl
 #
@@ -36,7 +36,7 @@ set -e  # Exit on error
 # Configuration
 # =============================================================================
 
-TARGET_HOST=${1:-"anon@d8545-10s10301.cluster.example"}
+TARGET_HOST=${1:-"asdwb@d8545-10s10301.wisc.cloudlab.us"}
 BROADCAST_MODELS=${2:-"Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B"}
 DATASET_NAME=${3:-"custom"}
 NUM_PROMPTS=${4:-500}
@@ -45,7 +45,7 @@ OUTPUT_SUFFIX=${6:-"broadcast_data"}
 CUSTOM_DATASET_PATH=${7:-"data/route_balance/best-route-v3-test-500.jsonl"}
 
 # Remote paths
-REMOTE_WORK_DIR="RouteBalance"
+REMOTE_WORK_DIR="Block"
 
 # Generation parameters (forwarded to test_broadcasting.sh via env vars)
 FREQUENCY_PENALTY=${FREQUENCY_PENALTY:-1.2}
@@ -91,12 +91,12 @@ echo ""
 echo "Step 1: Verifying Remote Environment"
 echo "-------------------------------------"
 
-# Check if RouteBalance directory exists
+# Check if Block directory exists
 if ! ssh ${SSH_OPTS} ${TARGET_HOST} "[ -d ${REMOTE_WORK_DIR} ]"; then
-    echo "❌ RouteBalance directory not found on remote host: ${REMOTE_WORK_DIR}"
+    echo "❌ Block directory not found on remote host: ${REMOTE_WORK_DIR}"
     exit 1
 fi
-echo "✅ RouteBalance directory found on remote host"
+echo "✅ Block directory found on remote host"
 
 # Check if model deployment config exists
 if ! ssh ${SSH_OPTS} ${TARGET_HOST} "[ -f ${REMOTE_WORK_DIR}/route_balance/config/route_balance/model_deployment.json ]"; then

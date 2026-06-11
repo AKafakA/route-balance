@@ -10,7 +10,7 @@
 set -e  # Exit on error
 
 # Configuration
-TARGET_HOST="anon@d8545-10s10301.cluster.example"  # Host to run ROUTE_BALANCE server
+TARGET_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"  # Host to run ROUTE_BALANCE server
 MODEL_CONFIG="route_balance/config/route_balance/model_config_template.json"
 HOST_CONFIG="route_balance/config/host_configs.json"
 HOSTS_FILE="route_balance/config/hosts"
@@ -72,7 +72,7 @@ sleep 2
 # Start ROUTE_BALANCE server in background
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ${TARGET_HOST} \
-  "cd route-balance && nohup python -m route_balance.global_scheduler.route_balance.route_balance_serve \
+  "cd Block && nohup python -m route_balance.global_scheduler.route_balance.route_balance_serve \
     --model_config_path ${DEPLOYMENT_CONFIG} \
     --host_config ${HOST_CONFIG} \
     --scheduling ${SCHEDULING_STRATEGY} \
@@ -109,7 +109,7 @@ fi
 ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
   ${TARGET_HOST} \
   "export PYTHONPATH=${PYTHONPATH} && \
-   cd route-balance && \
+   cd Block && \
    python route_balance/benchmark/route_balance/benchmark_serving.py \
      --backend route_balance \
      --host 127.0.0.1 \
@@ -125,7 +125,7 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
 if [ $? -ne 0 ]; then
     echo "❌ Benchmark failed!"
     echo "Check ROUTE_BALANCE server logs for errors:"
-    echo "  ssh ${TARGET_HOST} 'tail -f RouteBalance/experiment_output/logs/route_balance_server.log'"
+    echo "  ssh ${TARGET_HOST} 'tail -f Block/experiment_output/logs/route_balance_server.log'"
     exit 1
 fi
 
@@ -145,7 +145,7 @@ echo "  - View latest results: ls -lht ${OUTPUT_DIR}"
 echo ""
 echo "Useful Commands:"
 echo "  1. Check ROUTE_BALANCE server logs:"
-echo "     ssh ${TARGET_HOST} 'tail -f RouteBalance/experiment_output/logs/route_balance_server.log'"
+echo "     ssh ${TARGET_HOST} 'tail -f Block/experiment_output/logs/route_balance_server.log'"
 echo ""
 echo "  2. Run additional benchmark tests:"
 echo "     python route_balance/benchmark/route_balance/benchmark_serving.py \\"

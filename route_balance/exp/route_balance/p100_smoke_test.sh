@@ -16,8 +16,8 @@ PORT=8200
 DATASET="data/route_balance/best-route-v3-test-500.jsonl"
 RESULT_BASE="experiment_output/p100_smoke"
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p $RESULT_BASE/logs
 
 echo "============================================================"

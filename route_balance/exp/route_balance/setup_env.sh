@@ -4,9 +4,9 @@
 # This replaces the fragile inline Python approach with a simple bash heredoc.
 #
 # Usage:
-#   parallel-ssh -t 0 -h route_balance/config/hosts "bash ~/RouteBalance/route_balance/exp/route_balance/setup_env.sh"
+#   parallel-ssh -t 0 -h route_balance/config/hosts "bash ~/Block/route_balance/exp/route_balance/setup_env.sh"
 #   OR
-#   parallel-ssh -t 0 -h route_balance/config/p100_smoke/hosts "bash ~/RouteBalance/route_balance/exp/route_balance/setup_env.sh"
+#   parallel-ssh -t 0 -h route_balance/config/p100_smoke/hosts "bash ~/Block/route_balance/exp/route_balance/setup_env.sh"
 
 MARKER="# === Environment (sourced for ALL shells) ==="
 
@@ -24,8 +24,8 @@ export CUDA_HOME=/usr/local/cuda\\
 export PATH=\"\${PATH}:\${CUDA_HOME}/bin:/usr/local/cuda-12.8/bin\"\\
 export LD_LIBRARY_PATH=\"\${LD_LIBRARY_PATH}:\${CUDA_HOME}/lib64:/usr/local/cuda-12.8/lib64:\${CUDA_HOME}/targets/x86_64-linux/lib:/usr/lib/x86_64-linux-gnu\"\\
 for dir in \${HOME}/.local/lib/python3.10/site-packages/nvidia/*/lib /usr/local/lib/python3.10/dist-packages/nvidia/*/lib \${HOME}/.local/lib/python3.10/site-packages/cusparselt/lib; do [ -d \"\${dir}\" ] \\&\\& export LD_LIBRARY_PATH=\"\${dir}:\${LD_LIBRARY_PATH}\"; done\\
-export PYTHONPATH=\"\${HOME}/vllm:\${HOME}/RouteBalance:\${PYTHONPATH}\"\\
-export HF_TOKEN=${HF_TOKEN:?Set HF_TOKEN env var}\\
+export PYTHONPATH=\"\${HOME}/vllm:\${HOME}/Block:\${PYTHONPATH}\"\\
+export HF_TOKEN=${HF_TOKEN}\\
 # === End environment block ===" ~/.bashrc
     echo "Env block inserted before interactive guard"
 else
@@ -36,8 +36,8 @@ export CUDA_HOME=/usr/local/cuda
 export PATH="${PATH}:${CUDA_HOME}/bin:/usr/local/cuda-12.8/bin"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${CUDA_HOME}/lib64:/usr/local/cuda-12.8/lib64:${CUDA_HOME}/targets/x86_64-linux/lib:/usr/lib/x86_64-linux-gnu"
 for dir in ${HOME}/.local/lib/python3.10/site-packages/nvidia/*/lib /usr/local/lib/python3.10/dist-packages/nvidia/*/lib ${HOME}/.local/lib/python3.10/site-packages/cusparselt/lib; do [ -d "${dir}" ] && export LD_LIBRARY_PATH="${dir}:${LD_LIBRARY_PATH}"; done
-export PYTHONPATH="${HOME}/vllm:${HOME}/RouteBalance:${PYTHONPATH}"
-export HF_TOKEN=${HF_TOKEN:?Set HF_TOKEN env var}
+export PYTHONPATH="${HOME}/vllm:${HOME}/Block:${PYTHONPATH}"
+export HF_TOKEN=${HF_TOKEN}
 # === End environment block ===
 ENVEOF
     echo "Env block appended to .bashrc"

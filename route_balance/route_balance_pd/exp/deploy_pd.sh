@@ -10,12 +10,12 @@
 #   bash route_balance/route_balance_pd/exp/deploy_pd.sh
 #
 # Override defaults via env vars:
-#   PREFILL_HOST=anon@node0 DECODE_HOST=anon@node1 bash route_balance/route_balance_pd/exp/deploy_pd.sh
+#   PREFILL_HOST=asdwb@node0 DECODE_HOST=asdwb@node1 bash route_balance/route_balance_pd/exp/deploy_pd.sh
 set -euo pipefail
 
 # --- Config (override via env) ---
-PREFILL_HOST=${PREFILL_HOST:-"anon@d7525-10s10317.cluster.example"}
-DECODE_HOST=${DECODE_HOST:-"anon@d7525-10s10319.cluster.example"}
+PREFILL_HOST=${PREFILL_HOST:-"asdwb@d7525-10s10317.wisc.cloudlab.us"}
+DECODE_HOST=${DECODE_HOST:-"asdwb@d7525-10s10319.wisc.cloudlab.us"}
 PREFILL_IP=${PREFILL_IP:-"10.10.1.1"}
 DECODE_IP=${DECODE_IP:-"10.10.1.2"}
 PREFILL_PORT=${PREFILL_PORT:-7100}
@@ -146,8 +146,8 @@ fi
 echo ""
 echo "--- Step 6: Start P-D scheduler on $PREFILL_HOST ---"
 ssh $SSH_OPTS "$PREFILL_HOST" "
-    cd ~/RouteBalance &&
-    export PYTHONPATH=~/RouteBalance:~/vllm:\$PYTHONPATH &&
+    cd ~/Block &&
+    export PYTHONPATH=~/Block:~/vllm:\$PYTHONPATH &&
     nohup python3 -u -m route_balance.route_balance_pd.route_balance_pd_serve \
         --pd-config $PD_CONFIG \
         --port $SCHEDULER_PORT \

@@ -2,7 +2,7 @@
 # GPU VM Early Study — run all training jobs
 # Usage: bash route_balance/exp/route_balance/run_gpu_vm_early_study.sh 2>&1 | tee /tmp/early_study.log
 set -e
-cd ~/Code/llm/RouteBalance
+cd ~/Code/llm/Block
 export PYTHONPATH=.
 PYTHON=.venv/bin/python
 LATENCY_DIR=data/route_balance/latency_data/tagged/

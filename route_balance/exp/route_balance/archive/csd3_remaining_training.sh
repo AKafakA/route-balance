@@ -5,13 +5,13 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --time=12:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/logs/route_balance_training_%j.out
-#SBATCH --error=/rds/user/anon/hpc-work/llm/RouteBalance/logs/route_balance_training_%j.err
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/logs/route_balance_training_%j.out
+#SBATCH --error=/rds/user/wd312/hpc-work/llm/Block/logs/route_balance_training_%j.err
 
 # Remaining training tasks for RouteBalance predictor models
 # Submit: sbatch route_balance/exp/route_balance/csd3_remaining_training.sh
 
-cd /rds/user/anon/hpc-work/llm/RouteBalance
+cd /rds/user/wd312/hpc-work/llm/Block
 export PYTHONPATH=.
 PYTHON=.venv/bin/python
 TRAIN=data/route_balance/training_data/train_fixed.jsonl

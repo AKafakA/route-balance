@@ -1,12 +1,12 @@
 #!/bin/bash
 # Full overnight evaluation pipeline for RouteBalance
 # Chains: LoRA multi-target → LSTM v2 → comprehensive evaluation
-# Run from RouteBalance repo root with venv activated
+# Run from Block repo root with venv activated
 set -e
 
-cd ~/Code/llm/RouteBalance
+cd ~/Code/llm/Block
 source .venv/bin/activate
-export PYTHONPATH=~/Code/llm/RouteBalance:$PYTHONPATH
+export PYTHONPATH=~/Code/llm/Block:$PYTHONPATH
 
 RESULTS_DIR="eval_results/$(date +%Y%m%d)"
 mkdir -p "$RESULTS_DIR"

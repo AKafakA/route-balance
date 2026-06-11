@@ -5,16 +5,16 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:2
 #SBATCH --time=01:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/training_logs/fused_bucket_intr_%j.log
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/training_logs/fused_bucket_intr_%j.log
 
 # Short fused bucket jobs: RoBERTa + DeBERTa (2 GPUs in parallel)
 # J6: Fused RoBERTa bucket 5ep, J11: Fused DeBERTa bucket 5ep
 # Run with: sbatch --qos=INTR route_balance/exp/route_balance/csd3_fused_bucket_intr.sh
 
 set -e
-cd /rds/user/anon/hpc-work/llm/RouteBalance
-export PYTHONPATH=/rds/user/anon/hpc-work/llm/RouteBalance:$PYTHONPATH
-source /rds/user/anon/hpc-work/venv_roberta/bin/activate
+cd /rds/user/wd312/hpc-work/llm/Block
+export PYTHONPATH=/rds/user/wd312/hpc-work/llm/Block:$PYTHONPATH
+source /rds/user/wd312/hpc-work/venv_roberta/bin/activate
 mkdir -p training_logs models/route_balance/fused
 
 echo "=== Fused Bucket INTR — $(date) ==="

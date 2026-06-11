@@ -44,6 +44,7 @@ class RequestFuncOutput:
     host: str = ""  # Host IP address of the instance
     broadcast_results: list[dict] = field(default_factory=list)  # Broadcasting: responses from all queried models
     scheduling_overhead_breakdown: dict = field(default_factory=dict)  # ROUTE_BALANCE batch scheduling breakdown
+    client_ttft: float = 0.0  # T1-3: client-observed TTFT (arrival -> first token: route_balance wait + backend prefill)
     predicted_quality: float = 0.0  # Predicted quality score for selected model
     predicted_length: float = 0.0  # Predicted output length
     predicted_best_model: str = ""  # Model with highest predicted quality (KNN-based)
@@ -127,6 +128,7 @@ async def async_request_route_balance_openai_completions(
                     output.output_tokens = response_map.get("output_tokens", 0)
                     output.generated_text = response_map.get("generated_text", "")
                     output.ttft = response_map.get("ttft", 0.0)  # Backend's time to first token
+                    output.client_ttft = response_map.get("client_ttft", 0.0)  # T1-3: client-observed TTFT
                     output.itl = response_map.get("itl", [])     # Backend's inter-token latencies
                     output.model = response_map.get("model", "")
                     output.instance_id = response_map.get("instance_id", "")

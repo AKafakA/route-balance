@@ -3,7 +3,7 @@
 # Compares MSE vs log-transform vs bucket on learning curves
 #
 # Usage: bash route_balance/exp/route_balance/run_gpu_vm_long_training.sh 2>&1 | tee /tmp/long_training.log
-cd ~/Code/llm/RouteBalance
+cd ~/Code/llm/Block
 export PYTHONPATH=.
 PYTHON=.venv/bin/python
 TRAIN=data/route_balance/training_data/train_fixed.jsonl
@@ -13,7 +13,7 @@ EPOCHS=100
 PATIENCE=10
 
 check_disk() {
-    local avail_gb=$(df -BG /home/anon --output=avail | tail -1 | tr -d ' G')
+    local avail_gb=$(df -BG /home/wd312 --output=avail | tail -1 | tr -d ' G')
     if [ "$avail_gb" -lt 50 ]; then
         echo "[$(date)] DISK LOW: ${avail_gb}GB free. STOPPING."
         exit 1

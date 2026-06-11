@@ -14,21 +14,21 @@
 #   bash route_balance/exp/route_balance/run_reference_judging.sh [smoke|test|train|all]
 #
 # Prerequisites:
-#   - vLLM venv at /local/scratch/tmp/anon/judge_venv
-#   - Data at /local/scratch/tmp/anon/data/{test,train}_with_reftext.jsonl
-#   - HF cache at /local/scratch/tmp/anon/hf_cache
+#   - vLLM venv at /local/scratch/tmp/wd312/judge_venv
+#   - Data at /local/scratch/tmp/wd312/data/{test,train}_with_reftext.jsonl
+#   - HF cache at /local/scratch/tmp/wd312/hf_cache
 
 set -e
 
 MODE=${1:-smoke}
-VENV=/local/scratch/tmp/anon/judge_venv
-DATA_DIR=/local/scratch/tmp/anon/data
-LOG_DIR=/local/scratch/tmp/anon/logs
-BLOCK_DIR=~/Code/llm/RouteBalance
+VENV=/local/scratch/tmp/wd312/judge_venv
+DATA_DIR=/local/scratch/tmp/wd312/data
+LOG_DIR=/local/scratch/tmp/wd312/logs
+BLOCK_DIR=~/Code/llm/Block
 
 export PYTHONPATH=$BLOCK_DIR:$PYTHONPATH
-export HF_HOME=/local/scratch/tmp/anon/hf_cache
-export HF_TOKEN=${HF_TOKEN:?Set HF_TOKEN env var}
+export HF_HOME=/local/scratch/tmp/wd312/hf_cache
+export HF_TOKEN=${HF_TOKEN}
 source $VENV/bin/activate
 
 mkdir -p $LOG_DIR $DATA_DIR/scored

@@ -2,7 +2,7 @@
 
 Registered routers:
     route_balance_native    — L1 #R1, existing behavior (argmax multi-objective)
-    null_fixed     — L1 #R8, always same model; RouteBalance-as-baseline
+    null_fixed     — L1 #R8, always same model; Block-as-baseline
     random         — trivial baseline
     dual_pool      — L1 #R2, arXiv 2604.08075 (EMA bytes/token)         [stub]
     best_route     — L1 #R3, HF artifact                                [stub]

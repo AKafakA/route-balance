@@ -2,7 +2,7 @@
 # Sweep generation parameter configs for broadcasting (6 configs)
 # Skips cases where both rep_penalty AND freq_penalty are enabled
 
-REMOTE_HOST="anon@d8545-10s10301.cluster.example"
+REMOTE_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"
 MODELS="Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B"
 NUM_PROMPTS=500
 RATE="inf"
@@ -27,7 +27,7 @@ for i in "${!CONFIGS[@]}"; do
     SUFFIX="sweep_t${TEMP}_r${REP}_f${FREQ}"
 
     # Skip if result already exists
-    EXISTING=$(ssh ${REMOTE_HOST} "ls RouteBalance/experiment_output/route_balance_broadcast_training_data/broadcast_custom_500prompts_${SUFFIX}_*.json 2>/dev/null | wc -l")
+    EXISTING=$(ssh ${REMOTE_HOST} "ls Block/experiment_output/route_balance_broadcast_training_data/broadcast_custom_500prompts_${SUFFIX}_*.json 2>/dev/null | wc -l")
     if [ "${EXISTING}" -gt 0 ]; then
         echo ""
         echo "=== Config $((i+1))/${#CONFIGS[@]}: temp=${TEMP} rep=${REP} freq=${FREQ} — SKIPPING (already exists) ==="

@@ -3,15 +3,15 @@
 # Run on login node (no GPU needed): bash route_balance/exp/route_balance/csd3_setup_roberta_venv.sh
 #
 # Creates a SEPARATE venv from the main one to avoid breaking ModernBERT.
-# Main venv: /rds/user/anon/hpc-work/venv/        (transformers 5.x, for ModernBERT)
-# RoBERTa:   /rds/user/anon/hpc-work/venv_roberta/ (transformers 4.50.3)
+# Main venv: /rds/user/wd312/hpc-work/venv/        (transformers 5.x, for ModernBERT)
+# RoBERTa:   /rds/user/wd312/hpc-work/venv_roberta/ (transformers 4.50.3)
 #
 # Both share the same /rds filesystem, visible to SLURM compute nodes.
 
 set -e
 
-VENV_DIR="/rds/user/anon/hpc-work/venv_roberta"
-WORK_DIR="/rds/user/anon/hpc-work/llm/RouteBalance"
+VENV_DIR="/rds/user/wd312/hpc-work/venv_roberta"
+WORK_DIR="/rds/user/wd312/hpc-work/llm/Block"
 
 echo "=== Creating RoBERTa venv at $VENV_DIR ==="
 
@@ -72,4 +72,4 @@ echo ""
 echo "=== Setup complete ==="
 echo "Venv: $VENV_DIR"
 echo "Use in SLURM: source $VENV_DIR/bin/activate"
-echo "Main venv (ModernBERT) untouched at: /rds/user/anon/hpc-work/venv/"
+echo "Main venv (ModernBERT) untouched at: /rds/user/wd312/hpc-work/venv/"

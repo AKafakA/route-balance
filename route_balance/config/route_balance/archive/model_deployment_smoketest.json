@@ -1,0 +1,26 @@
+{
+  "Qwen-2.5-7B": {
+    "hf_model_name": "Qwen/Qwen2.5-7B",
+    "precision": "fp16",
+    "backend": "vllm",
+    "node_hosts": [
+      "asdwb@d7525-10s10317.wisc.cloudlab.us"
+    ],
+    "vllm_params": {
+      "max-model-len": 8192,
+      "gpu-memory-utilization": 0.9
+    }
+  },
+  "Qwen-2.5-3B": {
+    "hf_model_name": "Qwen/Qwen2.5-3B",
+    "precision": "fp16",
+    "backend": "vllm",
+    "node_hosts": [
+      "asdwb@d7525-10s10319.wisc.cloudlab.us"
+    ],
+    "vllm_params": {
+      "max-model-len": 8192,
+      "gpu-memory-utilization": 0.9
+    }
+  }
+}

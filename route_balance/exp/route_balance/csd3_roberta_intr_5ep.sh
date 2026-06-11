@@ -6,16 +6,16 @@
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
 #SBATCH --qos=INTR
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/logs/roberta_5ep_%j.log
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/logs/roberta_5ep_%j.log
 
 # RoBERTa fused 5-epoch training for ALL deployment targets
 # INTR job — 1 hour, sequential targets on 1 GPU
 
-cd /rds/user/anon/hpc-work/llm/RouteBalance
+cd /rds/user/wd312/hpc-work/llm/Block
 # Use separate RoBERTa venv (transformers==4.50.3) — NOT main .venv (transformers==5.3.0)
 # Main .venv is for ModernBERT which requires transformers 5.x
 # RoBERTa/DeBERTa require transformers 4.x
-source /rds/user/anon/hpc-work/venv_roberta/bin/activate
+source /rds/user/wd312/hpc-work/venv_roberta/bin/activate
 
 TRAIN_DATA=data/route_balance/training_data_with_ref/train_fixed.jsonl
 TEST_DATA=data/route_balance/training_data_with_ref/test_fixed.jsonl

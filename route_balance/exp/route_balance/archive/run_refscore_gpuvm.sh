@@ -1,5 +1,5 @@
 #!/bin/bash
-cd ~/Code/llm/RouteBalance
+cd ~/Code/llm/Block
 source .venv/bin/activate
 export CUDA_VISIBLE_DEVICES=3
 

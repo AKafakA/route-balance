@@ -10,8 +10,8 @@ PORT=8200
 DATASET="data/route_balance/best-route-v3-test-500.jsonl"
 MODEL_DEPLOY=${MODEL_DEPLOY:-"route_balance/config/route_balance/model_deployment.json"}
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p $RESULT_DIR experiment_output/logs
 
 run() { local N=$1; shift; python3 route_balance/benchmark/route_balance/benchmark_serving.py --backend route_balance --host 127.0.0.1 --port $PORT --dataset-name custom --dataset-path $DATASET --num-prompts $NUM_REQ --trust-remote-code --save-result --save-detailed --result-dir $RESULT_DIR --result-filename "${N}.json" "$@" 2>&1 | tail -1; }

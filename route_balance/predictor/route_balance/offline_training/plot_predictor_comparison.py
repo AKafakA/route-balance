@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate paper-ready comparison figures for RouteBalance predictors.
+Generate paper-ready comparison figures for ROUTE_BALANCE predictors.
 
 Reads evaluation results from JSON and produces comparison plots.
 
@@ -163,7 +163,7 @@ def plot_inference_overhead(results: List[dict], output_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate comparison plots for RouteBalance predictors"
+        description="Generate comparison plots for ROUTE_BALANCE predictors"
     )
     parser.add_argument(
         "--results-dir",

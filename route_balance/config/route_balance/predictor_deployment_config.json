@@ -1,11 +1,11 @@
 {
   "predictor_start_port": 8100,
-  "num_predictors_per_instance": 4,
+  "num_predictors_per_instance": 1,
   "predictor_type": "xgboost_3model",
   "predictor_config_path": "route_balance/config/route_balance/predictor_3model.json",
   "schedule_trace_timeout": 5,
   "enable_data_collection": false,
   "data_collection_sample_rate": 1.0,
-  "data_output_dir": "/users/anon/RouteBalance/training_data/route_balance",
+  "data_output_dir": "/users/asdwb/Block/training_data/route_balance",
   "save_batch_size": 20
 }

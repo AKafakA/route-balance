@@ -4,16 +4,16 @@
 # Designed for overnight runs (6-8 hours).
 #
 # Usage: bash route_balance/exp/route_balance/sweep_latency_benchmark.sh
-# Run from ~/RouteBalance on the coordinator node (d8545-10s10301).
+# Run from ~/Block on the coordinator node (d8545-10s10301).
 set -e
 
-export PYTHONPATH="$HOME/RouteBalance:$PYTHONPATH"
-cd "$HOME/RouteBalance"
+export PYTHONPATH="$HOME/Block:$PYTHONPATH"
+cd "$HOME/Block"
 
 COORDINATOR="127.0.0.1:8200"
-TRAIN_DATA="$HOME/RouteBalance/data/route_balance/training_data/route_balance_v3_all_training_train.jsonl"
-DATA_DIR="$HOME/RouteBalance/data/route_balance/latency_data"
-HOSTS_FILE="$HOME/RouteBalance/route_balance/config/hosts"
+TRAIN_DATA="$HOME/Block/data/route_balance/training_data/route_balance_v3_all_training_train.jsonl"
+DATA_DIR="$HOME/Block/data/route_balance/latency_data"
+HOSTS_FILE="$HOME/Block/route_balance/config/hosts"
 
 # Cluster-level QPS (18 instances total)
 QPS_LEVELS="9 12 15 18 21 24 27 30 33 36"
@@ -55,7 +55,7 @@ for sweep in $(seq 1 $NUM_SWEEPS); do
 
         # Clean instance-side data from previous QPS level
         while IFS= read -r host; do
-            ssh -o ConnectTimeout=5 "$host" "rm -f ~/route-balance/training_data/route_balance/*.jsonl" 2>/dev/null &
+            ssh -o ConnectTimeout=5 "$host" "rm -f ~/Block/training_data/route_balance/*.jsonl" 2>/dev/null &
         done < "$HOSTS_FILE"
         wait
 
@@ -81,7 +81,7 @@ for sweep in $(seq 1 $NUM_SWEEPS); do
         # Collect sidecar training data from all instances
         mkdir -p "$DATA_DIR/sweep${sweep}_qps${qps}"
         while IFS= read -r host; do
-            scp -o ConnectTimeout=5 "${host}:~/route-balance/training_data/route_balance/*.jsonl" \
+            scp -o ConnectTimeout=5 "${host}:~/Block/training_data/route_balance/*.jsonl" \
                 "$DATA_DIR/sweep${sweep}_qps${qps}/" 2>/dev/null || true
         done < "$HOSTS_FILE"
 

@@ -1,4 +1,4 @@
-"""Dual-Pool router (arXiv 2604.08075) — .
+"""Dual-Pool router (arXiv 2604.08075) — A3.2 / #27.
 
 Paper sketch
 ------------

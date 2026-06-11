@@ -5,15 +5,15 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:2
 #SBATCH --time=01:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/training_logs/lora_permodel_intr_%j.log
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/training_logs/lora_permodel_intr_%j.log
 
 # INTR test: per-model LoRA — 2 jobs on 2 GPUs (judge × 3B, judge × 7B)
 # Run with: sbatch --qos=INTR route_balance/exp/route_balance/csd3_lora_permodel_intr.sh
 
 set -e
-cd /rds/user/anon/hpc-work/llm/RouteBalance
-export PYTHONPATH=/rds/user/anon/hpc-work/llm/RouteBalance:$PYTHONPATH
-source /rds/user/anon/hpc-work/llm/RouteBalance/.venv/bin/activate
+cd /rds/user/wd312/hpc-work/llm/Block
+export PYTHONPATH=/rds/user/wd312/hpc-work/llm/Block:$PYTHONPATH
+source /rds/user/wd312/hpc-work/llm/Block/.venv/bin/activate
 mkdir -p training_logs models/route_balance/lora_per_model
 
 echo "=== Per-Model LoRA INTR Test — $(date) ==="

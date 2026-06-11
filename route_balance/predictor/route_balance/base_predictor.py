@@ -1,17 +1,17 @@
 """
-Base predictor class for RouteBalance predictors.
+Base predictor class for ROUTE_BALANCE predictors.
 
-Separate from RouteBalance's Predictor to use ROUTE_BALANCE-specific PredictRequest.
+Separate from Block's Predictor to use ROUTE_BALANCE-specific PredictRequest.
 """
 from abc import ABC, abstractmethod
 from typing import Dict
 from route_balance.predictor.route_balance.data_structures import PredictRequest
 
 
-class ROUTE_BALANCE_BasePredictor(ABC):
-    """Base class for RouteBalance predictors.
+class RouteBalanceBasePredictor(ABC):
+    """Base class for ROUTE_BALANCE predictors.
 
-    Uses PredictRequest instead of Vidur Request to stay independent from RouteBalance/Vidur.
+    Uses PredictRequest instead of Vidur Request to stay independent from Block/Vidur.
     """
 
     def __init__(self, config, port: int) -> None:

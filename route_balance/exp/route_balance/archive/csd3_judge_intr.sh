@@ -6,11 +6,11 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --time=01:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/logs/route_balance_judge_%j.out
-#SBATCH --error=/rds/user/anon/hpc-work/llm/RouteBalance/logs/route_balance_judge_%j.err
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/logs/route_balance_judge_%j.out
+#SBATCH --error=/rds/user/wd312/hpc-work/llm/Block/logs/route_balance_judge_%j.err
 
 # Quick judge_class retries via intr QoS (1h max)
-cd /rds/user/anon/hpc-work/llm/RouteBalance
+cd /rds/user/wd312/hpc-work/llm/Block
 export PYTHONPATH=.
 PYTHON=.venv/bin/python
 TRAIN=data/route_balance/training_data/train_fixed.jsonl

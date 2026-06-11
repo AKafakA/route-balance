@@ -255,7 +255,7 @@ python -m route_balance.predictor.route_balance.offline_training.prepare_benchma
           "ttft": 0.0503,
           "server_latency": 1.6928,
           "instance_id": "Qwen-2.5-72B_0",
-          "host": "d8545-10s10305.cluster.example"
+          "host": "d8545-10s10305.wisc.cloudlab.us"
         },
         "Qwen/Qwen2.5-32B": {
           "output_length": 245,
@@ -265,7 +265,7 @@ python -m route_balance.predictor.route_balance.offline_training.prepare_benchma
           "ttft": 0.0421,
           "server_latency": 1.4521,
           "instance_id": "Qwen-2.5-32B_0",
-          "host": "d8545-10s10301.cluster.example"
+          "host": "d8545-10s10301.wisc.cloudlab.us"
         }
       }
     }

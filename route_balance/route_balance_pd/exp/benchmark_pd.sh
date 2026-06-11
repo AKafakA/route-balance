@@ -10,7 +10,7 @@
 #   bash route_balance/route_balance_pd/exp/benchmark_pd.sh experiment_output/pd 50 "1 3 5"
 #
 # Override via env vars:
-#   SCHEDULER_HOST=anon@node0 NUM_REQ=100 bash route_balance/route_balance_pd/exp/benchmark_pd.sh
+#   SCHEDULER_HOST=asdwb@node0 NUM_REQ=100 bash route_balance/route_balance_pd/exp/benchmark_pd.sh
 set -euo pipefail
 
 RESULT_DIR=${1:-"experiment_output/pd_benchmark"}
@@ -19,7 +19,7 @@ QPS_LEVELS=${3:-"1 3 5"}
 DATASET=${DATASET:-"data/route_balance/best-route-v3-test-500.jsonl"}
 
 # Where the P-D scheduler is running (SSH host for running benchmark)
-SCHEDULER_HOST=${SCHEDULER_HOST:-"anon@d7525-10s10317.cluster.example"}
+SCHEDULER_HOST=${SCHEDULER_HOST:-"asdwb@d7525-10s10317.wisc.cloudlab.us"}
 SCHEDULER_PORT=${SCHEDULER_PORT:-8200}
 
 SSH_OPTS="-o StrictHostKeyChecking=no -o ConnectTimeout=10"
@@ -52,8 +52,8 @@ for QPS in $QPS_LEVELS; do
     echo "  [$NAME] $NUM_REQ requests at QPS=$QPS..."
 
     if ssh $SSH_OPTS "$SCHEDULER_HOST" "
-        cd ~/RouteBalance &&
-        export PYTHONPATH=~/RouteBalance:~/vllm:\$PYTHONPATH &&
+        cd ~/Block &&
+        export PYTHONPATH=~/Block:~/vllm:\$PYTHONPATH &&
         mkdir -p $RESULT_DIR &&
         python3 route_balance/benchmark/route_balance/benchmark_serving.py \
             --backend route_balance \

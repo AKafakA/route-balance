@@ -5,7 +5,7 @@
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:4
 #SBATCH --time=12:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/training_logs/lora_permodel_full_%j.log
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/training_logs/lora_permodel_full_%j.log
 
 # Per-model LoRA: 4 targets × 4 models = 16 runs
 # Batch 1: 4 GPUs × (judge×3B, judge×7B, judge×14B, judge×72B) — not feasible on 4 GPUs
@@ -17,9 +17,9 @@
 # Run with: sbatch route_balance/exp/route_balance/csd3_lora_permodel_full.sh
 
 set -e
-cd /rds/user/anon/hpc-work/llm/RouteBalance
-export PYTHONPATH=/rds/user/anon/hpc-work/llm/RouteBalance:$PYTHONPATH
-source /rds/user/anon/hpc-work/llm/RouteBalance/.venv/bin/activate
+cd /rds/user/wd312/hpc-work/llm/Block
+export PYTHONPATH=/rds/user/wd312/hpc-work/llm/Block:$PYTHONPATH
+source /rds/user/wd312/hpc-work/llm/Block/.venv/bin/activate
 mkdir -p training_logs models/route_balance/lora_per_model
 
 echo "=== Per-Model LoRA Full Training — $(date) ==="

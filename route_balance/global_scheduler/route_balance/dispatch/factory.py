@@ -1,14 +1,12 @@
 """Dispatcher factory — create a DispatchBase from config.
 
-Registered dispatchers (selectable via /v1/config dispatch.type):
-    round_robin           Rotate across candidates (per-model counter).
-    random                Uniform random over candidates.
-    shortest_queue        min(num_running + num_waiting).
-    num_waiting           Tie-break by num_waiting only.
-    route_balance_native  Multi-objective score (latency + balance).
-    route_balance_score   Convex-combination scorer (alias for back-compat).
-    llumnix_minus         Llumnix dispatch (Sun et al., OSDI'24).
-    predicted_latency           Power-of-two-choices with predicted latency.
+Registered dispatchers:
+    round_robin       — rotate across candidates (per-model counter)
+    random            — uniform over candidates
+    shortest_queue    — min(num_running + num_waiting)
+    route_balance_native       — multi-objective latency + balance
+    llumnix_minus     — L2 #D2  (STUB, A1.1 task #24)
+    block_style       — L2 #D3  (STUB, A1.2 task #25)
 """
 from typing import Any, Dict
 
@@ -33,7 +31,7 @@ def create_dispatcher(
         {"type": "shortest_queue"}
         {"type": "route_balance_native"}
         {"type": "llumnix_minus"}                # once A1.1 lands
-        {"type": "predicted_latency", "po2": false}
+        {"type": "block_style", "po2": false}    # once A1.2 lands
     """
     dtype = dispatch_config.get("type", "route_balance_native")
 
@@ -48,16 +46,17 @@ def create_dispatcher(
     if dtype == "route_balance_score":
         return RouteBalanceScoreDispatch(scoring_weights=scoring_weights)
     if dtype == "route_balance_native":
+        # Deprecated alias
         return RouteBalanceNativeDispatch(scoring_weights=scoring_weights)
 
     if dtype == "llumnix_minus":
-        from .llumnix_minus import LlumnixMinusDispatch
+        from .llumnix_minus import LlumnixMinusDispatch  # A1.1
         return LlumnixMinusDispatch(**dispatch_config.get("kwargs", {}))
-    if dtype == "predicted_latency":
-        from .predicted_latency import PredictedLatencyDispatch
+    if dtype == "block_style":
+        from .block_style import BlockStyleDispatch  # A1.2
         kwargs = dict(dispatch_config.get("kwargs", {}))
         kwargs.setdefault("po2", dispatch_config.get("po2", False))
-        return PredictedLatencyDispatch(
+        return BlockStyleDispatch(
             latency_predictor=latency_predictor,
             **kwargs,
         )

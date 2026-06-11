@@ -1,6 +1,6 @@
 #!/bin/bash
 # Retry ModernBERT judge_class runs (OOM on first attempt)
-cd ~/Code/llm/RouteBalance
+cd ~/Code/llm/Block
 export PYTHONPATH=.
 PYTHON=.venv/bin/python
 TRAIN=data/route_balance/training_data/train_fixed.jsonl

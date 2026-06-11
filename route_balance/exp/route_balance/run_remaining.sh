@@ -1,8 +1,8 @@
 #!/bin/bash
 # Run remaining experiments (Parts A remainder + B-F)
 set -e
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 RESULT_DIR=experiment_output/comprehensive_results
 PORT=8200
 mkdir -p $RESULT_DIR

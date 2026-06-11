@@ -1,4 +1,4 @@
-"""RouteLLM router adapter (ICML'24, arXiv 2406.18665) — .
+"""RouteLLM router adapter (ICML'24, arXiv 2406.18665) — A3.4 / #29.
 
 Wraps the upstream RouteLLM library as a pluggable RouterBase. Upstream's
 API is:
@@ -58,10 +58,9 @@ class RouteLLMRouter(RouterBase):
                 runtime pool.
             tiers: Optional list of {"threshold": float, "model": str} tiers
                 for 3+ tier pools. Ignored when strong/weak are set.
-            routellm_src: Path to a local RouteLLM clone (added to
-                ``sys.path`` when the routellm package is not otherwise
-                importable). Falls back to ``ROUTE_BALANCE_ROUTELLM_SRC``
-                env var or ``$HOME/RouteLLM``.
+            routellm_src: Path to a local RouteLLM clone (adds to sys.path
+                if routellm package is not already importable). Default
+                looks for `/home/wd312/Code/llm/RouteLLM`.
         """
         self._type = router_type
         self._ckpt = checkpoint_path
@@ -70,19 +69,12 @@ class RouteLLMRouter(RouterBase):
         self._weak = weak_model
         self._tiers = list(tiers) if tiers else None
 
-        # Ensure routellm is importable. If the package is not installed,
-        # fall back to a local clone path supplied via argument, env var,
-        # or `$HOME/RouteLLM`.
+        # Ensure routellm is importable — clone is at ~/Code/llm/RouteLLM.
         try:
             import routellm  # noqa: F401
         except ImportError:
-            import os
             import sys
-            src = (
-                routellm_src
-                or os.environ.get("ROUTE_BALANCE_ROUTELLM_SRC")
-                or str(Path.home() / "RouteLLM")
-            )
+            src = routellm_src or "/home/wd312/Code/llm/RouteLLM"
             if Path(src).exists() and src not in sys.path:
                 sys.path.insert(0, src)
 

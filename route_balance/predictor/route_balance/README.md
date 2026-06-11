@@ -2,14 +2,14 @@
 
 ## Overview
 
-This directory contains the ROUTE_BALANCE (Co-optimizing Super Heterogeneous LLM Serving) predictor implementation. Unlike RouteBalance's simulation-based predictor (which uses Vidur), RouteBalance predictors use learned sequence models for forward-compatible, adaptive performance prediction.
+This directory contains the ROUTE_BALANCE (Co-optimizing Super Heterogeneous LLM Serving) predictor implementation. Unlike Block's simulation-based predictor (which uses Vidur), ROUTE_BALANCE predictors use learned sequence models for forward-compatible, adaptive performance prediction.
 
 ## Implementation Status
 
 ### Phase 1: Data Collection (COMPLETED)
 - **Dummy ROUTE_BALANCE Predictor**: Collects training data while using simple heuristics
 - **Training Data Collector**: Automatic logging of prediction contexts and actual metrics
-- **Predictor API Server**: Independent from RouteBalance's predictor infrastructure
+- **Predictor API Server**: Independent from Block's predictor infrastructure
 
 ### Phase 2: Offline Training (TODO)
 - LSTM sequence-to-value regression model
@@ -50,7 +50,7 @@ route_balance/predictor/route_balance/
 ├── dummy_route_balance_predictor.py         # Dummy predictor with data collection
 ├── schedule_trace_client.py        # Client for vLLM /schedule_trace API
 ├── training_data_collector.py      # Automatic training data logging
-├── route_balance_predictor_api_server.py    # Predictor API server (independent from RouteBalance)
+├── route_balance_predictor_api_server.py    # Predictor API server (independent from Block)
 └── __init__.py
 
 route_balance/config/route_balance/
@@ -64,8 +64,8 @@ route_balance/global_scheduler/route_balance/route_balance_instance/
 
 ## Key Design Decisions
 
-### 1. Independent from RouteBalance/Vidur
-- RouteBalance predictors use `PredictRequest` dataclass (not Vidur `Request`)
+### 1. Independent from Block/Vidur
+- ROUTE_BALANCE predictors use `PredictRequest` dataclass (not Vidur `Request`)
 - Separate API server (`route_balance_predictor_api_server.py` vs `api_server.py`)
 - No dependency on Vidur simulation
 
@@ -260,9 +260,9 @@ Health check endpoint.
 3. `num_computed_tokens` (int)
 4. `num_predicted_output_tokens` (int)
 
-## Differences from RouteBalance Predictor
+## Differences from Block Predictor
 
-| Aspect | RouteBalance Predictor | ROUTE_BALANCE Predictor |
+| Aspect | Block Predictor | ROUTE_BALANCE Predictor |
 |--------|----------------|----------------|
 | **Prediction Method** | Vidur simulation | Learned sequence model (future) |
 | **Interface** | Vidur `Request` | ROUTE_BALANCE `PredictRequest` |
@@ -320,4 +320,4 @@ Health check endpoint.
 
 - **ROUTE_BALANCE Paper**: Co-optimizing Super Heterogeneous LLM Serving
 - **vLLM /schedule_trace PR**: [Link to PR when merged]
-- **RouteBalance Project**: `route_balance/predictor/` for comparison
+- **Block Project**: `route_balance/predictor/` for comparison

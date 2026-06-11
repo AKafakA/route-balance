@@ -213,6 +213,13 @@ class XGBoostLatencyPredictor:
             model_file = model_path / f"{instance_type}.xgb"
             model = xgb.Booster()
             model.load_model(str(model_file))
+            # CPU-pin the predictor. On a GPU node (the scheduler is co-located
+            # with vLLM serving), XGBoost >=2.x probes/initializes the visible
+            # CUDA device on every inplace_predict, making a 5x25 predict ~600x
+            # slower (0.17ms -> ~930ms). The deployment MUST also launch the
+            # scheduler with CUDA_VISIBLE_DEVICES="" (the scheduler is CPU-only);
+            # device+nthread here are belt-and-suspenders for that env contract.
+            model.set_param({"device": "cpu", "nthread": 1})
             predictor.models[instance_type] = model
 
         logger.info(f"XGBoost predictor loaded: {len(predictor.models)} models")

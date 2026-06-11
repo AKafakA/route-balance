@@ -29,10 +29,22 @@ class BestRoute4WayRouter(RouterBase):
         label_to_model: Optional[Dict[str, str]] = None,
         max_length: int = 512,
         device: Optional[str] = None,
+        batch_scoring: bool = False,
+        batch_window_ms: float = 10.0,
+        batch_max: int = 64,
     ):
         self._threshold = float(confidence_threshold)
         self._fallback = fallback_model
         self._max_length = int(max_length)
+        # Micro-batched scoring (reviewer experiment): concurrent choose_model
+        # calls are collected for batch_window_ms (or batch_max) and scored in
+        # ONE padded DeBERTa forward inside a thread executor, so the CPU
+        # forward neither serializes per request nor blocks the event loop.
+        self._batch_scoring = bool(batch_scoring)
+        self._batch_window_s = float(batch_window_ms) / 1000.0
+        self._batch_max = int(batch_max)
+        self._pending: list = []  # list[(prompt, asyncio.Future)]
+        self._drain_task = None
 
         ckpt = Path(checkpoint_path)
         if not ckpt.exists() or not (ckpt / "config.json").exists():
@@ -70,7 +82,82 @@ class BestRoute4WayRouter(RouterBase):
         )
         self._torch = torch
 
+    def _score_batch_sync(self, prompts):
+        enc = self._tok(
+            prompts,
+            max_length=self._max_length,
+            truncation=True,
+            padding=True,
+            return_tensors="pt",
+        ).to(self._device)
+        with self._torch.no_grad():
+            logits = self._model(**enc).logits
+            probs = self._torch.softmax(logits, dim=-1)
+            top = self._torch.argmax(probs, dim=-1)
+        return [(int(top[i].item()), float(probs[i, int(top[i].item())].item()))
+                for i in range(len(prompts))]
+
+    async def _drain_loop(self):
+        import asyncio
+        while True:
+            await asyncio.sleep(self._batch_window_s)
+            if not self._pending:
+                continue
+            batch, self._pending = self._pending[: self._batch_max], self._pending[self._batch_max:]
+            prompts = [p for p, _ in batch]
+            loop = asyncio.get_event_loop()
+            try:
+                results = await loop.run_in_executor(None, self._score_batch_sync, prompts)
+                for (_, fut), r in zip(batch, results):
+                    if not fut.done():
+                        fut.set_result(r)
+            except Exception as e:
+                for _, fut in batch:
+                    if not fut.done():
+                        fut.set_exception(e)
+
+    async def _score_one(self, prompt):
+        import asyncio
+        if not self._batch_scoring:
+            loop = asyncio.get_event_loop()
+            return (await loop.run_in_executor(None, self._score_batch_sync, [prompt]))[0]
+        if self._drain_task is None:
+            self._drain_task = asyncio.get_event_loop().create_task(self._drain_loop())
+        fut = asyncio.get_event_loop().create_future()
+        self._pending.append((prompt, fut))
+        return await fut
+
     async def choose_model(
+        self,
+        req: RouterRequest,
+        model_pool: List[str],
+    ) -> RouterDecision:
+        if not model_pool:
+            raise ValueError("model_pool is empty")
+
+        top_idx, top_prob = await self._score_one(req.prompt)
+        chosen = self._label_to_model.get(top_idx)
+        if chosen is None or chosen not in model_pool:
+            chosen = self._fallback or model_pool[0]
+            return RouterDecision(
+                model_name=chosen,
+                score=top_prob,
+                reason=f"best_route_4way:pool_miss:label={top_idx}:fallback",
+            )
+        if self._threshold > 0 and top_prob < self._threshold:
+            chosen = self._fallback or model_pool[0]
+            return RouterDecision(
+                model_name=chosen,
+                score=top_prob,
+                reason=f"best_route_4way:low_conf:p={top_prob:.3f}<{self._threshold}",
+            )
+        return RouterDecision(
+            model_name=chosen,
+            score=top_prob,
+            reason=f"best_route_4way:argmax_label={top_idx}:p={top_prob:.3f}",
+        )
+
+    async def _legacy_choose_model(
         self,
         req: RouterRequest,
         model_pool: List[str],

@@ -1,4 +1,4 @@
-"""vLLM Semantic Router adapter ().
+"""vLLM Semantic Router adapter (A3.5 / #30).
 
 Design
 ------

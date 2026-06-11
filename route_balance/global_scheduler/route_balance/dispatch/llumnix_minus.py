@@ -1,6 +1,6 @@
 """Llumnix-- dispatch — scheduling-only Llumnix (no KV migration).
 
-Signal (per RouteBalance paper §6.7, socc_llumnix_comparison.tex L32;
+Signal (per Block paper §6.7, socc_llumnix_comparison.tex L32;
 original: Sun et al., "Llumnix", OSDI 2024):
 
     load = -(kv_free_blocks / max(num_running + num_waiting, 1))
@@ -13,7 +13,7 @@ Where kv_free_blocks comes from /instance_stats — the same field RouteBalance'
 own scheduler consumes. If not reported by an instance, falls back to
 (1 - kv_cache_utilization) * max_num_seqs as a proxy.
 
-Task: A1.1 . Ports the metric from
+Task: A1.1 (#24). Ports the metric from
 route_balance/global_scheduler/api_server.py:187-209 into RouteBalance's dispatcher plugin.
 """
 from typing import Any, Dict, List, Optional

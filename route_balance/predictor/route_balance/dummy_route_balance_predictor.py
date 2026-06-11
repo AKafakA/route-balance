@@ -9,7 +9,7 @@ import logging
 import time
 from typing import Dict, Optional
 
-from route_balance.predictor.route_balance.base_predictor import ROUTE_BALANCE_BasePredictor
+from route_balance.predictor.route_balance.base_predictor import RouteBalanceBasePredictor
 from route_balance.predictor.route_balance.route_balance_predictor_config import DummyPredictorConfig
 from route_balance.predictor.route_balance.data_structures import PredictRequest, ScheduleState
 from route_balance.predictor.route_balance.schedule_trace_client import ScheduleTraceClient
@@ -104,7 +104,7 @@ class EMATracker:
         state.kv_evictions_per_s = self.kv_evictions_per_s
 
 
-class DummyRouteBalancePredictor(ROUTE_BALANCE_BasePredictor):
+class DummyRouteBalancePredictor(RouteBalanceBasePredictor):
     """Dummy predictor that collects training data while using simple heuristics.
 
     Uses ROUTE_BALANCE-specific PredictRequest interface (not Vidur Request).

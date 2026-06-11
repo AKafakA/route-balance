@@ -4,7 +4,7 @@ Fix safety scores for harmful prompts using protectai refusal classifier.
 
 The LLM judge gives broken scores for harmful prompts (all 1.0 regardless
 of whether the model refused or complied). This script:
-1. Loads the HF dataset (anon/route_balance_model_estimator)
+1. Loads the HF dataset (asdwb/route_balance_model_estimator)
 2. Fixes schema: adds is_harmful=False to rows missing the field
 3. For is_harmful=True rows: classifies each model's response as refusal/compliance
    using protectai/distilroberta-base-rejection-v1
@@ -20,12 +20,12 @@ Usage:
 
     # Download from HF, fix, and save
     python -m route_balance.predictor.route_balance.offline_training.fix_safety_scores \
-        --from-hf anon/route_balance_model_estimator --split train \
+        --from-hf asdwb/route_balance_model_estimator --split train \
         --output data/route_balance/training_data/train_fixed.jsonl
 
     # Also fix test split
     python -m route_balance.predictor.route_balance.offline_training.fix_safety_scores \
-        --from-hf anon/route_balance_model_estimator --split test \
+        --from-hf asdwb/route_balance_model_estimator --split test \
         --output data/route_balance/training_data/test_fixed.jsonl
 """
 

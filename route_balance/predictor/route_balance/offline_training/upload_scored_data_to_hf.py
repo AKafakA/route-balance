@@ -11,7 +11,7 @@ Usage:
     python -m route_balance.predictor.route_balance.offline_training.upload_scored_data_to_hf \
         --train data/final/train.jsonl \
         --test data/final/test.jsonl \
-        --repo anon/route_balance_model_estimator \
+        --repo asdwb/route_balance_model_estimator \
         --token $HF_TOKEN
 """
 
@@ -28,7 +28,7 @@ def main():
     parser = argparse.ArgumentParser(description="Upload scored data to HF")
     parser.add_argument("--train", required=True)
     parser.add_argument("--test", required=True)
-    parser.add_argument("--repo", default="anon/route_balance_model_estimator")
+    parser.add_argument("--repo", default="asdwb/route_balance_model_estimator")
     parser.add_argument("--token", required=True)
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()

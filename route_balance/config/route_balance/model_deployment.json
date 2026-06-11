@@ -4,9 +4,9 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "anon@c4130-110133.cluster.example",
-      "anon@c4130-110233.cluster.example",
-      "anon@c4130-110433.cluster.example"
+      "asdwb@c4130-110133.wisc.cloudlab.us",
+      "asdwb@c4130-110233.wisc.cloudlab.us",
+      "asdwb@c4130-110433.wisc.cloudlab.us"
     ],
     "vllm_params": {
       "max-model-len": 8192,
@@ -14,13 +14,6 @@
       "use_hf_cache": true,
       "tensor-parallel-size": 4,
       "port": 7000
-    },
-    "pricing": {
-      "input_per_1m": 0.15,
-      "output_per_1m": 0.15,
-      "currency": "USD",
-      "provider": "Novita AI",
-      "source": "https://novita.ai/models/llm"
     }
   },
   "Qwen-2.5-3B": {
@@ -28,21 +21,14 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "anon@d7525-10s10317.cluster.example",
-      "anon@d7525-10s10329.cluster.example",
-      "anon@d7525-10s10333.cluster.example"
+      "asdwb@d7525-10s10309.wisc.cloudlab.us",
+      "asdwb@d7525-10s10325.wisc.cloudlab.us",
+      "asdwb@d7525-10s10339.wisc.cloudlab.us"
     ],
     "vllm_params": {
       "max-model-len": 8192,
       "gpu-memory-utilization": 0.9,
       "port": 7000
-    },
-    "pricing": {
-      "input_per_1m": 0.06,
-      "output_per_1m": 0.06,
-      "currency": "USD",
-      "provider": "Together AI",
-      "source": "https://www.together.ai/pricing"
     }
   },
   "Qwen-2.5-72B": {
@@ -50,8 +36,8 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "anon@d8545-10s10301.cluster.example",
-      "anon@d8545-10s10305.cluster.example"
+      "asdwb@d8545-10s10301.wisc.cloudlab.us",
+      "asdwb@d8545-10s10305.wisc.cloudlab.us"
     ],
     "vllm_params": {
       "max-model-len": 8192,
@@ -60,13 +46,6 @@
       "use_hf_cache": true,
       "tensor-parallel-size": 4,
       "port": 7000
-    },
-    "pricing": {
-      "input_per_1m": 0.38,
-      "output_per_1m": 0.4,
-      "currency": "USD",
-      "provider": "Novita AI",
-      "source": "https://novita.ai/models/model-detail/qwen-qwen-2.5-72b-instruct"
     }
   },
   "Qwen-2.5-7B": {
@@ -74,23 +53,16 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "anon@d7525-10s10311.cluster.example",
-      "anon@d7525-10s10321.cluster.example",
-      "anon@d7525-10s10323.cluster.example",
-      "anon@d7525-10s10327.cluster.example",
-      "anon@d7525-10s10339.cluster.example"
+      "asdwb@d7525-10s10321.wisc.cloudlab.us",
+      "asdwb@d7525-10s10329.wisc.cloudlab.us",
+      "asdwb@d7525-10s10331.wisc.cloudlab.us",
+      "asdwb@d7525-10s10333.wisc.cloudlab.us",
+      "asdwb@d7525-10s10335.wisc.cloudlab.us"
     ],
     "vllm_params": {
       "max-model-len": 8192,
       "gpu-memory-utilization": 0.9,
       "port": 7000
-    },
-    "pricing": {
-      "input_per_1m": 0.07,
-      "output_per_1m": 0.07,
-      "currency": "USD",
-      "provider": "Novita AI",
-      "source": "https://novita.ai/pricing"
     }
   }
 }

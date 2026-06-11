@@ -17,8 +17,8 @@ DATASET="data/route_balance/best-route-v3-test-500.jsonl"
 MODEL_DEPLOY="route_balance/config/route_balance/model_deployment_p100_smoketest.json"
 RESULT_BASE="experiment_output/p100_overhead"
 
-cd ~/RouteBalance
-export PYTHONPATH=~/RouteBalance:~/vllm:$PYTHONPATH
+cd ~/Block
+export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH
 mkdir -p $RESULT_BASE/logs
 
 echo "============================================================"

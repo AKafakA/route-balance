@@ -1,4 +1,4 @@
-"""QLM full-router (arXiv 2407.00047) — .
+"""QLM full-router (arXiv 2407.00047) — A3.8 / #37.
 
 QLM (Queue Management for LLM Serving) is typically cited for its SLO
 check (our `qlm_filter.py` already implements that). The paper's core

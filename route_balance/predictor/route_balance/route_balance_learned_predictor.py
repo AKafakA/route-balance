@@ -18,13 +18,13 @@ from typing import Dict, Optional
 
 import numpy as np
 
-from route_balance.predictor.route_balance.base_predictor import ROUTE_BALANCE_BasePredictor
+from route_balance.predictor.route_balance.base_predictor import RouteBalanceBasePredictor
 from route_balance.predictor.route_balance.data_structures import PredictRequest
 
 logger = logging.getLogger(__name__)
 
 
-class RouteBalanceLearnedPredictor(ROUTE_BALANCE_BasePredictor):
+class RouteBalanceLearnedPredictor(RouteBalanceBasePredictor):
     """Learned predictor combining bucket classifier, XGBoost TTFT,
     TPOT lookup, and KNN quality models.
 

@@ -496,6 +496,16 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     p.add_argument(
+        "--chat-min-response-tokens",
+        type=int,
+        default=3,
+        help=(
+            "For conversation datasets (e.g. lmsys), filter out prompts whose "
+            "reference response is shorter than this token count. Matches "
+            "min_output_tokens default in prepare_benchmark_data.py. Default: 3."
+        ),
+    )
+    p.add_argument(
         "--chat-max-response-tokens",
         type=int,
         default=None,
@@ -693,6 +703,7 @@ def _filter_df_by_token_length(
 def _filter_df_by_response_length(
     df: pd.DataFrame,
     tokenizer: "AutoTokenizer",
+    min_response_tokens: Optional[int] = None,
     max_response_tokens: Optional[int] = None,
     max_total_tokens: Optional[int] = None,
     batch_size: int = 256,
@@ -704,7 +715,7 @@ def _filter_df_by_response_length(
     """
     if "response" not in df.columns:
         return df
-    if max_response_tokens is None and max_total_tokens is None:
+    if min_response_tokens is None and max_response_tokens is None and max_total_tokens is None:
         return df
     if df.empty:
         return df
@@ -743,6 +754,8 @@ def _filter_df_by_response_length(
             resp = batch_r[j]
             if not resp:
                 continue  # no response label → keep
+            if min_response_tokens is not None and r_lens[j] < min_response_tokens:
+                keep[i + j] = False
             if max_response_tokens is not None and r_lens[j] > max_response_tokens:
                 keep[i + j] = False
             if max_total_tokens is not None and p_lens[j] + r_lens[j] > max_total_tokens:
@@ -789,12 +802,18 @@ def main() -> None:
     ]
     # Apply response-length filter for conversation datasets (e.g. lmsys)
     # that have known assistant response labels
-    if args.chat_max_response_tokens is not None or args.chat_max_total_tokens is not None:
+    min_resp = getattr(args, 'chat_min_response_tokens', None)
+    max_resp = getattr(args, 'chat_max_response_tokens', None)
+    max_total = getattr(args, 'chat_max_total_tokens', None)
+    if min_resp is not None or max_resp is not None or max_total is not None:
         for i, (name, df) in enumerate(zip(datasets, full_dfs)):
             if "response" in df.columns:
-                print(f"Filtering {name} by chat response length...")
+                before = len(df)
                 full_dfs[i] = _filter_df_by_response_length(
-                    df, tokenizer, args.chat_max_response_tokens, args.chat_max_total_tokens)
+                    df, tokenizer, min_resp, max_resp, max_total)
+                after = len(full_dfs[i])
+                if before != after:
+                    print(f"Filtering {name} by response length: {before} -> {after} ({before - after} removed)")
     capacities = [len(df) for df in full_dfs]
 
     counts = _assign_counts(

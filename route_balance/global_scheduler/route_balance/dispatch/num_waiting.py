@@ -8,7 +8,7 @@ Fallbacks:
     no stats → per-instance total_request counter
     stats lack num_waiting → (1 - kv_cache_utilization) * max_num_seqs proxy
 
-Task: A1.3 .
+Task: A1.3 (#35).
 """
 from typing import Any, Dict, List, Optional
 

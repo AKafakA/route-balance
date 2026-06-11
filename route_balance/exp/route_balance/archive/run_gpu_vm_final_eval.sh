@@ -1,6 +1,6 @@
 #!/bin/bash
 # Final unified evaluation using the new evaluation module
-cd ~/Code/llm/RouteBalance
+cd ~/Code/llm/Block
 export PYTHONPATH=.
 PYTHON=.venv/bin/python
 TRAIN=data/route_balance/training_data/train_fixed.jsonl

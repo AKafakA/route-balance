@@ -1,0 +1,30 @@
+{
+  "Qwen-2.5-1.5B": {
+    "hf_model_name": "Qwen/Qwen2.5-1.5B",
+    "precision": "fp16",
+    "backend": "vllm",
+    "node_type": {
+      "c240g5": {
+        "count": 2,
+        "max-model-len": 4096,
+        "gpu-memory-utilization": 0.9,
+        "enforce-eager": true,
+        "attention_backend": "xformers"
+      }
+    }
+  },
+  "Qwen-2.5-3B": {
+    "hf_model_name": "Qwen/Qwen2.5-3B",
+    "precision": "fp16",
+    "backend": "vllm",
+    "node_type": {
+      "c240g5": {
+        "count": 2,
+        "max-model-len": 4096,
+        "gpu-memory-utilization": 0.9,
+        "enforce-eager": true,
+        "attention_backend": "xformers"
+      }
+    }
+  }
+}

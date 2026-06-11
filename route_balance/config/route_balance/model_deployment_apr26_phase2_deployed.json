@@ -4,9 +4,9 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "anon@c4130-110133.cluster.example",
-      "anon@c4130-110233.cluster.example",
-      "anon@c4130-110433.cluster.example"
+      "asdwb@c4130-110133.wisc.cloudlab.us",
+      "asdwb@c4130-110233.wisc.cloudlab.us",
+      "asdwb@c4130-110433.wisc.cloudlab.us"
     ],
     "vllm_params": {
       "max-model-len": 8192,
@@ -21,14 +21,9 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "anon@c240g5-110217.cluster.example",
-      "anon@c240g5-110221.cluster.example",
-      "anon@c240g5-110225.cluster.example",
-      "anon@c240g5-110227.cluster.example",
-      "anon@c240g5-110231.cluster.example",
-      "anon@d7525-10s10317.cluster.example",
-      "anon@d7525-10s10329.cluster.example",
-      "anon@d7525-10s10333.cluster.example"
+      "asdwb@d7525-10s10309.wisc.cloudlab.us",
+      "asdwb@d7525-10s10325.wisc.cloudlab.us",
+      "asdwb@d7525-10s10339.wisc.cloudlab.us"
     ],
     "vllm_params": {
       "max-model-len": 8192,
@@ -41,8 +36,8 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "anon@d8545-10s10301.cluster.example",
-      "anon@d8545-10s10305.cluster.example"
+      "asdwb@d8545-10s10301.wisc.cloudlab.us",
+      "asdwb@d8545-10s10305.wisc.cloudlab.us"
     ],
     "vllm_params": {
       "max-model-len": 8192,
@@ -58,11 +53,11 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "anon@d7525-10s10311.cluster.example",
-      "anon@d7525-10s10321.cluster.example",
-      "anon@d7525-10s10323.cluster.example",
-      "anon@d7525-10s10327.cluster.example",
-      "anon@d7525-10s10339.cluster.example"
+      "asdwb@d7525-10s10321.wisc.cloudlab.us",
+      "asdwb@d7525-10s10329.wisc.cloudlab.us",
+      "asdwb@d7525-10s10331.wisc.cloudlab.us",
+      "asdwb@d7525-10s10333.wisc.cloudlab.us",
+      "asdwb@d7525-10s10335.wisc.cloudlab.us"
     ],
     "vllm_params": {
       "max-model-len": 8192,

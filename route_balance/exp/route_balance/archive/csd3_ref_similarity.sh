@@ -7,12 +7,12 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --time=1:00:00
-#SBATCH --output=/rds/user/anon/hpc-work/llm/RouteBalance/experiment_output/logs/ref_similarity_%j.log
+#SBATCH --output=/rds/user/wd312/hpc-work/llm/Block/experiment_output/logs/ref_similarity_%j.log
 
-cd /rds/user/anon/hpc-work/llm/RouteBalance
+cd /rds/user/wd312/hpc-work/llm/Block
 source .venv/bin/activate
-export PYTHONPATH=/rds/user/anon/hpc-work/llm/RouteBalance:$PYTHONPATH
-export HF_HOME=/rds/user/anon/hpc-work/hf_cache
+export PYTHONPATH=/rds/user/wd312/hpc-work/llm/Block:$PYTHONPATH
+export HF_HOME=/rds/user/wd312/hpc-work/hf_cache
 
 echo "=== Starting reference similarity computation ==="
 echo "GPU: $(nvidia-smi --query-gpu=name --format=csv,noheader)"

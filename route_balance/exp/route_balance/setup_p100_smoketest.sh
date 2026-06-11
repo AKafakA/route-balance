@@ -12,12 +12,12 @@
 set -e
 
 HOSTS_FILE="route_balance/config/p100_smoketest_hosts"
-BLOCK_GITHUB_LINK="https://github.com/anon/RouteBalance"
-VLLM_GITHUB_LINK="https://github.com/anon/vllm.git"
-HF_TOKEN="${HF_TOKEN:?Set HF_TOKEN env var}"
+BLOCK_GITHUB_LINK="https://github.com/AKafakA/Block"
+VLLM_GITHUB_LINK="https://github.com/AKafakA/vllm.git"
+HF_TOKEN="${HF_TOKEN}"
 
-NODE0="anon@c240g5-110131.cluster.example"
-NODE1="anon@c240g5-110211.cluster.example"
+NODE0="asdwb@c240g5-110131.wisc.cloudlab.us"
+NODE1="asdwb@c240g5-110211.wisc.cloudlab.us"
 
 run_on_all() {
     echo ">>> Running on all nodes: $1"
@@ -59,15 +59,15 @@ export CUDA_HOME=/usr/local/cuda
 export PATH="${PATH}:${CUDA_HOME}/bin:/usr/local/cuda-12.8/bin"
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:${CUDA_HOME}/lib64:/usr/local/cuda-12.8/lib64:${CUDA_HOME}/targets/x86_64-linux/lib:/usr/lib/x86_64-linux-gnu"
 for dir in ${HOME}/.local/lib/python3.10/site-packages/nvidia/*/lib ${HOME}/.local/lib/python3.10/site-packages/cusparselt/lib /usr/local/lib/python3.10/dist-packages/nvidia/*/lib; do [ -d "${dir}" ] && export LD_LIBRARY_PATH="${dir}:${LD_LIBRARY_PATH}"; done
-export PYTHONPATH="${HOME}/vllm:${HOME}/RouteBalance:${PYTHONPATH}"
+export PYTHONPATH="${HOME}/vllm:${HOME}/Block:${PYTHONPATH}"
 export HF_TOKEN='"$HF_TOKEN"'
 # === End environment block ===
 ENVEOF'
 
 # Step 4: Clone repos
-echo "=== Step 4: Clone RouteBalance + vLLM ==="
-run_on_all "cd ~ && [ -d RouteBalance ] || git clone ${BLOCK_GITHUB_LINK} && cd RouteBalance && git checkout route_balance"
-run_on_all "cd ~/RouteBalance && pip install -r requirements.txt 2>&1 | tail -3"
+echo "=== Step 4: Clone Block + vLLM ==="
+run_on_all "cd ~ && [ -d Block ] || git clone ${BLOCK_GITHUB_LINK} && cd Block && git checkout route_balance"
+run_on_all "cd ~/Block && pip install -r requirements.txt 2>&1 | tail -3"
 run_on_all "pip3 install torch torchvision 2>&1 | tail -3"
 run_on_all "pip install sentence-transformers faiss-cpu 2>&1 | tail -3"
 
