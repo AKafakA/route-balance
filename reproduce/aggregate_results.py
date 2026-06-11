@@ -182,7 +182,12 @@ def aggregate_cell(path: Path, meta: dict, deepeval_lookup: dict) -> dict:
         per_model = deepeval_lookup.get(prompt) or {}
         if not per_model: continue
         m = r.get("model") or ""
-        score = per_model.get(m) or per_model.get(m.replace("Qwen/", ""))
+        # zero-safe: explicit None check (NOT `or`) — a valid DeepEval score of 0.0
+        # is falsy and `or` would drop it, dropping ~24% of responses and inflating
+        # the mean by ~+0.12 (the v1 aggregator bug). Keep 0.0 scores.
+        score = per_model.get(m)
+        if score is None:
+            score = per_model.get(m.replace("Qwen/", ""))
         if score is not None:
             q_scores.append(float(score))
             matched += 1
