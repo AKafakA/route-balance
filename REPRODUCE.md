@@ -12,8 +12,7 @@ This document provides a step-by-step recipe for reproducing every published res
 
 The repo ships **no host-specific manifests** (SSH targets, IPs, per-host model placement) — those are git-ignored so you bring your own. Two ways:
 
-**A. CloudLab (recommended).** Instantiate the heterogeneous-serving profile, which provisions the 13-instance topology, installs vLLM + weights, and emits a ready `host_configs.json` / `model_deployment.json`:
-> **[`github.com/AKafakA/dodoor-cl-profile`](https://github.com/AKafakA/dodoor-cl-profile)** (the RouteBalance CloudLab profile).
+**A. CloudLab (recommended).** Create a CloudLab experiment from the bundled GENI profile **`cloudlab/profile.py`** (instructions in `cloudlab/README.md`). It provisions the 13-instance heterogeneous topology and runs `cloudlab/setup.sh` per node to install vLLM + weights, emitting a ready `host_configs.json` / `model_deployment.json`.
 
 **B. Any SSH-reachable pool.** Copy the templates and fill in your hosts:
 ```bash

@@ -28,18 +28,20 @@ dataset_info:
     dtype: string
   splits:
   - name: train
-    num_examples: 14963
+    num_examples: 14919
   - name: test
-    num_examples: 3642
+    num_examples: 3634
 ---
 
-# ROUTE_BALANCE Model Estimator Dataset
+# RouteBalance Model-Estimator Dataset
 
-Multi-model quality and length prediction dataset for heterogeneous LLM serving.
+The model-estimator training dataset for **RouteBalance** — a serving-aware scheduler that fuses model routing and load balancing for heterogeneous LLM serving. It fits the deployed MiniLM+KNN quality/length estimator.
 
 ## Overview
 
-18,605 prompts from 7 public datasets, each broadcast to 4 Qwen2.5 model sizes (3B, 7B, 14B, 72B). Each entry contains the prompt, all model responses, and per-model quality/length annotations.
+**18,553 scored prompts** (collected from 18,608 raw across 7 public datasets — RewardBench, CodeUltraFeedback, BeaverTails, MixInstruct, LMSYS-Chat-1M, GSM8K, SQuAD; 55 dropped during scoring/filtering), each broadcast to the 4 Qwen2.5 candidates (3B / 7B / 14B / 72B). Every entry holds the prompt, all four responses, and per-model quality and length signals.
+
+Recommended split — `train.jsonl` (14,919) / `test.jsonl` (3,634) — matches the evaluation in the paper. The reference-grounded judge column **`deepeval-llama3.1-8b-it_reference`** (DeepEval G-Eval, Llama-3.1-8B judge) is the routing-decision quality of record.
 
 ## Schema
 
@@ -61,7 +63,7 @@ Multi-model quality and length prediction dataset for heterogeneous LLM serving.
 | `is_truncated` | bool | Whether generation hit max_tokens |
 | `response` | string | Full generated text |
 | `similarity_score` | float [0,1] | Cosine similarity to 72B response (sentence-transformers/all-MiniLM-L6-v2) |
-| `llm_judge_scores` | dict | Per-judge quality scores. Keys: `protectai_distilroberta-base-rejection-v1` (safety), Qwen judge (quality) |
+| `llm_judge_scores` | dict | Per-judge quality scores. Key `deepeval-llama3.1-8b-it_reference` is the reference-grounded DeepEval G-Eval score (Llama-3.1-8B judge) used as the routing quality of record in the paper; `protectai_distilroberta-base-rejection-v1` is the safety/refusal score for harmful prompts. |
 | `reference_similarity` | float [0,1] | Cosine similarity to dataset reference response (sentence-transformers) |
 | `reference_score` | float [0,1] | **Unified quality score** — dataset-appropriate metric (see below) |
 
@@ -89,15 +91,18 @@ For harmful prompts (`is_harmful=True`), quality signals are inverted:
 
 ## Data sources
 
-| Dataset | # Prompts | Type | HuggingFace Source |
+Released (scored-filtered) prompt counts per source:
+
+| Dataset | # Prompts (train / test) | Type | HuggingFace Source |
 |---------|-----------|------|-------------------|
-| gsm8k | 2,363 (train) / 592 (test) | Math word problems | `openai/gsm8k` (main split) |
-| squad | 2,348 / 588 | Reading comprehension QA | `rajpurkar/squad` (train split) |
-| beaver_tails | 2,318 / 580 | Harmful prompts (safety) | `PKU-Alignment/BeaverTails` |
-| mix_instruct | 2,300 / 575 | Mixed instructions | `llm-blender/mix-instruct` (train split) |
-| code_ultra_feedback | 2,243 / 561 | Code generation | `coseal/CodeUltraFeedback` (train split) |
-| lmsys | 2,055 / 514 | Real user conversations | `lmsys/lmsys-chat-1m` (English only) |
-| reward_bench | 1,336 / 232 | Safety + code evaluation | `allenai/reward-bench` (filtered split) |
+| gsm8k | 2,363 / 510 | Math word problems | `openai/gsm8k` (main split) |
+| squad | 2,348 / 585 | Reading comprehension QA | `rajpurkar/squad` (train split) |
+| beaver_tails | 2,318 / 601 | Harmful prompts (safety) | `PKU-Alignment/BeaverTails` |
+| mix_instruct | 2,300 / 585 | Mixed instructions | `llm-blender/mix-instruct` (train split) |
+| code_ultra_feedback | 2,243 / 535 | Code generation | `coseal/CodeUltraFeedback` (train split) |
+| lmsys | 2,011 / 489 | Real user conversations | `lmsys/lmsys-chat-1m` (English only) |
+| reward_bench | 1,336 / 329 | Safety + code evaluation | `allenai/reward-bench` (filtered split) |
+| **Total** | **14,919 / 3,634** | | |
 
 ## Models
 
