@@ -4,9 +4,9 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "asdwb@c4130-110133.wisc.cloudlab.us",
-      "asdwb@c4130-110233.wisc.cloudlab.us",
-      "asdwb@c4130-110433.wisc.cloudlab.us"
+      "${CLOUDLAB_HOST}",
+      "${CLOUDLAB_HOST}",
+      "${CLOUDLAB_HOST}"
     ],
     "vllm_params": {
       "max-model-len": 8192,
@@ -28,9 +28,9 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "asdwb@d7525-10s10317.wisc.cloudlab.us",
-      "asdwb@d7525-10s10329.wisc.cloudlab.us",
-      "asdwb@d7525-10s10333.wisc.cloudlab.us"
+      "${CLOUDLAB_HOST}",
+      "${CLOUDLAB_HOST}",
+      "${CLOUDLAB_HOST}"
     ],
     "vllm_params": {
       "max-model-len": 8192,
@@ -50,8 +50,8 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "asdwb@d8545-10s10301.wisc.cloudlab.us",
-      "asdwb@d8545-10s10305.wisc.cloudlab.us"
+      "${CLOUDLAB_HOST}",
+      "${CLOUDLAB_HOST}"
     ],
     "vllm_params": {
       "max-model-len": 8192,
@@ -74,11 +74,11 @@
     "precision": "fp16",
     "backend": "vllm",
     "node_hosts": [
-      "asdwb@d7525-10s10311.wisc.cloudlab.us",
-      "asdwb@d7525-10s10321.wisc.cloudlab.us",
-      "asdwb@d7525-10s10323.wisc.cloudlab.us",
-      "asdwb@d7525-10s10327.wisc.cloudlab.us",
-      "asdwb@d7525-10s10339.wisc.cloudlab.us"
+      "${CLOUDLAB_HOST}",
+      "${CLOUDLAB_HOST}",
+      "${CLOUDLAB_HOST}",
+      "${CLOUDLAB_HOST}",
+      "${CLOUDLAB_HOST}"
     ],
     "vllm_params": {
       "max-model-len": 8192,

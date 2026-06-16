@@ -57,7 +57,7 @@
     "score_type": "judge",
     "quality_config": {
       "type": "knn",
-      "model_dir": "/users/asdwb/Block/models/route_balance/quality/judge/deploy_knn",
+      "model_dir": "models/route_balance/quality/judge/deploy_knn",
       "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
       "k": 50,
       "index_type": "faiss_flat"

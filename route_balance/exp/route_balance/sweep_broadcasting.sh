@@ -2,7 +2,7 @@
 # Sweep generation parameter configs for broadcasting (6 configs)
 # Skips cases where both rep_penalty AND freq_penalty are enabled
 
-REMOTE_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"
+REMOTE_HOST="${CLOUDLAB_HOST}"
 MODELS="Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B"
 NUM_PROMPTS=500
 RATE="inf"

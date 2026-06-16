@@ -7,10 +7,10 @@ Modern LLM clouds host multiple model sizes across heterogeneous GPU pools, expo
 ## Highlights
 
 - **Three-axis routing on a simplex.** User-supplied weights $w_q\!+\!w_l\!+\!w_c\!=\!1$ pick a named operating point (Balance, Quality, Latency, Cost) without retraining.
-- **In-process learned predictors.** A single MiniLM embedding feeds a $k{=}50$ KNN head returning per-model quality, expected output length, and a 16-bucket length distribution. Per-(model, GPU) XGBoost models for TTFT, TPOT, and E2E run in-process on the scheduler over the full $|R_B|\!\times\!|I|$ matrix in $\sim$3 ms.
+- **In-process learned predictors.** A single MiniLM embedding feeds a $k{=}10$ KNN head returning per-model quality, expected output length, and a 16-bucket length distribution. Per-(model, GPU) XGBoost models for TTFT, TPOT, and E2E run in-process on the scheduler over the full $|R_B|\!\times\!|I|$ matrix in $\sim$3 ms.
 - **Filter–rank pipeline.** Probabilistic CDF filters enforce per-request budget and TTFT/TPOT SLOs; surviving candidates are ranked by the normalized weighted score.
 - **LPT-batched scheduler with sequential local-state updates** to prevent herding under concurrent dispatchers; $O(|R_B||I|)$.
-- **Sub-second scheduling overhead** at production load — 149 ms at λ=12 on a 13-instance heterogeneous cluster, 300× below per-request HTTP-sidecar variants we evaluated.
+- **Sub-second scheduling overhead.** The off-instance residual grows only sub-linearly — ≈130 ms at λ=12 to 231 ms at λ=30 (≈28–32 ms decision compute) on a 13-instance heterogeneous cluster — while per-request HTTP-sidecar routers instead saturate their scoring queue under load. A four-arm isolation shows the benefit comes from **pricing latency at model-selection time**; the learned predictors add calibration / SLO headroom, not the headline frontier.
 
 ## Architecture
 

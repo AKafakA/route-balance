@@ -23,7 +23,7 @@ def parse_host_file(filepath: str) -> Dict[str, List[str]]:
     for line in lines:
         line = line.strip()
         if not line: continue
-        # Matches patterns like: asdwb@d8545-10s10301...
+        # Matches patterns like: ${CLOUDLAB_USER}@d8545-10s10301...
         match = re.search(r'@([a-zA-Z0-9]+)-', line)
         if match:
             node_type = match.group(1)

@@ -58,3 +58,22 @@ AGENTS.md
 # Editor / OS
 *.swp
 .DS_Store
+
+# --- Privacy / host-specific (provide your own; provision via the CloudLab profile) ---
+# Address manifests (SSH hosts, per-host model placement) — fill from the .template files
+route_balance/config/host_configs.json
+route_balance/config/**/host_configs*.json
+route_balance/config/**/model_deployment*.json
+**/*.manifest.xml
+**/*.xml
+# CSD3 / SLURM scripts are institution-specific; offline training uses the python trainers
+route_balance/exp/route_balance/csd3_*.sh
+# Stale archived configs (contained hardcoded cluster paths)
+route_balance/config/route_balance/archive/
+*.bak
+*.bak.*
+route_balance/exp/route_balance/archive/
+scripts/transform_block_to_route_balance.sh
+PAPER_REPRODUCTION_MAP.md
+!route_balance/config/host_configs.template.json
+!route_balance/config/route_balance/model_deployment.template.json

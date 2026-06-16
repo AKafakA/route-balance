@@ -10,7 +10,7 @@
 set -e  # Exit on error
 
 # Configuration
-TARGET_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"  # Host to run ROUTE_BALANCE server
+TARGET_HOST="${CLOUDLAB_HOST}"  # Host to run ROUTE_BALANCE server
 MODEL_CONFIG="route_balance/config/route_balance/model_config_template.json"
 HOST_CONFIG="route_balance/config/host_configs.json"
 HOSTS_FILE="route_balance/config/hosts"

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate ALL 215 cells across overnight grid + T2/T3/T4/T5 tracks.
+"""Aggregate ALL 287 cells across overnight grid + T2/T3/T4/T5 tracks.
 
 Outputs:
   _aggregate/AGGREGATE_FULL.csv       — flat row per cell, all tracks

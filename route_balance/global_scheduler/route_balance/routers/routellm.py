@@ -60,7 +60,7 @@ class RouteLLMRouter(RouterBase):
                 for 3+ tier pools. Ignored when strong/weak are set.
             routellm_src: Path to a local RouteLLM clone (adds to sys.path
                 if routellm package is not already importable). Default
-                looks for `/home/wd312/Code/llm/RouteLLM`.
+                looks for `${HOME}/RouteLLM`.
         """
         self._type = router_type
         self._ckpt = checkpoint_path
@@ -74,7 +74,7 @@ class RouteLLMRouter(RouterBase):
             import routellm  # noqa: F401
         except ImportError:
             import sys
-            src = routellm_src or "/home/wd312/Code/llm/RouteLLM"
+            src = routellm_src or "${HOME}/RouteLLM"
             if Path(src).exists() and src not in sys.path:
                 sys.path.insert(0, src)
 

@@ -10,23 +10,23 @@
 #
 # Prerequisites:
 #   - vLLM server running on port 8000 with Llama-3.1-8B-Instruct
-#   - judge_venv at /local/scratch/tmp/wd312/judge_venv
-#   - Data at /local/scratch/tmp/wd312/data/{train,test}_with_reftext.jsonl
+#   - judge_venv at /local/scratch/tmp/${CLOUDLAB_USER}/judge_venv
+#   - Data at /local/scratch/tmp/${CLOUDLAB_USER}/data/{train,test}_with_reftext.jsonl
 #
 # Usage:
 #   nohup bash route_balance/exp/route_balance/run_overnight_judging_pipeline.sh \
-#       > /local/scratch/tmp/wd312/logs/overnight_pipeline.log 2>&1 &
+#       > /local/scratch/tmp/${CLOUDLAB_USER}/logs/overnight_pipeline.log 2>&1 &
 
 set -e
 
-VENV=/local/scratch/tmp/wd312/judge_venv
-DATA_DIR=/local/scratch/tmp/wd312/data
-LOG_DIR=/local/scratch/tmp/wd312/logs
+VENV=/local/scratch/tmp/${CLOUDLAB_USER}/judge_venv
+DATA_DIR=/local/scratch/tmp/${CLOUDLAB_USER}/data
+LOG_DIR=/local/scratch/tmp/${CLOUDLAB_USER}/logs
 BLOCK_DIR=~/Code/llm/Block
 JUDGE_KEY="deepeval-llama3.1-8b-it_reference"
 
 export PYTHONPATH=$BLOCK_DIR:$PYTHONPATH
-export HF_HOME=/local/scratch/tmp/wd312/hf_cache
+export HF_HOME=/local/scratch/tmp/${CLOUDLAB_USER}/hf_cache
 export HF_TOKEN=${HF_TOKEN}
 export OPENAI_API_KEY=dummy
 export DEEPEVAL_DISABLE_TIMEOUTS=true
@@ -153,7 +153,7 @@ export PYTHONPATH=$BLOCK_DIR:$PYTHONPATH
 
 TRAIN_DATA=$DATA_DIR/final/train.jsonl
 TEST_DATA=$DATA_DIR/final/test.jsonl
-MODEL_DIR=/local/scratch/tmp/wd312/models
+MODEL_DIR=/local/scratch/tmp/${CLOUDLAB_USER}/models
 
 # 5a. KNN rebuild (~5 min)
 echo "--- 5a: KNN rebuild ---"

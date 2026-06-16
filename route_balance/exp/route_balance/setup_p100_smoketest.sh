@@ -16,8 +16,8 @@ BLOCK_GITHUB_LINK="https://github.com/AKafakA/Block"
 VLLM_GITHUB_LINK="https://github.com/AKafakA/vllm.git"
 HF_TOKEN="${HF_TOKEN}"
 
-NODE0="asdwb@c240g5-110131.wisc.cloudlab.us"
-NODE1="asdwb@c240g5-110211.wisc.cloudlab.us"
+NODE0="${CLOUDLAB_HOST}"
+NODE1="${CLOUDLAB_HOST}"
 
 run_on_all() {
     echo ">>> Running on all nodes: $1"

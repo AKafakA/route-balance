@@ -2838,7 +2838,7 @@ def _log_and_assert_deployed_predictors():
     """
     import os, json, hashlib
     from pathlib import Path
-    base = Path(os.environ.get('ROUTE_BALANCE_MODELS_DIR', '/users/asdwb/Block/models/route_balance'))
+    base = Path(os.environ.get('ROUTE_BALANCE_MODELS_DIR', 'models/route_balance'))
     for label, sub, env_var in [
         ('LENGTH_BUCKET', 'length_bucket/deploy', 'EXPECTED_LENGTH_BUCKET_ENCODER'),
         ('QUALITY_JUDGE', 'quality/judge/deploy', 'EXPECTED_QUALITY_JUDGE_ENCODER'),
@@ -3035,7 +3035,7 @@ async def init_app(
                 from route_balance.predictor.route_balance.estimators.xgboost_predictor import (
                     XGBoostLatencyPredictor,
                 )
-                tpot_dir = "/users/asdwb/Block/models/route_balance/latency/deploy_tpot"
+                tpot_dir = "models/route_balance/latency/deploy_tpot"
                 if os.path.exists(tpot_dir):
                     _TPOT_BATCH_MODEL = XGBoostLatencyPredictor.load(tpot_dir)
                     print(

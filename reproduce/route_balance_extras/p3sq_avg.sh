@@ -14,7 +14,7 @@ tmux new-session -d -s p3sqavgpipe "cd ~/RouteBalance && ROUTE_BALANCE_SQUARE=6,
 for t in $(seq 1 30); do curl -sf -m4 localhost:8200/health >/dev/null && break; sleep 5; done
 curl -sf -m4 localhost:8200/health >/dev/null && echo "HEALTH_OK" >> $MARK || { echo "HEALTH_FAIL" >> $MARK; exit 1; }
 # enhanced AvengersPro router (identical kwargs to p3_bursty.sh PHASE 2 avgenh cell)
-python3 -c "import json;print(json.dumps({'router':{'type':'avengers_pro','kwargs':{'artifact_dir':'models/route_balance/avengers_pro_qwen_v2_lc0.20'}},'dispatch':{'type':'shortest_queue'},'filter':{'type':'cara_tiered'}}))" > /tmp/p3sq_av.json
+python3 -c "import json;print(json.dumps({'router':{'type':'avengers_pro','kwargs':{'artifact_dir':'models/route_balance/avengers_pro_qwen_v2_lc0.20'}},'dispatch':{'type':'shortest_queue'},'filter':{'type':'route_balance_tiered'}}))" > /tmp/p3sq_av.json
 post @/tmp/p3sq_av.json
 curl -sS --max-time 90 -X POST localhost:8200/v1/completions -H "Content-Type: application/json" -d '{"prompt":"warmup","model":"Qwen/Qwen2.5-3B","max_tokens":1}' >/dev/null 2>&1
 bench p3sq_avgenh_sq

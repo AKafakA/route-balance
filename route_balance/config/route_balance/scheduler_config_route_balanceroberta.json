@@ -56,8 +56,8 @@
     "type": "default",
     "score_type": "judge",
     "bucket_config": {
-      "fused_model_dir": "/users/asdwb/Block/models/route_balance/length_bucket/deploy",
-      "model_dir": "/users/asdwb/Block/models/route_balance/length_bucket/deploy",
+      "fused_model_dir": "models/route_balance/length_bucket/deploy",
+      "model_dir": "models/route_balance/length_bucket/deploy",
       "model_map": {
         "Qwen/Qwen2.5-3B": "Qwen_Qwen2.5-3B_length_bucket",
         "Qwen/Qwen2.5-7B": "Qwen_Qwen2.5-7B_length_bucket",
@@ -70,12 +70,12 @@
     },
     "quality_config": {
       "type": "fused_deepeval",
-      "model_dir": "/users/asdwb/Block/models/route_balance/quality/judge/deploy_roberta",
+      "model_dir": "models/route_balance/quality/judge/deploy_roberta",
       "max_length": 512,
       "device": "cpu"
     },
     "length_config": {
-      "fused_model_dir": "/users/asdwb/Block/models/route_balance/length_regression/deploy"
+      "fused_model_dir": "models/route_balance/length_regression/deploy"
     }
   },
   "instance_metadata": {

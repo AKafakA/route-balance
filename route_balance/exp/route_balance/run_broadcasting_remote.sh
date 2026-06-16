@@ -17,12 +17,12 @@
 #
 # Examples:
 #   # Collect data from all 4 models using v3 custom dataset (default)
-#   ./run_broadcasting_remote.sh asdwb@d8545-10s10301.wisc.cloudlab.us \
+#   ./run_broadcasting_remote.sh ${CLOUDLAB_HOST} \
 #       "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B" \
 #       custom 500 inf test1 data/route_balance/best-route-v3-test-500.jsonl
 #
 #   # Full 20k run with rate limiting
-#   ./run_broadcasting_remote.sh asdwb@d8545-10s10301.wisc.cloudlab.us \
+#   ./run_broadcasting_remote.sh ${CLOUDLAB_HOST} \
 #       "Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B" \
 #       custom 20000 4.0 full_20k data/route_balance/best-route-v3.jsonl
 #
@@ -36,7 +36,7 @@ set -e  # Exit on error
 # Configuration
 # =============================================================================
 
-TARGET_HOST=${1:-"asdwb@d8545-10s10301.wisc.cloudlab.us"}
+TARGET_HOST=${1:-"${CLOUDLAB_HOST}"}
 BROADCAST_MODELS=${2:-"Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B"}
 DATASET_NAME=${3:-"custom"}
 NUM_PROMPTS=${4:-500}

@@ -62,7 +62,7 @@ parallel-ssh -t 0 -h route_balance/config/p100_smoke/pascal_hosts "pip install x
 # 4. Build and Install vLLM
 # We explicit set TORCH_CUDA_ARCH_LIST=6.0 to force the compiler to generate Pascal (sm_60) binaries.
 # We pass the env var into sudo to ensure the build process sees it.
-parallel-ssh -t 0 -h route_balance/config/p100_smoke/pascal_hosts "cd vllm && sudo PATH=\"/users/asdwb/.local/bin:\$PATH\" CUDACXX=/usr/local/cuda-12.8/bin/nvcc TORCH_CUDA_ARCH_LIST=6.0 MAX_JOBS=4 CMAKE_BUILD_PARALLEL_LEVEL=4 pip install --editable ."
+parallel-ssh -t 0 -h route_balance/config/p100_smoke/pascal_hosts "cd vllm && sudo PATH=\"/users/${CLOUDLAB_USER}/.local/bin:\$PATH\" CUDACXX=/usr/local/cuda-12.8/bin/nvcc TORCH_CUDA_ARCH_LIST=6.0 MAX_JOBS=4 CMAKE_BUILD_PARALLEL_LEVEL=4 pip install --editable ."
 
 # =============================================================================
 # IMPORTANT: Reboot all nodes after setup to load the NVIDIA driver!

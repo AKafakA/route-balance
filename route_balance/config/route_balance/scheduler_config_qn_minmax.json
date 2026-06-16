@@ -57,8 +57,8 @@
     "type": "default",
     "score_type": "deepeval",
     "bucket_config": {
-      "fused_model_dir": "/users/asdwb/Block/models/route_balance/length_bucket/deploy",
-      "model_dir": "/users/asdwb/Block/models/route_balance/length_bucket/deploy",
+      "fused_model_dir": "models/route_balance/length_bucket/deploy",
+      "model_dir": "models/route_balance/length_bucket/deploy",
       "model_map": {
         "Qwen/Qwen2.5-3B": "Qwen_Qwen2.5-3B_length_bucket",
         "Qwen/Qwen2.5-7B": "Qwen_Qwen2.5-7B_length_bucket",
@@ -71,13 +71,13 @@
     },
     "quality_config": {
       "type": "knn",
-      "model_dir": "/users/asdwb/Block/models/route_balance/quality/judge/deploy_knn_k10",
+      "model_dir": "models/route_balance/quality/judge/deploy_knn_k10",
       "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
       "k": 10,
       "index_type": "faiss_flat"
     },
     "length_config": {
-      "fused_model_dir": "/users/asdwb/Block/models/route_balance/length_regression/deploy"
+      "fused_model_dir": "models/route_balance/length_regression/deploy"
     }
   },
   "instance_metadata": {

@@ -17,10 +17,10 @@ echo "PHASE1_DONE" >> $MARK
 pkill -f "[c]ara_serve" 2>/dev/null; sleep 4; tmux kill-session -t p3serve 2>/dev/null
 tmux new-session -d -s p3pipe "cd ~/RouteBalance && PYTHONPATH=\$PWD HF_HOME=/mydata/hf_cache python3 -u -m route_balance.global_scheduler.route_balance.route_balance_serve --host 0.0.0.0 --port 8200 --model_config_path route_balance/config/route_balance/model_deployment.json --scheduling pipeline --chat --scheduler-config route_balance/config/route_balance/scheduler_config_qn_minmax.json --predictor-config route_balance/config/route_balance/predictor_xgboost_3model.json --host_config route_balance/config/host_configs.json >~/p3pipe.log 2>&1"
 for t in $(seq 1 24); do curl -sf -m4 localhost:8200/health >/dev/null && break; sleep 5; done
-python3 -c "import json;print(json.dumps({'router':{'type':'best_route_4way','kwargs':{'checkpoint_path':'models/route_balance/best_route_4way_qwen','confidence_threshold':0.5}},'dispatch':{'type':'shortest_queue'},'filter':{'type':'cara_tiered'}}))" > /tmp/p3_br.json
+python3 -c "import json;print(json.dumps({'router':{'type':'best_route_4way','kwargs':{'checkpoint_path':'models/route_balance/best_route_4way_qwen','confidence_threshold':0.5}},'dispatch':{'type':'shortest_queue'},'filter':{'type':'route_balance_tiered'}}))" > /tmp/p3_br.json
 post @/tmp/p3_br.json; curl -sS --max-time 90 -X POST localhost:8200/v1/completions -H "Content-Type: application/json" -d '{"prompt":"warmup","model":"Qwen/Qwen2.5-3B","max_tokens":1}' >/dev/null 2>&1
 bench p3_br4enh_l18_b0.3 18 0.3
-python3 -c "import json;print(json.dumps({'router':{'type':'avengers_pro','kwargs':{'artifact_dir':'models/route_balance/avengers_pro_qwen_v2_lc0.20'}},'dispatch':{'type':'shortest_queue'},'filter':{'type':'cara_tiered'}}))" > /tmp/p3_av.json
+python3 -c "import json;print(json.dumps({'router':{'type':'avengers_pro','kwargs':{'artifact_dir':'models/route_balance/avengers_pro_qwen_v2_lc0.20'}},'dispatch':{'type':'shortest_queue'},'filter':{'type':'route_balance_tiered'}}))" > /tmp/p3_av.json
 post @/tmp/p3_av.json; curl -sS --max-time 90 -X POST localhost:8200/v1/completions -H "Content-Type: application/json" -d '{"prompt":"warmup","model":"Qwen/Qwen2.5-3B","max_tokens":1}' >/dev/null 2>&1
 bench p3_avgenh_l18_b0.3 18 0.3
 echo "P3_DONE" >> $MARK

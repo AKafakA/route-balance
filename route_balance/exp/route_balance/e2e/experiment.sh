@@ -6,7 +6,7 @@
 set -e  # Exit on error
 
 # Configuration
-TARGET_HOST="asdwb@d8545-10s10301.wisc.cloudlab.us"
+TARGET_HOST="${CLOUDLAB_HOST}"
 HOST_CONFIG_PATH="route_balance/config/host_configs.json"
 MODEL_CONFIG_PATH="route_balance/config/route_balance/model_config_template.json"
 DEPLOYMENT_CONFIG="route_balance/config/route_balance/model_deployment.json"

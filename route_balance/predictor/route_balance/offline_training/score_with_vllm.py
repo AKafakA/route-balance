@@ -9,7 +9,7 @@ Supports multiple judge models with appropriate templates:
 
 Usage:
     # Score with all three judges
-    source /local/scratch/tmp/wd312/judge_venv/bin/activate
+    source /local/scratch/tmp/${CLOUDLAB_USER}/judge_venv/bin/activate
 
     # Prometheus-7b-v2 (1-5)
     python -m route_balance.predictor.route_balance.offline_training.score_with_vllm \

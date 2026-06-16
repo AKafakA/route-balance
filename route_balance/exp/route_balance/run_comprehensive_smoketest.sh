@@ -18,8 +18,8 @@ PRED_ROOFLINE="route_balance/config/route_balance/predictor_config_smoketest_roo
 PRED_STATIC_TPOT="route_balance/config/route_balance/predictor_config_smoketest_static_tpot.json"
 
 # CloudLab nodes
-NODE0="asdwb@d7525-10s10317.wisc.cloudlab.us"
-NODE1="asdwb@d7525-10s10319.wisc.cloudlab.us"
+NODE0="${CLOUDLAB_HOST}"
+NODE1="${CLOUDLAB_HOST}"
 
 cd ~/Block
 export PYTHONPATH=~/Block:~/vllm:$PYTHONPATH

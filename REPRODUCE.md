@@ -8,6 +8,32 @@ This document provides a step-by-step recipe for reproducing every published res
 
 ---
 
+## Configuration (set this before running)
+
+The repo ships **no host-specific manifests** (SSH targets, IPs, per-host model placement) — those are git-ignored so you bring your own. Two ways:
+
+**A. CloudLab (recommended).** Instantiate the heterogeneous-serving profile, which provisions the 13-instance topology, installs vLLM + weights, and emits a ready `host_configs.json` / `model_deployment.json`:
+> **[`github.com/AKafakA/dodoor-cl-profile`](https://github.com/AKafakA/dodoor-cl-profile)** (the RouteBalance CloudLab profile).
+
+**B. Any SSH-reachable pool.** Copy the templates and fill in your hosts:
+```bash
+cp route_balance/config/host_configs.template.json                    route_balance/config/host_configs.json
+cp route_balance/config/route_balance/model_deployment.template.json  route_balance/config/route_balance/model_deployment.json
+# edit: SSH targets, IPs, and per-host (model, GPU) placement
+```
+
+Export the cluster account/host the scripts reference, then run everything from the repo root (all predictor/scheduler config paths are repo-relative):
+```bash
+export CLOUDLAB_USER=<ssh-user-on-workers>     # e.g. your CloudLab username
+export CLOUDLAB_HOST=<scheduler-node-host>     # default scheduler/coordinator host
+```
+
+> **Offline training is pure Python — no SLURM.** Predictor and baseline training run directly, e.g.
+> `python -m route_balance.predictor.route_balance.offline_training.train_xgboost ...` (latency heads) and
+> `python -m route_balance.predictor.route_balance.offline_training.train_best_route_wrapper ...` (the BEST-Route DeBERTa baseline). Any single GPU host works.
+
+---
+
 ## 0. Bring up the cluster
 
 ```bash
@@ -27,7 +53,7 @@ python route_balance/exp/route_balance/deploy_route_balance.py \
 
 ## 1. Headline 3-axis Pareto (Table 3, Figure 2)
 
-The headline numbers come from a 215-cell sweep:
+The headline numbers come from a 287-cell sweep:
 
 - **Strategy**: `RouteBalance` weight tuples on the simplex with $w_q\!+\!w_l\!+\!w_c\!=\!1$ — Balance (1/3, 1/3, 1/3) plus eight quality-/latency-/cost-emphasized tuples
 - **Baselines**: `AvengersPro` (4-model retrained, $p_w\!\in\!\{0.25, 0.4, 0.53, 0.7\}$), `BEST-Route 4-way` (argmax + threshold sweep $\{0.3, 0.5, 0.7\}$), `Passthrough` (round-robin / shortest-queue / random)
@@ -188,7 +214,7 @@ The deployed predictors come from two pipelines.
 
 ### 6.1. Quality + length head (KNN over MiniLM embeddings)
 
-Inputs: the released [`anon/route_balance_model_estimator`](https://huggingface.co/datasets/anon/route_balance_model_estimator) dataset, which already contains `reference_text` and the six quality signals per (prompt, model). The reference-grounded LLM-judge column is `deepeval-llama3.1-8b-it_reference`.
+Inputs: the released [`asdwb/route_balance_model_estimator`](https://huggingface.co/datasets/asdwb/route_balance_model_estimator) dataset, which already contains `reference_text` and the six quality signals per (prompt, model). The reference-grounded LLM-judge column is `deepeval-llama3.1-8b-it_reference`.
 
 ```bash
 # 1. (Optional) regenerate the dataset from raw prompts
@@ -196,8 +222,8 @@ bash route_balance/predictor/route_balance/offline_training/run_full_eval_pipeli
 
 # 2. Train the deployed KNN head
 python route_balance/predictor/route_balance/offline_training/train_knn_estimator.py \
-    --train-data hf://anon/route_balance_model_estimator:train \
-    --val-data   hf://anon/route_balance_model_estimator:test \
+    --train-data hf://asdwb/route_balance_model_estimator:train \
+    --val-data   hf://asdwb/route_balance_model_estimator:test \
     --embedder   sentence-transformers/all-MiniLM-L6-v2 \
     --k 50 --weighted \
     --quality-col deepeval-llama3.1-8b-it_reference \
@@ -296,7 +322,7 @@ Runs in ~2 min and emits one `<cell_id>.json` matching the schema consumed by `a
 | Stage | Wall (reference cluster) |
 |---|---|
 | Cluster bring-up | ~6 min |
-| Headline 215-cell sweep (§1) | ~13 h |
+| Headline 287-cell sweep (§1) | ~13 h |
 | Aggregation + figures (§1.2–1.3) | <5 min |
 | Scheduling overhead study (§3) | ~2.5 h |
 | Budget control (§4) | ~45 min |

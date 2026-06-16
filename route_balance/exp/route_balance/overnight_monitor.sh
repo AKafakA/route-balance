@@ -3,7 +3,7 @@
 # Run via: nohup bash route_balance/exp/route_balance/overnight_monitor.sh > /tmp/monitor_cron.log 2>&1 &
 # Checks every 30 min, logs to OVERNIGHT_MONITOR.md
 
-LOG="/home/wd312/Code/llm/Block/route_balance_paper/claude/OVERNIGHT_MONITOR.md"
+LOG="${HOME}/Block/route_balance_paper/claude/OVERNIGHT_MONITOR.md"
 INTERVAL=1800  # 30 min
 
 # Initialize log
@@ -89,7 +89,7 @@ check_csd3() {
     echo "### $(date '+%Y-%m-%d %H:%M UTC') — CSD3 Check"
     echo ""
 
-    QUEUE=$(ssh -o ConnectTimeout=10 -o BatchMode=yes csd3 'squeue -u wd312 2>/dev/null' 2>/dev/null)
+    QUEUE=$(ssh -o ConnectTimeout=10 -o BatchMode=yes csd3 'squeue -u ${CLOUDLAB_USER} 2>/dev/null' 2>/dev/null)
     if [ -z "$QUEUE" ]; then
         echo "**CSD3: SSH failed or no jobs**"
         return
@@ -99,7 +99,7 @@ check_csd3() {
     echo '```'
 
     # Check for completed jobs
-    COMPLETED=$(ssh -o ConnectTimeout=10 csd3 'sacct -u wd312 --starttime=2026-03-29 --format=JobID,JobName%15,State,Elapsed --noheader 2>/dev/null | grep -E "COMPLETED|FAILED" | grep -v ".batch\|.extern"' 2>/dev/null)
+    COMPLETED=$(ssh -o ConnectTimeout=10 csd3 'sacct -u ${CLOUDLAB_USER} --starttime=2026-03-29 --format=JobID,JobName%15,State,Elapsed --noheader 2>/dev/null | grep -E "COMPLETED|FAILED" | grep -v ".batch\|.extern"' 2>/dev/null)
     if [ -n "$COMPLETED" ]; then
         echo ""
         echo "Completed/Failed jobs:"

@@ -1,0 +1,17 @@
+{
+  "_comment": "Per-tier model placement. Copy to model_deployment.json and fill node_hosts with ${CLOUDLAB_USER}@<host> from your host_configs. CloudLab users: the dodoor-cl-profile emits this. Headline topology = 2x 72B (A100 TP=4), 3x 14B (V100 TP=4), 5x 7B (A30), 3x 3B (A30).",
+  "Qwen-2.5-72B": {
+    "hf_model_name": "Qwen/Qwen2.5-72B",
+    "precision": "fp16",
+    "backend": "vllm",
+    "node_hosts": ["${CLOUDLAB_USER}@node-0.example.com", "${CLOUDLAB_USER}@node-1.example.com"],
+    "vllm_params": {"max-model-len": 8192, "gpu-memory-utilization": 0.85, "tensor-parallel-size": 4, "port": 7000}
+  },
+  "Qwen-2.5-3B": {
+    "hf_model_name": "Qwen/Qwen2.5-3B",
+    "precision": "fp16",
+    "backend": "vllm",
+    "node_hosts": ["${CLOUDLAB_USER}@node-2.example.com"],
+    "vllm_params": {"max-model-len": 8192, "gpu-memory-utilization": 0.85, "port": 7000}
+  }
+}

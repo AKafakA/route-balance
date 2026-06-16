@@ -1,0 +1,13 @@
+{
+    "_comment": "SSH-reachable worker hosts. Copy to host_configs.json and fill in. CloudLab users: the dodoor-cl-profile emits this automatically. backend_port = vLLM port; predictor_ports = in-process predictor sidecar port(s).",
+    "node-0.example.com": {
+        "backend_port": 8000,
+        "ip_address": "10.0.0.10",
+        "predictor_ports": [8300]
+    },
+    "node-1.example.com": {
+        "backend_port": 8000,
+        "ip_address": "10.0.0.11",
+        "predictor_ports": [8300]
+    }
+}

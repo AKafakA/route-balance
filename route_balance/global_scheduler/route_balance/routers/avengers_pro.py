@@ -4,7 +4,7 @@
 Wrapper design
 --------------
 We import `SimpleClusterRouter` from the cloned AvengersPro repo at
-`/home/wd312/Code/llm/AvengersPro` and delegate routing decisions to it
+`$AVENGERS_REPO` (or `~/AvengersPro`) and delegate routing decisions to it
 via its `route_queries_batch([prompt])` API.
 
 The one necessary deviation: their `__init__` hard-depends on an
@@ -40,11 +40,9 @@ logger = logging.getLogger(__name__)
 
 _AVENGERS_REPO = next(
     (p for p in (
-        "/users/asdwb/AvengersPro",          # cluster node (asdwb)
-        "/home/wd312/Code/llm/AvengersPro",   # openclaw / dev
         str(Path.home() / "AvengersPro"),
     ) if Path(p).exists()),
-    "/home/wd312/Code/llm/AvengersPro",
+    "${HOME}/AvengersPro",
 )
 
 

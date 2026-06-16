@@ -222,7 +222,7 @@ def extremes_table():
 
     out = []
     out.append(r"\begin{table}[t]\centering\small")
-    out.append(r"\caption{Per-system extremes across all valid evaluation cells (any $\lambda$, any knob; 215-cell corpus, $N{=}3534$ prompts each). RouteBalance-full reaches both the highest peak DeepEval and the highest DeepEval at maximum sustained throughput. Cell counts differ by design: RouteBalance is swept over $w_q\in\{0.1,0.3,0.5,0.7,0.9\}$ + corner strategies $\times\lambda$; the wrapper baselines are paired with both round-robin and shortest-queue dispatchers, contributing the additional cells. Hull = number of points on the per-system upper convex hull in throughput–quality space.}")
+    out.append(r"\caption{Per-system extremes across all valid evaluation cells (any $\lambda$, any knob; 287-cell corpus, $N{=}3534$ prompts each). RouteBalance-full reaches both the highest peak DeepEval and the highest DeepEval at maximum sustained throughput. Cell counts differ by design: RouteBalance is swept over $w_q\in\{0.1,0.3,0.5,0.7,0.9\}$ + corner strategies $\times\lambda$; the wrapper baselines are paired with both round-robin and shortest-queue dispatchers, contributing the additional cells. Hull = number of points on the per-system upper convex hull in throughput–quality space.}")
     out.append(r"\label{tab:extremes}")
     out.append(r"\begin{tabular}{lrrrrr}")
     out.append(r"\toprule")
