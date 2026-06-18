@@ -129,6 +129,22 @@ models = json.loads(example["models"])
 for model_name, data in models.items():
     print(f"{model_name}: length={data['output_length']}, ref_score={data.get('reference_score')}")
 ```
+
+## Citation
+
+If you use this dataset, please cite:
+
+```bibtex
+@misc{da2026routebalancefusedmodelrouting,
+      title={RouteBalance: Fused Model Routing and Load Balancing for Heterogeneous LLM Serving},
+      author={Wei Da and Evangelia Kalyvianaki},
+      year={2026},
+      eprint={2606.17949},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2606.17949},
+}
+```
 """
 
 

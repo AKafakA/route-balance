@@ -129,6 +129,22 @@ reproduce/
 
 A single A100/H100 host can run the scheduler + KNN predictor on CPU. Per-instance XGBoost predictors live in-process on the scheduler with `CUDA_VISIBLE_DEVICES=""` set. Off-line quality scoring with DeepEval requires a separate vLLM endpoint serving `Llama-3.1-8B-Instruct` (the judge).
 
+## Citation
+
+If you use RouteBalance, please cite:
+
+```bibtex
+@misc{da2026routebalancefusedmodelrouting,
+      title={RouteBalance: Fused Model Routing and Load Balancing for Heterogeneous LLM Serving},
+      author={Wei Da and Evangelia Kalyvianaki},
+      year={2026},
+      eprint={2606.17949},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2606.17949},
+}
+```
+
 ## License
 
 Code: Apache-2.0. Datasets: see Hugging Face dataset cards.
