@@ -13,11 +13,13 @@ decodes with c requests on its instance and is recorded with b = c. A level abov
 queue on the engine instead and is refused.
 
 That the batch really was c is checked, per instance and level: the engines' /metrics are read every POLL_S
-while the level runs, and the level holds on an instance when its engine preempted nothing (the KV cache fit c
-contexts) and the median of its running-batch reads is c, no filler failed and the fillers did not run out
-before the last measured request finished. (A waiting request alone is normal: vLLM keeps arrivals waiting while
-a step's token budget goes to prefill.) An instance-level that does not hold is recorded but gives no
-calibration records, and the run exits 1.
+while the level runs, each instance's running batch only while its own closed loop runs (a faster tier finishes
+its requests earlier and then idles until the level ends), and the level holds on an instance when its engine
+preempted nothing (the KV cache fit c contexts), the median of its running-batch reads is c less at most floor(c
+/ 32) (a closed loop's gauge dips while a finished request's slot refills: exact below 32, within 3 at 96; owner
+09-25), no filler failed and the fillers did not run out before the last measured request finished. (A waiting
+request alone is normal: vLLM keeps arrivals waiting while a step's token budget goes to prefill.) An instance-
+level that does not hold is recorded but gives no calibration records, and the run exits 1.
 
 Prompts: the dataset in its seed-1 send order (bench/dataset.py). Every prompt is sent at most once per engine,
 so no measured decode step shares the engine with a prefix-cache hit that serving would not have: level j gives
@@ -109,6 +111,7 @@ class Gauges:
     def __init__(self, sess: aiohttp.ClientSession, fleet: list[Instance], level: int):
         self._sess, self._fleet, self._level = sess, fleet, level
         self.seen: dict[str, dict] = {i.instance_id: {"running": [], "max_waiting": 0} for i in fleet}
+        self.active = {i.instance_id for i in fleet}   # instances whose closed loop still runs
         self.error: str | None = None       # a read that failed while the level ran: nothing is known to hold
 
     async def read(self, during: bool) -> None:
@@ -120,7 +123,7 @@ class Gauges:
             if "preemptions_start" not in s:
                 s["preemptions_start"] = snap.num_preemptions
             s["preemptions_end"] = snap.num_preemptions
-            if during:
+            if during and inst.instance_id in self.active:
                 s["running"].append(snap.num_running)
                 s["max_waiting"] = max(s["max_waiting"], snap.num_waiting)
 
@@ -136,12 +139,22 @@ class Gauges:
 
     def held(self, instance_id: str) -> bool:
         """No preemption, and the engine's running batch was the level: the median of the reads taken while the
-        level ran is c. (A waiting request alone does not break it: vLLM keeps new arrivals waiting while a step's
-        token budget is spent on prefill, at every level.)"""
+        instance's closed loop ran is c, less at most floor(c / 32). (A waiting request alone does not break it:
+        vLLM keeps new arrivals waiting while a step's token budget is spent on prefill, at every level.)"""
         s = self.seen[instance_id]
         runs = sorted(s["running"])
+        c = self._level
         return self.error is None and bool(runs) and "preemptions_end" in s \
-            and s["preemptions_end"] == s["preemptions_start"] and runs[len(runs) // 2] == self._level
+            and s["preemptions_end"] == s["preemptions_start"] and c - c // 32 <= runs[len(runs) // 2] <= c
+
+
+async def measured_loop(backend: BackendClient, inst: Instance, prompts: list, c: int, sampling: Sampling,
+                        prefix: str, fillers: list, gauges: Gauges):
+    """One instance's closed loop at level c; when it ends, its batch is no longer the level (Gauges.active)."""
+    try:
+        return await direct.closed_loop(backend, inst, prompts, c, sampling, request_prefix=prefix, fillers=fillers)
+    finally:
+        gauges.active.discard(inst.instance_id)
 
 
 def records(lines: list[dict]) -> list[dict]:
@@ -183,10 +196,8 @@ async def calibrate(plan: dict, row: dict, fleet: list[Instance], prompts: list[
             fill = order[filler_ranges[j][0]:filler_ranges[j][1]]
             try:
                 runs = await asyncio.gather(*(
-                    direct.closed_loop(backend, inst, order[measured[j][inst.instance_id][0]:
-                                                            measured[j][inst.instance_id][1]],
-                                       c, sampling, request_prefix=f"{row['id']}.{run_id}.c{c}.{inst.instance_id}",
-                                       fillers=fill)
+                    measured_loop(backend, inst, order[measured[j][inst.instance_id][0]:measured[j][inst.instance_id][1]],
+                                  c, sampling, f"{row['id']}.{run_id}.c{c}.{inst.instance_id}", fill, gauges)
                     for inst in fleet), return_exceptions=True)
             finally:
                 watcher.cancel()

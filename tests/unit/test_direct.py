@@ -110,6 +110,20 @@ def test_levels_are_six_distinct_and_within_the_engine_batch():
             check_levels(bad, FLEET)
 
 
+@pytest.mark.parametrize("level,median,held", [
+    (1, 1, True), (16, 16, True), (16, 15, False), (31, 30, False),     # exact below 32
+    (32, 31, True), (32, 30, False), (64, 62, True), (64, 61, False),   # floor(c / 32) below (owner 09-25)
+    (96, 93, True), (96, 92, False), (64, 65, False),
+])
+def test_a_level_holds_within_floor_c_over_32_of_its_batch(level, median, held):
+    from tools.calibrate_driver import Gauges
+    g = Gauges(None, [], level)
+    g.seen["i"] = {"running": [median] * 5, "max_waiting": 0, "preemptions_start": 3, "preemptions_end": 3}
+    assert g.held("i") is held
+    g.seen["i"]["preemptions_end"] = 4
+    assert g.held("i") is False                               # a preemption always breaks the level
+
+
 def test_calibration_records_are_measured_successful_requests_of_held_levels_only():
     base = {"tier": "t", "b": 4, "tpot_s": 0.01, "output_tokens": 9, "filler": False, "success": True, "held": True}
     lines = [base, {**base, "filler": True}, {**base, "success": False, "tpot_s": None},

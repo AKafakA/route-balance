@@ -131,6 +131,23 @@ def test_calibration_measures_every_instance_at_every_level(tmp_path, monkeypatc
     assert _lines(tmp_path / "requests.jsonl") == lines
 
 
+def test_a_fast_tier_holds_although_it_finishes_long_before_a_slow_one(tmp_path, monkeypatch):
+    """Found in the 09-25 rehearsal: the 14B finished level 1 in ~260 s of the level's 672 s, and reads taken
+    after its closed loop ended (running 0) made its median 0. Only an instance's own window counts."""
+    monkeypatch.setattr(calibrate_driver, "POLL_S", 0.005)
+
+    async def scenario():
+        async with Engines([SMALL, LARGE], delay_s=0.02) as e:
+            e.states[1].chat_delay_s = 0.2                    # the large engine is 10x slower per token
+            p, row = plan({"levels": [1, 2, 3, 4, 5, 6], "requests_per_level": 3})
+            manifest = {}
+            return await calibrate(p, row, e.fleet, TRAIN, tmp_path, manifest), manifest
+    lines, manifest = asyncio.run(scenario())
+    assert all(x["held"] for x in lines if not x["filler"])
+    fast, slow = (manifest["per_level"]["1"]["instances"][k]["running"] for k in ("S_0", "L_1"))
+    assert 0 < len(fast) < len(slow) / 2                     # the fast instance's reads stop with its own loop
+
+
 def test_a_level_with_a_preemption_or_a_short_batch_does_not_hold(tmp_path, monkeypatch):
     monkeypatch.setattr(calibrate_driver, "POLL_S", 0.005)
 
