@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "26f1057897e604a3a57476a3ec3d6f33af6448aac5341ca508e655333d50f969",
- "fleet_digest": "deb842f851d22dd0f3ee79b3f185f22769e41aba72ed90be530efcde8341fbfe",
+ "config_digest": "3d25e1e1c40415505962df804b6abc00ce834eeb1ee34c25b8060eb8c738cc87",
+ "fleet_digest": "06d573ca162770e1630bedbc6561bc491d85fdf9d5cf7c71ab6b7f09692709e7",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -36,6 +36,7 @@
  ],
  "system": {
   "mode": "pipeline",
+  "telemetry_read": "poll",
   "weights": null,
   "rounds": {
    "adaptive": true,
@@ -85,13 +86,14 @@
   "latency_envelope": null,
   "router": "PassthroughRouter",
   "dispatcher": "LeastOutstanding",
-  "round_loop": false
+  "round_loop": false,
+  "telemetry_pollers": true
  },
  "artifacts": {},
  "code": {
-  "routebalance": "ab40562010299d4aac0c8c2ae63f4c53eda3fb9ec17e6f83c977378765e9c856",
+  "routebalance": "263ccca0a877aebe687c0ef6228703ec1609ab31e4f5dd9303af14984d605d41",
   "avengers_pro": null,
-  "routebalance_now": "ab40562010299d4aac0c8c2ae63f4c53eda3fb9ec17e6f83c977378765e9c856",
+  "routebalance_now": "263ccca0a877aebe687c0ef6228703ec1609ab31e4f5dd9303af14984d605d41",
   "avengers_pro_now": null
  },
  "threadpools": {
@@ -156,7 +158,7 @@
    "force_close": true
   },
   "telemetry_session": {
-   "limit": 6,
+   "limit": 64,
    "limit_per_host": 0,
    "force_close": false
   },

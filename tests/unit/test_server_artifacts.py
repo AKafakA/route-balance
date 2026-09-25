@@ -25,6 +25,7 @@ ENCODER = "sentence-transformers/all-MiniLM-L6-v2"
 BASE = {
     "mode": "routebalance", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
     "rounds": {"adaptive": True}, "lpt": "max", "pending_decode": "own_length", "dead_reckoning": True,
+    "telemetry_read": "per_round",
     "latency": {"source": "constant", "envelope": "own_length", "normalization": "max_divide",
                 "table": "calib/t.json", "table_md5": "0" * 32},
     "estimator": {"index_dir": "knn/x", "index_md5": "1" * 32, "encoder_revision": "e" * 40, "k": 50,
@@ -65,7 +66,7 @@ def load(cfg: dict, root):
 
 def pipeline(router: dict, **kw) -> dict:
     cfg = copy.deepcopy(BASE)
-    cfg.update(mode="pipeline", weights=None, pending_decode=None,
+    cfg.update(mode="pipeline", weights=None, pending_decode=None, telemetry_read="poll",
                pipeline={"router": router, "dispatch": {"type": "least_outstanding", "seed": 1}}, **kw)
     return cfg
 

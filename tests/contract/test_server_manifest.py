@@ -46,11 +46,13 @@ def test_the_manifest_reports_what_this_process_executes(tmp_path):
     assert man["fleet"][2] == {"instance_id": "L_2", "tier": "large_a100", "model": "L", "gpu": "a100",
                                "cost_in": 4e-7, "cost_out": 4e-7, "max_num_seqs": 8, "node": "n2"}   # no host or port
     assert man["system"] == {k: RB[k] for k in ("mode", "weights", "rounds", "lpt", "pending_decode", "latency",
-                                                "estimator")} | {"router": None, "dispatch": None}
+                                                "estimator")} | {"router": None, "dispatch": None,
+                                                                 "telemetry_read": "per_round"}   # D53
     assert man["budget"] == RB["budget"]
     assert man["telemetry"] == RB["telemetry"] | {"dead_reckoning": True}
     assert man["loaded"] == {"estimator": "StubEstimator", "latency_source": "constant",
-                             "latency_envelope": "own_length", "router": None, "dispatcher": None, "round_loop": True}
+                             "latency_envelope": "own_length", "router": None, "dispatcher": None, "round_loop": True,
+                             "telemetry_pollers": False}
     assert man["artifacts"] == {}                  # the test factory loads no files
     digest = shell_tree_digest(PACKAGE_DIR)
     assert man["code"] == {"routebalance": digest, "routebalance_now": digest, "avengers_pro": None,
@@ -59,7 +61,7 @@ def test_the_manifest_reports_what_this_process_executes(tmp_path):
     assert man["versions"]["aiohttp"] == aiohttp.__version__ and man["versions"]["python"]
     launch = man["launch"]
     assert launch["engine_session"] == {"limit": 64, "limit_per_host": 0, "force_close": True}
-    assert launch["telemetry_session"] == {"limit": 6, "limit_per_host": 0, "force_close": False}
+    assert launch["telemetry_session"] == {"limit": 64, "limit_per_host": 0, "force_close": False}   # D55 probes
     assert (launch["torch_threads"], launch["max_connections"], launch["request_timeout_s"],
             launch["router_threads"]) == (1, 64, 5.0, 4)
     assert launch["event_loop"].startswith("asyncio.") or launch["event_loop"].startswith("uvloop")
@@ -79,7 +81,8 @@ def test_the_manifest_follows_a_config_swap(tmp_path):
     assert after["config_digest"] != before["config_digest"] and after["system"]["mode"] == "pipeline"
     assert after["system"]["dispatch"] == {"type": "least_outstanding", "seed": 1, "latency_window": None}
     assert after["loaded"] == {"estimator": None, "latency_source": None, "latency_envelope": None,
-                               "router": "PassthroughRouter", "dispatcher": "LeastOutstanding", "round_loop": False}
+                               "router": "PassthroughRouter", "dispatcher": "LeastOutstanding", "round_loop": False,
+                               "telemetry_pollers": True}
     assert all(after[k] == before[k] for k in ("fleet_digest", "fleet", "budget", "telemetry", "code", "versions"))
 
 

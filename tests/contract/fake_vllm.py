@@ -23,6 +23,7 @@ class FakeState:
     omit: tuple[str, ...] = ()
     duplicate: tuple[str, ...] = ()
     raw_body: bytes | None = None  # when set, served verbatim as /metrics
+    metrics_drop: bool = False  # default-ok: /metrics drops the connection unanswered (a network failure)
     # default-ok: ok | http500 | no_choices | no_usage | malformed | cut | crlf | multiline | null_event |
     # null_choice | int_content | unterminated | slow_headers | close_after_body | merged | engine_error
     # | no_final_usage (continuous usage on every chunk, but the stream stops before the final usage chunk)
@@ -71,7 +72,10 @@ def make_app(state: FakeState) -> web.Application:
             {"id": m, "object": "model", "created": 1759000000, "owned_by": "vllm", "root": m, "parent": None,
              "max_model_len": 4096, "permission": []} for m in state.served]})
 
-    async def metrics(_request):
+    async def metrics(request):
+        if state.metrics_drop:
+            request.transport.close()
+            return web.Response(status=200)
         if state.status != 200:
             return web.Response(status=state.status)
         if state.raw_body is not None:

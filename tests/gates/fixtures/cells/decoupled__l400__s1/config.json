@@ -35,6 +35,7 @@
  },
  "lpt": "max",
  "pending_decode": null,
+ "telemetry_read": "poll",
  "pipeline": {
   "router": {
    "type": "rb_decoupled",

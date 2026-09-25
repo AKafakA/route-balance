@@ -1,12 +1,12 @@
 """Baseline dispatchers: pick one instance among the router's candidates.
 
 A dispatcher reads only the loads the pipeline hands it, taken from the shared TelemetryView (the
-dead-reckoned stats and scheduler-side in-flight counts RouteBalance reads too): num_running,
-num_waiting and in_flight. It never fetches anything itself; lowest_latency also learns from the
-completions and timeouts the server reports. Candidates arrive in fleet order, and order is
-behaviour. There is no separate shortest-queue dispatcher: with the shared, dead-reckoned view (which
-every pipeline system uses; config rejects it off), running + waiting equals the in-flight count, so it
-would decide exactly as least_outstanding does (D40).
+dead-reckoned stats RouteBalance reads too): num_running + num_waiting. It never fetches anything itself;
+lowest_latency also learns from the completions and timeouts the server reports. Candidates arrive in fleet
+order, and order is behaviour. There is no separate shortest-queue dispatcher: under dead reckoning (every
+pipeline system on the pollers' cache) running + waiting IS the scheduler's in-flight count, so shortest queue
+and least outstanding are one rule (D40); in v3's per-request probe arm (dead reckoning off, D55) the same rule
+reads the engine's own counts, which is v3's shortest queue.
 Ties: least_outstanding gives them to the least recently assigned candidate, then to fleet order (as
 RouteBalance's own tie-break, and like the round robin among ties of stock least-connection balancers;
 v3's first-candidate rule biased the first instance); po2 keeps the first drawn (v3); lowest_latency
@@ -69,16 +69,16 @@ class RoundRobin(Dispatcher):
 
 
 class LeastOutstanding(Dispatcher):
-    """Fewest requests this scheduler has dispatched and not yet seen finish (equal to shortest queue
-    under the dead-reckoned view); among equal counts the candidate assigned least recently (never assigned =
-    0.0), then the earliest in fleet order."""
+    """Shortest queue, running + waiting: under dead reckoning, the requests this scheduler has dispatched and
+    not yet seen finish; without it (the D55 probe arm), the engine's own counts. Among equal queues the candidate
+    assigned least recently (never assigned = 0.0), then the earliest in fleet order."""
 
     def __init__(self, clock: Callable[[], float] = time.monotonic):
         self._clock = clock
         self._assigned: dict[str, float] = {}
 
     def _choose(self, candidates, loads):
-        best = min(candidates, key=lambda c: (loads[c.instance_id].in_flight,
+        best = min(candidates, key=lambda c: (_queue(loads[c.instance_id]),
                                               self._assigned.get(c.instance_id, 0.0)))  # default-ok: 0.0 = never
         self._assigned[best.instance_id] = self._clock()
         return best

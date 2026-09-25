@@ -41,13 +41,18 @@ class FakeView:
             raise self._error
         return {i: (self._loads[i] if self._loads else load()) for i in ids}
 
+    async def fetch(self, ids):
+        self.fetched = list(ids)
+        return self.loads(ids)
+
     def record_dispatch(self, instance_id, predicted_decode_tokens):
         self.recorded.append((instance_id, predicted_decode_tokens))
         return ("token", instance_id)
 
 
-def select(router, dispatcher, view, prompt="hi"):
-    return run(select_instance(router, dispatcher, FLEET, view, RouterRequest(prompt, "r1"), decode_tokens=ALL64))
+def select(router, dispatcher, view, prompt="hi", probe=False):
+    return run(select_instance(router, dispatcher, FLEET, view, RouterRequest(prompt, "r1"), decode_tokens=ALL64,
+                               probe=probe))
 
 
 # ---------------------------------------------------------------- the unwrap
@@ -106,9 +111,21 @@ def test_telemetry_failure_propagates_for_every_dispatcher():
 
 def test_dispatcher_gets_the_views_loads():
     seven = of_model("7B")
-    loads = {i.instance_id: load(in_flight=5) for i in FLEET} | {seven[3].instance_id: load(in_flight=1)}
+    loads = {i.instance_id: load(running=5, in_flight=5) for i in FLEET} | {
+        seven[3].instance_id: load(running=1, in_flight=1)}
     sel = select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(), FakeView(loads))
     assert sel.instance is seven[3]
+
+
+def test_a_probe_fetches_the_routers_candidates_only():
+    """D55: v3's per-request arm fetches the chosen model's instances, then dispatches on that fetch."""
+    seven = of_model("7B")
+    loads = {i.instance_id: load(running=5) for i in FLEET} | {seven[2].instance_id: load(running=1)}
+    probed, cached = FakeView(loads), FakeView(loads)
+    assert select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(), probed, probe=True).instance is seven[2]
+    assert probed.fetched == [i.instance_id for i in seven]
+    assert select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(), cached).instance is seven[2]
+    assert not hasattr(cached, "fetched")                     # the cache read never fetches
 
 
 def test_overhead_is_split_and_adds_up():
@@ -121,7 +138,8 @@ def test_overhead_is_split_and_adds_up():
 def test_a_bad_prediction_is_refused_before_the_dispatcher_moves(bad):
     rr, view = RoundRobin(), FakeView()
     with pytest.raises(ValueError, match="decode_tokens"):
-        run(select_instance(PassthroughRouter(), rr, FLEET, view, RouterRequest("x", "r"), decode_tokens=bad))
+        run(select_instance(PassthroughRouter(), rr, FLEET, view, RouterRequest("x", "r"), decode_tokens=bad,
+                              probe=False))
     assert view.asked == [] and view.recorded == [] and select(PassthroughRouter(), rr, view).instance is FLEET[0]
 
 
@@ -129,14 +147,14 @@ def test_the_chosen_models_decode_tokens_and_load_are_recorded():
     per_model = {m: 10 + k for k, m in enumerate(POOL)}
     view = FakeView({i.instance_id: load(in_flight=3) for i in FLEET})
     sel = run(select_instance(PassthroughRouter(), RoundRobin(), FLEET, view, RouterRequest("x", "r"),
-                              decode_tokens=per_model))
+                              decode_tokens=per_model, probe=False))
     assert view.recorded == [(sel.instance.instance_id, per_model[sel.model])] and sel.load.in_flight == 3
 
 
 def test_empty_fleet_raises():
     with pytest.raises(ValueError):
         run(select_instance(PassthroughRouter(), RoundRobin(), [], FakeView(), RouterRequest("x", "r"),
-                            decode_tokens=ALL64))
+                            decode_tokens=ALL64, probe=False))
 
 
 # ---------------------------------------------------------------- the real shared view
@@ -156,7 +174,7 @@ def test_each_selection_is_recorded_before_the_next_one_reads_the_view():
 
     async def burst():   # concurrent selections: each must see the dispatches recorded before it
         return await asyncio.gather(*(select_instance(router, lor, FLEET, view, RouterRequest("hi", str(k)),
-                                                      decode_tokens=ALL64) for k in range(7)))
+                                                      decode_tokens=ALL64, probe=False) for k in range(7)))
     sels = run(burst())
     seven = of_model("7B")
     assert [s.instance for s in sels] == seven + seven[:2]

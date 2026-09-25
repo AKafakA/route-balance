@@ -1,9 +1,9 @@
 """Instance telemetry shared by every system.
 
 Load comes from two places, exactly as production balancers get it:
-  * the engine: each instance has its own poller that scrapes vLLM's Prometheus /metrics every
-    poll_ms (running and waiting requests, KV-cache usage, preemptions), so a slow or dead instance
-    never delays the others;
+  * the engine: vLLM's Prometheus /metrics (running and waiting requests, KV-cache usage, preemptions),
+    scraped by one poller per instance every poll_ms (so a slow or dead instance never delays the others)
+    or fetched when a decision is made (the three ways to read, below);
   * the scheduler itself: every dispatch is tracked until it completes. Its predicted output length
     and the tokens streamed so far give the instance's pending decode tokens.
 
@@ -15,6 +15,14 @@ dispatch, or during a long first prefill, a scrape can still show an idle engine
 completion it can still show the finished request; the in-flight count covers both without any
 timing assumption. RouteBalance and every baseline dispatcher read the same view (the parity rule).
 With dead_reckoning off, only the engine's gauges are used.
+
+Three ways to read (config telemetry_read; D53, D55):
+  poll        the snapshot the background pollers keep, every poll_ms, as production balancers read a scraped
+              cache: the pipeline systems (router + dispatcher, deciding per request), and RouteBalance's D54 control;
+  per_round   RouteBalance's own: every instance fetched once per batch, at each round's start (fetch_round), and
+              the whole round scheduled from that fetch;
+  per_request v3's baselines: each request fetches its candidates (fetch) and reads the engine's own counts.
+A fetch uses only scrapes sent after it began; an instance without one fails the round or the request.
 
 Freshness is measured from when a scrape was SENT, so a slow reply cannot pass for fresh data. A
 malformed reply makes the instance unavailable until a valid one arrives; a failed fetch leaves the
@@ -168,6 +176,11 @@ class TelemetryView:
     def dead_reckoning(self) -> bool:
         return self._settings[2]
 
+    @property
+    def polling(self) -> bool:
+        """The background pollers are running (what executes, for the manifest)."""
+        return self._state == "running"
+
     # ---------------------------------------------------------------- polling
 
     async def _poll_one(self, inst: Instance) -> None:
@@ -193,6 +206,26 @@ class TelemetryView:
         if self._state == "running":
             raise RuntimeError("refresh() while the pollers are running would double-poll every instance")
         await asyncio.gather(*(self._poll_one(i) for i in self._instances))
+
+    async def fetch(self, instance_ids: Sequence[str]) -> dict[str, Load]:
+        """Scrape these instances now, concurrently, and return their loads from scrapes sent after this call
+        began: this one's, or a concurrent fetch's newer one. An instance without such a scrape fails the whole
+        fetch; an older snapshot is never used, however young. Only without background pollers."""
+        if self._state == "running":
+            raise RuntimeError("fetch() with background pollers running: a view either polls or fetches")
+        by_id = {i.instance_id: i for i in self._instances}
+        started = self._clock()
+        await asyncio.gather(*(self._poll_one(by_id[i]) for i in instance_ids))
+        failed = {i: self._entries[i].error for i in instance_ids
+                  if self._entries[i].snapshot is None or self._entries[i].error is not None
+                  or self._entries[i].requested_at < started}
+        if failed:
+            raise InstanceStateUnavailable(f"the load fetch failed for {failed}")
+        return self.loads(instance_ids)
+
+    async def fetch_round(self) -> dict[str, Load]:
+        """RouteBalance's per-batch load fetch (D53): every instance, at a round's start."""
+        return await self.fetch([i.instance_id for i in self._instances])
 
     async def _run_one(self, inst: Instance) -> None:
         while True:

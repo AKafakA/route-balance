@@ -380,3 +380,70 @@ def test_view_rejects_configs_that_break_freshness(poll, age):
 def test_parse_accepts_a_sample_on_the_first_line_and_without_labels():
     text = "vllm:num_requests_running 4\n" + "\n".join(metrics().splitlines()[2:]) + "\n"
     assert parse_metrics("a", text).num_running == 4
+
+
+def test_fetch_round_returns_this_scrapes_loads_only():
+    bodies = {"a": metrics(running=3), "b": metrics(running=1)}
+    view = view_with(static_fetch(bodies), dead_reckoning=False)
+    loads = run(view.fetch_round())
+    assert loads["a"].stats.num_running == 3 and loads["b"].stats.num_running == 1
+    bodies["a"] = RuntimeError("connection refused")          # the previous snapshot is still young ...
+    with pytest.raises(InstanceStateUnavailable, match="load fetch failed.*connection refused"):
+        run(view.fetch_round())                               # ... but a round never uses it (D53)
+
+
+def test_fetch_scrapes_only_the_instances_asked_for():
+    """D55's per-request probe: a request fetches its candidates, not the fleet."""
+    scraped = []
+
+    async def fetch(inst):
+        scraped.append(inst.instance_id)
+        return metrics(running=4, waiting=2)
+    view = view_with(fetch, dead_reckoning=False)
+    loads = run(view.fetch(["b"]))
+    assert scraped == ["b"] and list(loads) == ["b"]
+    assert (loads["b"].stats.num_running, loads["b"].stats.num_waiting) == (4, 2)   # the engine's own counts
+
+
+def test_a_concurrent_fetchs_newer_scrape_counts_but_an_older_one_does_not():
+    """Two requests probing one instance at once: the later scrape's outcome serves both (it was sent after
+    both fetches began); a snapshot from before a fetch began never does."""
+    clock = Clock()
+    slow = asyncio.Event()
+    replies = ["slow failure", metrics(running=5), RuntimeError("refused")]
+
+    async def fetch(inst):
+        reply = replies.pop(0)
+        if reply == "slow failure":      # the first fetch's scrape answers last, and fails
+            await slow.wait()
+            raise RuntimeError("reset")
+        if isinstance(reply, Exception):
+            raise reply
+        return reply
+
+    async def scenario():
+        view = view_with(fetch, instances=(A,), clock=clock, dead_reckoning=False)
+        first = asyncio.create_task(view.fetch(["a"]))
+        await asyncio.sleep(0)
+        clock.t += 0.01
+        second = await view.fetch(["a"])            # the newer scrape succeeds
+        slow.set()
+        first_loads = await first                    # its own scrape failed late; the newer one was sent after it began
+        assert second["a"].stats.num_running == 5 and first_loads["a"].stats.num_running == 5
+        clock.t += 0.01
+        with pytest.raises(InstanceStateUnavailable, match="refused"):
+            await view.fetch(["a"])                  # the young snapshot from before this fetch is not used
+    run(scenario())
+
+
+def test_fetch_round_refuses_a_polling_view():
+    view = view_with(static_fetch({"a": metrics(), "b": metrics()}))
+
+    async def scenario():
+        await view.start()
+        try:
+            with pytest.raises(RuntimeError, match="either polls or fetches"):
+                await view.fetch_round()
+        finally:
+            await view.stop()
+    run(scenario())

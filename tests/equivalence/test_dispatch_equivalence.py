@@ -4,7 +4,7 @@ Each event is a routed dispatch (one tier's instances, tiers drawn with BEST-Rou
 passthrough one (all 13), with running/waiting/in-flight drawn in [0, 8] so ties are frequent. v3 sees
 the same numbers as a complete stats_map (v3's fail-loud default). The instance-id sequences must match.
 v3's shortest_queue has no rebuild counterpart (merged into least_outstanding, D40), and least_outstanding
-must match its own definition (fewest in flight, ties to the least recently assigned).
+must match its own definition (the shortest running + waiting queue, ties to the least recently assigned).
 """
 import asyncio
 import random
@@ -122,7 +122,10 @@ def least_recent_reference(key_of):
 
 
 def test_least_outstanding_is_its_definition(v3):
-    assert rebuild_ids(LeastOutstanding(clock=Ticks())) == least_recent_reference(lambda ev: ev.in_flight)
+    """The shortest running + waiting queue the view reports (the in-flight count under dead reckoning, the
+    engine's own counts in the D55 probe arm), ties to the least recently assigned."""
+    queue = lambda ev: [r + w for r, w in zip(ev.running, ev.waiting, strict=True)]   # noqa: E731
+    assert rebuild_ids(LeastOutstanding(clock=Ticks())) == least_recent_reference(queue)
 
 
 def test_po2_single_candidate_consumes_no_randomness(v3_dispatch):

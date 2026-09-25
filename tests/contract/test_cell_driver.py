@@ -41,7 +41,8 @@ def test_prepare_makes_an_attempt_with_the_rendered_configuration(lease):
     assert attempt.name == CELL and attempt.parent.parent == root / "_attempts"
     assert (attempt / "config.json").read_bytes() == (render / "configs" / "g1.qwen.ap.pw070.lor.json").read_bytes()
     assert json.loads((attempt / "group.json").read_text()) == {"group": "g1", "reference": None,
-                                                                 "intended_differences": ["system.*"]}
+                                                                 "intended_differences": ["system.*",
+                                                                                          "telemetry.dead_reckoning"]}
     assert out["SWEEP"] == "0" and out["CONFIG_DIGEST"] == result.scope["configs"]["g1.qwen.ap.pw070.lor"]["config_digest"]
     assert cd.prepare(render, "qwen.sweep.random__sweep6-36__s1", root, fleet, hosts)["SWEEP"] == "1"
     other = fleet.with_name("other.json")
@@ -152,7 +153,7 @@ def test_status_verdict_publish_and_resume(lease, tmp_path):
     render, root, fleet, hosts, result = lease
     scope, _ = cd.load(render)
     run, report = cd.cells_to_run(render, ["G1"], root, fleet, hosts)
-    assert len(run) == 16 and run[0].startswith("g1.qwen.rb.") and report == []
+    assert len(run) == 32 and run[0].startswith("g1.qwen.rb.") and report == []
     attempt = cd.Path(cd.prepare(render, CELL, root, fleet, hosts)["ATTEMPT"])
     with pytest.raises(ConfigError, match="no cell record"):
         cd.publish(attempt, root)
@@ -193,7 +194,7 @@ def test_an_unpublished_record_is_never_run_again(lease):
 def test_the_rows_are_done_only_when_every_cell_is_and_parity_passed(lease, monkeypatch):
     render, root, *_ = lease
     problems, published = cd.rows_status(render, ["G1"], root)
-    assert len(problems) == 16 and published == []
+    assert len(problems) == 32 and published == []
     (root / CELL / "gates").mkdir(parents=True)
     (root / CELL / "gates" / "verdict.json").write_text(json.dumps({"valid": False}))
     problems, published = cd.rows_status(render, ["G1"], root)

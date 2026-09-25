@@ -28,6 +28,7 @@ RB = {
     "lpt": "max",
     "pending_decode": "own_length",
     "dead_reckoning": True,
+    "telemetry_read": "per_round",
     "latency": {"source": "profiled_curve", "envelope": "batch_aware", "normalization": "fixed_ref",
                 "table": "calib/qwen_tpot_curve.json", "table_md5": "1" * 32},
     "estimator": {"index_dir": "knn/qwen", "index_md5": "0" * 32, "encoder_revision": "a" * 40, "k": 50,
@@ -43,6 +44,7 @@ def _pipeline(router="best_route", dispatch="least_outstanding"):
     d["mode"] = "pipeline"
     d["weights"] = None
     d["pending_decode"] = None
+    d["telemetry_read"] = "poll"
     d["pipeline"] = {"router": {"type": router, "kwargs": {}}, "dispatch": {"type": dispatch, "seed": 1}}
     return d
 
@@ -140,11 +142,28 @@ def test_pending_decode_is_required_exactly_in_routebalance_mode():
     assert parse_scheduler(d).pending_decode == "own_length"
 
 
-def test_pipeline_mode_requires_dead_reckoning():
-    d = _pipeline()
-    d["dead_reckoning"] = False
-    with pytest.raises(ConfigError, match="dead reckoning off"):
-        parse_scheduler(d)
+@pytest.mark.parametrize("mode,read,dr,dispatch,msg", [
+    ("routebalance", "per_round", True, None, None),
+    ("routebalance", "poll", True, None, None),                      # the D54 control
+    ("routebalance", "per_round", False, None, None),                # W4's dead-reckoning ablation
+    ("routebalance", "per_request", True, None, "never per request"),
+    ("pipeline", "poll", True, "least_outstanding", None),
+    ("pipeline", "per_request", False, "least_outstanding", None),   # v3's probe arm (D55)
+    ("pipeline", "per_request", False, "po2", None),
+    ("pipeline", "poll", False, "least_outstanding", "dead reckoning off"),
+    ("pipeline", "per_request", True, "least_outstanding", "dead reckoning off"),
+    ("pipeline", "per_round", True, "least_outstanding", "decides per request"),
+    ("pipeline", "per_request", False, "round_robin", "reads no load"),
+    ("pipeline", "per_request", False, "random", "reads no load"),
+])
+def test_how_load_is_read_follows_the_mode(mode, read, dr, dispatch, msg):
+    d = copy.deepcopy(RB) if mode == "routebalance" else _pipeline(dispatch=dispatch)
+    d["telemetry_read"], d["dead_reckoning"] = read, dr
+    if msg is None:
+        assert parse_scheduler(d).telemetry_read == read
+    else:
+        with pytest.raises(ConfigError, match=msg):
+            parse_scheduler(d)
 
 
 def test_pipeline_mode_rejects_the_budget_admission_filter():

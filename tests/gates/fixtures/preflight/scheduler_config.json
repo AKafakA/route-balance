@@ -1,19 +1,16 @@
 {
  "config": {
-  "mode": "routebalance",
-  "weights": {
-   "w_quality": 0.2,
-   "w_latency": 0.4,
-   "w_cost": 0.4
-  },
+  "mode": "pipeline",
+  "weights": null,
   "rounds": {
-   "adaptive": false,
-   "max_batch": 4,
-   "timeout_ms": 30.0
+   "adaptive": true,
+   "max_batch": null,
+   "timeout_ms": null
   },
   "lpt": "max",
-  "pending_decode": "own_length",
-  "dead_reckoning": false,
+  "pending_decode": null,
+  "dead_reckoning": true,
+  "telemetry_read": "poll",
   "latency": {
    "source": "constant",
    "envelope": "own_length",
@@ -38,8 +35,18 @@
    "max_age_ms": 2000.0,
    "timeout_s": 2.0
   },
-  "pipeline": null
+  "pipeline": {
+   "router": {
+    "type": "passthrough",
+    "kwargs": {}
+   },
+   "dispatch": {
+    "type": "least_outstanding",
+    "seed": 1,
+    "latency_window": null
+   }
+  }
  },
- "config_digest": "b910f47a697c1d42efe5e2ea5cfc05bced283dcfb2ad329a4d4ae12a31f1de97",
- "fleet_digest": "deb842f851d22dd0f3ee79b3f185f22769e41aba72ed90be530efcde8341fbfe"
+ "config_digest": "3d25e1e1c40415505962df804b6abc00ce834eeb1ee34c25b8060eb8c738cc87",
+ "fleet_digest": "06d573ca162770e1630bedbc6561bc491d85fdf9d5cf7c71ab6b7f09692709e7"
 }

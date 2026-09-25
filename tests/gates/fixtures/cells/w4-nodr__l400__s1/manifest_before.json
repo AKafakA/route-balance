@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "b910f47a697c1d42efe5e2ea5cfc05bced283dcfb2ad329a4d4ae12a31f1de97",
- "fleet_digest": "deb842f851d22dd0f3ee79b3f185f22769e41aba72ed90be530efcde8341fbfe",
+ "config_digest": "c64f8462136bf1d9e26d85f1012495f2c23389a4e377825e7ae564bd256d985b",
+ "fleet_digest": "06d573ca162770e1630bedbc6561bc491d85fdf9d5cf7c71ab6b7f09692709e7",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -36,6 +36,7 @@
  ],
  "system": {
   "mode": "routebalance",
+  "telemetry_read": "per_round",
   "weights": {
    "w_quality": 0.2,
    "w_latency": 0.4,
@@ -82,7 +83,8 @@
   "latency_envelope": "own_length",
   "router": null,
   "dispatcher": null,
-  "round_loop": true
+  "round_loop": true,
+  "telemetry_pollers": false
  },
  "artifacts": {
   "knn/x/knn_estimator.pkl": "00000000000000000000000000000000",
@@ -90,9 +92,9 @@
   "calib/tpot.json": "3004488055fdb43f53da93726b9e2130"
  },
  "code": {
-  "routebalance": "ab40562010299d4aac0c8c2ae63f4c53eda3fb9ec17e6f83c977378765e9c856",
+  "routebalance": "263ccca0a877aebe687c0ef6228703ec1609ab31e4f5dd9303af14984d605d41",
   "avengers_pro": null,
-  "routebalance_now": "ab40562010299d4aac0c8c2ae63f4c53eda3fb9ec17e6f83c977378765e9c856",
+  "routebalance_now": "263ccca0a877aebe687c0ef6228703ec1609ab31e4f5dd9303af14984d605d41",
   "avengers_pro_now": null
  },
  "threadpools": {
@@ -157,7 +159,7 @@
    "force_close": true
   },
   "telemetry_session": {
-   "limit": 6,
+   "limit": 64,
    "limit_per_host": 0,
    "force_close": false
   },

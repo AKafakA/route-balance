@@ -26,7 +26,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Annotated, Any, Callable, Literal, Optional, Union
 
-from pydantic import Field, ValidationError, field_validator
+from pydantic import Field, ValidationError, field_validator, model_validator
 
 from bench.records import CELL_SUFFIX, CellRecord, read_cell
 from bench.schema import Strict, read_json
@@ -51,12 +51,19 @@ class Logged(Strict):
 
 class Stats(Strict):
     loop_lag: dict[str, Union[int, float]]
-    telemetry_age_ms: dict[str, Union[float, str]]   # instance -> age, or {"error": why the view is stale}
+    telemetry_read: Literal["per_round", "per_request", "poll"]   # D53, D55; the pollers' cache is D19
+    telemetry_age_ms: Optional[dict[str, Union[float, str]]]   # poll only: instance -> age, or {"error": why stale}
     active: int = Field(ge=0)
     rounds: Optional[int]
     booster_calls: Optional[int]                     # None: no latency model is loaded
     failure: Optional[str]
     logged: Logged
+
+    @model_validator(mode="after")
+    def _ages_iff_polling(self):
+        if (self.telemetry_read == "poll") != (self.telemetry_age_ms is not None):
+            raise ValueError("telemetry ages are reported exactly when the system reads the pollers' cache")
+        return self
 
 
 # ---------------------------------------------------------------- GET /v1/manifest
@@ -75,6 +82,7 @@ class FleetEntry(Strict):
 class SystemKeys(Strict):
     """The system-defining settings: the only ones that may differ between the systems of a group."""
     mode: Literal["routebalance", "pipeline"]
+    telemetry_read: Literal["per_round", "per_request", "poll"]   # part of the system (D53, D55)
     weights: Optional[dict[str, float]]
     rounds: dict[str, Any]
     lpt: str
@@ -83,6 +91,13 @@ class SystemKeys(Strict):
     estimator: dict[str, Any]
     router: Optional[dict[str, Any]]
     dispatch: Optional[dict[str, Any]]
+
+    @model_validator(mode="after")
+    def _read_follows_mode(self):
+        allowed = ("per_round", "poll") if self.mode == "routebalance" else ("per_request", "poll")
+        if self.telemetry_read not in allowed:
+            raise ValueError(f"a {self.mode} system cannot read telemetry '{self.telemetry_read}' (D53, D55)")
+        return self
 
 
 class TelemetrySettings(Strict):
@@ -99,6 +114,7 @@ class Loaded(Strict):
     router: Optional[str]
     dispatcher: Optional[str]
     round_loop: bool
+    telemetry_pollers: bool                 # read from the live view: running exactly when telemetry_read is poll
 
 
 class Code(Strict):
@@ -152,6 +168,14 @@ class Manifest(Strict):
     threadpools: dict[str, int]
     versions: dict[str, str]
     launch: Launch
+
+    @model_validator(mode="after")
+    def _pollers_follow_the_read(self):
+        """What executes, not what the config says (the first rule): pollers run exactly for the cache read."""
+        if self.loaded.telemetry_pollers != (self.system.telemetry_read == "poll"):
+            raise ValueError(f"telemetry pollers {'run' if self.loaded.telemetry_pollers else 'do not run'} "
+                             f"under telemetry_read '{self.system.telemetry_read}'")
+        return self
 
 
 # ---------------------------------------------------------------- group.json

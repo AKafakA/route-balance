@@ -1,0 +1,20 @@
+{
+ "loop_lag": {
+  "samples": 9,
+  "p50_ms": 4.233837835490704,
+  "p99_ms": 9.958594348281622,
+  "p999_ms": 9.958594348281622,
+  "max_ms": 9.958594348281622
+ },
+ "telemetry_read": "per_request",
+ "telemetry_age_ms": null,
+ "active": 0,
+ "rounds": null,
+ "booster_calls": null,
+ "failure": null,
+ "logged": {
+  "decisions": 128,
+  "decisions_buffered": 0,
+  "latency": null
+ }
+}

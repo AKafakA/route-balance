@@ -30,6 +30,7 @@
   "w_latency": 0.3,
   "w_cost": 0.2
  },
+ "telemetry_read": "per_round",
  "pipeline": null,
  "rounds": {
   "adaptive": false,

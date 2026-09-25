@@ -19,7 +19,8 @@ The scheduler
   GET /v1/manifest   the same two digests, the same fleet in the same order, and code on disk unchanged since
                      the scheduler started
   GET /v1/stats      no failure; active == 0; no decision line buffered (the previous cell's log is on disk);
-                     a telemetry age for every instance, each below the view's max_age_ms (from the manifest)
+                     reading the pollers' cache (telemetry_read "poll", as the manifest says): a telemetry age
+                     for every instance, each below the view's max_age_ms; per round or per request: none
 """
 from __future__ import annotations
 
@@ -158,10 +159,16 @@ def scheduler_problems(replies: dict[str, Reply], fleet: list[Instance], expect_
         if stats.logged.decisions_buffered != 0:
             problems.append(f"scheduler: {stats.logged.decisions_buffered} decision lines are not yet on disk")
         ages = stats.telemetry_age_ms
-        if set(ages) != {i.instance_id for i in fleet}:
+        if manifest is None:
+            problems.append("scheduler: telemetry cannot be checked without the manifest (its read mode, max_age_ms)")
+        elif stats.telemetry_read != manifest.system.telemetry_read:
+            problems.append(f"scheduler: /v1/stats reads telemetry '{stats.telemetry_read}', "
+                            f"the manifest's {manifest.system.mode} system '{manifest.system.telemetry_read}'")
+        elif stats.telemetry_read != "poll":
+            pass       # fetched per round (D53) or per request (D55), a miss failing the round or the request;
+                       # the engines themselves were checked directly above
+        elif set(ages) != {i.instance_id for i in fleet}:
             problems.append(f"scheduler: telemetry is not fresh for every instance: {ages}")
-        elif manifest is None:
-            problems.append("scheduler: telemetry ages cannot be checked without the manifest's max_age_ms")
         else:
             limit = manifest.telemetry.max_age_ms
             stale = {i: a for i, a in ages.items() if not (isinstance(a, float) and a < limit)}

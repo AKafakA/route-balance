@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "69d536affc12688053b97ceba5d5948016d1f970d22c3dd7629d28ae5112acb6",
- "fleet_digest": "deb842f851d22dd0f3ee79b3f185f22769e41aba72ed90be530efcde8341fbfe",
+ "config_digest": "5b0d04a70111c06480caa4e0b51381c9a21d47bdd3a9a2a9bbabea62680207a1",
+ "fleet_digest": "06d573ca162770e1630bedbc6561bc491d85fdf9d5cf7c71ab6b7f09692709e7",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -36,6 +36,7 @@
  ],
  "system": {
   "mode": "pipeline",
+  "telemetry_read": "poll",
   "weights": null,
   "rounds": {
    "adaptive": true,
@@ -85,16 +86,17 @@
   "latency_envelope": null,
   "router": "PassthroughRouter",
   "dispatcher": "RandomDispatch",
-  "round_loop": false
+  "round_loop": false,
+  "telemetry_pollers": true
  },
  "artifacts": {
   "knn/x/knn_estimator.pkl": "00000000000000000000000000000000",
   "estimator@hf:sentence-transformers/all-MiniLM-L6-v2/model.safetensors": "f34e46da929d438c0ccffa365f614203"
  },
  "code": {
-  "routebalance": "ab40562010299d4aac0c8c2ae63f4c53eda3fb9ec17e6f83c977378765e9c856",
+  "routebalance": "263ccca0a877aebe687c0ef6228703ec1609ab31e4f5dd9303af14984d605d41",
   "avengers_pro": null,
-  "routebalance_now": "ab40562010299d4aac0c8c2ae63f4c53eda3fb9ec17e6f83c977378765e9c856",
+  "routebalance_now": "263ccca0a877aebe687c0ef6228703ec1609ab31e4f5dd9303af14984d605d41",
   "avengers_pro_now": null
  },
  "threadpools": {
@@ -159,7 +161,7 @@
    "force_close": true
   },
   "telemetry_session": {
-   "limit": 6,
+   "limit": 64,
    "limit_per_host": 0,
    "force_close": false
   },

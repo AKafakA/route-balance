@@ -189,6 +189,7 @@ def _cfg(source, envelope, md5):
     doc = {
         "mode": "routebalance", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
         "rounds": {"adaptive": True}, "lpt": "max", "pending_decode": "own_length", "dead_reckoning": True,
+        "telemetry_read": "per_round",
         "latency": {"source": source, "envelope": envelope, "normalization": "fixed_ref", "table": "tpot.json",
                     "table_md5": md5},
         "estimator": {"index_dir": "knn", "index_md5": "0" * 32, "encoder_revision": "a" * 40, "k": 50,

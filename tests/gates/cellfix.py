@@ -12,8 +12,9 @@ CELLS = sorted(p.name for p in (FIXTURES / "cells").iterdir())
 RB_MAXDIV, RB_FIXEDREF = "rb-maxdiv__l400__s1", "rb-fixedref__l400__s1"
 RB_MIN, RB_MEAN, RB_OFF = "rb-min__l400__s1", "rb-mean__l400__s1", "rb-off__l400__s1"
 LOR, DECOUPLED, SWEEP = "lor__l400__s1", "decoupled__l400__s1", "sweep__l400__s1"
+RB_POLL, LOR_PROBE = "rb-poll__l400__s1", "lor-probe__l400__s1"    # the read-mode controls (D54, D55)
 W4_REF, W4_NODR = "w4-ref__l400__s1", "w4-nodr__l400__s1"
-G1 = [RB_MAXDIV, RB_FIXEDREF, RB_MIN, RB_MEAN, RB_OFF, LOR, DECOUPLED, SWEEP]      # a main group (reference null)
+G1 = [RB_MAXDIV, RB_FIXEDREF, RB_MIN, RB_MEAN, RB_OFF, RB_POLL, LOR, LOR_PROBE, DECOUPLED, SWEEP]   # a main group
 W4 = [W4_REF, W4_NODR]                                                    # an ablation group (dead reckoning off)
 
 

@@ -16,7 +16,7 @@ previous implementation this code was ported from and tested against (tests/equi
 
 ---
 
-## 1. Configuration and types: `config.py` (399), `types.py` (33), `hw.py` (32)
+## 1. Configuration and types: `config.py` (414), `types.py` (33), `hw.py` (32)
 
 - `load_fleet`: the fleet (tiers: model, GPU, prices, `max_num_seqs`; instances) comes from
   `configs/fleet_*.json`; addresses come from an untracked hosts file.
@@ -30,10 +30,17 @@ previous implementation this code was ported from and tested against (tests/equi
 
 Check: every experiment parameter is a required field. Nothing is read from the environment.
 
-## 2. Load: `telemetry.py` (300)
+## 2. Load: `telemetry.py` (328)
 
-- One background poller per instance scrapes vLLM's Prometheus `/metrics`: running, waiting, KV usage,
-  preemptions. A slow instance never delays the others.
+- Three ways to read load, set by the config's `telemetry_read` (D53, D54, D55):
+  - `per_round`, RouteBalance's own: `fetch_round()` scrapes every instance's Prometheus `/metrics`
+    (running, waiting, KV usage, preemptions) at each round's start, and the round is scheduled from that fetch.
+    A failed scrape fails the round; an older snapshot is never used.
+  - `poll`: the pipeline systems, which decide per request, read a cache kept by one background poller per
+    instance every `poll_ms`, as production balancers read a scraped cache (D19). A slow instance never delays
+    the others. RouteBalance on this cache is the D54 control.
+  - `per_request`, v3's baselines: each request `fetch()`es its router's candidates and reads the engine's own
+    counts (dead reckoning off). G1 runs it as a control (D55).
 - Freshness is measured from when a scrape was sent. A malformed reply invalidates the snapshot. A failed
   fetch lets the last snapshot age out after `max_age_ms`. Nothing falls back to an idle default.
 - **Dead reckoning.** Every request an engine serves was sent by this scheduler, so the scheduler's own
@@ -108,18 +115,19 @@ presets). The rebuild picks v3's model on all of them.
   - Every model call runs on the shared thread pool, never on the event loop.
 - `dispatch.py` (173) picks an instance among the router's candidates:
   - round robin;
-  - least outstanding, which equals shortest queue under dead reckoning;
+  - least outstanding: the shortest running + waiting queue. Under dead reckoning that is the in-flight count;
+    in the per-request probe arm it is the engine's own counts (v3's shortest queue);
   - power of two;
   - random;
   - LiteLLM's `lowest_latency` (a 10-sample mean; a timeout counts 1000 s).
   - Ties go to the least recently assigned instance, as stock balancers rotate among ties.
-- `pipeline.py` (83): router, then candidates, then loads from the shared view, then dispatcher. The
+- `pipeline.py` (85): router, then candidates, then loads from the shared view, then dispatcher. The
   dispatch is recorded with no await in between, so concurrent selections see each other.
 
 Check: replays match v3 and the banked cells for BEST-Route and AvengersPro on 3,534/3,534 prompts per
 setting. Dispatchers match v3 on a 20,000-event trace.
 
-## 7. The server: `server.py` (701), `decision_log.py` (72)
+## 7. The server: `server.py` (717), `decision_log.py` (72)
 
 - One aiohttp app for every system:
   - `POST /v1/completions` (the contract is in `bench/client.py`);
@@ -138,7 +146,8 @@ setting. Dispatchers match v3 on a 20,000-event trace.
 - `RouteBalance.run` is the round loop:
   1. collect a round;
   2. estimate (pool);
-  3. read loads once, and adapt the round size;
+  3. fetch every instance's load once (the per-batch fetch; the D54 control reads the pollers' cache instead),
+     and adapt the round size;
   4. `schedule_round` (pool);
   5. record every dispatch.
   A failed round fails its requests loudly.

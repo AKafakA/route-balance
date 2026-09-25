@@ -1,18 +1,15 @@
 {
  "loop_lag": {
-  "samples": 18,
-  "p50_ms": 5.191191341727972,
-  "p99_ms": 43.460750728845596,
-  "p999_ms": 43.460750728845596,
-  "max_ms": 43.460750728845596
+  "samples": 10,
+  "p50_ms": 2.1140708215534687,
+  "p99_ms": 7.128914128988981,
+  "p999_ms": 7.128914128988981,
+  "max_ms": 7.128914128988981
  },
- "telemetry_age_ms": {
-  "S_0": 28.5,
-  "S_1": 28.3,
-  "L_2": 28.1
- },
+ "telemetry_read": "per_round",
+ "telemetry_age_ms": null,
  "active": 0,
- "rounds": 5,
+ "rounds": 4,
  "booster_calls": 0,
  "failure": null,
  "logged": {

@@ -1,22 +1,23 @@
 {
  "loop_lag": {
-  "samples": 9,
-  "p50_ms": 2.054590042680502,
-  "p99_ms": 5.133220702409744,
-  "p999_ms": 5.133220702409744,
-  "max_ms": 5.133220702409744
+  "samples": 1,
+  "p50_ms": 0.34158794209361054,
+  "p99_ms": 0.34158794209361054,
+  "p999_ms": 0.34158794209361054,
+  "max_ms": 0.34158794209361054
  },
+ "telemetry_read": "poll",
  "telemetry_age_ms": {
-  "S_0": 5.1,
-  "S_1": 23.3,
-  "L_2": 22.9
+  "S_0": 17.0,
+  "S_1": 16.8,
+  "L_2": 16.7
  },
  "active": 0,
- "rounds": 4,
- "booster_calls": 0,
+ "rounds": null,
+ "booster_calls": null,
  "failure": null,
  "logged": {
-  "decisions": 160,
+  "decisions": 192,
   "decisions_buffered": 0,
   "latency": null
  }

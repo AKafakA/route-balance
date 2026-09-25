@@ -28,7 +28,7 @@ LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 8)
 RB = {
     "mode": "routebalance", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
     "rounds": {"adaptive": False, "max_batch": 4, "timeout_ms": 20.0}, "lpt": "max", "pending_decode": "own_length",
-    "dead_reckoning": True,
+    "dead_reckoning": True, "telemetry_read": "per_round",
     "latency": {"source": "constant", "envelope": "own_length", "normalization": "max_divide",
                 "table": "calib/t.json", "table_md5": "0" * 32},
     "estimator": {"index_dir": "knn/x", "index_md5": "0" * 32, "encoder_revision": "0" * 40, "k": 50,
@@ -41,7 +41,7 @@ RB = {
 
 def pipeline_cfg(dispatch="round_robin"):
     d = copy.deepcopy(RB)
-    d.update(mode="pipeline", weights=None, pending_decode=None,
+    d.update(mode="pipeline", weights=None, pending_decode=None, telemetry_read="poll",
              pipeline={"router": {"type": "passthrough", "kwargs": {}}, "dispatch": {"type": dispatch, "seed": 1}})
     return d
 
@@ -357,3 +357,109 @@ def test_a_non_finite_estimate_fails_the_round_before_any_dispatch(tmp_path):
     out, loads, busy = asyncio.run(scenario())
     assert all(s == 500 for s, _ in out) and not busy
     assert all(load.in_flight == 0 for load in loads.values())
+
+
+def test_routebalance_fetches_load_per_round_and_pipelines_poll(tmp_path):
+    """D53: RouteBalance scrapes every engine once per round, with no background pollers; a pipeline system reads the
+    pollers' cache."""
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            await h.start(RB)
+            before = [st.scrapes for _, st in h.states]
+            rb_view_state = h.service.view._state
+            out = await asyncio.gather(*(h.post("/v1/completions", body(i)) for i in range(8)))
+            await asyncio.sleep(0.3)                           # no pollers: nothing scrapes between rounds
+            after = [st.scrapes for _, st in h.states]
+            rounds, rb_stats = h.service._rb.rounds, h.service.stats()
+            await h.post("/v1/config", pipeline_cfg())
+            pipe_state, pipe_stats = h.service.view._state, h.service.stats()
+            return out, before, after, rounds, rb_view_state, rb_stats, pipe_state, pipe_stats
+    out, before, after, rounds, rb_state, rb_stats, pipe_state, pipe_stats = asyncio.run(scenario())
+    assert all(s == 200 for s, _ in out) and rb_state != "running"
+    assert all(a - b == rounds for a, b in zip(after, before, strict=True))    # exactly one scrape per engine per round
+    assert rb_stats["telemetry_read"] == "per_round" and rb_stats["telemetry_age_ms"] is None
+    assert pipe_state == "running" and pipe_stats["telemetry_read"] == "poll" and len(pipe_stats["telemetry_age_ms"]) == 3
+
+
+def test_a_switch_from_the_cache_to_per_round_stops_the_pollers(tmp_path):
+    """One scheduler serves poll cells, then per-round cells: the old pollers must not keep scraping."""
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            await h.start(pipeline_cfg())
+            polling = (await h.get("/v1/manifest"))[1]["loaded"]["telemetry_pollers"]
+            await h.post("/v1/config", RB)
+            before = [st.scrapes for _, st in h.states]
+            out = await asyncio.gather(*(h.post("/v1/completions", body(i)) for i in range(8)))
+            await asyncio.sleep(0.3)                           # a leftover poller would scrape every 20 ms here
+            after = [st.scrapes for _, st in h.states]
+            manifest = (await h.get("/v1/manifest"))[1]
+            return polling, out, before, after, h.service._rb.rounds, manifest
+    polling, out, before, after, rounds, manifest = asyncio.run(scenario())
+    assert polling is True and all(s == 200 for s, _ in out)
+    assert all(a - b == rounds for a, b in zip(after, before, strict=True))
+    assert manifest["loaded"]["telemetry_pollers"] is False and manifest["system"]["telemetry_read"] == "per_round"
+
+
+def test_a_failed_scrape_fails_the_round_even_with_a_young_snapshot(tmp_path):
+    states = fleet_states()
+
+    async def scenario():
+        async with Harness(tmp_path, states) as h:
+            await h.start(RB)                                   # every engine answered at apply
+            states[2][1].metrics_drop = True                    # now one engine's /metrics drops the connection
+            out = await asyncio.gather(*(h.post("/v1/completions", body(i)) for i in range(3)))
+            young = h.service.view.loads([h.fleet[2].instance_id])   # its snapshot is still young and usable ...
+            loads = h.service.view.loads([i.instance_id for i in h.fleet])
+            return out, young, loads, h.service.busy
+    out, young, loads, busy = asyncio.run(scenario())
+    assert young and all(s == 500 and "load fetch failed" in r["error"] for s, r in out)   # ... but a round never uses it
+    assert all(load.in_flight == 0 for load in loads.values()) and not busy                # no dispatch was opened
+
+
+def test_an_rb_config_is_refused_while_an_engine_cannot_be_fetched(tmp_path):
+    """apply() fetches every engine once before the swap: a failure leaves the old configuration live."""
+    states = fleet_states()
+
+    async def scenario():
+        async with Harness(tmp_path, states) as h:
+            await h.start(pipeline_cfg())
+            old = h.service.digest
+            states[1][1].status = 500
+            status, reply = await h.post("/v1/config", RB)
+            return status, reply, old, h.service.digest, h.service.cfg.mode
+    status, reply, old, now, mode = asyncio.run(scenario())
+    assert status != 200 and "load fetch failed" in json.dumps(reply) and now == old and mode == "pipeline"
+
+
+def test_routebalance_on_the_pollers_cache_never_fetches_per_round(tmp_path):
+    """D54's control: the same round loop, its loads read from the background pollers' cache."""
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            await h.start(RB | {"telemetry_read": "poll"})
+            out = await asyncio.gather(*(h.post("/v1/completions", body(i)) for i in range(8)))
+            return out, h.service.view._state, h.service.stats(), h.service._rb.rounds
+    out, state, stats, rounds = asyncio.run(scenario())
+    assert all(s == 200 for s, _ in out) and rounds >= 1 and state == "running"
+    assert stats["telemetry_read"] == "poll" and len(stats["telemetry_age_ms"]) == 3
+
+
+def test_the_probe_arm_fetches_the_candidates_per_request_and_reads_engine_counts(tmp_path):
+    """D55, v3's per-request baseline: every request scrapes its candidates once, with no pollers, and least
+    outstanding reads the engines' own queues (dead reckoning off), so it follows the gauges, not the in-flight count."""
+    states = fleet_states()
+    probe = pipeline_cfg("least_outstanding") | {"telemetry_read": "per_request", "dead_reckoning": False}
+
+    async def scenario():
+        async with Harness(tmp_path, states) as h:
+            await h.start(probe)
+            for k, (_, st) in enumerate(states):
+                st.running = [5, 0, 7][k]                       # the engines report their own queues
+            before = [st.scrapes for _, st in states]
+            out = [await h.post("/v1/completions", body(i)) for i in range(4)]   # one at a time: no overlap
+            after = [st.scrapes for _, st in states]
+            return out, before, after, h.service.view._state, h.service.stats(), h.fleet
+    out, before, after, state, stats, fleet = asyncio.run(scenario())
+    assert all(s == 200 for s, _ in out) and state != "running"
+    assert [a - b for a, b in zip(after, before, strict=True)] == [4, 4, 4]    # passthrough: every instance per request
+    assert {r["instance_id"] for _, r in out} == {fleet[1].instance_id}        # the engine that reports an empty queue
+    assert stats["telemetry_read"] == "per_request" and stats["telemetry_age_ms"] is None

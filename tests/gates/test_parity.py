@@ -81,6 +81,8 @@ SHARED = [
 @pytest.mark.parametrize("path,value,key", SHARED, ids=[k for _, _, k in SHARED])
 def test_an_undeclared_difference_fails_in_a_main_group(tmp_path, path, value, key):
     cells = group(tmp_path, G1)
+    for c in cells:   # g1 declares dead reckoning (v3's probe arm, D55); a group that does not must fail on it
+        spec(c, lambda s: s.__setitem__("intended_differences", ["system.*"]))
     edit_manifests(cells[0], setter(*path, value=value))
     found, _ = problems(cells)
     assert any(f"an undeclared execution difference: {key}:" in p for p in found), found
@@ -294,8 +296,10 @@ def test_threadpool_presence_follows_the_process_history(tmp_path):
 def test_main_group_declarations_compare_as_sets(tmp_path):
     cells = group(tmp_path, G1)
     for c in cells:
-        spec(c, lambda s: s.__setitem__("intended_differences", ["system.*", "budget.admission_filter"]))
-    spec(cells[0], lambda s: s.__setitem__("intended_differences", ["budget.admission_filter", "system.*"]))
+        spec(c, lambda s: s.__setitem__("intended_differences", ["system.*", "telemetry.dead_reckoning",
+                                                                 "budget.admission_filter"]))
+    spec(cells[0], lambda s: s.__setitem__("intended_differences", ["budget.admission_filter", "system.*",
+                                                                    "telemetry.dead_reckoning"]))
     assert problems(cells)[0] == []
 
 

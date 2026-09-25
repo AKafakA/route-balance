@@ -36,10 +36,12 @@ from tests.contract.fake_vllm import FakeState, make_app
 from tests.unit.fakes import SAMPLING, FakeTokenizer, write_dataset
 
 # group -> (reference config id or None, {config id: its intended differences}): the group.json of each cell.
-# g1 is a main comparison group of five systems; w4-dr an ablation group (dead reckoning off vs its reference).
+# g1 is a main comparison group of five systems, with RouteBalance on the pollers' cache (D54) and v3's
+# per-request probe arm (D55, dead reckoning off); w4-dr an ablation group (dead reckoning off vs its reference).
 GROUPS = {
-    "g1": (None, {cid: ["system.*"] for cid in ("rb-maxdiv", "rb-fixedref", "rb-min", "rb-mean", "rb-off", "lor",
-                                                   "decoupled", "sweep")}),
+    "g1": (None, {cid: ["system.*", "telemetry.dead_reckoning"]
+                  for cid in ("rb-maxdiv", "rb-fixedref", "rb-min", "rb-mean", "rb-off", "rb-poll", "lor", "lor-probe",
+                              "decoupled", "sweep")}),
     "w4-dr": ("w4-ref", {"w4-ref": [], "w4-nodr": ["telemetry.dead_reckoning"]}),
 }
 N_REQUESTS, RATE = 16, 400.0          # bursts that fill RouteBalance's rounds
@@ -106,11 +108,12 @@ def configs(table_md5: str) -> dict[str, dict]:
              "table": "calib/tpot.json", "table_md5": table_md5}
 
     def rb(**kw):
-        return base | {"mode": "routebalance", "weights": weights, "pipeline": None} | kw
+        return base | {"mode": "routebalance", "weights": weights, "telemetry_read": "per_round", "pipeline": None} | kw
 
     def pipe(router, dispatch, **kw):
         return base | {"mode": "pipeline", "weights": None, "rounds": {"adaptive": True}, "lpt": "max",
-                       "pending_decode": None, "pipeline": {"router": router, "dispatch": dispatch}} | kw
+                       "pending_decode": None, "telemetry_read": "poll",
+                       "pipeline": {"router": router, "dispatch": dispatch}} | kw
     passthrough = {"type": "passthrough", "kwargs": {}}
     maxdiv = rb(rounds={"adaptive": False, "max_batch": 4, "timeout_ms": 30.0}, lpt="max",
                 pending_decode="own_length",               # cost and latency heavy: both tiers win requests
@@ -126,7 +129,10 @@ def configs(table_md5: str) -> dict[str, dict]:
                       pending_decode="own_length", latency=curve),
         "rb-off": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="off",
                      pending_decode="lpt_key"),               # arrival order; lpt_key and decode = the max
+        "rb-poll": maxdiv | {"telemetry_read": "poll"},       # D54: RouteBalance on the pollers' cache
         "lor": pipe(passthrough, {"type": "least_outstanding", "seed": 1}),
+        "lor-probe": pipe(passthrough, {"type": "least_outstanding", "seed": 1}, telemetry_read="per_request",
+                          dead_reckoning=False),           # D55: v3's per-request probe on the engine's counts
         "decoupled": pipe({"type": "rb_decoupled", "kwargs": {}}, {"type": "round_robin", "seed": 1},
                           weights=weights, latency=curve),
         "sweep": pipe(passthrough, {"type": "random", "seed": 7}, pending_decode="own_length"),
@@ -256,6 +262,7 @@ class LiveFleet:
 async def record_all(work: Path, out: Path) -> list[Path]:
     async with LiveFleet(work) as live:
         cells = [await live.record_cell(cid, out / "cells", group=g) for g, (_, cfgs) in GROUPS.items() for cid in cfgs]
+        await live.post_config(live.configs["lor"])          # a polling system: preflight checks its cache ages (D53)
         await live.flushed_stats()
         await live.record_preflight(out / "preflight")
         return cells

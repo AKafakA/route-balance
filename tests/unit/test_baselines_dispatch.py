@@ -73,7 +73,7 @@ def test_idle_candidates_rotate_even_on_a_frozen_clock():
 
 
 def test_a_smaller_key_beats_recency():
-    busy = load(in_flight=1)
+    busy = load(running=1, in_flight=1)
     d = LeastOutstanding(clock=Ticks())
     d.choose(SEVEN, IDLE)                       # SEVEN[0] is now the most recently assigned
     loads = {c.instance_id: busy for c in SEVEN} | {SEVEN[0].instance_id: load()}
@@ -87,10 +87,34 @@ def test_a_new_config_forgets_assignment_times():
     assert build_dispatcher(cfg).choose(SEVEN, IDLE) is SEVEN[0]
 
 
-def test_least_outstanding_reads_in_flight_only():
-    loads = loads_for(SEVEN, i0=load(in_flight=3), i1=load(in_flight=1, running=40), i2=load(in_flight=1),
-                      i3=load(in_flight=2), i4=load(in_flight=5))
-    assert LeastOutstanding().choose(SEVEN, loads) is SEVEN[1]      # tie between i1 and i2, neither assigned yet
+def test_least_outstanding_reads_the_views_queue():
+    """running + waiting as the view reports them: the in-flight count under dead reckoning, the engine's own
+    counts in the D55 probe arm (in_flight is then not the load, so it is ignored)."""
+    loads = loads_for(SEVEN, i0=load(running=3), i1=load(running=1, in_flight=40), i2=load(waiting=1),
+                      i3=load(running=1, waiting=1), i4=load(running=5))
+    busy = {c.instance_id: load(running=9) for c in SEVEN[5:]}
+    assert LeastOutstanding().choose(SEVEN, loads | busy) is SEVEN[1]   # tie between i1 and i2, neither assigned yet
+
+
+def test_under_dead_reckoning_the_queue_is_the_in_flight_count():
+    """D40: least outstanding and shortest queue are one rule on the dead-reckoned view, whatever the gauges say."""
+    import asyncio
+    from routebalance.telemetry import TelemetryView
+    gauges = {"a": (0, 0), "b": (7, 3)}
+    ids = [i.instance_id for i in FLEET[:2]]
+
+    async def fetch(inst):
+        r, w = gauges["a" if inst.instance_id == ids[0] else "b"]
+        lab = '{engine="0",model_name="M"}'
+        return (f"vllm:num_requests_running{lab} {r}\nvllm:num_requests_waiting{lab} {w}\n"
+                f"vllm:kv_cache_usage_perc{lab} 0.1\nvllm:num_preemptions_total{lab} 0\n")
+    view = TelemetryView(FLEET[:2], fetch, poll_ms=50.0, max_age_ms=1e9, dead_reckoning=True, clock=lambda: 1.0)
+    rng = random.Random(3)
+    for _ in range(40):
+        view.record_dispatch(rng.choice(ids), 5)
+        gauges["a"], gauges["b"] = (rng.randint(0, 9), rng.randint(0, 9)), (rng.randint(0, 9), rng.randint(0, 9))
+        for ld in asyncio.run(view.fetch(ids)).values():
+            assert ld.stats.num_running + ld.stats.num_waiting == ld.in_flight
 
 
 def test_least_outstanding_needs_every_candidate_load():

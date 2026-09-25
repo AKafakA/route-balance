@@ -113,6 +113,7 @@ SCHEDULER_FAIL = [
      "telemetry is not fresh for every instance"),
     (stats(first_age(2500.0)), "telemetry older than max_age_ms 2000.0"),
     (stats(lambda s: s["telemetry_age_ms"].popitem()), "telemetry is not fresh for every instance"),
+    (stats(lambda s: s.__setitem__("telemetry_age_ms", None)), "scheduler: /v1/stats"),     # poll without ages
     ({"/v1/stats": Reply(200, '{"active": 0}', None)}, "scheduler: /v1/stats"),
     ({"/v1/stats": Reply(200, "null", None)}, "/v1/stats: the reply is not a JSON object"),
     ({"/v1/config": Reply(200, "[]", None)}, "/v1/config: the reply is not a JSON object"),
@@ -138,3 +139,49 @@ def test_the_cli_fails_loudly_on_unreadable_fleet_files(tmp_path, capsys):
     code = main(["--scheduler", "http://127.0.0.1:9", "--fleet", str(tmp_path / "absent.json"),
                  "--hosts", str(PRE / "hosts.json"), "--expect-config-digest", config, "--expect-fleet-digest", fleet_d])
     assert code == 1 and "FAIL preflight: cannot check" in capsys.readouterr().out
+
+
+def per_round_manifest(d):
+    d["system"].update(mode="routebalance", telemetry_read="per_round")
+    d["loaded"]["telemetry_pollers"] = False
+
+
+def test_a_per_round_system_needs_no_cache_ages():
+    """D53: RouteBalance fetches every engine at each round start and fails the round on a miss; preflight does not
+    ask it for cache ages (the engines are checked directly)."""
+    config, fleet_d = expect()
+    per_round = stats(lambda s: s.update(telemetry_read="per_round", telemetry_age_ms=None))
+    assert scheduler_problems(scheduler_replies(**per_round, **manifest(per_round_manifest)), fleet(), config,
+                              fleet_d) == []
+
+
+def test_a_per_request_probe_needs_no_cache_ages():
+    """D55: v3's probe arm fetches its candidates per request; like the per-round read it keeps no cache."""
+    config, fleet_d = expect()
+    probe = stats(lambda s: s.update(telemetry_read="per_request", telemetry_age_ms=None))
+    probe_manifest = manifest(lambda d: (d["system"].update(telemetry_read="per_request"),
+                                         d["loaded"].update(telemetry_pollers=False)))
+    assert scheduler_problems(scheduler_replies(**probe, **probe_manifest), fleet(), config, fleet_d) == []
+
+
+def test_the_age_exemption_needs_the_manifest_to_agree():
+    """A pipeline system's stats claiming the per-round read do not skip its cache-age check."""
+    config, fleet_d = expect()
+    per_round = stats(lambda s: s.update(telemetry_read="per_round", telemetry_age_ms=None))
+    found = scheduler_problems(scheduler_replies(**per_round), fleet(), config, fleet_d)
+    assert any("reads telemetry 'per_round', the manifest's pipeline system 'poll'" in p for p in found), found
+
+
+def test_pollers_must_run_exactly_for_the_cache_read():
+    """What executes: a per-round manifest whose pollers still run (a leftover view) fails."""
+    config, fleet_d = expect()
+    leftover = manifest(lambda d: (per_round_manifest(d), d["loaded"].update(telemetry_pollers=True)))
+    found = scheduler_problems(scheduler_replies(**leftover), fleet(), config, fleet_d)
+    assert any("telemetry pollers run under telemetry_read 'per_round'" in p for p in found), found
+
+
+def test_a_manifest_read_mode_must_follow_its_mode():
+    config, fleet_d = expect()
+    bad = manifest(lambda d: d["system"].update(telemetry_read="per_round"))
+    found = scheduler_problems(scheduler_replies(**bad), fleet(), config, fleet_d)
+    assert any("a pipeline system cannot read telemetry 'per_round'" in p for p in found), found

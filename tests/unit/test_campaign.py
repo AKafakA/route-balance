@@ -106,14 +106,15 @@ def test_the_tracked_files_dry_run_every_row():
     assert list(rows) == ["W0", "W1", "G1", "W1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b", "W8-ref",
                           "W8-cal", "W8", "W9", "W11", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 16, "W1b": 0, "W2": 130, "W2b": 20, "W4": 96, "W3": 100, "W5": 30, "W6": 2, "W7": 36,
+    assert cells == {"G1": 32, "W1b": 0, "W2": 130, "W2b": 20, "W4": 96, "W3": 100, "W5": 30, "W6": 2, "W7": 36,
                      "W7b": 1, "W8": 108, "W9": 260, "W11": 12}
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
     assert held == {"W4/W4-arm3", "W4/W4-const-batch", "W6/W6", "W7b/W7b"}
     assert summary["decisions_needed"] == ["headline", "rb_default", "w3_headline", "w3_near_frontier", "w5_systems",
                                            "w7_systems"]
     unset = summary["owner_unset"]
-    for must in ("presets parts.telemetry.poll_ms", "presets parts.dispatch.seed", "presets parts.rb.pending_decode",
+    assert not any("parts.telemetry" in u for u in unset)          # D30 set by the owner, 09-25
+    for must in ("presets parts.dispatch.seed", "presets parts.rb.pending_decode",
                  "presets parts.estimator.sweep",
                  "presets parts.rounds.fixed32.timeout_ms", "owner.g1_weights[0]", "bench.max_connections",
                  "server.torch_threads", "W1.requests_per_level", "W0.concurrency_per_instance"):
@@ -134,7 +135,7 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 358
+    assert len(expanded) == 416        # 358 + the G1 read-mode controls (D54, D55): 3 x 16 RB-weight variants + 10 AP
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
@@ -184,7 +185,7 @@ def test_the_tracked_files_render_with_every_lease_input():
     by_block = {}
     for c in cells:
         by_block[c.block] = by_block.get(c.block, 0) + 1
-    assert by_block["G1"] == 16 and by_block["W2b"] == 20 and by_block["W4-ablations"] == 72
+    assert by_block["G1"] == 32 and by_block["W2b"] == 20 and by_block["W4-ablations"] == 72
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():
         assert campaign.config_digest(parse_scheduler(doc)) == scope.configs[cid].config_digest
@@ -244,10 +245,11 @@ def test_missing_decisions_and_fleets_leave_blocks_pending():
 
 
 def test_owner_values_are_never_invented():
-    presets, scope = filled(presets=False)             # telemetry, the dispatcher seed ... still unset
+    presets, scope = filled(presets=False)             # the dispatcher seed, pending_decode ... still unset
     result = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     assert result.scope is None and result.configs == {}
-    assert all("parts.telemetry.poll_ms" in r for b, r in result.pending.items() if b not in HELD)
+    unset = ("parts.dispatch.seed", "parts.rb.pending_decode", "parts.estimator.sweep", "parts.rounds.fixed32")
+    assert all(any(u in r for u in unset) for b, r in result.pending.items() if b not in HELD)
     presets, scope = filled(leave={"server.torch_threads"})   # the launch values gate every cell (D44)
     result = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     assert result.scope is None and all("server.torch_threads" in r for r in result.pending.values())
