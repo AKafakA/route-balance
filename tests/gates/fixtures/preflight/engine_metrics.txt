@@ -1,0 +1,11 @@
+# HELP vllm:num_requests_running Number of requests in model execution batches.
+# TYPE vllm:num_requests_running gauge
+vllm:num_requests_running{engine="0",model_name="M"} 0.0
+vllm:num_requests_waiting{engine="0",model_name="M"} 0.0
+vllm:kv_cache_usage_perc{engine="0",model_name="M"} 0.05
+vllm:num_preemptions_total{engine="0",model_name="M"} 0.0
+vllm:e2e_request_latency_seconds_bucket{engine="0",le="0.3",model_name="M"} 3.0
+vllm:e2e_request_latency_seconds_bucket{engine="0",le="0.5",model_name="M"} 3.0
+vllm:e2e_request_latency_seconds_bucket{engine="0",le="1.0",model_name="M"} 3.0
+vllm:e2e_request_latency_seconds_bucket{engine="0",le="+Inf",model_name="M"} 3.0
+vllm:num_preemptions_created{engine="0",model_name="M"} 1.7e9

@@ -1,0 +1,19 @@
+{
+ "loop_lag": {
+  "samples": 0
+ },
+ "telemetry_age_ms": {
+  "S_0": 15.2,
+  "S_1": 14.7,
+  "L_2": 14.3
+ },
+ "active": 0,
+ "rounds": 0,
+ "booster_calls": 0,
+ "failure": null,
+ "logged": {
+  "decisions": 48,
+  "decisions_buffered": 0,
+  "latency": null
+ }
+}

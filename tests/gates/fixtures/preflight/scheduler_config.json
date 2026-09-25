@@ -1,0 +1,45 @@
+{
+ "config": {
+  "mode": "routebalance",
+  "weights": {
+   "w_quality": 0.2,
+   "w_latency": 0.4,
+   "w_cost": 0.4
+  },
+  "rounds": {
+   "adaptive": false,
+   "max_batch": 4,
+   "timeout_ms": 30.0
+  },
+  "lpt": "max",
+  "pending_decode": "own_length",
+  "dead_reckoning": false,
+  "latency": {
+   "source": "constant",
+   "envelope": "own_length",
+   "normalization": "max_divide",
+   "table": "calib/tpot.json",
+   "table_md5": "3004488055fdb43f53da93726b9e2130"
+  },
+  "estimator": {
+   "index_dir": "knn/x",
+   "index_md5": "00000000000000000000000000000000",
+   "encoder_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "k": 50,
+   "score_type": "deepeval",
+   "prior": "knn"
+  },
+  "budget": {
+   "admission_filter": false,
+   "confidence": 0.5
+  },
+  "telemetry": {
+   "poll_ms": 20.0,
+   "max_age_ms": 2000.0,
+   "timeout_s": 2.0
+  },
+  "pipeline": null
+ },
+ "config_digest": "b910f47a697c1d42efe5e2ea5cfc05bced283dcfb2ad329a4d4ae12a31f1de97",
+ "fleet_digest": "deb842f851d22dd0f3ee79b3f185f22769e41aba72ed90be530efcde8341fbfe"
+}
