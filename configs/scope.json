@@ -12,7 +12,7 @@
   "groups": "Main comparison groups declare the system-defining manifest paths (system.*) for every cell, and telemetry.dead_reckoning (RouteBalance dead-reckons; every pipeline system reads the engines' own counts, owner 09-25); qwen-sweep has a single configuration and declares nothing. qwen-ablation (W4, W11) is self-contained and paired: its reference is rb at the headline preset over lambda 12/30 x seeds 1-3 (listed again under the abl alias), and each arm declares only what its template ablates (configs/presets.json). The ablations are of the curve arm whatever rb_default says.",
   "fill": "W9 blocks are fill blocks: cells an earlier block lists (W3's seeds 2-3) are not run twice. A fill block renders only after every earlier block of its group that could list one of its cells, so W9 waits for the W3 decisions and no cell ever moves between blocks from one render to the next.",
   "decoupled": "RB-decoupled follows the decoupled_arm decision ('{darm}-dec'): the same predictors as rb_default, except that with the learned heads it uses the measured curve at an idle instance (it scores idle instances before load is visible). The Gemma rows (no learned heads) use decoupled_arm for RouteBalance too. G1 pairs RB-new with rb-dec.",
-  "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it: W6 (the AvengersPro top-2 spillover router is not implemented) and W7b (the benchmark client sends no per-request budget; its own group declares budget.admission_filter, RB-only), both built on 09-26. W4's arm 3 is dropped and W4's D45 control runs (owner 09-25). W11 needs the lpt key min/mean of S5b.",
+  "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it: W7b (the benchmark client sends no per-request budget; its own group declares budget.admission_filter, RB-only), built on 09-26. W6 (the AvengersPro top-2 spillover router) is dropped (owner 09-25). W4's arm 3 is dropped and W4's D45 control runs (owner 09-25). W11 needs the lpt key min/mean of S5b.",
   "w8": "W8 as written runs the same RB presets as W2 plus the four RB-decoupled presets, 5 AvengersPro pw and passthrough, all on least-outstanding: 108 cells against the plan's ~80. BEST-Route has no Gemma checkpoint."
  },
  "server": {"torch_threads": 8, "max_connections": 4096, "request_timeout_s": 600.0},
@@ -208,14 +208,13 @@
      "configs": ["{c}"], "traces": ["square30-6", "gamma-b03"], "seeds": [1, 2, 3],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"c": 5}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W6", "kind": "cells", "prio": "should", "enabled": true, "why": null,
+  {"id": "W6", "kind": "cells", "prio": "should", "enabled": false, "why": "owner 09-25: dropped. No reviewer asked for it (an objection anticipated in the 09-24 plan), and it would be a baseline of our own rather than a stock one",
    "about": "AvengersPro top-2 spillover heuristic ('a simple heuristic does it')",
    "plan": "20 cells, 2.5 h",
    "blocks": [
     {"name": "W6", "group": "qwen", "dataset": "eval_qwen", "axes": {}, "configs": ["qwen.ap-spillover"],
      "traces": ["l12", "l30"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": null,
-     "planned": {}, "enabled": true, "why": null,
-     "hold": "the AvengersPro top-2 spillover router is not implemented; its configurations (the plan's 20 cells) are the owner's to define with it"}
+     "planned": {}, "enabled": false, "why": "owner 09-25: dropped. No reviewer asked for it (an objection anticipated in the 09-24 plan), and it would be a baseline of our own rather than a stock one", "hold": null}
    ]},
   {"id": "W7", "kind": "cells", "prio": "must", "enabled": true, "why": null,
    "about": "topology: the A30 pool 3/5 -> 5/3; 6 systems x lambda{12, 24} x 3 seeds (the same configurations, re-listed under the topo53 alias)",

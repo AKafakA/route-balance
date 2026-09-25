@@ -41,7 +41,7 @@ DECISIONS = {"rb_default": "rb", "decoupled_arm": "rb", "headline": "q50l30c20",
              "w3_near_frontier": ["qwen.rb.q50l30c20", "qwen.ap.pw070.lor"],
              "w3_headline": ["qwen.rb.q50l30c20"], "w5_systems": ["qwen.rb.q50l30c20", "qwen.disp.lor"],
              "w7_systems": ["qwen.rb.q50l30c20", "qwen.rb-dec.uniform"]}
-HELD = {"W6/W6", "W7b/W7b"}     # must run, cannot yet: always pending
+HELD = {"W7b/W7b"}     # must run, cannot yet: always pending
 FLEETS = {"qwen_std": ("a" * 64, "1" * 64), "qwen_topo53": ("b" * 64, "2" * 64), "gemma": ("c" * 64, "3" * 64)}
 
 
@@ -108,10 +108,10 @@ def test_the_tracked_files_dry_run_every_row():
     assert list(rows) == ["W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
                           "W8-cal", "W8", "W9", "W11", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 32, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 90, "W3": 100, "W5": 30, "W6": 2, "W7": 36,
+    assert cells == {"G1": 32, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 90, "W3": 100, "W5": 30, "W7": 36,
                      "W7b": 1, "W8": 108, "W9": 260, "W11": 12}
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
-    assert held == {"W6/W6", "W7b/W7b"}
+    assert held == {"W7b/W7b"}
     assert summary["decisions_needed"] == ["decoupled_arm", "headline", "rb_default", "w3_headline", "w3_near_frontier",
                                            "w5_systems",
                                            "w7_systems"]
@@ -426,9 +426,10 @@ def test_references_resolve_or_fail_loudly():
 
 def test_a_held_block_keeps_the_campaign_incomplete(tmp_path):
     result = full_render()
-    assert result.pending["W6/W6"].startswith("held: the AvengersPro top-2 spillover router is not implemented")
+    assert result.pending["W7b/W7b"].startswith("held: the benchmark client sends no per-request budget_cost")
     scope = parse(Scope, result.scope, "rendered")
-    assert "W6/W6" in scope.pending                          # analysis.manifest never reports COMPLETE with it
-    assert not any(c.block == "W6" for c in expected_cells(scope))
+    assert "W7b/W7b" in scope.pending                        # analysis.manifest never reports COMPLETE with it
+    assert not any(c.block == "W7b" for c in expected_cells(scope))
+    assert "W6/W6" not in result.pending and not any(c.block == "W6" for c in expected_cells(scope))   # dropped
     assert "W4/W4-arm3" not in result.pending and not any(c.block == "W4-arm3" for c in expected_cells(scope))
     assert sum(c.block == "W4-const-batch" for c in expected_cells(scope)) == 6        # the D45 control runs
