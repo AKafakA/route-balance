@@ -1,0 +1,399 @@
+"""Typed, fail-loud configuration.
+
+A run is defined by three documents:
+  fleet      configs/fleet_*.json (tracked): tiers (model, GPU, prices) and instances by logical node
+  hosts      local/hosts.json (untracked): node -> {address, hw}; real host names never enter git
+  scheduler  one complete document; POST /v1/config replaces it whole (validated first, no merging)
+
+Every key is required unless stated, unknown keys are rejected, and no value is coerced from a string.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import re
+import socket
+from pathlib import Path
+from typing import Any, Literal, Mapping, Optional, Union
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
+
+from routebalance.hw import UnknownHardware, gpu_of
+from routebalance.types import Instance, Tier
+
+
+class ConfigError(ValueError):
+    pass
+
+
+class _Strict(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
+
+    def model_copy(self, *args, **kwargs):  # updates must go through parse_scheduler, never an unvalidated copy
+        raise TypeError("configs are replaced whole: build a new document and call parse_scheduler()")
+
+
+_ID = r"^[A-Za-z0-9._-]+$"          # ASCII only: no whitespace, no lookalike characters
+_ID_RE = re.compile(r"[A-Za-z0-9._-]+")          # used with fullmatch: Python's `$` would accept a trailing newline
+_TRIMMED = r"^\S(.*\S)?$"                          # non-empty, no leading/trailing whitespace
+_HOST = re.compile(r"[a-z0-9]([a-z0-9.-]*[a-z0-9])?")
+Scalar = Union[bool, int, float, str]
+
+
+def _relative_path(v: str) -> str:
+    """An artifact path relative to the artifact root: no absolute paths, no '..', no surrounding whitespace."""
+    if not v or v != v.strip() or v.startswith("/") or ".." in v.split("/"):
+        raise ValueError(f"{v!r} must be a relative path inside the artifact root")
+    return v
+
+
+# ---------------------------------------------------------------- fleet
+
+
+class _TierSpec(_Strict):
+    model: str = Field(pattern=_TRIMMED)
+    gpu: Literal["a30", "v100", "a100"]
+    cost_in: float = Field(ge=0)
+    cost_out: float = Field(gt=0)
+    max_num_seqs: int = Field(ge=1, le=4096)   # passed to vLLM as --max-num-seqs; the telemetry view reads it here
+
+
+class _InstanceSpec(_Strict):
+    instance_id: str = Field(pattern=_ID)
+    tier: str = Field(pattern=_ID)
+    node: str = Field(pattern=_ID)
+    port: int = Field(gt=0, lt=65536)
+
+
+class _FleetSpec(_Strict):
+    tiers: dict[str, _TierSpec] = Field(min_length=1)
+    instances: list[_InstanceSpec] = Field(min_length=1)
+
+
+class _HostSpec(_Strict):
+    address: str
+    hw: str
+
+    @field_validator("address")
+    @classmethod
+    def _plain_host(cls, v: str) -> str:
+        # a bare lower-case host name or IPv4 address: no scheme, port, whitespace or trailing dot
+        if not _HOST.fullmatch(v):
+            raise ValueError(f"address {v!r} must be a bare lower-case host name or IPv4 address")
+        try:
+            packed = socket.inet_aton(v)   # accepts every numeric spelling the resolver would (127.1, 0x7f.0.0.1, ...)
+        except OSError:
+            return v                       # a host name
+        if v != socket.inet_ntoa(packed):
+            raise ValueError(f"numeric address {v!r} must be written as the canonical dotted quad "
+                             f"{socket.inet_ntoa(packed)!r}")
+        return v
+
+
+def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict:
+    out: dict = {}
+    for k, v in pairs:
+        if k in out:
+            raise ConfigError(f"duplicate JSON key {k!r}")
+        out[k] = v
+    return out
+
+
+def loads_strict(text: str) -> Any:
+    """json.loads that rejects duplicate keys and non-finite numbers. Used for files and for POST bodies."""
+    def _no_constant(c: str):
+        raise ConfigError(f"non-finite number {c} in JSON")
+    try:
+        return json.loads(text, object_pairs_hook=_no_duplicate_keys, parse_constant=_no_constant)
+    except ConfigError:
+        raise
+    except (json.JSONDecodeError, RecursionError, ValueError) as e:
+        raise ConfigError(f"invalid JSON: {e}") from e
+
+
+def _read_json(path: Path) -> Any:
+    try:
+        text = Path(path).read_bytes().decode("utf-8")
+    except (OSError, UnicodeDecodeError) as e:
+        raise ConfigError(f"cannot read {path}: {e}") from e
+    try:
+        return loads_strict(text)
+    except ConfigError as e:
+        raise ConfigError(f"{path}: {e}") from e
+
+
+def _parse(model: type[BaseModel], data: Any, what: str):
+    try:
+        return model.model_validate(data)
+    except ValidationError as e:
+        raise ConfigError(f"invalid {what}: {e}") from e
+
+
+def load_fleet(fleet_path: Path, hosts_path: Path) -> list[Instance]:
+    """Instances in fleet-file order (order is behaviour: dispatchers break ties by it)."""
+    fleet = _parse(_FleetSpec, _read_json(fleet_path), f"fleet {fleet_path}")
+    raw_hosts = _read_json(hosts_path)
+    if not isinstance(raw_hosts, dict):
+        raise ConfigError(f"hosts file {hosts_path} must map node -> {{address, hw}}")
+    hosts = {n: _parse(_HostSpec, h, f"host {n!r}") for n, h in raw_hosts.items()}
+
+    bad_ids = [tid for tid in fleet.tiers if not _ID_RE.fullmatch(tid)]
+    if bad_ids:
+        raise ConfigError(f"tier ids must match {_ID}: {bad_ids}")
+    pairs = [(t.model, t.gpu) for t in fleet.tiers.values()]
+    if len(set(pairs)) != len(pairs):
+        raise ConfigError("two tiers share one (model, gpu); prices would be ambiguous")
+    bad_nodes = [n for n in raw_hosts if not _ID_RE.fullmatch(n)]
+    if bad_nodes:
+        raise ConfigError(f"node names must match {_ID}: {bad_nodes}")
+    hw_by_address: dict[str, str] = {}
+    for h in hosts.values():
+        seen = hw_by_address.get(h.address)
+        if seen is not None and seen != h.hw:
+            raise ConfigError(f"address {h.address!r} is listed with two hardware types")
+        hw_by_address[h.address] = h.hw
+    tiers = {tid: Tier(tid, t.model, t.gpu, t.cost_in, t.cost_out, t.max_num_seqs) for tid, t in fleet.tiers.items()}
+    out: list[Instance] = []
+    seen_ids: set[str] = set()
+    seen_endpoints: set[tuple[str, int]] = set()
+    for spec in fleet.instances:
+        if spec.instance_id in seen_ids:
+            raise ConfigError(f"duplicate instance_id {spec.instance_id!r}")
+        if spec.tier not in tiers:
+            raise ConfigError(f"instance {spec.instance_id!r}: unknown tier {spec.tier!r}")
+        if spec.node not in hosts:
+            raise ConfigError(f"instance {spec.instance_id!r}: node {spec.node!r} missing from {hosts_path}")
+        host = hosts[spec.node]
+        try:
+            gpu = gpu_of(host.hw)
+        except UnknownHardware as e:
+            raise ConfigError(f"node {spec.node!r}: {e}") from e
+        tier = tiers[spec.tier]
+        if gpu != tier.gpu:
+            raise ConfigError(f"instance {spec.instance_id!r}: node {spec.node!r} is {host.hw} ({gpu}) "
+                              f"but tier {tier.tier_id!r} expects {tier.gpu}")
+        endpoint = (host.address, spec.port)
+        if endpoint in seen_endpoints:
+            raise ConfigError(f"instance {spec.instance_id!r}: endpoint {endpoint} already used")
+        seen_ids.add(spec.instance_id)
+        seen_endpoints.add(endpoint)
+        out.append(Instance(spec.instance_id, tier, spec.node, host.address, spec.port))
+    unused = set(tiers) - {i.tier.tier_id for i in out}
+    if unused:
+        raise ConfigError(f"tiers with no instance: {sorted(unused)}")
+    return out
+
+
+# ---------------------------------------------------------------- scheduler
+
+
+class Weights(_Strict):
+    w_quality: float = Field(ge=0)
+    w_latency: float = Field(ge=0)
+    w_cost: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def _simplex(self):
+        total = self.w_quality + self.w_latency + self.w_cost
+        if abs(total - 1.0) > 1e-6:
+            raise ValueError(f"weights must sum to 1, got {total}")
+        return self
+
+
+class Rounds(_Strict):
+    # adaptive: round size and timeout follow the busy-instance ratio (<0.3: 4/50 ms, <0.7: 16/100 ms,
+    # else 32/200 ms). Otherwise the fixed values below apply (the round-size ablations).
+    adaptive: bool
+    max_batch: Optional[int] = Field(default=None, ge=1, le=1024)
+    timeout_ms: Optional[float] = Field(default=None, gt=0)
+
+    @model_validator(mode="after")
+    def _fixed_needs_values(self):
+        fixed = (self.max_batch, self.timeout_ms)
+        if self.adaptive and any(v is not None for v in fixed):
+            raise ValueError("adaptive rounds take no max_batch/timeout_ms")
+        if not self.adaptive and any(v is None for v in fixed):
+            raise ValueError("fixed rounds need max_batch and timeout_ms")
+        return self
+
+
+# The (TPOT source, envelope) pairs that exist (routebalance/estimate/latency.py defines each):
+#   constant + own_length        v3 static arm (Q1): queue-blind
+#   constant + queue_aware       v2 static arm: the v3 queue envelope with a constant TPOT
+#   xgboost + queue_aware        v3 learned arm
+#   profiled_curve + batch_aware TPOT as a function of the running batch, plus a waiting term when full
+#   constant + batch_aware       the same envelope on a flat TPOT: the control that isolates the curve
+LATENCY_PAIRS = frozenset({("constant", "own_length"), ("constant", "queue_aware"), ("xgboost", "queue_aware"),
+                           ("profiled_curve", "batch_aware"), ("constant", "batch_aware")})
+
+
+class Latency(_Strict):
+    source: Literal["profiled_curve", "constant", "xgboost"]
+    envelope: Literal["batch_aware", "queue_aware", "own_length"]
+    normalization: Literal["fixed_ref", "max_divide"]
+    table: str  # calibration table (curve or constants) or XGBoost dir, relative to the artifact root
+    table_md5: str = Field(pattern=r"^[0-9a-f]{32}$")   # of the table file, or of the XGBoost dir's md5s.json
+
+    @field_validator("table")
+    @classmethod
+    def _table_is_relative(cls, v: str) -> str:
+        return _relative_path(v)
+
+    @model_validator(mode="after")
+    def _supported_pair(self):
+        if (self.source, self.envelope) not in LATENCY_PAIRS:
+            raise ValueError(f"latency source {self.source!r} has no envelope {self.envelope!r}; "
+                             f"supported pairs: {sorted(LATENCY_PAIRS)}")
+        return self
+
+
+class Estimator(_Strict):
+    index_dir: str
+    index_md5: str = Field(pattern=r"^[0-9a-f]{32}$")
+    encoder_revision: str = Field(pattern=r"^[0-9a-f]{40}$")   # Hub commit of the index's sentence encoder
+    k: int = Field(ge=1, le=1000)
+    score_type: Literal["deepeval"]
+    prior: Literal["knn", "per_model_mean"]
+
+    @field_validator("index_dir")
+    @classmethod
+    def _index_dir_is_relative(cls, v: str) -> str:
+        return _relative_path(v)
+
+
+class Budget(_Strict):
+    admission_filter: bool
+    confidence: float = Field(gt=0, lt=1)
+
+
+class Telemetry(_Strict):
+    poll_ms: float = Field(gt=0)
+    max_age_ms: float = Field(gt=0)
+    timeout_s: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def _age_covers_poll(self):
+        if self.max_age_ms < 3 * self.poll_ms:
+            raise ValueError("max_age_ms must be at least 3x poll_ms, or healthy reads would turn stale")
+        return self
+
+
+class Router(_Strict):
+    type: Literal["avengers_pro", "best_route", "passthrough", "rb_decoupled"]
+    # flat, finite scalars; stored as sorted (key, value) pairs so the frozen config is truly immutable and hashable
+    kwargs: tuple[tuple[str, Scalar], ...]
+
+    @field_validator("kwargs", mode="before")
+    @classmethod
+    def _pairs(cls, v: Any) -> Any:
+        if not isinstance(v, Mapping):
+            raise ValueError("router kwargs must be an object")
+        for k, x in v.items():
+            if not isinstance(x, (bool, int, float, str)):
+                raise ValueError(f"router kwarg {k!r} must be a scalar")
+            if isinstance(x, float) and not math.isfinite(x):
+                raise ValueError(f"router kwarg {k!r} is not finite")
+        return tuple(sorted((str(k), x) for k, x in v.items()))
+
+    @field_serializer("kwargs")
+    def _as_dict(self, v: tuple[tuple[str, Scalar], ...]) -> dict:
+        return dict(v)
+
+    def options(self) -> dict[str, Scalar]:
+        """A fresh copy of the router's options."""
+        return dict(self.kwargs)
+
+
+class Dispatch(_Strict):
+    type: Literal["round_robin", "po2", "least_outstanding", "random", "lowest_latency"]   # no shortest_queue: D40
+    seed: int = Field(ge=0, lt=2**32)
+    # lowest_latency only (required there, rejected elsewhere): latency samples kept per instance
+    latency_window: Optional[int] = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _window_only_for_lowest_latency(self):
+        if (self.type == "lowest_latency") != (self.latency_window is not None):
+            raise ValueError("latency_window is required by the lowest_latency dispatcher and taken by no other")
+        return self
+
+
+class Pipeline(_Strict):
+    router: Router
+    dispatch: Dispatch
+
+
+class SchedulerConfig(_Strict):
+    mode: Literal["routebalance", "pipeline"]
+    weights: Optional[Weights]
+    rounds: Rounds
+    lpt: Literal["max", "min", "mean", "off"]     # LPT key statistic over the models' expected lengths (D41)
+    # decode tokens an assignment adds to its instance's pending decode (schedule/assign.py): required for
+    # RouteBalance; a pipeline system records max_tokens (None) or, for the D38 sweep, own_length
+    pending_decode: Optional[Literal["own_length", "lpt_key"]]
+    dead_reckoning: bool
+    latency: Latency
+    estimator: Estimator
+    budget: Budget
+    telemetry: Telemetry
+    pipeline: Optional[Pipeline]
+
+    @model_validator(mode="after")
+    def _mode_consistent(self):
+        if self.mode == "pipeline" and self.pipeline is None:
+            raise ValueError("mode 'pipeline' needs a pipeline section")
+        if self.mode == "routebalance" and self.pipeline is not None:
+            raise ValueError("mode 'routebalance' takes no pipeline section")
+        decoupled = self.pipeline is not None and self.pipeline.router.type == "rb_decoupled"
+        uses_weights = any((self.mode == "routebalance", decoupled))
+        if uses_weights and self.weights is None:
+            raise ValueError("RouteBalance scoring needs weights")
+        if not uses_weights and self.weights is not None:
+            raise ValueError("weights given but this configuration never scores with them")
+        if self.mode == "routebalance" and self.pending_decode is None:
+            raise ValueError("pending_decode is required in routebalance mode")
+        if self.mode != "routebalance" and self.pending_decode not in (None, "own_length"):
+            raise ValueError("a pipeline system records max_tokens as pending decode, or with pending_decode "
+                             "own_length (the D38 latency sweep only) the estimator's length; lpt_key is RB-only")
+        if self.mode != "routebalance" and not self.dead_reckoning:
+            raise ValueError("dead reckoning off is a RouteBalance ablation: every pipeline system reads the "
+                             "dead-reckoned view (parity)")
+        if self.mode != "routebalance" and self.budget.admission_filter:
+            raise ValueError("the budget admission filter exists only in routebalance mode (pipeline systems get the clamp)")
+        return self
+
+
+def parse_scheduler(data: Any) -> SchedulerConfig:
+    """Validate one complete scheduler document. Used at startup and for every POST /v1/config
+    (parse the body with loads_strict first). The result replaces the old configuration whole."""
+    return _parse(SchedulerConfig, data, "scheduler config")
+
+
+def load_scheduler(path: Path) -> SchedulerConfig:
+    return parse_scheduler(_read_json(path))
+
+
+def _canonical(obj: Any) -> Any:
+    if isinstance(obj, float):
+        return obj + 0.0            # -0.0 and 0.0 are the same setting
+    if isinstance(obj, Mapping):
+        return {k: _canonical(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_canonical(v) for v in obj]
+    return obj
+
+
+def _digest(obj: Any) -> str:
+    canonical = json.dumps(_canonical(obj), sort_keys=True, separators=(",", ":"), allow_nan=False)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def config_digest(cfg: SchedulerConfig) -> str:
+    """Stable identity of a scheduler configuration, recorded in every cell."""
+    return _digest(cfg.model_dump(mode="python"))
+
+
+def fleet_digest(instances: list[Instance]) -> str:
+    """Identity of the deployment in order (order is behaviour), including tiers and prices."""
+    return _digest([[i.instance_id, i.tier.tier_id, i.tier.model, i.tier.gpu, i.tier.cost_in, i.tier.cost_out,
+                     i.tier.max_num_seqs, i.node, i.address, i.port] for i in instances])
