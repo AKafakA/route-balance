@@ -43,7 +43,8 @@ OWNER_SCOPE = {
     "traces.sweep6-36.segments": [{"n_requests": 2000, "rate": r} for r in (6.0, 12.0, 18.0, 24.0, 30.0, 36.0)],
     "blocks.W1b.seeds": [1, 2],
 }
-DECISIONS = {"rb_default": "rb", "headline": "q50l30c20", "w3_near_frontier": ["qwen.rb.q50l30c20", "qwen.ap.pw070.lor"],
+DECISIONS = {"rb_default": "rb", "decoupled_arm": "rb", "headline": "q50l30c20",
+             "w3_near_frontier": ["qwen.rb.q50l30c20", "qwen.ap.pw070.lor"],
              "w3_headline": ["qwen.rb.q50l30c20"], "w5_systems": ["qwen.rb.q50l30c20", "qwen.disp.lor"],
              "w7_systems": ["qwen.rb.q50l30c20", "qwen.rb-dec.uniform"]}
 HELD = {"W4/W4-arm3", "W4/W4-const-batch", "W6/W6", "W7b/W7b"}     # must run, cannot yet: always pending
@@ -110,24 +111,30 @@ def full_render(**over):
 def test_the_tracked_files_dry_run_every_row():
     summary = campaign.dry_run(campaign.load_presets(), campaign.load_scope_file())
     rows = {r["id"]: r for r in summary["rows"]}
-    assert list(rows) == ["W0", "W1", "G1", "W1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b", "W8-ref",
+    assert list(rows) == ["W0", "W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b", "W8-ref",
                           "W8-cal", "W8", "W9", "W11", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 32, "W1b": 0, "W2": 130, "W2b": 20, "W4": 96, "W3": 100, "W5": 30, "W6": 2, "W7": 36,
+    assert cells == {"G1": 32, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 96, "W3": 100, "W5": 30, "W6": 2, "W7": 36,
                      "W7b": 1, "W8": 108, "W9": 260, "W11": 12}
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
     assert held == {"W4/W4-arm3", "W4/W4-const-batch", "W6/W6", "W7b/W7b"}
-    assert summary["decisions_needed"] == ["headline", "rb_default", "w3_headline", "w3_near_frontier", "w5_systems",
+    assert summary["decisions_needed"] == ["decoupled_arm", "headline", "rb_default", "w3_headline", "w3_near_frontier",
+                                           "w5_systems",
                                            "w7_systems"]
     unset = summary["owner_unset"]
     assert not any("parts.telemetry" in u or "parts.rb.pending_decode" in u or "parts.dispatch.seed" in u
                    or u.startswith(("server.", "bench.")) for u in unset)   # owner 09-25
     for must in (
-                 "presets parts.estimator.sweep", "owner.g1_weights[0]",
+                 "owner.g1_weights[0]",
                  "W1.requests_per_level", "W0.concurrency_per_instance"):
         assert must in unset
     assert "tpot-table.qwen" in summary["pins_needed"] and "xgb-heads.qwen" in summary["pins_needed"]
     assert "W4" in campaign.dry_run_text(summary)
+
+
+def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
+    sweep = sum(s["n_requests"] for s in SCOPE_JSON["traces"]["sweep6-36"]["segments"])
+    assert sweep == SCOPE_JSON["datasets"]["train_qwen"]["rows"] == 14919
 
 
 def test_the_owner_stand_ins_cover_every_placeholder():
@@ -142,7 +149,7 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 416        # 358 + the G1 read-mode controls (D54, D55): 3 x 16 RB-weight variants + 10 AP
+    assert len(expanded) == 424        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
@@ -266,7 +273,7 @@ def test_owner_values_are_never_invented():
         campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     presets, scope = filled(leave={"owner.g1_weights"})     # one owner list unset: only its blocks wait
     result = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
-    assert set(result.pending) == {"G1/G1"} | HELD and "owner.g1_weights[0]" in result.pending["G1/G1"]
+    assert set(result.pending) == {"G1/G1", "G1b/G1b"} | HELD and "owner.g1_weights[0]" in result.pending["G1/G1"]
 
 
 def test_the_first_render_before_w1_gives_the_direct_rows(tmp_path):
@@ -286,14 +293,23 @@ def test_the_first_render_before_w1_gives_the_direct_rows(tmp_path):
 def test_rb_decoupled_follows_the_default_arm():
     presets, scope = filled()
     rb = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
-    static = campaign.render(presets, scope, pins=pins(presets), decisions={**DECISIONS, "rb_default": "rb-static"},
+    static = campaign.render(presets, scope, pins=pins(presets),
+                             decisions={**DECISIONS, "rb_default": "rb-static", "decoupled_arm": "rb-static"},
                              fleets=FLEETS)
+    learned = campaign.render(presets, scope, pins=pins(presets),
+                              decisions={**DECISIONS, "rb_default": "rb-learned", "decoupled_arm": "rb"}, fleets=FLEETS)
+    # with the learned heads as RouteBalance's default, the decoupled control keeps the curve (it scores idle
+    # instances, so it cannot use the heads), and the Gemma rows (no heads) follow decoupled_arm too
+    assert "qwen.rb-learned.uniform" in learned.configs and "qwen.rb-dec.uniform" in learned.configs
+    assert learned.configs["qwen.rb-learned.uniform"]["latency"]["source"] == "xgboost"
+    assert "gemma.rb.uniform" in learned.configs and "gemma.rb-learned.uniform" not in learned.configs
     assert "qwen.rb-dec.uniform" in rb.configs and "qwen.rb-static-dec.uniform" not in rb.configs
     assert "qwen.rb-static-dec.uniform" in static.configs and "qwen.rb-dec.uniform" not in static.configs
     assert static.configs["qwen.rb-static-dec.uniform"]["latency"] == static.configs["qwen.rb-static.uniform"]["latency"]
     assert "g1.qwen.rb-dec.uniform" in static.configs                  # G1 pairs RB-new with its own control
     pending = campaign.render(presets, scope, pins=pins(presets), decisions={}, fleets=FLEETS).pending
-    assert "rb_default" in pending["W2/W2-dec-l30"] and "W2/W2-base-l30" not in pending
+    assert "decoupled_arm" in pending["W2/W2-dec-l30"] and "rb_default" in pending["W2/W2-rb-l30"]
+    assert "W2/W2-base-l30" not in pending
 
 
 def test_a_fill_block_waits_for_the_earlier_blocks_that_could_list_its_cells(tmp_path):
