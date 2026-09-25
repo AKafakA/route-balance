@@ -367,13 +367,13 @@ def _runs(dirs: list[str]) -> list[list[str]]:
     return out
 
 
-GATES = Path(__file__).resolve().parents[1] / "gates"
+GATES_DIR = Path(__file__).resolve().parents[1] / "gates"
 
 
 def gate_code() -> str:
     """sha256 over the gates' source (names and bytes): a parity record made by other gate code is not reused."""
     h = hashlib.sha256()
-    for f in sorted(GATES.glob("*.py")):
+    for f in sorted(GATES_DIR.glob("*.py")):
         h.update(f.name.encode() + b"\0" + f.read_bytes() + b"\0")
     return h.hexdigest()
 

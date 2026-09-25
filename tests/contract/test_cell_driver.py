@@ -149,6 +149,19 @@ def test_the_sweep_window_waits_for_every_latency_line(tmp_path):
     assert len((attempt / "latency.jsonl").read_text().splitlines()) == 2   # the unassigned request has none
 
 
+def test_a_clean_record_with_every_gate_passed_is_valid(lease, monkeypatch):
+    """Found 09-25: the gates' source directory once shadowed the gate list, and every valid cell's verdict raised."""
+    render, root, fleet, hosts, _ = lease
+    attempt = cd.Path(cd.prepare(render, CELL, root, fleet, hosts)["ATTEMPT"])
+    (attempt / "gates").mkdir()
+    monkeypatch.setattr(cd, "record_problems", lambda scope, exp, d: [])
+    assert cd.GATES == ("arm", "zero_call")
+    assert cd.verdict(render, attempt, {"arm": 0, "zero_call": 0})["valid"] is True
+    for gates in ({"arm": 0}, {"arm": 0, "zero_call": 1}):
+        (attempt / "gates" / "verdict.json").unlink()
+        assert cd.verdict(render, attempt, gates)["valid"] is False
+
+
 def test_status_verdict_publish_and_resume(lease, tmp_path):
     render, root, fleet, hosts, result = lease
     scope, _ = cd.load(render)
