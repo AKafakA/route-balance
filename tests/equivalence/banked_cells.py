@@ -65,7 +65,6 @@ def banked_outcomes(cell: dict) -> list[Outcome]:
     for r in cell["response_details"]:
         ok = not r["error"]
         out.append(Outcome(prompt=unwrap_chat(r["prompt"]), ok=ok, model=r["model"] if ok else None,
-                           text=None,        # v3 scored the (prompt, model) pair (V3PairCorpus), not the served text
                            output_tokens=r["output_len"] if ok else None, e2e_s=r["e2el"], server_latency_s=None,
                            timings_ms=None, prompt_tokens_sent=None, prompt_tokens_served=None))
     return out

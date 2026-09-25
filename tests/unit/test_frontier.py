@@ -70,7 +70,7 @@ def _expected():
 
 
 def _summary(problems):
-    return CellSummary(cell_id="a__l30__s1", n_requests=10, n_ok=10, n_failed=0, quality=0.4, matched=10, unscored=0,
+    return CellSummary(cell_id="a__l30__s1", n_requests=10, n_ok=10, n_failed=0, quality=0.4, matched=10,
                        corpus_gap=0, unmatched=0, n_zero=1, coverage=1.0, quality_zeros_excluded=0.44,
                        cost_decode_per_1k=0.02, throughput_rps=9.0, e2e_ms=Spread(100.0, 90.0, 300.0), slo_met=8,
                        goodput_rps=8.0, overhead_ms={}, off_instance_ms=None, prompt_token_mismatches=0,

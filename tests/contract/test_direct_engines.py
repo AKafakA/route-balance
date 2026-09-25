@@ -1,4 +1,4 @@
-"""W0 references, W1 calibration and the drain, against fake vLLM engines over real HTTP: every request goes to
+"""W1 calibration, the warm-up and the drain, against fake vLLM engines over real HTTP: every request goes to
 the engines directly, with the serving payload."""
 import asyncio
 import json
@@ -7,13 +7,11 @@ import aiohttp
 import pytest
 from aiohttp import web
 
-from routebalance.backend import BackendUnreachable
 from routebalance.types import Instance, Tier
 from tests.contract.fake_vllm import FakeState, make_app
 from tests.contract.test_server import free_port
 from tools import calibrate_driver, direct
 from tools.calibrate_driver import calibrate, records
-from tools.reference_generation import divergence, generate, one_per_model
 
 SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 8)
 LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 8)
@@ -47,66 +45,11 @@ class Engines:
             await r.cleanup()
 
 
-PROMPTS = [direct.Prompt(f"p{i}", f"question {i}?") for i in range(12)]
 TRAIN = [direct.Prompt(f"t{i}", f"train {i}?") for i in range(200)]
-W0 = {"concurrency_per_instance": 3, "divergence_prompts": 4, "divergence_concurrency_per_instance": 6}
 
 
 def _lines(path):
     return [json.loads(x) for x in path.read_text().splitlines()]
-
-
-def test_references_go_once_per_prompt_and_model_to_one_instance_each(tmp_path):
-    async def scenario():
-        async with Engines([SMALL, SMALL, LARGE], delay_s=0.002) as e:
-            p, row = plan(W0)
-            manifest = {}
-            texts = await generate(p, row, e.fleet, PROMPTS, tmp_path, manifest)
-            return e, texts, manifest
-    e, texts, manifest = asyncio.run(scenario())
-    assert [i.instance_id for i in one_per_model(e.fleet)] == ["S_0", "L_2"] == manifest["instances"]
-    ref = [t for t in texts if t["pass"] == "reference"]
-    assert len(ref) == 24
-    assert {(t["model"], t["prompt_id"]) for t in ref} == {(m, p.prompt_id) for m in "SL" for p in PROMPTS}
-    assert all(t["success"] and t["text"] == "Hello world" for t in texts)
-    assert len([t for t in texts if t["pass"] == "divergence"]) == 8
-    assert _lines(tmp_path / "texts.jsonl") == texts                  # written as the run goes
-    assert e.states[1].chat_requests == []                       # the second small instance was never used
-    served = [r for r in e.states[0].chat_requests if r["request_id"].startswith("W.")]
-    assert served and all(r["messages"] == [{"role": "user", "content": r["messages"][0]["content"]}] for r in served)
-    assert all((r["temperature"], r["frequency_penalty"], r["max_completion_tokens"]) == (0.0, 1.2, 64) for r in served)
-    assert any(".divergence." in r["request_id"] and ".f" in r["request_id"] for r in served)   # the load is held
-    assert divergence(texts) == {m: {"sampled": 4, "both_ok": 4, "identical": 4, "different": 0, "different_rate": 0.0}
-                                 for m in "LS"}
-
-
-def test_an_engine_lost_mid_pass_keeps_every_finished_text(tmp_path):
-    many = [direct.Prompt(f"p{i}", f"question {i}?") for i in range(40)]
-
-    async def scenario():
-        async with Engines([SMALL, LARGE]) as e:
-            e.states[1].chat_delay_s = 0.05                  # the large engine is slow, then goes away
-            p, row = plan(W0)
-
-            async def kill_later():
-                await asyncio.sleep(0.5)
-                await e.runners[1].cleanup()
-            killer = asyncio.create_task(kill_later())
-            try:
-                await generate(p, row, e.fleet, many, tmp_path, {})
-            finally:
-                await killer
-    with pytest.raises(BackendUnreachable):                     # new requests to the lost engine are refused
-        asyncio.run(scenario())
-    kept = _lines(tmp_path / "texts.jsonl")
-    assert {t["prompt_id"] for t in kept if t["model"] == "S"} == {p.prompt_id for p in many}   # the healthy engine
-    assert 0 < sum(t["model"] == "L" for t in kept) < len(many)          # and what the lost one finished
-
-
-def test_the_divergence_load_must_differ_from_the_reference_load(tmp_path):
-    p, row = plan({**W0, "divergence_concurrency_per_instance": 3})
-    with pytest.raises(direct.ConfigError, match="another load"):
-        asyncio.run(generate(p, row, [], PROMPTS, tmp_path, {}))
 
 
 def test_calibration_measures_every_instance_at_every_level(tmp_path, monkeypatch):
@@ -228,8 +171,7 @@ def test_a_failed_warm_up_stops_the_run(tmp_path):
     async def scenario():
         async with Engines([SMALL]) as e:
             e.states[0].chat_mode = "http500"
-            p, row = plan({"concurrency_per_instance": 1, "divergence_prompts": 1,
-                           "divergence_concurrency_per_instance": 2})
-            await generate(p, row, e.fleet, PROMPTS, tmp_path, {})
+            p, row = plan({"levels": [1, 2, 3, 4, 5, 6], "requests_per_level": 1})
+            await calibrate(p, row, e.fleet, TRAIN, tmp_path, {})
     with pytest.raises(direct.NotIdle, match="warm-up"):
         asyncio.run(scenario())

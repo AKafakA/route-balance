@@ -178,16 +178,15 @@ cancellation before and after a round places a request, and duplicate request id
   - A pooled client that validates every reply strictly.
   - The per-cell record, written once and never overwritten.
 - `analysis/`:
-  - per-cell metrics, with quality as the DeepEval score of the response actually served, zero-safe;
+  - per-cell metrics, with quality as the DeepEval score of (prompt, served model) in the scored corpus, zero-safe;
   - the cell manifest (expected cells accounted for);
   - frontiers, equal-quality deltas with a paired seed bootstrap, and goodput.
   - Re-aggregating the banked v3 cells reproduces v3's tables bit-exactly.
-- `tools/` (about 3,400 lines):
+- `tools/` (about 3,000 lines):
   - `campaign.py`: renders the lease campaign (presets × scope) into per-cell configurations.
   - `cell_driver.py`: one cell's steps.
   - `engine_plan.py`: fleet × hosts × engine args → one vLLM launch per instance.
-  - W0 reference generation and the served-text judge loop; W1 calibration; the TPOT tables and the
-    XGBoost retrain.
+  - W1 calibration; the TPOT tables and the XGBoost retrain.
 - `scripts/` (about 1,900 lines of shell):
   - `setup.sh`: one node, per role; resumable across the V100 driver reboot; ends with a self-check.
   - `deploy.sh` and the stop scripts.

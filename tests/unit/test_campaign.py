@@ -32,9 +32,6 @@ OWNER_SCOPE = {
     "datasets.eval_gemma.tokenizer_id": "tok-gemma", "datasets.train_gemma.tokenizer_id": "tok-gemma",
     "owner.g1_weights": ["q50l30c20", "uniform"],
     "owner.decoupled_weights": ["q50l30c20", "uniform", "q80l10c10", "q20l60c20"],
-    "rows.W0.concurrency_per_instance": 16, "rows.W0.divergence_prompts": 200,
-    "rows.W0.divergence_concurrency_per_instance": 64, "rows.W8-ref.concurrency_per_instance": 16,
-    "rows.W8-ref.divergence_prompts": 200, "rows.W8-ref.divergence_concurrency_per_instance": 64,
     "rows.W1.levels": [1, 2, 4, 8, 16, 32], "rows.W1.requests_per_level": 64,
     "rows.W8-cal.levels": [1, 2, 4, 8, 16, 32], "rows.W8-cal.requests_per_level": 64,
     "traces.step6-30-6.segments": [{"n_requests": 360, "rate": 6.0}, {"n_requests": 1800, "rate": 30.0},
@@ -111,7 +108,7 @@ def full_render(**over):
 def test_the_tracked_files_dry_run_every_row():
     summary = campaign.dry_run(campaign.load_presets(), campaign.load_scope_file())
     rows = {r["id"]: r for r in summary["rows"]}
-    assert list(rows) == ["W0", "W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b", "W8-ref",
+    assert list(rows) == ["W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
                           "W8-cal", "W8", "W9", "W11", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 32, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 96, "W3": 100, "W5": 30, "W6": 2, "W7": 36,
@@ -126,7 +123,7 @@ def test_the_tracked_files_dry_run_every_row():
                    or u.startswith(("server.", "bench.")) for u in unset)   # owner 09-25
     for must in (
                  "owner.g1_weights[0]",
-                 "W1.requests_per_level", "W0.concurrency_per_instance"):
+                 "W1.requests_per_level", "W8-cal.requests_per_level"):
         assert must in unset
     assert "tpot-table.qwen" in summary["pins_needed"] and "xgb-heads.qwen" in summary["pins_needed"]
     assert "W4" in campaign.dry_run_text(summary)
@@ -135,6 +132,15 @@ def test_the_tracked_files_dry_run_every_row():
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
     sweep = sum(s["n_requests"] for s in SCOPE_JSON["traces"]["sweep6-36"]["segments"])
     assert sweep == SCOPE_JSON["datasets"]["train_qwen"]["rows"] == 14919
+
+
+def test_every_fleet_family_has_its_scored_corpus(tmp_path):
+    scope = copy.deepcopy(SCOPE_JSON)
+    assert set(scope["scored_corpora"]) == {"qwen", "gemma"}
+    del scope["scored_corpora"]["gemma"]
+    (tmp_path / "scope.json").write_text(json.dumps(scope))
+    with pytest.raises(campaign.ConfigError, match="one corpus per fleet family"):
+        campaign.load_scope_file(tmp_path / "scope.json")
 
 
 def test_the_owner_stand_ins_cover_every_placeholder():
@@ -255,7 +261,7 @@ def test_missing_decisions_and_fleets_leave_blocks_pending():
     assert "rb_default" in result.pending["W2/W2-rb-l30"] and "headline" in result.pending["W4/W4-reference"]
     assert "fleet 'gemma' not given" in result.pending["W8/W8"]
     assert "W2/W2-base-l30" not in result.pending and "G1/G1" not in result.pending
-    assert result.blocked_rows["W8-ref"] == "fleet 'gemma' not given"
+    assert result.blocked_rows["W8-cal"] == "fleet 'gemma' not given"
 
 
 def test_owner_values_are_never_invented():
@@ -368,7 +374,7 @@ def test_a_render_directory_holds_what_the_drivers_read(tmp_path):
     w1 = campaign.plan_row(plan, "W1", "calibration")
     assert w1["params"]["levels"] == [1, 2, 4, 8, 16, 32] and w1["params"]["dataset"] == "train_qwen"
     with pytest.raises(campaign.ConfigError, match="not calibration"):
-        campaign.plan_row(plan, "W0", "calibration")
+        campaign.plan_row(plan, "G1", "calibration")
     parse(Scope, json.loads((tmp_path / "r" / "scope.json").read_text()), "scope")
     assert json.loads((tmp_path / "r" / "configs" / "qwen.disp.lor.json").read_text()) == result.configs["qwen.disp.lor"]
 

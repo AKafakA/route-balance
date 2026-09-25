@@ -129,30 +129,3 @@ def test_calibration_records_are_measured_successful_requests_of_held_levels_onl
     lines = [base, {**base, "filler": True}, {**base, "success": False, "tpot_s": None},
              {**base, "tpot_s": None, "output_tokens": 1}, {**base, "held": False, "tpot_s": 0.03}]
     assert records(lines) == [{"tier": "t", "b": 4, "tpot_s": 0.01, "output_tokens": 9}]
-
-
-def test_a_divergence_pass_whose_fillers_fail_does_not_hold_its_load(tmp_path, monkeypatch):
-    from tools import reference_generation as rg
-
-    async def no_wait(*a, **kw):
-        return 0.0
-
-    async def fake_loop(backend, inst, measured, concurrency, sampling, *, request_prefix, fillers=(), on_measured=None):
-        ok = [GenerationResult(p.prompt_id, inst.instance_id, inst.model, True, "", False, "same   text", 5, 3,
-                               0.1, (), 0.3) for p in measured]
-        bad = [GenerationResult("f", inst.instance_id, inst.model, False, "HTTP 400", False, "", 0, 0, 0.0, (), 0.01)]
-        for i, res in enumerate(ok):
-            on_measured(i, res)
-        return direct.LoopResult(ok, bad if fillers else [], False)
-    monkeypatch.setattr(direct, "drain", no_wait)
-    monkeypatch.setattr(direct, "warm_up", no_wait)
-    monkeypatch.setattr(direct, "closed_loop", fake_loop)
-    plan = {"bench": {"sampling": SAMPLING.model_dump(), "request_timeout_s": 10.0},
-            "warmup": {"requests_per_instance": 1, "max_tokens": 4, "prompt": "x"}, "drain": {"timeout_s": 1.0}}
-    row = {"id": "W0", "params": {"concurrency_per_instance": 1, "divergence_prompts": 2,
-                                  "divergence_concurrency_per_instance": 4}}
-    manifest = {}
-    texts = asyncio.run(rg.generate(plan, row, [INST], prompts(6), tmp_path, manifest))
-    assert len(texts) == 8 and list(manifest["load_not_held"]) == [f"divergence.{INST.instance_id}"]
-    assert "1 fillers failed" in manifest["load_not_held"][f"divergence.{INST.instance_id}"]
-    assert [rec for _, rec in rg.read_jsonl(tmp_path / "texts.jsonl")] == texts     # U+2028 inside a text

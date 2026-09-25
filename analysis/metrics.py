@@ -2,14 +2,12 @@
 
 Every metric is over the cell's successful requests. A cell with a failed request is still summarised and
 counted, but it carries a problem and is invalid (analysis/validity.py adds the execution checks).
-  quality     zero-safe mean judged score of the served responses (analysis/quality.py); a 0.0 counts. It is
-              the score of the text actually served (D39): one successful request whose text has no score in
-              the store makes the cell's quality unavailable (None, and a problem), never a mean over the rest.
-              `quality_zeros_excluded` (mean over the non-zero scores) is a labelled secondary scale kept only
-              to compare with older numbers; it is never used for a claim
-  coverage    matched / successful. A served model that the scores cover for no text is a problem (a model-name
-              mismatch). The v3 re-aggregation (V3PairCorpus) also has corpus gaps, counted and not problems,
-              and unmatched prompts, which are problems
+  quality     zero-safe mean judged score of the successful requests, looked up by (prompt, served model) in
+              the scored corpus (analysis/quality.py, as v2 and v3); a 0.0 counts. `quality_zeros_excluded`
+              (mean over the non-zero scores) is a labelled secondary scale kept only to compare with older
+              numbers; it is never used for a claim
+  coverage    matched / successful. Corpus gaps are counted and not problems; unmatched prompts are problems,
+              and so is a served model that the corpus scores for no prompt (a model-name mismatch)
   cost        decode only: sum(output_tokens * output price of the served model) / successful * 1000, i.e.
               USD per 1k successful requests, with prices from the fleet config (USD per token)
   throughput  successful requests / duration_s
@@ -34,7 +32,7 @@ from typing import Iterable, Mapping, Optional, Sequence
 
 import numpy as np
 
-from analysis.quality import QualitySource, ScoreStore
+from analysis.quality import ScoredCorpus
 from analysis.rules import GoodputSlo
 from analysis.validity import integrity_problems
 from bench.records import CellRecord
@@ -48,7 +46,6 @@ class Outcome:
     prompt: str
     ok: bool
     model: Optional[str]
-    text: Optional[str]                   # the served response (generated_text)
     output_tokens: Optional[int]
     e2e_s: float
     server_latency_s: Optional[float]
@@ -72,9 +69,8 @@ class CellSummary:
     n_failed: int
     quality: Optional[float]
     matched: int
-    unscored: int                             # served texts without a score: quality unavailable (D39)
-    corpus_gap: int                           # V3PairCorpus only
-    unmatched: int                            # V3PairCorpus only
+    corpus_gap: int
+    unmatched: int
     n_zero: int
     coverage: Optional[float]
     quality_zeros_excluded: Optional[float]   # secondary scale, never for claims
@@ -114,33 +110,30 @@ def outcomes_of(cell: CellRecord) -> list[Outcome]:
     for r in cell.requests:
         rep = r.reply
         if rep is None:
-            out.append(Outcome(prompt=r.prompt, ok=False, model=None, text=None, output_tokens=None, e2e_s=r.e2e_s,
+            out.append(Outcome(prompt=r.prompt, ok=False, model=None, output_tokens=None, e2e_s=r.e2e_s,
                                server_latency_s=None, timings_ms=None, prompt_tokens_sent=r.prompt_tokens,
                                prompt_tokens_served=None))
         else:
-            out.append(Outcome(prompt=r.prompt, ok=True, model=rep.model, text=rep.generated_text,
-                               output_tokens=rep.output_tokens,
+            out.append(Outcome(prompt=r.prompt, ok=True, model=rep.model, output_tokens=rep.output_tokens,
                                e2e_s=r.e2e_s, server_latency_s=rep.server_latency_s, timings_ms=rep.timings_ms,
                                prompt_tokens_sent=r.prompt_tokens, prompt_tokens_served=rep.prompt_tokens))
     return out
 
 
-def summarize_cell(cell: CellRecord, store: ScoreStore, fleet: Sequence[Instance], slo: GoodputSlo) -> CellSummary:
-    """A campaign cell: its quality is the score of each text actually served, from the score store (D39)."""
-    if not isinstance(store, ScoreStore):
-        raise ConfigError("a cell's quality comes from the served-response score store (D39), never from a "
-                          "(prompt, model) corpus")
+def summarize_cell(cell: CellRecord, corpus: ScoredCorpus, fleet: Sequence[Instance],
+                   slo: GoodputSlo) -> CellSummary:
+    """A campaign cell, summarised against the fleet it ran on."""
     problems = integrity_problems(cell)
     if fleet_digest(list(fleet)) != cell.identity_start.fleet_digest:
         problems.append("the fleet given to the analysis is not the fleet the cell ran on")
-    return summarize(cell.cell_id, outcomes_of(cell), cell.duration_s, store,
+    return summarize(cell.cell_id, outcomes_of(cell), cell.duration_s, corpus,
                      decode_prices(i.tier for i in fleet), slo, problems)
 
 
-def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, quality: QualitySource,
+def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, quality: ScoredCorpus,
               prices: Mapping[str, float], slo: GoodputSlo, problems: Sequence[str]) -> CellSummary:
     """`problems` are the caller's execution findings (integrity_problems for a cell record); the metric
-    problems (failed requests, unscored texts, unmatched prompts, unpriced models, mixed timings) are added
+    problems (failed requests, unmatched prompts, models the corpus never scores, unpriced models, mixed timings) are added
     here."""
     if not duration_s > 0:
         raise ConfigError(f"cell {cell_id}: duration {duration_s} is not positive")
@@ -153,16 +146,12 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
         problems.append("no successful requests")
 
     scores: list[float] = []
-    found = {"matched": 0, "unscored": 0, "corpus_gap": 0, "unmatched": 0}
+    found = {"matched": 0, "corpus_gap": 0, "unmatched": 0}
     for o in ok:
-        outcome, score = quality.lookup(o.prompt, o.model, o.text)
+        outcome, score = quality.lookup(o.prompt, o.model)
         found[outcome] += 1
         if outcome == "matched":
             scores.append(score)
-    if found["unscored"]:
-        problems.append(f"{found['unscored']}/{len(ok)} served texts have no judged score: the cell's quality is "
-                        "unavailable until they are judged (D39)")
-        scores = []                        # never a mean over the scored rest
     if found["unmatched"]:
         problems.append(f"{found['unmatched']}/{len(ok)} successful requests have a prompt absent from the scored "
                         "corpora")
@@ -170,7 +159,7 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
         problems.append("no successful request has a judged score")
     unknown = sorted({o.model for o in ok} - quality.models)
     if unknown:
-        problems.append(f"served models that the scores cover for no text: {unknown}")
+        problems.append(f"served models that the corpus scores for no prompt: {unknown}")
     nonzero = [s for s in scores if s != 0.0]
 
     unpriced = sorted({o.model for o in ok if o.model not in prices})
@@ -193,7 +182,7 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
     return CellSummary(
         cell_id=cell_id, n_requests=len(outcomes), n_ok=len(ok), n_failed=n_failed,
         quality=math.fsum(scores) / len(scores) if scores else None,
-        matched=found["matched"], unscored=found["unscored"], corpus_gap=found["corpus_gap"],
+        matched=found["matched"], corpus_gap=found["corpus_gap"],
         unmatched=found["unmatched"], n_zero=len(scores) - len(nonzero),
         coverage=found["matched"] / len(ok) if ok else None,
         quality_zeros_excluded=math.fsum(nonzero) / len(nonzero) if nonzero else None,

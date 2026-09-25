@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from analysis.metrics import Outcome, decode_prices, spread, summarize, summarize_cell
-from analysis.quality import ScoreStore, V3PairCorpus, text_sha256
+from analysis.quality import ScoredCorpus
 from analysis.rules import GoodputSlo
 from bench.arrivals import constant_trace
 from bench.dataset import load_prompts
@@ -16,19 +16,18 @@ from routebalance.config import ConfigError, fleet_digest
 from routebalance.types import Instance, Tier
 from tests.unit.fakes import CONFIG_DIGEST, SAMPLING, FakeScheduler, FakeTokenizer, identity, write_dataset
 
-CORPUS = V3PairCorpus({"p0": {"small": 0.0, "large": 1.0}, "p1": {"small": 0.5, "large": 0.7}, "p2": {"large": 0.9}})
+CORPUS = ScoredCorpus({"p0": {"small": 0.0, "large": 1.0}, "p1": {"small": 0.5, "large": 0.7}, "p2": {"large": 0.9}})
 PRICES = {"small": 1e-7, "large": 4e-7}
 SLO = GoodputSlo(kind="e2e_affine", base_ms=1000.0, per_output_token_ms=10.0)
 
 
-def _ok(prompt, model, out, e2e, server=0.25, timings=None, sent=5, served=5, text=None):
-    return Outcome(prompt=prompt, ok=True, model=model, text=f"{prompt} by {model}" if text is None else text,
-                   output_tokens=out, e2e_s=e2e, server_latency_s=server,
+def _ok(prompt, model, out, e2e, server=0.25, timings=None, sent=5, served=5):
+    return Outcome(prompt=prompt, ok=True, model=model, output_tokens=out, e2e_s=e2e, server_latency_s=server,
                    timings_ms={"queue_ms": e2e, "decide_ms": 1.0} if timings is None else timings,
                    prompt_tokens_sent=sent, prompt_tokens_served=served)
 
 
-FAILED = Outcome(prompt="p0", ok=False, model=None, text=None, output_tokens=None, e2e_s=30.0, server_latency_s=None,
+FAILED = Outcome(prompt="p0", ok=False, model=None, output_tokens=None, e2e_s=30.0, server_latency_s=None,
                  timings_ms=None, prompt_tokens_sent=5, prompt_tokens_served=None)
 CELL = [_ok("p0", "small", 10, 0.5), _ok("p1", "large", 20, 1.5), _ok("p2", "small", 30, 2.0),
         _ok("p1", "small", 40, 1.2), FAILED]
@@ -77,7 +76,7 @@ def test_a_prompt_token_mismatch_invalidates_the_cell():
 
 def test_a_served_model_the_corpora_never_score_invalidates_the_cell():
     s = _summary(outcomes=CELL[:4] + [_ok("p1", "small-renamed", 1, 0.1)], prices={**PRICES, "small-renamed": 1e-7})
-    assert s.corpus_gap == 2 and s.problems == ("served models that the scores cover for no text: "
+    assert s.corpus_gap == 2 and s.problems == ("served models that the corpus scores for no prompt: "
                                                 "['small-renamed']",)
 
 
@@ -104,7 +103,7 @@ def test_a_cell_with_no_success_is_summarised_not_dropped():
 
 def test_sums_are_exactly_rounded():
     # a sequential sum of ten 0.1s is 0.9999999999999999; the v3 analysis's (compensated) sum was not
-    corpus = V3PairCorpus({f"q{i}": {"small": 0.1} for i in range(10)})
+    corpus = ScoredCorpus({f"q{i}": {"small": 0.1} for i in range(10)})
     s = _summary(outcomes=[_ok(f"q{i}", "small", 1, 0.1) for i in range(10)], corpus=corpus,
                  prices={"small": 0.1})
     assert sum([0.1] * 10) != 1.0
@@ -133,40 +132,17 @@ def _record(tmp_path, **fake):
                     sampling=Sampling(**SAMPLING), expected_config_digest=CONFIG_DIGEST)
     ident = identity().model_copy(update={"fleet_digest": fleet_digest(FLEET)})
     rec = asyncio.run(run_cell(spec, prompts, FakeScheduler(identities=(ident, ident), **fake), "r1"))
-    # the fake scheduler serves the text "ok" for every prompt
-    return rec, ScoreStore({(p.text, "m-small", text_sha256("ok")): 0.5 for p in prompts.prompts})
+    return rec, ScoredCorpus({p.text: {"m-small": 0.5} for p in prompts.prompts})
 
 
-def test_the_served_text_is_what_is_scored(tmp_path):
-    rec, store = _record(tmp_path)
-    assert summarize_cell(rec, store, FLEET, SLO).quality == 0.5
-    # the same prompts and model, scored on another text: nothing stands in for the served one (D39)
-    other = ScoreStore({(p, m, text_sha256("ok ")): s for (p, m, _), s in store._scores.items()})
-    s = summarize_cell(rec, other, FLEET, SLO)
-    assert (s.quality, s.matched, s.unscored) == (None, 0, 12)
-    assert "12/12 served texts have no judged score: the cell's quality is unavailable until they are judged (D39)" \
-        in s.problems
-
-
-def test_one_unscored_text_makes_the_quality_unavailable(tmp_path):
-    rec, store = _record(tmp_path)
+def test_a_cell_is_scored_by_prompt_and_served_model(tmp_path):
+    rec, corpus = _record(tmp_path)
+    s = summarize_cell(rec, corpus, FLEET, SLO)
+    assert (s.quality, s.matched, s.corpus_gap, s.coverage) == (0.5, 12, 0, 1.0) and s.valid
     first = rec.requests[0].prompt
-    partial = ScoreStore({k: v for k, v in store._scores.items() if k[0] != first})
-    s = summarize_cell(rec, partial, FLEET, SLO)
-    assert s.quality is None and s.quality_zeros_excluded is None and (s.matched, s.unscored) == (11, 1)
-    assert s.coverage == 11 / 12 and not s.valid
-
-
-def test_a_cell_is_never_scored_by_prompt_and_model(tmp_path):
-    rec, _ = _record(tmp_path)
-    corpus = V3PairCorpus({r.prompt: {"m-small": 0.5} for r in rec.requests})
-    with pytest.raises(ConfigError, match="score store"):
-        summarize_cell(rec, corpus, FLEET, SLO)
-
-
-def test_the_v3_pair_lookup_ignores_the_text():
-    s = _summary(outcomes=[_ok("p1", "small", 3, 0.2, text="anything"), _ok("p1", "small", 3, 0.2, text="else")])
-    assert (s.matched, s.unscored, s.quality) == (2, 0, 0.5)
+    other_model = ScoredCorpus({p: ({"m-large": 0.9} if p == first else m) for p, m in corpus._scores.items()})
+    s = summarize_cell(rec, other_model, FLEET, SLO)
+    assert (s.quality, s.matched, s.corpus_gap, s.coverage) == (0.5, 11, 1, 11 / 12) and s.valid
 
 
 def test_a_cell_record_is_summarised_against_its_fleet(tmp_path):

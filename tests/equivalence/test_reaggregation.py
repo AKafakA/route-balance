@@ -10,7 +10,7 @@ price table.
 import pytest
 
 from analysis.metrics import summarize
-from analysis.quality import V3PairCorpus
+from analysis.quality import ScoredCorpus
 from analysis.rules import GoodputSlo
 from tests.equivalence.banked_cells import (JUDGE_KEY, TEST_CORPUS, V3_PRICES, banked_outcomes,
                                             load_banked_cell)
@@ -25,7 +25,7 @@ EXACT = ("q", "coverage", "mean_ms", "p99_ms", "thru")
 
 @pytest.fixture(scope="module")
 def corpus(oracle):
-    return V3PairCorpus.load([oracle.data_file(TEST_CORPUS)], JUDGE_KEY)
+    return ScoredCorpus.load([oracle.data_file(TEST_CORPUS)], JUDGE_KEY)
 
 
 def _rebuilt(name, cell, corpus):

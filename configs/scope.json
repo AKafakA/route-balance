@@ -1,14 +1,14 @@
 {
  "notes": {
-  "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W0 -> W1 -> G1 -> W1b -> W2 -> W2b -> W4 -> W3 -> W5 -> W6 -> W7 -> W7b -> W8 -> W9 -> W11 -> W10. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
+  "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W1 -> G1 -> W1b -> G1b -> W2 -> W2b -> W4 -> W3 -> W5 -> W6 -> W7 -> W7b -> W8 -> W9 -> W11 -> W10. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
   "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). Owner 09-25: the client's connection bound (8192) is set far above any in-flight count and a cell in which any request waited for a connection is invalid (rerun with a larger bound); the request timeout (900 s, above the server's 600 s) and the send-lag bound (100 ms) are failure bounds.",
   "server": "D44: the scheduler launch values, identical for every system (owner 09-25): 8 torch threads per model call on the one shared 4-thread pool; the engine and telemetry connection bound 4096, far above any in-flight count (a cell in which any request waited for a connection is invalid: rerun with a larger bound); the request timeout 600 s, a failure bound. The baselines' routers call their model one request at a time on a separate lane, as shipped routers do.",
-  "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W0/W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
+  "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
   "datasets": "eval_qwen is the v3 evaluation set; the other three are written by tools/prompt_set.py from the scored corpora (train_scored_filtered.jsonl for Qwen, gemma3_merged_test/train.jsonl for Gemma; each training split is checked disjoint from its evaluation set). The Gemma prompt count check needs the Gemma tokenizer id (owner).",
-  "references": "The corpora whose reference_text grounds the judge (tools/judge_served.py).",
+  "scored_corpora": "D62: quality is looked up by (prompt, served model) in these scored corpora, as in v2 and v3 (analysis/quality.py; judge key in configs/prereg_rules.json).",
   "traces": "Each Qwen cell sends the whole evaluation set (3534 prompts), each Gemma cell its 1979 (v3). W5's step 6 -> 30 -> 6 needs its segment sizes, the gamma CV^2 = 4 trace (burstiness 0.25) its rate, and the W1b sweep (6 -> 36 in steps of 6, at most 14919 prompts a cell) its segment sizes: owner values.",
   "owner": "g1_weights: the two G1 presets; decoupled_weights: the four RB-decoupled presets of W2 and W8 (both from rb_weights).",
-  "decisions": "Made during the lease into a decisions file (tools/campaign.py render --decisions): rb_default after G1 ('rb' or 'rb-static', the RouteBalance latency arm of W2, W4, W8 and W9); the rest after W2's lambda-12/30 panels. W3's planned sizes (16 near-frontier, 6 headline configurations) reproduce the plan's ~100 cells; W5 and W7 plan 5 and 6 systems.",
+  "decisions": "Made during the lease into a decisions file (tools/campaign.py render --decisions): rb_default and decoupled_arm after G1b (rb_default: 'rb', 'rb-static' or 'rb-learned', the RouteBalance latency arm of W2, W4, W8 and W9); the rest after W2's lambda-12/30 panels. W3's planned sizes (16 near-frontier, 6 headline configurations) reproduce the plan's ~100 cells; W5 and W7 plan 5 and 6 systems.",
   "groups": "Main comparison groups declare the system-defining manifest paths (system.*) for every cell, and telemetry.dead_reckoning (RouteBalance dead-reckons; every pipeline system reads the engines' own counts, owner 09-25); qwen-sweep has a single configuration and declares nothing. qwen-ablation (W4, W11) is self-contained and paired: its reference is rb at the headline preset over lambda 12/30 x seeds 1-3 (listed again under the abl alias), and each arm declares only what its template ablates (configs/presets.json). The ablations are of the curve arm whatever rb_default says.",
   "fill": "W9 blocks are fill blocks: cells an earlier block lists (W3's seeds 2-3) are not run twice. A fill block renders only after every earlier block of its group that could list one of its cells, so W9 waits for the W3 decisions and no cell ever moves between blocks from one render to the next.",
   "decoupled": "RB-decoupled follows the decoupled_arm decision ('{darm}-dec'): the same predictors as rb_default, except that with the learned heads it uses the measured curve at an idle instance (it scores idle instances before load is visible). The Gemma rows (no learned heads) use decoupled_arm for RouteBalance too. G1 pairs RB-new with rb-dec.",
@@ -38,7 +38,7 @@
                   "sha256": "72b8ee82ed3139b824c76fb000ea805cfa9e290ca2e3c04bb0bcb5d8e794cd71", "rows": 8086,
                   "tokenizer_id": "OWNER-MUST-SET"}
  },
- "references": {
+ "scored_corpora": {
   "qwen": {"path": "test_scored_filtered.jsonl", "sha256": "8cebecb53a51eadce8b72e36a92975fc76df9b143f90909ee13c833c0a899bbc"},
   "gemma": {"path": "gemma3_merged_test.jsonl", "sha256": "411904dbb6dac19540b56e07d76ed35a819fd0cbecf1d846aa60be0d3c47ce20"}
  },
@@ -89,12 +89,6 @@
   "w7_systems": {"after": "W2", "about": "the six configuration ids re-run on the 5/3 topology"}
  },
  "rows": [
-  {"id": "W0", "kind": "references", "prio": "must", "enabled": true, "why": null,
-   "about": "D39: every (prompt, model) once on the lease stack, one instance per model at low load, plus a sample generated again at another load to measure divergence; judged on the analysis machine (tools/reference_generation.py)",
-   "plan": "3-5 h expected (+0.5 h for references)",
-   "fleet": "qwen_std", "dataset": "eval_qwen", "references": "qwen",
-   "concurrency_per_instance": "OWNER-MUST-SET", "divergence_prompts": "OWNER-MUST-SET",
-   "divergence_concurrency_per_instance": "OWNER-MUST-SET"},
   {"id": "W1", "kind": "calibration", "prio": "must", "enabled": true, "why": null,
    "about": "D37: TPOT(batch) per Qwen tier, closed loop at 6 fixed concurrency levels, a fixed number of requests per level, held-out training prompts (tools/calibrate_driver.py)",
    "plan": "24 cells, 2 h",
@@ -238,12 +232,6 @@
      "planned": {}, "enabled": true, "why": null,
      "hold": "the benchmark client sends no per-request budget_cost, so no cell can exercise the budget; the sweep's budgets (the plan's ~30 cells) are the owner's to define with it"}
    ]},
-  {"id": "W8-ref", "kind": "references", "prio": "must", "enabled": true, "why": null,
-   "about": "D39 for Gemma: every (prompt, model) reference on the redeployed Gemma stack, and the divergence sample",
-   "plan": "part of W8 (7,916 pairs)",
-   "fleet": "gemma", "dataset": "eval_gemma", "references": "gemma",
-   "concurrency_per_instance": "OWNER-MUST-SET", "divergence_prompts": "OWNER-MUST-SET",
-   "divergence_concurrency_per_instance": "OWNER-MUST-SET"},
   {"id": "W8-cal", "kind": "calibration", "prio": "must", "enabled": true, "why": null,
    "about": "D37 for Gemma: TPOT(batch) per Gemma tier on held-out Gemma training prompts",
    "plan": "part of W8",

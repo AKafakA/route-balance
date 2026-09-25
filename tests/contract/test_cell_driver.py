@@ -168,7 +168,7 @@ def test_status_verdict_publish_and_resume(lease, tmp_path):
     retired = cd.retire(root, CELL)
     assert retired.parent == root / "_retired" and CELL in cd.cells_to_run(render, ["G1"], root, fleet, hosts)[0]
     with pytest.raises(ConfigError, match="not cell rows"):
-        cd.cells_to_run(render, ["W0"], root, fleet, hosts)
+        cd.cells_to_run(render, ["W1"], root, fleet, hosts)
 
 
 def test_the_scheduler_must_run_its_own_code_and_the_scopes_launch_values(lease):
