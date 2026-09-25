@@ -50,7 +50,7 @@ from routebalance.backend import BackendClient, BackendUnreachable, GenerationRe
 from routebalance.baselines.dispatch import Dispatcher, build_dispatcher
 from routebalance.baselines.pipeline import fleet_models, select_instance
 from routebalance.baselines.routers import (DecoupledInputs, Estimate as DecoupledEstimate, Router, RouterRequest,
-                                            build_router, router_executor)
+                                            build_router, router_executor, router_lane)
 from routebalance.config import (ConfigError, SchedulerConfig, config_digest, fleet_digest, load_fleet, load_scheduler,
                                  loads_strict, parse_scheduler)
 from routebalance.decision_log import JsonlLog, LagProbe
@@ -137,8 +137,9 @@ def idle_state(tier: Tier) -> InstanceStats:
 
 
 def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_root: Path,
-                    avengers_repo: Optional[Path], executor: Executor) -> Components:
-    """Loads models and tables (seconds): call it off the event loop."""
+                    avengers_repo: Optional[Path], router_lane: Executor) -> Components:
+    """Loads models and tables (seconds): call it off the event loop. A pipeline router makes its model calls on
+    router_lane (one request at a time, as shipped routers do); RouteBalance's own calls use the shared pool."""
     from routebalance.estimate.knn import INDEX_FILE, load_knn
     from routebalance.estimate.latency import load_latency_model
     need_est, need_lat = needs(cfg)
@@ -158,7 +159,7 @@ def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_roo
                                   "prompt length, which the router interface does not carry")
             decoupled = _decoupled_inputs(cfg, fleet, c.estimator, c.latency)
         c.router = build_router(cfg.pipeline.router, artifact_root=artifact_root, avengers_repo=avengers_repo,
-                                executor=executor, decoupled=decoupled)
+                                executor=router_lane, decoupled=decoupled)
         c.dispatcher = build_dispatcher(cfg.pipeline.dispatch)
         options = cfg.pipeline.router.options()
         option = ROUTER_ARTIFACT_OPTION.get(cfg.pipeline.router.type)
@@ -348,6 +349,7 @@ class Service:
         self._versions = library_versions()
         self._factory = factory
         self.executor = router_executor()
+        self.router_lane = router_lane()
         self._log_dir = log_dir
         self.decisions = JsonlLog(log_dir / "decisions.jsonl")
         self.latency_log: Optional[JsonlLog] = None      # the D38 sweep configurations only
@@ -363,17 +365,30 @@ class Service:
         self._active = 0
         self._swapping = False
         self.failure: Optional[str] = None
+        self.connection_waits = {"engine": 0, "telemetry": 0}   # waits for a pooled connection (a requeued one counts again)
 
     async def start(self, cfg: SchedulerConfig) -> None:
         # streams get the whole bound; telemetry scrapes have their own keep-alive pool, as large, so that v3's
         # per-request probes (D55: every request fetches its candidates at once) never queue on the pool; the
-        # pollers and the per-round fetch keep at most one scrape per instance in flight either way
-        self._session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self._max_conn, force_close=True))
-        self._telemetry_session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self._max_conn))
+        # pollers and the per-round fetch keep at most one scrape per instance in flight either way. The bound is
+        # set far above any in-flight count; a request that ever waits for a connection is counted, and the arm
+        # gate invalidates that cell (rerun it with a larger max_connections), so the bound never shapes a result
+        self._session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self._max_conn, force_close=True),
+                                              trace_configs=[self._wait_counter("engine")])
+        self._telemetry_session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self._max_conn),
+                                                        trace_configs=[self._wait_counter("telemetry")])
         self.backend = BackendClient(self._session, self._timeout_s)
         for coro in (self.decisions.run(), self.lag.run()):
             self._tasks.append(self._watch(asyncio.create_task(coro)))
         await self.apply(cfg)
+
+    def _wait_counter(self, session: str) -> aiohttp.TraceConfig:
+        trace = aiohttp.TraceConfig()
+
+        async def queued(_session, _ctx, _params):
+            self.connection_waits[session] += 1
+        trace.on_connection_queued_start.append(queued)
+        return trace
 
     def _watch(self, task: asyncio.Task, on_fail: Optional[Callable[[BaseException], None]] = None) -> asyncio.Task:
         def done(t: asyncio.Task):
@@ -398,7 +413,7 @@ class Service:
             loop = asyncio.get_running_loop()
             comps = await loop.run_in_executor(self.executor, functools.partial(
                 self._factory, cfg, self.fleet, artifact_root=self._artifacts, avengers_repo=self._avengers,
-                executor=self.executor))
+                router_lane=self.router_lane))
             t = cfg.telemetry
             view = TelemetryView(self.fleet, lambda i: fetch_metrics(self._telemetry_session, i, t.timeout_s),
                                  poll_ms=t.poll_ms, max_age_ms=t.max_age_ms, dead_reckoning=cfg.dead_reckoning)
@@ -539,6 +554,7 @@ class Service:
                 "telemetry_age_ms": ages if self.telemetry_read() == "poll" else None, "active": self._active,
                 "rounds": None if self._rb is None else self._rb.rounds,
                 "booster_calls": None if lat is None else lat.predict_calls, "failure": self.failure,
+                "connection_waits": dict(self.connection_waits),
                 "logged": {"decisions": self.decisions.written, "decisions_buffered": self.decisions.buffered,
                            "latency": None if self.latency_log is None else self.latency_log.written}}
 
@@ -589,6 +605,7 @@ class Service:
             "launch": {"torch_threads": self._torch_threads, "torch_threads_effective": threads,
                        "max_connections": self._max_conn, "request_timeout_s": self._timeout_s,
                        "router_threads": self.executor._max_workers,
+                       "router_lane_threads": self.router_lane._max_workers,
                        "engine_session": _session_settings(self._session),
                        "telemetry_session": _session_settings(self._telemetry_session),
                        "event_loop": f"{type(loop).__module__}.{type(loop).__qualname__}",
@@ -608,6 +625,7 @@ class Service:
         await self._session.close()
         await self._telemetry_session.close()
         self.executor.shutdown(wait=False, cancel_futures=True)
+        self.router_lane.shutdown(wait=False, cancel_futures=True)
 
 
 class ServeError(RuntimeError):

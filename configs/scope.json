@@ -1,8 +1,8 @@
 {
  "notes": {
   "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W0 -> W1 -> G1 -> W1b -> W2 -> W2b -> W4 -> W3 -> W5 -> W6 -> W7 -> W7b -> W8 -> W9 -> W11 -> W10. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
-  "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). The client pool bound, the request timeout and the send-lag bound are the owner's.",
-  "server": "D44: the scheduler launch values, identical for every system (owner).",
+  "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). Owner 09-25: the client's connection bound (8192) is set far above any in-flight count and a cell in which any request waited for a connection is invalid (rerun with a larger bound); the request timeout (900 s, above the server's 600 s) and the send-lag bound (100 ms) are failure bounds.",
+  "server": "D44: the scheduler launch values, identical for every system (owner 09-25): 8 torch threads per model call on the one shared 4-thread pool; the engine and telemetry connection bound 4096, far above any in-flight count (a cell in which any request waited for a connection is invalid: rerun with a larger bound); the request timeout 600 s, a failure bound. The baselines' routers call their model one request at a time on a separate lane, as shipped routers do.",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W0/W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
   "datasets": "eval_qwen is the v3 evaluation set; the other three are written by tools/prompt_set.py from the scored corpora (train_scored_filtered.jsonl for Qwen, gemma3_merged_test/train.jsonl for Gemma; each training split is checked disjoint from its evaluation set). The Gemma prompt count check needs the Gemma tokenizer id (owner).",
   "references": "The corpora whose reference_text grounds the judge (tools/judge_served.py).",
@@ -15,12 +15,12 @@
   "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it: W6 (the AvengersPro top-2 spillover router is not implemented), W7b (the benchmark client sends no per-request budget; its own group declares budget.admission_filter, RB-only), W4's arm 3 (no predictive tie-break exists, D35) and W4's D45 control (the decision is open). W11 needs the lpt key min/mean of S5b.",
   "w8": "W8 as written runs the same RB presets as W2 plus the four RB-decoupled presets, 5 AvengersPro pw and passthrough, all on least-outstanding: 108 cells against the plan's ~80. BEST-Route has no Gemma checkpoint."
  },
- "server": {"torch_threads": "OWNER-MUST-SET", "max_connections": "OWNER-MUST-SET", "request_timeout_s": "OWNER-MUST-SET"},
+ "server": {"torch_threads": 8, "max_connections": 4096, "request_timeout_s": 600.0},
  "bench": {
   "sampling": {"temperature": 0.0, "repetition_penalty": 1.0, "frequency_penalty": 1.2, "max_tokens": 1024},
-  "max_connections": "OWNER-MUST-SET",
-  "request_timeout_s": "OWNER-MUST-SET",
-  "max_send_lag_ms": "OWNER-MUST-SET"
+  "max_connections": 8192,
+  "request_timeout_s": 900.0,
+  "max_send_lag_ms": 100.0
  },
  "warmup": {"requests_per_instance": 2, "max_tokens": 8, "prompt": "Reply with the single word: ready."},
  "drain": {"timeout_s": 300.0},

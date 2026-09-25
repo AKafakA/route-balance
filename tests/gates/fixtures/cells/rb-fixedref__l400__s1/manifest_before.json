@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
  "config_digest": "9fa9cef102441d7f78015ef6fa650a3576ad068c8682bc95ca38364d9cc29ec9",
- "fleet_digest": "06d573ca162770e1630bedbc6561bc491d85fdf9d5cf7c71ab6b7f09692709e7",
+ "fleet_digest": "38c00f2a1ea626ff5d7013249d03f00a7b0d6ed29f5c032534e95ebdea1397ea",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -92,9 +92,9 @@
   "calib/tpot.json": "3004488055fdb43f53da93726b9e2130"
  },
  "code": {
-  "routebalance": "263ccca0a877aebe687c0ef6228703ec1609ab31e4f5dd9303af14984d605d41",
+  "routebalance": "6c4e2df15f1a9c64869cdbbbe2599705b9c0696a94581f1966b834b45f834fbe",
   "avengers_pro": null,
-  "routebalance_now": "263ccca0a877aebe687c0ef6228703ec1609ab31e4f5dd9303af14984d605d41",
+  "routebalance_now": "6c4e2df15f1a9c64869cdbbbe2599705b9c0696a94581f1966b834b45f834fbe",
   "avengers_pro_now": null
  },
  "threadpools": {
@@ -153,6 +153,7 @@
   "max_connections": 64,
   "request_timeout_s": 5.0,
   "router_threads": 4,
+  "router_lane_threads": 1,
   "engine_session": {
    "limit": 64,
    "limit_per_host": 0,

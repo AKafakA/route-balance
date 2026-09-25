@@ -112,7 +112,9 @@ presets). The rebuild picks v3's model on all of them.
   - AvengersPro, the upstream cluster router at a pinned commit, its embedder at a pinned revision;
   - `rb_decoupled`, which uses RouteBalance's own predictors and objective on idle-instance latency, so the
     model is fixed before load is visible.
-  - Every model call runs on the shared thread pool, never on the event loop.
+  - A router's model call runs once per request, one request at a time, on its own lane off the event loop,
+    as shipped routers run theirs (RouteLLM, NVIDIA's LLM Router). Requests queue at the router; that wait is part
+    of their routing time.
 - `dispatch.py` (173) picks an instance among the router's candidates:
   - round robin;
   - least outstanding: the shortest running + waiting queue. Under dead reckoning that is the in-flight count;
@@ -138,10 +140,12 @@ setting. Dispatchers match v3 on a 20,000-event trace.
     and thread pools, the telemetry and session settings, and the md5 of every artifact actually loaded. The
     campaign's parity gate compares these across the systems of a comparison group.
 - Shared by construction:
-  - one bounded engine session;
+  - one engine session, bounded far above any in-flight count; a request that waits for a connection is
+    counted, and the arm gate invalidates that cell (rerun with a larger bound);
   - one telemetry view, with its own scrape pool;
   - one backend client;
-  - one 4-thread pool for every model call (router models, the estimator, the scheduling round);
+  - one 4-thread pool for RouteBalance's batch calls (the estimator and the scheduling round), and a
+    one-at-a-time lane for the baselines' per-request router calls;
   - one dispatch path, `Service._serve`: record, budget clamp, stream with progress, close.
 - `RouteBalance.run` is the round loop:
   1. collect a round;

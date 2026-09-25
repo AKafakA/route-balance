@@ -10,7 +10,7 @@
   "decoupled": "RB-decoupled follows the RouteBalance arm it is the control of (same predictors, plan section 1): rb-dec uses the curve arm's latency, rb-static-dec the static arm's; the main grid runs <rb_default>-dec.",
   "pipeline": "In a pipeline configuration the RouteBalance-only keys (rounds, lpt, and for AvengersPro, BEST-Route and dispatcher rows the estimator and latency) are inert: the scheduler does not load or read them. They still enter the configuration digest, so they name the deployment's own artifacts.",
   "budget": "budget.off: admission_filter false in every configuration; its confidence (0.5) is then read by nothing. The budget sweep (W7b) is disabled: the benchmark client sends no per-request budget yet.",
-  "owner": "Owner values: telemetry poll_ms / max_age_ms / timeout_s = 50 / 500 / 1.0 (D30, owner 09-25). Still OWNER-MUST-SET: RouteBalance pending_decode (D31 proposes own_length), the dispatcher seed (v3's po2 used 1, its random dispatcher was unseeded), the fixed 32-request round's timeout (the adaptive rule pairs 32 with 200 ms).",
+  "owner": "Owner values (09-25): telemetry poll_ms / max_age_ms / timeout_s = 50 / 500 / 1.0 (D30); RouteBalance pending_decode = own_length (D31); dispatcher seed 1 (v3's po2 seed); the fixed 32-request round's timeout 200 ms (the adaptive rule pairs 32 with 200 ms). Still OWNER-MUST-SET: the W1b sweep estimator (estimator.sweep)",
   "pins": "$pin names come from the lease (tools/campaign.py render --pins): knn.<family> and knn-half.<family> (index dir + md5), tpot-table.<family> (the W1 calibration table + md5), xgb-heads.<family> (the W1b-trained heads dir + the md5 of its md5s.json), ap.<family>.<pw> (artifact dir), br.<family> (checkpoint dir)."
  },
  "lists": {
@@ -34,10 +34,10 @@
 
   "rounds.adaptive": {"adaptive": true, "max_batch": null, "timeout_ms": null},
   "rounds.fixed1": {"adaptive": false, "max_batch": 1, "timeout_ms": 50.0},
-  "rounds.fixed32": {"adaptive": false, "max_batch": 32, "timeout_ms": "OWNER-MUST-SET"},
+  "rounds.fixed32": {"adaptive": false, "max_batch": 32, "timeout_ms": 200.0},
   "telemetry": {"poll_ms": 50.0, "max_age_ms": 500.0, "timeout_s": 1.0},
   "budget.off": {"admission_filter": false, "confidence": 0.5},
-  "rb.pending_decode": "OWNER-MUST-SET",
+  "rb.pending_decode": "own_length",
 
   "encoder_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
   "estimator.knn": {"index_dir": "$pin:knn.{family}:path", "index_md5": "$pin:knn.{family}:md5",
@@ -63,7 +63,7 @@
   "latency.xgb": {"source": "xgboost", "envelope": "queue_aware", "normalization": "fixed_ref",
                   "table": "$pin:xgb-heads.{family}:path", "table_md5": "$pin:xgb-heads.{family}:md5"},
 
-  "dispatch.seed": "OWNER-MUST-SET",
+  "dispatch.seed": 1,
   "dispatch.lor": {"type": "least_outstanding", "seed": "$part:dispatch.seed", "latency_window": null},
   "dispatch.rr": {"type": "round_robin", "seed": "$part:dispatch.seed", "latency_window": null},
   "dispatch.po2": {"type": "po2", "seed": "$part:dispatch.seed", "latency_window": null},

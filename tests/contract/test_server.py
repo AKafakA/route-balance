@@ -59,7 +59,7 @@ class StubEstimator:
         return [{"S": Est(0.4, 20.0), "L": Est(0.9, 30.0)} for _ in prompts]
 
 
-def factory(cfg, fleet, *, artifact_root, avengers_repo, executor):
+def factory(cfg, fleet, *, artifact_root, avengers_repo, router_lane):
     c = Components()
     if cfg.mode == "routebalance" or cfg.pending_decode == "own_length":
         c.estimator = StubEstimator()
@@ -77,8 +77,9 @@ def free_port() -> int:
 
 
 class Harness:
-    def __init__(self, tmp_path, states, timeout_s=5.0):
+    def __init__(self, tmp_path, states, timeout_s=5.0, max_connections=64):
         self.tmp_path, self.states, self.runners, self.timeout_s = tmp_path, states, [], timeout_s
+        self.max_connections = max_connections
 
     async def __aenter__(self):
         self.fleet = []
@@ -90,7 +91,7 @@ class Harness:
             self.runners.append(r)
             self.fleet.append(Instance(f"{tier.model}_{k}", tier, f"n{k}", "127.0.0.1", port))
         self.service = Service(self.fleet, artifact_root=self.tmp_path, avengers_repo=None,
-                               request_timeout_s=self.timeout_s, max_connections=64, torch_threads=1,
+                               request_timeout_s=self.timeout_s, max_connections=self.max_connections, torch_threads=1,
                                log_dir=self.tmp_path / "logs", factory=factory)
         return self
 
@@ -463,3 +464,40 @@ def test_the_probe_arm_fetches_the_candidates_per_request_and_reads_engine_count
     assert [a - b for a, b in zip(after, before, strict=True)] == [4, 4, 4]    # passthrough: every instance per request
     assert {r["instance_id"] for _, r in out} == {fleet[1].instance_id}        # the engine that reports an empty queue
     assert stats["telemetry_read"] == "per_request" and stats["telemetry_age_ms"] is None
+
+
+def test_a_request_that_waits_for_an_engine_connection_is_counted(tmp_path):
+    """The bound is set far above any in-flight count; if it is ever reached, stats show it and the arm gate
+    invalidates the cell (owner 09-25)."""
+    states = [(SMALL, FakeState(chat_delay_s=0.05)), (SMALL, FakeState(chat_delay_s=0.05)),
+              (LARGE, FakeState(chat_delay_s=0.05))]
+
+    async def scenario():
+        async with Harness(tmp_path, states, max_connections=1) as h:
+            await h.start(pipeline_cfg())
+            before = h.service.stats()["connection_waits"]
+            out = await asyncio.gather(*(h.post("/v1/completions", body(i)) for i in range(3)))
+            return out, before, h.service.stats()["connection_waits"]
+    out, before, after = asyncio.run(scenario())
+    assert all(s == 200 for s, _ in out) and before["engine"] == 0
+    assert after["engine"] - before["engine"] >= 1       # the other two streams waited for the one connection
+    assert after["telemetry"] >= 1                       # three pollers share the telemetry pool's one connection
+
+
+def test_a_pipeline_router_is_built_on_the_one_at_a_time_lane(tmp_path):
+    """The routers' model calls run on the lane (one request at a time), never on RouteBalance's shared pool."""
+    seen = {}
+
+    def recording(cfg, fleet, *, artifact_root, avengers_repo, router_lane):
+        seen["lane"] = router_lane
+        return factory(cfg, fleet, artifact_root=artifact_root, avengers_repo=avengers_repo, router_lane=router_lane)
+
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            h.service._factory = recording
+            await h.start(pipeline_cfg())
+            manifest = (await h.get("/v1/manifest"))[1]
+            return h.service, manifest
+    service, manifest = asyncio.run(scenario())
+    assert seen["lane"] is service.router_lane and seen["lane"] is not service.executor
+    assert service.router_lane._max_workers == 1 and manifest["launch"]["router_lane_threads"] == 1

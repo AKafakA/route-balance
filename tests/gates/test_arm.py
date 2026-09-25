@@ -94,7 +94,15 @@ def two_rounds_sizes(members):
     members[0]["round_size"] -= 1
 
 
+def more_engine_waits(d):
+    d["connection_waits"]["engine"] += 1
+
+
 MUST_FAIL = [
+    # a connection bound that was reached invalidates the cell (owner 09-25): rerun with a larger bound
+    (LOR, stats_after(more_engine_waits), "engine connection pool made requests wait (1 waits)"),
+    (RB_MAXDIV, stats_after(lambda d: d["connection_waits"].__setitem__("telemetry", 5)),
+     "telemetry connection pool made"),
     # coverage and identity
     (RB_MAXDIV, first(set_("config_digest", "0" * 64)), "another config digest"),
     (RB_MAXDIV, lines(lambda ls: ls.pop(0)), "has no decision line"),
@@ -191,6 +199,22 @@ def test_the_cli_passes_and_fails_with_one_reason_per_line(tmp_path, capsys):
     assert main(["--cell", str(cell), "--config", str(cell / "config.json")]) == 1
     out = capsys.readouterr().out.splitlines()
     assert len(out) >= 2 and all(line.startswith("FAIL arm: ") for line in out)
+
+
+def test_waits_from_before_the_cell_do_not_count(tmp_path):
+    """Only waits during the cell's window invalidate it (a scheduler that waited in an earlier cell may run on)."""
+    cell = copy_cell(tmp_path, LOR)
+    for when in ("before", "after"):
+        edit_json(cell / f"stats_{when}.json", lambda d: d["connection_waits"].update(engine=7, telemetry=3))
+    assert arm_problems(open_cell(cell), load_scheduler(cell / "config.json"))[0] == []
+
+
+@pytest.mark.parametrize("pool", ["engine", "telemetry"])
+def test_a_stats_file_without_a_pools_waits_is_refused(tmp_path, pool):
+    cell = copy_cell(tmp_path, LOR)
+    edit_json(cell / "stats_after.json", lambda d: d["connection_waits"].pop(pool))
+    with pytest.raises(Exception, match=pool):
+        arm_problems(open_cell(cell), load_scheduler(cell / "config.json"))
 
 
 @pytest.mark.parametrize("breakage", ["no stats", "two records", "bad json", "wrong dir name"])

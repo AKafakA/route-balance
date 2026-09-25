@@ -63,7 +63,7 @@ def test_the_manifest_reports_what_this_process_executes(tmp_path):
     assert launch["engine_session"] == {"limit": 64, "limit_per_host": 0, "force_close": True}
     assert launch["telemetry_session"] == {"limit": 64, "limit_per_host": 0, "force_close": False}   # D55 probes
     assert (launch["torch_threads"], launch["max_connections"], launch["request_timeout_s"],
-            launch["router_threads"]) == (1, 64, 5.0, 4)
+            launch["router_threads"], launch["router_lane_threads"]) == (1, 64, 5.0, 4, 1)
     assert launch["event_loop"].startswith("asyncio.") or launch["event_loop"].startswith("uvloop")
     assert launch["cpus"]["count"] >= launch["cpus"]["affinity"] >= 1
     assert set(launch["env"]) >= {"OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "RAYON_NUM_THREADS"}

@@ -49,6 +49,12 @@ class Logged(Strict):
     latency: Optional[int]
 
 
+class ConnectionWaits(Strict):
+    """Cumulative waits for a pooled connection, per scheduler session (a requeued request counts again)."""
+    engine: int = Field(ge=0)
+    telemetry: int = Field(ge=0)
+
+
 class Stats(Strict):
     loop_lag: dict[str, Union[int, float]]
     telemetry_read: Literal["per_round", "per_request", "poll"]   # D53, D55; the pollers' cache is D19
@@ -57,6 +63,7 @@ class Stats(Strict):
     rounds: Optional[int]
     booster_calls: Optional[int]                     # None: no latency model is loaded
     failure: Optional[str]
+    connection_waits: ConnectionWaits
     logged: Logged
 
     @model_validator(mode="after")
@@ -147,6 +154,7 @@ class Launch(Strict):
     max_connections: int
     request_timeout_s: float
     router_threads: int
+    router_lane_threads: int
     engine_session: SessionSettings
     telemetry_session: SessionSettings
     event_loop: str

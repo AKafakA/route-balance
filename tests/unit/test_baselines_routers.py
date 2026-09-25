@@ -1,6 +1,7 @@
 """Routers with injected fakes: v3 decision semantics, raise-instead-of-fallback, off-loop execution."""
 import asyncio
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -301,3 +302,30 @@ def test_build_rb_decoupled_needs_its_inputs():
     assert isinstance(build("rb_decoupled", {}, decoupled=inputs), RBDecoupledRouter)
     with pytest.raises(ConfigError):
         build("rb_decoupled", {"k": 1}, decoupled=inputs)
+
+
+# ---------------------------------------------------------------- the router lane (owner 09-25)
+
+def test_the_router_lane_runs_a_baselines_model_calls_one_at_a_time():
+    """As shipped routers do (RouteLLM, NVIDIA's LLM Router): concurrent requests queue at the router."""
+    from routebalance.baselines.routers import ROUTER_LANE_THREADS, router_lane
+    state = {"now": 0, "peak": 0}
+    lock = threading.Lock()
+
+    def slow(prompt):
+        with lock:
+            state["now"] += 1
+            state["peak"] = max(state["peak"], state["now"])
+        time.sleep(0.02)
+        with lock:
+            state["now"] -= 1
+        return 1, 0.9
+
+    router = BestRouteRouter(slow, LABELS, threshold=0.0, fallback="Qwen/Qwen2.5-3B", executor=router_lane())
+
+    async def burst():
+        t0 = time.perf_counter()
+        await asyncio.gather(*(router.choose_model(RouterRequest(f"q{i}", f"r{i}"), POOL) for i in range(6)))
+        return time.perf_counter() - t0
+    elapsed = asyncio.run(burst())
+    assert ROUTER_LANE_THREADS == 1 and state["peak"] == 1 and elapsed >= 6 * 0.02

@@ -12,6 +12,10 @@ Coverage
   with no line buffered and no request in service. So nothing else was served during the cell.
 Every line
   Carries the cell's config digest. A dispatched line names a fleet instance and that instance's tier.
+No connection bound was hit
+  The scheduler's engine and telemetry pools never made a request wait for a connection during the cell
+  (stats_after minus stats_before): the bound is set far above any in-flight count, and a cell in which it was
+  reached is invalid, to be rerun with a larger max_connections.
 RouteBalance (mode routebalance)
   - Every line is a dispatch with its scored candidates: every fleet instance, in fleet order. With the budget
     admission filter the candidates are the admitted ones, or every instance when none was admitted.
@@ -97,6 +101,12 @@ def arm_problems(cell: Cell, cfg: SchedulerConfig) -> tuple[list[str], str]:
         p.add("manifest_before.json is for another configuration", f"{man.config_digest} != {digest}")
     lines = cell.decisions
     _coverage(p, cell, [r.request_id for r in rec.requests], lines)
+    before, after = cell.stats("before").connection_waits, cell.stats("after").connection_waits
+    for pool in ("engine", "telemetry"):
+        waited = getattr(after, pool) - getattr(before, pool)
+        if waited:
+            p.add(f"the scheduler's {pool} connection pool made requests wait ({waited} waits): rerun the cell with a "
+                  "larger max_connections")
     fleet = man.fleet
     by_id = {f.instance_id: f for f in fleet}
     for line in lines:

@@ -61,7 +61,7 @@ def write_table(root) -> str:
 
 def load(cfg: dict, root):
     with ThreadPoolExecutor(1) as ex:
-        return server.load_components(parse_scheduler(cfg), FLEET, artifact_root=root, avengers_repo=None, executor=ex)
+        return server.load_components(parse_scheduler(cfg), FLEET, artifact_root=root, avengers_repo=None, router_lane=ex)
 
 
 def pipeline(router: dict, **kw) -> dict:
@@ -169,3 +169,17 @@ def test_a_failed_append_stays_buffered(tmp_path):
             await log.flush()
         return log.buffered, log.written
     assert asyncio.run(scenario()) == (1, 0)              # never 0 buffered while a line is missing from disk
+
+
+def test_load_components_hands_every_pipeline_router_the_lane(tmp_path, monkeypatch, fake_knn):
+    """build_router gets the one-at-a-time lane, not RouteBalance's shared pool (owner 09-25)."""
+    got = []
+    monkeypatch.setattr(server, "build_router", lambda *a, **kw: got.append(kw["executor"]) or PassthroughRouter())
+    (tmp_path / "br/ckpt").mkdir(parents=True)
+    (tmp_path / "br/ckpt/config.json").write_bytes(b"{}")
+    cfg = pipeline({"type": "best_route", "kwargs": {"checkpoint": "br/ckpt", "confidence_threshold": 0.0,
+                                                     "max_length": 512}})
+    with ThreadPoolExecutor(1) as lane:
+        server.load_components(parse_scheduler(cfg), FLEET, artifact_root=tmp_path, avengers_repo=None,
+                               router_lane=lane)
+    assert got == [lane]

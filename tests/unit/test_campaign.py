@@ -74,13 +74,20 @@ def _set(doc: dict, dotted: str, value) -> None:
         node[keys[-1]] = value
 
 
-def filled(presets=True, scope=True, leave=()):
+def filled(presets=True, scope=True, leave=(), unset=(), unset_scope=()):
+    """The tracked files with the owner values filled (presets / scope), except `leave` (scope paths), and with
+    `unset` (presets paths) and `unset_scope` (scope paths) forced back to OWNER-MUST-SET, whatever the tracked
+    files hold by now."""
     p, s = copy.deepcopy(PRESETS_JSON), copy.deepcopy(SCOPE_JSON)
     for path, v in (OWNER_PRESETS.items() if presets else ()):
         _set(p, path, v)
+    for path in unset:
+        _set(p, path, "OWNER-MUST-SET")
     for path, v in (OWNER_SCOPE.items() if scope else ()):
         if path not in leave:
             _set(s, path, v)
+    for path in unset_scope:
+        _set(s, path, "OWNER-MUST-SET")
     if "min" not in LPT_KEYS:          # W11 needs the lpt key min / mean (S5b); this tree predates it
         (w11,) = [r for r in s["rows"] if r["id"] == "W11"]
         w11.update(enabled=False, why="this tree's configuration has no lpt min / mean")
@@ -113,11 +120,11 @@ def test_the_tracked_files_dry_run_every_row():
     assert summary["decisions_needed"] == ["headline", "rb_default", "w3_headline", "w3_near_frontier", "w5_systems",
                                            "w7_systems"]
     unset = summary["owner_unset"]
-    assert not any("parts.telemetry" in u for u in unset)          # D30 set by the owner, 09-25
-    for must in ("presets parts.dispatch.seed", "presets parts.rb.pending_decode",
-                 "presets parts.estimator.sweep",
-                 "presets parts.rounds.fixed32.timeout_ms", "owner.g1_weights[0]", "bench.max_connections",
-                 "server.torch_threads", "W1.requests_per_level", "W0.concurrency_per_instance"):
+    assert not any("parts.telemetry" in u or "parts.rb.pending_decode" in u or "parts.dispatch.seed" in u
+                   or u.startswith(("server.", "bench.")) for u in unset)   # owner 09-25
+    for must in (
+                 "presets parts.estimator.sweep", "owner.g1_weights[0]",
+                 "W1.requests_per_level", "W0.concurrency_per_instance"):
         assert must in unset
     assert "tpot-table.qwen" in summary["pins_needed"] and "xgb-heads.qwen" in summary["pins_needed"]
     assert "W4" in campaign.dry_run_text(summary)
@@ -245,17 +252,16 @@ def test_missing_decisions_and_fleets_leave_blocks_pending():
 
 
 def test_owner_values_are_never_invented():
-    presets, scope = filled(presets=False)             # the dispatcher seed, pending_decode ... still unset
+    presets, scope = filled(unset={"parts.telemetry.poll_ms"})   # a value every configuration reads
     result = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     assert result.scope is None and result.configs == {}
-    unset = ("parts.dispatch.seed", "parts.rb.pending_decode", "parts.estimator.sweep", "parts.rounds.fixed32")
-    assert all(any(u in r for u in unset) for b, r in result.pending.items() if b not in HELD)
-    presets, scope = filled(leave={"server.torch_threads"})   # the launch values gate every cell (D44)
+    assert all("parts.telemetry.poll_ms" in r for b, r in result.pending.items() if b not in HELD)
+    presets, scope = filled(unset_scope={"server.torch_threads"})   # the launch values gate every cell (D44)
     result = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     assert result.scope is None and all("server.torch_threads" in r for r in result.pending.values())
     assert all(result.pending[b].startswith("OWNER-MUST-SET") and "held:" in result.pending[b] for b in HELD)
     assert result.blocked_rows == {}                           # the direct rows do not need them
-    presets, scope = filled(scope=False)               # the bench parameters are unset: no scope at all
+    presets, scope = filled(unset_scope={"bench.request_timeout_s"})   # a bench value unset: no scope at all
     with pytest.raises(campaign.ConfigError, match="owner values not set yet"):
         campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     presets, scope = filled(leave={"owner.g1_weights"})     # one owner list unset: only its blocks wait
