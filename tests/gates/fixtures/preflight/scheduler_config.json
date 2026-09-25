@@ -9,7 +9,7 @@
   },
   "lpt": "max",
   "pending_decode": null,
-  "dead_reckoning": true,
+  "dead_reckoning": false,
   "telemetry_read": "poll",
   "latency": {
    "source": "constant",
@@ -47,6 +47,6 @@
    }
   }
  },
- "config_digest": "3d25e1e1c40415505962df804b6abc00ce834eeb1ee34c25b8060eb8c738cc87",
- "fleet_digest": "38c00f2a1ea626ff5d7013249d03f00a7b0d6ed29f5c032534e95ebdea1397ea"
+ "config_digest": "8537413887941ed007ddf83a0028790f8e640773491338cc3f04b6ed1da6fbac",
+ "fleet_digest": "76b8b6289e8cfe890639f4247c47fa99d0ff88da6c6e146f91dac872caf64497"
 }

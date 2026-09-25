@@ -66,7 +66,7 @@ def load(cfg: dict, root):
 
 def pipeline(router: dict, **kw) -> dict:
     cfg = copy.deepcopy(BASE)
-    cfg.update(mode="pipeline", weights=None, pending_decode=None, telemetry_read="poll",
+    cfg.update(mode="pipeline", weights=None, pending_decode=None, dead_reckoning=False, telemetry_read="poll",
                pipeline={"router": router, "dispatch": {"type": "least_outstanding", "seed": 1}}, **kw)
     return cfg
 

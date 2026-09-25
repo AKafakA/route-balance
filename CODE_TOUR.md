@@ -22,8 +22,10 @@ previous implementation this code was ported from and tested against (tests/equi
   `configs/fleet_*.json`; addresses come from an untracked hosts file.
 - `SchedulerConfig` is one complete, strictly parsed document. It has no defaults and rejects unknown keys,
   duplicate JSON keys and NaN/inf. A cross-field validator rejects any combination that would silently do
-  nothing. Examples: weights outside RouteBalance scoring; the admission filter or dead reckoning off in
-  pipeline mode; an unsupported (latency source, envelope) pair.
+  nothing, or give a baseline RouteBalance's mechanisms. Examples: weights outside RouteBalance scoring; the
+  admission filter in pipeline mode; dead reckoning in a baseline (it is RouteBalance's own; only the latency
+  sweep, which collects RouteBalance's training features, runs with it); an unsupported (latency source,
+  envelope) pair.
 - `config_digest` and `fleet_digest` identify what was served. The runner refuses a cell when the live
   digest is not the scope's.
 - `hw.py` is the only map from CloudLab node type to GPU.
@@ -36,16 +38,17 @@ Check: every experiment parameter is a required field. Nothing is read from the 
   - `per_round`, RouteBalance's own: `fetch_round()` scrapes every instance's Prometheus `/metrics`
     (running, waiting, KV usage, preemptions) at each round's start, and the round is scheduled from that fetch.
     A failed scrape fails the round; an older snapshot is never used.
-  - `poll`: the pipeline systems, which decide per request, read a cache kept by one background poller per
-    instance every `poll_ms`, as production balancers read a scraped cache (D19). A slow instance never delays
-    the others. RouteBalance on this cache is the D54 control.
-  - `per_request`, v3's baselines: each request `fetch()`es its router's candidates and reads the engine's own
-    counts (dead reckoning off). G1 runs it as a control (D55).
+  - `poll`: the pipeline systems, which decide per request, read the engines' own counts from a cache kept by
+    one background poller per instance every `poll_ms`, as llm-d's endpoint picker scrapes each model server's
+    `/metrics` every 50 ms. A slow instance never delays the others. RouteBalance on this cache is the D54 control.
+  - `per_request`, v3's baselines: each request `fetch()`es its router's candidates and reads the engines' own
+    counts. G1 runs it beside the cache (D55).
 - Freshness is measured from when a scrape was sent. A malformed reply invalidates the snapshot. A failed
   fetch lets the last snapshot age out after `max_age_ms`. Nothing falls back to an idle default.
-- **Dead reckoning.** Every request an engine serves was sent by this scheduler, so the scheduler's own
-  in-flight count is the instance's load. The engine gauge only splits it into running and waiting:
-  `running = min(engine running, in_flight)`, `waiting = in_flight − running`.
+- **Dead reckoning (RouteBalance's own).** Every request an engine serves was sent by this scheduler, so the
+  scheduler's own in-flight count is the instance's load. The engine gauge only splits it into running and
+  waiting: `running = min(engine running, in_flight)`, `waiting = in_flight − running`. The baselines' views run
+  with it off and read the engines' gauges.
 - **Pending decode tokens.** Each dispatch opens a token with its predicted decode length. Streamed
   progress counts it down. At the prediction it is extended by +10 and counts down again.
 - `Load.engine_waiting` is the raw gauge. The round-size rule reads it (`schedule/rounds.py`).
@@ -117,14 +120,15 @@ presets). The rebuild picks v3's model on all of them.
     of their routing time.
 - `dispatch.py` (173) picks an instance among the router's candidates:
   - round robin;
-  - least outstanding: the shortest running + waiting queue. Under dead reckoning that is the in-flight count;
-    in the per-request probe arm it is the engine's own counts (v3's shortest queue);
+  - least outstanding: the shortest running + waiting queue on the engines' own counts (v3's shortest queue);
   - power of two;
   - random;
   - LiteLLM's `lowest_latency` (a 10-sample mean; a timeout counts 1000 s).
   - Ties go to the least recently assigned instance, as stock balancers rotate among ties.
 - `pipeline.py` (85): router, then candidates, then loads from the shared view, then dispatcher. The
-  dispatch is recorded with no await in between, so concurrent selections see each other.
+  dispatch is recorded with no await in between (its in-flight count and decode tokens are tracked for every
+  system); a baseline's concurrent selections see each other only through the least-recently-assigned tie-break,
+  since it reads the engines' own counts.
 
 Check: replays match v3 and the banked cells for BEST-Route and AvengersPro on 3,534/3,534 prompts per
 setting. Dispatchers match v3 on a 20,000-event trace.

@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "3d25e1e1c40415505962df804b6abc00ce834eeb1ee34c25b8060eb8c738cc87",
- "fleet_digest": "38c00f2a1ea626ff5d7013249d03f00a7b0d6ed29f5c032534e95ebdea1397ea",
+ "config_digest": "8537413887941ed007ddf83a0028790f8e640773491338cc3f04b6ed1da6fbac",
+ "fleet_digest": "76b8b6289e8cfe890639f4247c47fa99d0ff88da6c6e146f91dac872caf64497",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -78,7 +78,7 @@
   "poll_ms": 20.0,
   "max_age_ms": 2000.0,
   "timeout_s": 2.0,
-  "dead_reckoning": true
+  "dead_reckoning": false
  },
  "loaded": {
   "estimator": null,
@@ -91,9 +91,9 @@
  },
  "artifacts": {},
  "code": {
-  "routebalance": "6c4e2df15f1a9c64869cdbbbe2599705b9c0696a94581f1966b834b45f834fbe",
+  "routebalance": "6cc9b8b960bda079b86a45c096e725630b28b58e02da38c1d56056f484d3c36c",
   "avengers_pro": null,
-  "routebalance_now": "6c4e2df15f1a9c64869cdbbbe2599705b9c0696a94581f1966b834b45f834fbe",
+  "routebalance_now": "6cc9b8b960bda079b86a45c096e725630b28b58e02da38c1d56056f484d3c36c",
   "avengers_pro_now": null
  },
  "threadpools": {

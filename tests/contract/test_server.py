@@ -41,7 +41,7 @@ RB = {
 
 def pipeline_cfg(dispatch="round_robin"):
     d = copy.deepcopy(RB)
-    d.update(mode="pipeline", weights=None, pending_decode=None, telemetry_read="poll",
+    d.update(mode="pipeline", weights=None, pending_decode=None, telemetry_read="poll", dead_reckoning=False,
              pipeline={"router": {"type": "passthrough", "kwargs": {}}, "dispatch": {"type": dispatch, "seed": 1}})
     return d
 
@@ -239,6 +239,7 @@ def test_malformed_requests_are_rejected(tmp_path, change):
 def test_the_latency_sweep_logs_the_served_feature_vector(tmp_path):
     sweep = pipeline_cfg("random")
     sweep["pending_decode"] = "own_length"
+    sweep["dead_reckoning"] = True          # its features are RouteBalance's view, as the heads are served
 
     async def scenario():
         async with Harness(tmp_path, fleet_states()) as h:

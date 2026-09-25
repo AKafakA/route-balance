@@ -75,7 +75,7 @@ class Decision:
 Lpt = Literal["max", "min", "mean", "off"]
 
 
-def lpt_key(req: RoundRequest, lpt: Lpt = "max") -> float:   # default-ok: v3's key, and the one "off" records
+def lpt_key(req: RoundRequest, lpt: Lpt) -> float:
     lengths = [e.length for e in req.estimates.values()]
     if lpt == "min":
         return min(lengths)

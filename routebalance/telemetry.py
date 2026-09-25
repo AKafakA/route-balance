@@ -13,8 +13,8 @@ running = min(engine running, in_flight), waiting = in_flight - running. The gau
 publishes them with completed engine steps and they are scraped every poll_ms), so right after a
 dispatch, or during a long first prefill, a scrape can still show an idle engine, and right after a
 completion it can still show the finished request; the in-flight count covers both without any
-timing assumption. RouteBalance and every baseline dispatcher read the same view (the parity rule).
-With dead_reckoning off, only the engine's gauges are used.
+timing assumption. Dead reckoning is RouteBalance's own mechanism; the baselines' views run with it off
+and read only the engine's gauges (owner 09-25).
 
 Three ways to read (config telemetry_read; D53, D55):
   poll        the snapshot the background pollers keep, every poll_ms, as production balancers read a scraped

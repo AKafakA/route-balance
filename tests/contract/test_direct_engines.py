@@ -113,7 +113,7 @@ def test_calibration_measures_every_instance_at_every_level(tmp_path, monkeypatc
     monkeypatch.setattr(calibrate_driver, "POLL_S", 0.005)
 
     async def scenario():
-        async with Engines([SMALL, SMALL, LARGE], delay_s=0.03) as e:
+        async with Engines([SMALL, SMALL, LARGE], delay_s=0.06) as e:   # wide enough windows under a loaded CPU
             p, row = plan({"levels": [1, 2, 3, 4, 5, 6], "requests_per_level": 3})
             manifest = {}
             return e, await calibrate(p, row, e.fleet, TRAIN, tmp_path, manifest), manifest

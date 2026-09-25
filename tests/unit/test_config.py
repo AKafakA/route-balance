@@ -45,6 +45,7 @@ def _pipeline(router="best_route", dispatch="least_outstanding"):
     d["weights"] = None
     d["pending_decode"] = None
     d["telemetry_read"] = "poll"
+    d["dead_reckoning"] = False            # RouteBalance's mechanism only (owner 09-25)
     d["pipeline"] = {"router": {"type": router, "kwargs": {}}, "dispatch": {"type": dispatch, "seed": 1}}
     return d
 
@@ -139,6 +140,9 @@ def test_pending_decode_is_required_exactly_in_routebalance_mode():
     with pytest.raises(ConfigError, match="lpt_key is RB-only"):
         parse_scheduler(d)
     d["pending_decode"] = "own_length"                      # the D38 sweep
+    with pytest.raises(ConfigError, match="it runs with dead reckoning"):
+        parse_scheduler(d)                                  # its logged features must be RouteBalance's view
+    d["dead_reckoning"] = True
     assert parse_scheduler(d).pending_decode == "own_length"
 
 
@@ -147,11 +151,11 @@ def test_pending_decode_is_required_exactly_in_routebalance_mode():
     ("routebalance", "poll", True, None, None),                      # the D54 control
     ("routebalance", "per_round", False, None, None),                # W4's dead-reckoning ablation
     ("routebalance", "per_request", True, None, "never per request"),
-    ("pipeline", "poll", True, "least_outstanding", None),
+    ("pipeline", "poll", False, "least_outstanding", None),           # the engines' counts from the cache (llm-d)
     ("pipeline", "per_request", False, "least_outstanding", None),   # v3's probe arm (D55)
     ("pipeline", "per_request", False, "po2", None),
-    ("pipeline", "poll", False, "least_outstanding", "dead reckoning off"),
-    ("pipeline", "per_request", True, "least_outstanding", "dead reckoning off"),
+    ("pipeline", "poll", True, "least_outstanding", "RouteBalance's own mechanism"),
+    ("pipeline", "per_request", True, "least_outstanding", "RouteBalance's own mechanism"),
     ("pipeline", "per_round", True, "least_outstanding", "decides per request"),
     ("pipeline", "per_request", False, "round_robin", "reads no load"),
     ("pipeline", "per_request", False, "random", "reads no load"),

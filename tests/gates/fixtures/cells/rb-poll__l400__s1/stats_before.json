@@ -4,9 +4,9 @@
  },
  "telemetry_read": "poll",
  "telemetry_age_ms": {
-  "S_0": 4.7,
-  "S_1": 4.3,
-  "L_2": 3.9
+  "S_0": 3.5,
+  "S_1": 3.0,
+  "L_2": 2.7
  },
  "active": 0,
  "rounds": 0,

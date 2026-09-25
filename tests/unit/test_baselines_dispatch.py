@@ -88,8 +88,8 @@ def test_a_new_config_forgets_assignment_times():
 
 
 def test_least_outstanding_reads_the_views_queue():
-    """running + waiting as the view reports them: the in-flight count under dead reckoning, the engine's own
-    counts in the D55 probe arm (in_flight is then not the load, so it is ignored)."""
+    """running + waiting as the view reports them: a baseline's view reads the engines' own counts, so the
+    scheduler's in_flight count is not its load and is ignored (v3's shortest queue)."""
     loads = loads_for(SEVEN, i0=load(running=3), i1=load(running=1, in_flight=40), i2=load(waiting=1),
                       i3=load(running=1, waiting=1), i4=load(running=5))
     busy = {c.instance_id: load(running=9) for c in SEVEN[5:]}
@@ -97,7 +97,8 @@ def test_least_outstanding_reads_the_views_queue():
 
 
 def test_under_dead_reckoning_the_queue_is_the_in_flight_count():
-    """D40: least outstanding and shortest queue are one rule on the dead-reckoned view, whatever the gauges say."""
+    """On a dead-reckoned view (RouteBalance's own, and the latency sweep's) running + waiting is the in-flight
+    count whatever the gauges say, so one queue rule serves every view (D40)."""
     import asyncio
     from routebalance.telemetry import TelemetryView
     gauges = {"a": (0, 0), "b": (7, 3)}

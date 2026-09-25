@@ -5,9 +5,10 @@ Every baseline (and rb_decoupled) selects an instance this way:
   2. the candidates are that model's instances in fleet order (every instance for passthrough);
   3. their loads come from the shared TelemetryView, which raises rather than report an idle instance: from
      the pollers' cache, or (probe, v3's per-request arm, D55) from a fetch of the candidates made now;
-  4. the dispatcher picks one candidate, and the dispatch is recorded in the view at once (no await in
-     between), so concurrent selections see each other's in-flight counts, as RouteBalance's own assignments
-     do (the probe arm reads the engines' own counts instead, as v3 did, so there they see only the LRU order).
+  4. the dispatcher picks one candidate on the engines' own counts (dead reckoning is RouteBalance's own), and
+     the dispatch is recorded in the view at once (no await in between): its pending decode tokens and in-flight
+     count are tracked for every system, and concurrent selections of a baseline see each other only through
+     the least-recently-assigned tie-break, as a balancer reading scraped engine metrics does.
 The caller owns the returned token: record_progress as tokens stream back, then exactly one of
 record_completion or record_failure; it also reports completions and timeouts to the dispatcher.
 """

@@ -9,7 +9,7 @@
   "traces": "Each Qwen cell sends the whole evaluation set (3534 prompts), each Gemma cell its 1979 (v3). W5's step 6 -> 30 -> 6 needs its segment sizes, the gamma CV^2 = 4 trace (burstiness 0.25) its rate, and the W1b sweep (6 -> 36 in steps of 6, at most 14919 prompts a cell) its segment sizes: owner values.",
   "owner": "g1_weights: the two G1 presets; decoupled_weights: the four RB-decoupled presets of W2 and W8 (both from rb_weights).",
   "decisions": "Made during the lease into a decisions file (tools/campaign.py render --decisions): rb_default after G1 ('rb' or 'rb-static', the RouteBalance latency arm of W2, W4, W8 and W9); the rest after W2's lambda-12/30 panels. W3's planned sizes (16 near-frontier, 6 headline configurations) reproduce the plan's ~100 cells; W5 and W7 plan 5 and 6 systems.",
-  "groups": "Main comparison groups declare the system-defining manifest paths (system.*) for every cell, and g1 also telemetry.dead_reckoning (v3's per-request probe arm reads the engine's own counts, D55); qwen-sweep has a single configuration and declares nothing. qwen-ablation (W4, W11) is self-contained and paired: its reference is rb at the headline preset over lambda 12/30 x seeds 1-3 (listed again under the abl alias), and each arm declares only what its template ablates (configs/presets.json). The ablations are of the curve arm whatever rb_default says.",
+  "groups": "Main comparison groups declare the system-defining manifest paths (system.*) for every cell, and telemetry.dead_reckoning (RouteBalance dead-reckons; every pipeline system reads the engines' own counts, owner 09-25); qwen-sweep has a single configuration and declares nothing. qwen-ablation (W4, W11) is self-contained and paired: its reference is rb at the headline preset over lambda 12/30 x seeds 1-3 (listed again under the abl alias), and each arm declares only what its template ablates (configs/presets.json). The ablations are of the curve arm whatever rb_default says.",
   "fill": "W9 blocks are fill blocks: cells an earlier block lists (W3's seeds 2-3) are not run twice. A fill block renders only after every earlier block of its group that could list one of its cells, so W9 waits for the W3 decisions and no cell ever moves between blocks from one render to the next.",
   "decoupled": "RB-decoupled follows rb_default ('{arm}-dec': the same predictors as the RouteBalance arm it controls); G1 pairs RB-new with rb-dec.",
   "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it: W6 (the AvengersPro top-2 spillover router is not implemented), W7b (the benchmark client sends no per-request budget; its own group declares budget.admission_filter, RB-only), W4's arm 3 (no predictive tie-break exists, D35) and W4's D45 control (the decision is open). W11 needs the lpt key min/mean of S5b.",
@@ -68,12 +68,12 @@
  },
  "groups": {
   "g1": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
-  "qwen": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*"]},
+  "qwen": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
   "qwen-ablation": {"fleet": "qwen_std", "reference": "abl.qwen.rb.{headline}", "intended_differences": null},
   "qwen-sweep": {"fleet": "qwen_std", "reference": null, "intended_differences": []},
-  "qwen-topo53": {"fleet": "qwen_topo53", "reference": null, "intended_differences": ["system.*"]},
+  "qwen-topo53": {"fleet": "qwen_topo53", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
   "qwen-budget": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "budget.admission_filter"]},
-  "gemma": {"fleet": "gemma", "reference": null, "intended_differences": ["system.*"]}
+  "gemma": {"fleet": "gemma", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]}
  },
  "owner": {
   "g1_weights": ["OWNER-MUST-SET", "OWNER-MUST-SET"],

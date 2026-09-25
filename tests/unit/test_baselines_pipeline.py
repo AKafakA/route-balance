@@ -159,20 +159,25 @@ def test_empty_fleet_raises():
 
 # ---------------------------------------------------------------- the real shared view
 
-def real_view():
+def real_view(gauges=None):
+    """A baseline's view: the engines' own counts (dead reckoning is RouteBalance's own, owner 09-25)."""
+    gauges = gauges if gauges is not None else {}
+
     async def fetch(inst):
-        return metrics(running=0, waiting=0, kv=0.0)
-    view = TelemetryView(FLEET, fetch, poll_ms=50.0, max_age_ms=1e9, dead_reckoning=True, clock=lambda: 100.0)
+        r, w = gauges.get(inst.instance_id, (0, 0))   # default-ok: an engine not listed is idle
+        return metrics(running=r, waiting=w, kv=0.0)
+    view = TelemetryView(FLEET, fetch, poll_ms=50.0, max_age_ms=1e9, dead_reckoning=False, clock=lambda: 100.0)
     run(view.refresh())
     return view
 
 
 def test_each_selection_is_recorded_before_the_next_one_reads_the_view():
-    # a frozen clock makes recency tie every stamped instance, so after one pass only the in-flight counts
-    # recorded by earlier selections can move the 7th pick off seven[0]
-    view, router, lor = real_view(), FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(clock=lambda: 5.0)
+    """Concurrent selections on unchanged engine gauges spread by the least-recently-assigned tie-break alone,
+    and every dispatch is recorded (in flight, with its decode tokens) before the next selection reads."""
+    ticks = iter(range(1, 100))
+    view, router, lor = real_view(), FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(clock=lambda: next(ticks))
 
-    async def burst():   # concurrent selections: each must see the dispatches recorded before it
+    async def burst():
         return await asyncio.gather(*(select_instance(router, lor, FLEET, view, RouterRequest("hi", str(k)),
                                                       decode_tokens=ALL64, probe=False) for k in range(7)))
     sels = run(burst())
@@ -183,13 +188,12 @@ def test_each_selection_is_recorded_before_the_next_one_reads_the_view():
                                                                                       for s in sels]
 
 
-def test_in_flight_counts_steer_least_outstanding():
-    view, router, lor = real_view(), FixedRouter("Qwen/Qwen2.5-3B"), LeastOutstanding()
+def test_the_engines_own_counts_steer_least_outstanding():
     three = of_model("3B")
-    sels = [select(router, lor, view) for _ in range(3)]
-    assert [s.instance for s in sels] == three
-    view.record_completion(sels[1].token)
-    assert select(router, lor, view).instance is three[1]
+    gauges = {three[0].instance_id: (3, 1), three[1].instance_id: (0, 0), three[2].instance_id: (1, 0)}
+    view, router, lor = real_view(gauges), FixedRouter("Qwen/Qwen2.5-3B"), LeastOutstanding()
+    assert select(router, lor, view).instance is three[1]           # the engine that reports an empty queue
+    assert view.loads([three[1].instance_id])[three[1].instance_id].stats.num_running == 0   # not dead-reckoned
 
 
 def test_failed_selection_leaves_nothing_recorded():

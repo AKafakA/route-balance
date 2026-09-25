@@ -112,7 +112,7 @@ def configs(table_md5: str) -> dict[str, dict]:
 
     def pipe(router, dispatch, **kw):
         return base | {"mode": "pipeline", "weights": None, "rounds": {"adaptive": True}, "lpt": "max",
-                       "pending_decode": None, "telemetry_read": "poll",
+                       "pending_decode": None, "telemetry_read": "poll", "dead_reckoning": False,
                        "pipeline": {"router": router, "dispatch": dispatch}} | kw
     passthrough = {"type": "passthrough", "kwargs": {}}
     maxdiv = rb(rounds={"adaptive": False, "max_batch": 4, "timeout_ms": 30.0}, lpt="max",
@@ -135,7 +135,8 @@ def configs(table_md5: str) -> dict[str, dict]:
                           dead_reckoning=False),           # D55: v3's per-request probe on the engine's counts
         "decoupled": pipe({"type": "rb_decoupled", "kwargs": {}}, {"type": "round_robin", "seed": 1},
                           weights=weights, latency=curve),
-        "sweep": pipe(passthrough, {"type": "random", "seed": 7}, pending_decode="own_length"),
+        "sweep": pipe(passthrough, {"type": "random", "seed": 7}, pending_decode="own_length",
+                       dead_reckoning=True),   # the sweep logs RouteBalance's view (its random dispatch reads no load)
     }
 
 

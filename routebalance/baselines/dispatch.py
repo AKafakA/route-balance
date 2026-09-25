@@ -1,12 +1,11 @@
 """Baseline dispatchers: pick one instance among the router's candidates.
 
-A dispatcher reads only the loads the pipeline hands it, taken from the shared TelemetryView (the
-dead-reckoned stats RouteBalance reads too): num_running + num_waiting. It never fetches anything itself;
-lowest_latency also learns from the completions and timeouts the server reports. Candidates arrive in fleet
-order, and order is behaviour. There is no separate shortest-queue dispatcher: under dead reckoning (every
-pipeline system on the pollers' cache) running + waiting IS the scheduler's in-flight count, so shortest queue
-and least outstanding are one rule (D40); in v3's per-request probe arm (dead reckoning off, D55) the same rule
-reads the engine's own counts, which is v3's shortest queue.
+A dispatcher reads only the loads the pipeline hands it, taken from the shared TelemetryView: the engines' own
+num_running + num_waiting, from the pollers' 50 ms cache (as llm-d's endpoint picker reads them) or fetched for
+the request (v3's per-request probe). Dead reckoning is RouteBalance's own mechanism and no dispatcher uses it
+(owner 09-25). A dispatcher never fetches anything itself; lowest_latency also learns from the completions and
+timeouts the server reports. Candidates arrive in fleet order, and order is behaviour. least_outstanding is
+v3's shortest queue on those counts (D40: one rule, no separate shortest-queue dispatcher).
 Ties: least_outstanding gives them to the least recently assigned candidate, then to fleet order (as
 RouteBalance's own tie-break, and like the round robin among ties of stock least-connection balancers;
 v3's first-candidate rule biased the first instance); po2 keeps the first drawn (v3); lowest_latency
@@ -69,8 +68,7 @@ class RoundRobin(Dispatcher):
 
 
 class LeastOutstanding(Dispatcher):
-    """Shortest queue, running + waiting: under dead reckoning, the requests this scheduler has dispatched and
-    not yet seen finish; without it (the D55 probe arm), the engine's own counts. Among equal queues the candidate
+    """Shortest queue: the engine's own running + waiting (v3's shortest queue). Among equal queues the candidate
     assigned least recently (never assigned = 0.0), then the earliest in fleet order."""
 
     def __init__(self, clock: Callable[[], float] = time.monotonic):

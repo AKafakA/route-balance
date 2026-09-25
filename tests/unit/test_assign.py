@@ -49,7 +49,7 @@ def run_round(requests, loads=None, latency=None, **kw):
 def test_lpt_takes_the_longest_largest_expectation_first_and_is_stable():
     rs = [req("a", s_len=10, l_len=20), req("b", s_len=300, l_len=5), req("c", s_len=20, l_len=10),
           req("d", s_len=5, l_len=300)]
-    assert lpt_key(rs[1]) == 300
+    assert lpt_key(rs[1], "max") == 300
     assert [d.request.request_id for d in run_round(rs)] == ["b", "d", "a", "c"]
     assert [d.request.request_id for d in run_round(rs, lpt="off")] == ["a", "b", "c", "d"]
 

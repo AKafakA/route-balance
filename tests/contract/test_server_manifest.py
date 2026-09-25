@@ -83,7 +83,11 @@ def test_the_manifest_follows_a_config_swap(tmp_path):
     assert after["loaded"] == {"estimator": None, "latency_source": None, "latency_envelope": None,
                                "router": "PassthroughRouter", "dispatcher": "LeastOutstanding", "round_loop": False,
                                "telemetry_pollers": True}
-    assert all(after[k] == before[k] for k in ("fleet_digest", "fleet", "budget", "telemetry", "code", "versions"))
+    assert all(after[k] == before[k] for k in ("fleet_digest", "fleet", "budget", "code", "versions"))
+    # dead reckoning is RouteBalance's own; the pipeline system reads the engines' counts (owner 09-25)
+    assert before["telemetry"]["dead_reckoning"] is True and after["telemetry"]["dead_reckoning"] is False
+    assert {k: v for k, v in after["telemetry"].items() if k != "dead_reckoning"} == \
+        {k: v for k, v in before["telemetry"].items() if k != "dead_reckoning"}
 
 
 def test_routebalance_lines_carry_the_round_position_limits_and_lengths(tmp_path):
@@ -105,6 +109,7 @@ def test_routebalance_lines_carry_the_round_position_limits_and_lengths(tmp_path
 def test_the_sweep_lines_carry_the_lengths_and_baseline_lines_do_not(tmp_path):
     sweep = pipeline_cfg("random")
     sweep["pending_decode"] = "own_length"
+    sweep["dead_reckoning"] = True          # the sweep logs RouteBalance's view
 
     async def scenario():
         async with Harness(tmp_path, fleet_states()) as h:

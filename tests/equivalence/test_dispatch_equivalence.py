@@ -122,8 +122,8 @@ def least_recent_reference(key_of):
 
 
 def test_least_outstanding_is_its_definition(v3):
-    """The shortest running + waiting queue the view reports (the in-flight count under dead reckoning, the
-    engine's own counts in the D55 probe arm), ties to the least recently assigned."""
+    """The shortest running + waiting queue the view reports (a baseline's view: the engines' own counts), ties
+    to the least recently assigned."""
     queue = lambda ev: [r + w for r, w in zip(ev.running, ev.waiting, strict=True)]   # noqa: E731
     assert rebuild_ids(LeastOutstanding(clock=Ticks())) == least_recent_reference(queue)
 
@@ -152,9 +152,9 @@ def test_round_robin_warm_up_offset_matches_the_banked_passthrough_cell(v3):
 
 
 def test_least_outstanding_is_v3_shortest_queue_when_in_flight_is_the_queue(v3_dispatch):
-    """D40: under the shared (dead-reckoned) view in_flight = running + waiting, so least_outstanding must
-    pick v3's shortest-queue instance wherever the minimum is unique; ties differ by design (least recent
-    vs v3's first candidate)."""
+    """D40: least_outstanding is v3's shortest queue on running + waiting (the engines' own counts, as the
+    baselines read them): it must pick v3's shortest-queue instance wherever the minimum is unique; ties differ
+    by design (least recent vs v3's first candidate)."""
     trace = [dataclasses.replace(ev, in_flight=tuple(r + w for r, w in zip(ev.running, ev.waiting, strict=True)))
              for ev in TRACE]
     expect = v3_ids(v3_dispatch("shortest_queue").ShortestQueueDispatch(), v3_dispatch("base"), trace)

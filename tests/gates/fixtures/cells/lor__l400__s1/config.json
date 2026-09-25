@@ -1,5 +1,5 @@
 {
- "dead_reckoning": true,
+ "dead_reckoning": false,
  "latency": {
   "source": "constant",
   "envelope": "own_length",

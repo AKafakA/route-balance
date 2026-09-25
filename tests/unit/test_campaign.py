@@ -213,7 +213,7 @@ def test_groups_declare_what_each_cell_may_differ_in():
     assert group_record(scope, cells["abl.qwen.rb-static.q50l30c20__l12__s2"])["intended_differences"] == [
         "system.latency.source", "system.latency.envelope", "system.latency.normalization"]
     main = group_record(scope, cells["qwen.ap.pw070.lor__l30__s1"])
-    assert main == {"group": "qwen", "reference": None, "intended_differences": ["system.*"]}
+    assert main == {"group": "qwen", "reference": None, "intended_differences": ["system.*", "telemetry.dead_reckoning"]}
     assert group_record(scope, cells["qwen.sweep.random__sweep6-36__s1"])["intended_differences"] == []
 
 
