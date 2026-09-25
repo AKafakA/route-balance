@@ -19,15 +19,23 @@ FILLED = {
 }
 
 
-def test_the_tracked_file_names_every_unset_value():
+def test_the_tracked_file_holds_the_owners_values():
+    """Set 09-25 (owner): equal quality within 0.005, 1000 paired resamples at 95%; the day-1 check's thresholds."""
+    rules = load_rules(TRACKED)
+    assert rules.equal_quality.model_dump() == {"tolerance": 0.005, "bootstrap_resamples": 1000, "confidence": 0.95,
+                                                "bootstrap_seed": 0}
+    assert rules.g1.model_dump() == {"tier_mix_shift_min": 0.05, "mean_latency_gain_l30_min": 0.1,
+                                     "p99_ratio_l30_max": 1.0, "quality_tolerance": 0.005,
+                                     "l12_mean_latency_ratio_max": 1.05, "presets_required": "all"}
+
+
+def test_an_unset_value_is_named(tmp_path):
+    d = copy.deepcopy(FILLED)
+    d["g1"]["p99_ratio_l30_max"] = PLACEHOLDER
+    d["equal_quality"]["tolerance"] = PLACEHOLDER
     with pytest.raises(ConfigError) as e:
-        load_rules(TRACKED)
-    for name in ("equal_quality.tolerance", "equal_quality.bootstrap_resamples",
-                 "equal_quality.confidence", "equal_quality.bootstrap_seed", "g1.tier_mix_shift_min",
-                 "g1.mean_latency_gain_l30_min",
-                 "g1.p99_ratio_l30_max", "g1.quality_tolerance", "g1.l12_mean_latency_ratio_max",
-                 "g1.presets_required"):
-        assert name in str(e.value)
+        parse_rules(d)
+    assert "g1.p99_ratio_l30_max" in str(e.value) and "equal_quality.tolerance" in str(e.value)
 
 
 def test_the_tracked_file_has_the_schema_of_a_filled_file():

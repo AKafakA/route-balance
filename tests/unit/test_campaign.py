@@ -34,9 +34,6 @@ OWNER_SCOPE = {
     "owner.decoupled_weights": ["q50l30c20", "uniform", "q80l10c10", "q20l60c20"],
     "rows.W1.levels": [1, 2, 4, 8, 16, 32], "rows.W1.requests_per_level": 64,
     "rows.W8-cal.levels": [1, 2, 4, 8, 16, 32], "rows.W8-cal.requests_per_level": 64,
-    "traces.step6-30-6.segments": [{"n_requests": 360, "rate": 6.0}, {"n_requests": 1800, "rate": 30.0},
-                                   {"n_requests": 360, "rate": 6.0}],
-    "traces.gamma-cv4.segments": [{"n_requests": 3534, "rate": 18.0}],
     "traces.sweep6-36.segments": [{"n_requests": 2000, "rate": r} for r in (6.0, 12.0, 18.0, 24.0, 30.0, 36.0)],
     "blocks.W1b.seeds": [1, 2],
 }
@@ -44,7 +41,7 @@ DECISIONS = {"rb_default": "rb", "decoupled_arm": "rb", "headline": "q50l30c20",
              "w3_near_frontier": ["qwen.rb.q50l30c20", "qwen.ap.pw070.lor"],
              "w3_headline": ["qwen.rb.q50l30c20"], "w5_systems": ["qwen.rb.q50l30c20", "qwen.disp.lor"],
              "w7_systems": ["qwen.rb.q50l30c20", "qwen.rb-dec.uniform"]}
-HELD = {"W4/W4-arm3", "W4/W4-const-batch", "W6/W6", "W7b/W7b"}     # must run, cannot yet: always pending
+HELD = {"W6/W6", "W7b/W7b"}     # must run, cannot yet: always pending
 FLEETS = {"qwen_std": ("a" * 64, "1" * 64), "qwen_topo53": ("b" * 64, "2" * 64), "gemma": ("c" * 64, "3" * 64)}
 
 
@@ -111,20 +108,14 @@ def test_the_tracked_files_dry_run_every_row():
     assert list(rows) == ["W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
                           "W8-cal", "W8", "W9", "W11", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 32, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 96, "W3": 100, "W5": 30, "W6": 2, "W7": 36,
+    assert cells == {"G1": 32, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 90, "W3": 100, "W5": 30, "W6": 2, "W7": 36,
                      "W7b": 1, "W8": 108, "W9": 260, "W11": 12}
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
-    assert held == {"W4/W4-arm3", "W4/W4-const-batch", "W6/W6", "W7b/W7b"}
+    assert held == {"W6/W6", "W7b/W7b"}
     assert summary["decisions_needed"] == ["decoupled_arm", "headline", "rb_default", "w3_headline", "w3_near_frontier",
                                            "w5_systems",
                                            "w7_systems"]
-    unset = summary["owner_unset"]
-    assert not any("parts.telemetry" in u or "parts.rb.pending_decode" in u or "parts.dispatch.seed" in u
-                   or u.startswith(("server.", "bench.")) for u in unset)   # owner 09-25
-    for must in (
-                 "owner.g1_weights[0]",
-                 "W1.requests_per_level", "W8-cal.requests_per_level"):
-        assert must in unset
+    assert summary["owner_unset"] == []                                    # every owner value is set (09-25)
     assert "tpot-table.qwen" in summary["pins_needed"] and "xgb-heads.qwen" in summary["pins_needed"]
     assert "W4" in campaign.dry_run_text(summary)
 
@@ -132,6 +123,17 @@ def test_the_tracked_files_dry_run_every_row():
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
     sweep = sum(s["n_requests"] for s in SCOPE_JSON["traces"]["sweep6-36"]["segments"])
     assert sweep == SCOPE_JSON["datasets"]["train_qwen"]["rows"] == 14919
+
+
+def test_the_time_varying_load_is_v2s():
+    """Owner 09-25: v2's square wave (900 requests at 30 req/s, then 180 at 6: 30 s each) and gamma bursts with
+    burstiness 0.3 at 18 req/s, each over the whole evaluation set."""
+    square, gamma = SCOPE_JSON["traces"]["square30-6"], SCOPE_JSON["traces"]["gamma-b03"]
+    phases = [(g["n_requests"], g["rate"]) for g in square["segments"]]
+    assert phases == [(900, 30.0), (180, 6.0)] * 3 + [(294, 30.0)] and square["burstiness"] == 1.0
+    assert all(n / r == 30.0 for n, r in phases[:-1])
+    assert gamma == {"burstiness": 0.3, "segments": [{"n_requests": 3534, "rate": 18.0}]}
+    assert sum(n for n, _ in phases) == SCOPE_JSON["datasets"]["eval_qwen"]["rows"] == 3534
 
 
 def test_every_fleet_family_has_its_scored_corpus(tmp_path):
@@ -277,7 +279,8 @@ def test_owner_values_are_never_invented():
     presets, scope = filled(unset_scope={"bench.request_timeout_s"})   # a bench value unset: no scope at all
     with pytest.raises(campaign.ConfigError, match="owner values not set yet"):
         campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
-    presets, scope = filled(leave={"owner.g1_weights"})     # one owner list unset: only its blocks wait
+    presets, scope = filled()                                     # one owner list unset: only its blocks wait
+    scope = scope.model_copy(update={"owner": {**scope.owner, "g1_weights": [PLACEHOLDER, PLACEHOLDER]}})
     result = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     assert set(result.pending) == {"G1/G1", "G1b/G1b"} | HELD and "owner.g1_weights[0]" in result.pending["G1/G1"]
 
@@ -423,7 +426,9 @@ def test_references_resolve_or_fail_loudly():
 
 def test_a_held_block_keeps_the_campaign_incomplete(tmp_path):
     result = full_render()
-    assert result.pending["W4/W4-arm3"].startswith("held: v2's four-arm isolation arm 3")
+    assert result.pending["W6/W6"].startswith("held: the AvengersPro top-2 spillover router is not implemented")
     scope = parse(Scope, result.scope, "rendered")
-    assert "W4/W4-arm3" in scope.pending                     # analysis.manifest never reports COMPLETE with it
-    assert not any(c.block == "W4-arm3" for c in expected_cells(scope))
+    assert "W6/W6" in scope.pending                          # analysis.manifest never reports COMPLETE with it
+    assert not any(c.block == "W6" for c in expected_cells(scope))
+    assert "W4/W4-arm3" not in result.pending and not any(c.block == "W4-arm3" for c in expected_cells(scope))
+    assert sum(c.block == "W4-const-batch" for c in expected_cells(scope)) == 6        # the D45 control runs
