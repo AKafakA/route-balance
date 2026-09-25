@@ -81,7 +81,7 @@
   "decoupled_weights": ["q80l10c10", "q60l20c20", "q50l30c20", "uniform"]
  },
  "decisions": {
-  "rb_default": {"after": "G1b", "about": "the RouteBalance latency arm of the main grid: 'rb' (the measured TPOT curve), 'rb-static' (the static per-tier TPOT) or 'rb-learned' (the learned heads)"},
+  "rb_default": {"after": "G1b", "about": "the RouteBalance latency arm of the main grid: 'rb' (the measured TPOT curve), 'rb-static' (the static per-tier TPOT) or 'rb-learned' (the learned heads); static TPOT is the default if day 1 supports it (owner 09-25, as v2's breadth experiments)"},
   "decoupled_arm": {"after": "G1b", "about": "'rb' or 'rb-static': the RB-decoupled control's latency source, rb_default's own; with rb_default 'rb-learned', 'rb' (the decoupled router scores idle instances before any load is visible, so it cannot use the learned heads). The Gemma rows use it for RouteBalance too (Gemma has no learned heads)"},
   "headline": {"after": "W2", "about": "the headline weights (a rb_weights id): W4's ablations are taken there"},
   "w3_near_frontier": {"after": "W2", "about": "configuration ids near the lambda-12/30 frontiers (seeds 2-3)"},

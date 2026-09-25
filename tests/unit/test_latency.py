@@ -71,6 +71,16 @@ def test_curve_rejects_bad_points(curve):
         ProfiledCurveTPOT({"t": curve})
 
 
+def test_a_decreasing_curve_is_rejected_and_a_flat_one_accepted():
+    """D47: a TPOT curve never decreases in b (a dip would make a fixed_ref latency term exceed 1)."""
+    with pytest.raises(LatencyError, match=r"decreases from 10.0 ms at b=1 to 9.5 ms at b=4"):
+        ProfiledCurveTPOT({"a": [[1, 9.0], [2, 9.0]], "t": [[1, 10.0], [4, 9.5], [8, 12.0]]})
+    assert ProfiledCurveTPOT({"t": [[1, 10.0], [4, 10.0], [8, 12.0]]}).tpot_s("t", 6) == pytest.approx(0.011)
+    # every point is checked as a TPOT before any curve's shape: a sub-ms point anywhere is reported as such
+    with pytest.raises(LatencyError, match="not a TPOT"):
+        ProfiledCurveTPOT({"t": [[1, 10.0], [4, 9.5]], "u": [[1, 0.2]]})
+
+
 def test_curve_unknown_tier_raises():
     with pytest.raises(LatencyError, match="no TPOT curve"):
         ProfiledCurveTPOT(CURVES).tpot_s("qwen2.5-7b_a30", 1)

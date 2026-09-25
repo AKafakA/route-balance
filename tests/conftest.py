@@ -12,5 +12,5 @@ def pytest_addoption(parser):
     parser.addoption("--oracle-root", action="store", default=None,
                      help="root of the read-only v3 oracle data, required by tests/equivalence")
     parser.addoption("--artifact-root", action="store", default=None,
-                     help="root of the rebuild's artifacts (xgb_served/, tpot_table_v3cells.json), required by "
+                     help="root of the rebuild's artifacts (xgb_served/, tpot_table_v3cells_d47.json), required by "
                           "the estimator tests in tests/equivalence")

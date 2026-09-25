@@ -73,3 +73,24 @@ def test_the_command_line_writes_a_table_the_scheduler_accepts(tmp_path):
     assert table["unit"] == "ms_per_token" and set(table["curve"]) == {"t_a30"}
     with pytest.raises(SystemExit, match="exists"):
         cal.main(["--records", str(src), "--out", str(out)])
+
+
+def test_a_dip_in_the_measured_medians_is_held_at_the_running_max(tmp_path):
+    """D47: the curve never decreases in b; the measured medians stay in the provenance."""
+    medians = {1: 0.012, 2: 0.011, 4: 0.013, 8: 0.0125, 16: 0.02}
+    rows = [{"tier": "t_a30", "b": b, "tpot_s": s, "output_tokens": 50} for b, s in medians.items() for _ in range(31)]
+    records, method = cal.read_records(_write(tmp_path, rows))
+    table = cal.build_table(records, [tmp_path / "records.jsonl"], method)
+    assert table["curve"]["t_a30"] == [[1, 12.0], [2, 12.0], [4, 13.0], [8, 13.0], [16, 20.0]]
+    assert table["provenance"]["curve_measured"]["t_a30"] == [[1, 12.0], [2, 11.0], [4, 13.0], [8, 12.5], [16, 20.0]]
+    assert table["provenance"]["curve_rule"] == cal.CURVE_RULE
+    cal.ProfiledCurveTPOT(table["curve"])                                    # the scheduler accepts it
+    assert cal.non_decreasing([]) == [] and cal.non_decreasing([[1, 5.0]]) == [[1, 5.0]]
+
+
+def test_a_sub_ms_median_is_refused_before_the_running_max_could_hide_it(tmp_path):
+    rows = [{"tier": "t_a30", "b": b, "tpot_s": s, "output_tokens": 50} for b, s in ((1, 0.012), (2, 0.0004))
+            for _ in range(31)]
+    records, method = cal.read_records(_write(tmp_path, rows))
+    with pytest.raises(SystemExit, match=r"measured medians \[\[2, 0.4"):
+        cal.build_table(records, [tmp_path / "records.jsonl"], method)

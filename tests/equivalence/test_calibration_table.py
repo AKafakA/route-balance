@@ -27,10 +27,8 @@ def test_pinned_table_is_rebuilt_from_the_v3_cells(oracle, artifacts):
     assert all(n == 0 for n in rebuilt["provenance"]["b0_samples"].values())   # every request counts itself
 
 
-def test_best_route_cells_make_a_table_the_scheduler_rejects(oracle):
-    from routebalance.estimate.latency import LatencyError, ProfiledCurveTPOT
-
+def test_best_route_cells_make_a_table_the_tool_refuses(oracle):
+    """Their collapsed ITLs are refused before the running max (D47) could lift them above an earlier point."""
     cells = [p for d in ("s2_p1_l6", "s2_p1_l30") for p in sorted(oracle.cells_dir(d).glob("*_n3534.json"))]
-    table = build_table([r for cell in cells for r in v3_cell_records(cell, 1)], cells, "all cells")
-    with pytest.raises(LatencyError, match="not a TPOT"):
-        ProfiledCurveTPOT(table["curve"])
+    with pytest.raises(SystemExit, match="not a TPOT"):
+        build_table([r for cell in cells for r in v3_cell_records(cell, 1)], cells, "all cells")

@@ -41,8 +41,8 @@ UPSTREAM_SHA256 = "6cfaf58f525217b47c2e90361fbb3e94309f66fbbc7eadef067e01c829464
 # updating its pin here and in the config that uses it).
 SERVED_HEADS = "xgb_served"                                     # tools/retrain_xgb_served.py --v3-sweep
 SERVED_HEADS_MD5 = "1bfe49bb364e2c76c29fbd750a53a73f"                  # md5 of its md5s.json (the config's table_md5)
-TPOT_TABLE = "tpot_table_v3cells.json"                          # tools/calibrate_tpot_curve.py, v3 cells
-TPOT_TABLE_MD5 = "7bf3dd4a2398272b17f5d12b798f8f9e"
+TPOT_TABLE = "tpot_table_v3cells_d47.json"                      # tools/calibrate_tpot_curve.py, v3 cells, with the
+TPOT_TABLE_MD5 = "3500d6467dc3cae802cc783356bc4252"             # D47 running max (the pre-D47 table: 7bf3dd4a...)
 
 
 def md5_of(path: Path) -> str:
