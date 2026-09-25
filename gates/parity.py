@@ -13,7 +13,9 @@ The driver writes group.json from the scope. A pattern is a manifest path: eithe
   - The code on disk never changed while the scheduler ran: code.* equals code.*_now.
   - All cells name the same group and the same reference, and the group is their record's labels.group.
   - A main comparison group (reference null): every cell declares the same patterns, usually ["system.*"].
-    Two cells may differ only in keys those patterns match.
+    Two cells may differ only in keys those patterns match. A main group that declares no difference at all
+    (one configuration by design, e.g. the W1b latency sweep at one seed) may be a single cell; its own checks
+    (manifest unchanged, code unchanged, labels) still apply. Any other group needs at least two cells.
   - An ablation group (reference = a config id): the reference cells (that config id, declaring []) are
     present and identical to one another. Every other cell may differ from them only in keys its own patterns
     match, and must differ in every one of its patterns. A declared difference that did not happen is an
@@ -82,8 +84,10 @@ def offending(a: dict[str, Any], b: dict[str, Any], patterns: list[str]) -> list
 def parity_problems(cells: list[Cell]) -> tuple[list[str], str]:
     p = Problems()
     ids = [c.cell_id for c in cells]
-    if len(cells) < 2:
-        p.add("parity needs at least two cells of one group", f"got {ids}")
+    alone = len(cells) == 1 and cells[0].group_spec.reference is None and cells[0].group_spec.intended_differences == []
+    if len(cells) < 2 and not alone:
+        p.add("parity needs at least two cells of one group (one only in a group that declares no difference)",
+              f"got {ids}")
     if len(set(ids)) != len(ids):
         p.add("a cell is listed twice", ", ".join(sorted({i for i in ids if ids.count(i) > 1})))
     specs: dict[str, GroupSpec] = {c.cell_id: c.group_spec for c in cells}

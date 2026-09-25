@@ -208,10 +208,13 @@ def test_the_rows_are_done_only_when_every_cell_is_and_parity_passed(lease, monk
         (root / exp.cell_id).mkdir(exist_ok=True)
         (root / exp.cell_id / f"{exp.cell_id}.cell.json").write_text("{}")
     problems, _ = cd.rows_status(render, ["G1"], root)
-    assert problems == ["group g1 is complete but parity has not run over its current cells"]
+    assert problems == ["group g1 is complete but parity has not run over its current cells with the current gate code"]
     assert cd.parity(render, root, "g1") == 1                  # gates.parity is not in this tree: the gate fails
     problems, _ = cd.rows_status(render, ["G1"], root)
     assert len(problems) == 1 and problems[0].startswith("group g1 failed its parity gate")
+    monkeypatch.setattr(cd, "gate_code", lambda: "f" * 64)       # a record made by other gate code proves nothing
+    problems, _ = cd.rows_status(render, ["G1"], root)
+    assert problems == ["group g1 is complete but parity has not run over its current cells with the current gate code"]
 
 
 def test_parity_runs_once_per_set_of_cells_and_keeps_every_run(lease, monkeypatch):
@@ -233,6 +236,10 @@ def test_parity_runs_once_per_set_of_cells_and_keeps_every_run(lease, monkeypatc
     (root / "b" / "b.cell.json").write_text("run 2")           # b retired and run again, at the same path
     cd.time.sleep(1.1)
     assert cd.parity(render, root, "g1") == 0 and len(runs) == 3   # the gate sees the new run
+    monkeypatch.setattr(cd, "gate_code", lambda: "f" * 64)       # the gate's code was fixed: its verdict is redone
+    cd.time.sleep(1.1)
+    assert cd.parity(render, root, "g1") == 0 and len(runs) == 4
+    assert cd.parity(render, root, "g1") == 0 and len(runs) == 4   # and then reused under the new code
 
 
 def test_prepare_refuses_a_cell_whose_attempt_holds_a_record(lease):

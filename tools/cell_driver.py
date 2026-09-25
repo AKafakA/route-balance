@@ -367,6 +367,17 @@ def _runs(dirs: list[str]) -> list[list[str]]:
     return out
 
 
+GATES = Path(__file__).resolve().parents[1] / "gates"
+
+
+def gate_code() -> str:
+    """sha256 over the gates' source (names and bytes): a parity record made by other gate code is not reused."""
+    h = hashlib.sha256()
+    for f in sorted(GATES.glob("*.py")):
+        h.update(f.name.encode() + b"\0" + f.read_bytes() + b"\0")
+    return h.hexdigest()
+
+
 def _parity_records(root: Path, group: str) -> list[Path]:
     d = Path(root) / "_groups" / group
     return sorted(d.glob("parity.*.json")) if d.is_dir() else []
@@ -374,16 +385,17 @@ def _parity_records(root: Path, group: str) -> list[Path]:
 
 def parity(render: Path, root: Path, group: str) -> Optional[int]:
     """Run the parity gate over a ready group, unless its latest record already covers exactly these runs (each
-    cell's directory and record sha256); each run is kept (_groups/<group>/parity.<stamp>.{log,json}), none is
-    overwritten. The gate's exit code, or None while the group is not ready."""
+    cell's directory and record sha256) under the same gate code (a fixed gate runs again); each run is kept
+    (_groups/<group>/parity.<stamp>.{log,json}), none is overwritten. The gate's exit code, or None while the
+    group is not ready."""
     dirs = group_ready(render, root, group)
     if not dirs:
         return None
-    runs = _runs(dirs)
+    runs, code = _runs(dirs), gate_code()
     records = _parity_records(root, group)
     if records:
         last = read_json(records[-1])
-        if last["cells"] == runs:
+        if last["cells"] == runs and last.get("gate_code") == code:   # a record without one predates the key
             return last["rc"]
     stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
     out = Path(root) / "_groups" / group
@@ -392,7 +404,8 @@ def parity(render: Path, root: Path, group: str) -> Optional[int]:
     with open(log, "x") as f:                            # "x": never an existing record
         rc = subprocess.run([sys.executable, "-m", "gates.parity", "--cells", *dirs], stdout=f,
                             stderr=subprocess.STDOUT).returncode
-    _write_json(out / f"parity.{stamp}.json", {"group": group, "rc": rc, "cells": runs, "log": log.name})
+    _write_json(out / f"parity.{stamp}.json", {"group": group, "rc": rc, "cells": runs, "gate_code": code,
+                                                "log": log.name})
     return rc
 
 
@@ -446,8 +459,9 @@ def rows_status(render: Path, rows: list[str], root: Path) -> tuple[list[str], l
             continue
         records = _parity_records(root, group)
         last = read_json(records[-1]) if records else None
-        if last is None or last["cells"] != _runs(dirs):
-            problems.append(f"group {group} is complete but parity has not run over its current cells")
+        if last is None or last["cells"] != _runs(dirs) or last.get("gate_code") != gate_code():
+            problems.append(f"group {group} is complete but parity has not run over its current cells "
+                            "with the current gate code")
         elif last["rc"] != 0:
             problems.append(f"group {group} failed its parity gate (see {records[-1].parent / last['log']})")
     published = [c.cell_id for c in cells if cell_dir(root, c.cell_id).is_dir()]

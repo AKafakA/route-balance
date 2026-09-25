@@ -7,8 +7,8 @@ import pytest
 
 from gates.cell import open_cell
 from gates.parity import flatten, main, matches, parity_problems
-from tests.gates.cellfix import (FIXTURES, G1, RB_FIXEDREF, RB_MAXDIV, W4, W4_NODR, W4_REF, copy_cell, edit_json,
-                                 edit_manifests, record)
+from tests.gates.cellfix import (FIXTURES, G1, RB_FIXEDREF, RB_MAXDIV, SWEEP, W4, W4_NODR, W4_REF, copy_cell,
+                                 edit_json, edit_manifests, record)
 
 
 def problems(dirs):
@@ -245,6 +245,21 @@ def test_fewer_than_two_or_repeated_cells_fail(tmp_path):
     cell = copy_cell(tmp_path, W4_NODR)
     assert any("at least two cells" in p for p in problems([cell])[0])
     assert any("listed twice" in p for p in problems([cell, cell])[0])
+    ref = copy_cell(tmp_path / "ref", W4_REF)                   # an ablation reference declares []: two needed
+    assert any("at least two cells" in p for p in problems([ref])[0])
+    main = copy_cell(tmp_path / "main", SWEEP)                  # a main group declaring differences: two needed
+    assert any("at least two cells" in p for p in problems([main])[0])
+    assert any("at least two cells" in p for p in problems([])[0])
+
+
+def test_a_group_that_declares_no_difference_may_be_one_cell(tmp_path):
+    """The W1b sweep: one configuration at one seed (found in the 09-25 rehearsal, where it was refused)."""
+    cell = copy_cell(tmp_path, SWEEP)
+    spec(cell, lambda s: s.__setitem__("intended_differences", []))
+    assert problems([cell])[0] == []
+    edit_manifests_after = lambda d: d["launch"].__setitem__("max_connections", 1)   # noqa: E731
+    edit_json(cell / "manifest_after.json", edit_manifests_after)
+    assert any("the execution manifest changed during a cell" in p for p in problems([cell])[0])   # still checked
 
 
 def test_the_cli(tmp_path, capsys):
