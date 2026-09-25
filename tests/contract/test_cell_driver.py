@@ -20,6 +20,13 @@ HOSTS = {"n1": {"address": "127.0.0.1", "hw": "d7525"}}
 CELL = "g1.qwen.ap.pw070.lor__l12__s1"
 
 
+ENGINES = {"record_sha256": "a" * 64, "instances": {"e_0": {
+    "argv_sha256": "b" * 64, "argv": "--model M --port 8000", "gpus": "0",
+    "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model M --port 8000",
+    "start_time_s": 1790000000.0,
+    "cache_config": {"block_size": "16", "num_gpu_blocks": "8000"}, "model": "M", "max_model_len": 4096}}}
+
+
 @pytest.fixture
 def lease(tmp_path):
     fleet, hosts = tmp_path / "fleet.json", tmp_path / "hosts.json"
@@ -155,11 +162,31 @@ def test_a_clean_record_with_every_gate_passed_is_valid(lease, monkeypatch):
     attempt = cd.Path(cd.prepare(render, CELL, root, fleet, hosts)["ATTEMPT"])
     (attempt / "gates").mkdir()
     monkeypatch.setattr(cd, "record_problems", lambda scope, exp, d: [])
+    for when in ("before", "after"):
+        (attempt / f"engines_{when}.json").write_text(json.dumps(ENGINES))
     assert cd.GATES == ("arm", "zero_call")
     assert cd.verdict(render, attempt, {"arm": 0, "zero_call": 0})["valid"] is True
     for gates in ({"arm": 0}, {"arm": 0, "zero_call": 1}):
         (attempt / "gates" / "verdict.json").unlink()
         assert cd.verdict(render, attempt, gates)["valid"] is False
+
+
+def test_an_engine_restart_during_the_cell_invalidates_it(lease, monkeypatch):
+    """D48: the engines are read before and after; any change, a restart first, makes the cell invalid."""
+    render, root, fleet, hosts, _ = lease
+    attempt = cd.Path(cd.prepare(render, CELL, root, fleet, hosts)["ATTEMPT"])
+    (attempt / "gates").mkdir()
+    monkeypatch.setattr(cd, "record_problems", lambda scope, exp, d: [])
+    restarted = json.loads(json.dumps(ENGINES))
+    restarted["instances"]["e_0"]["start_time_s"] += 60.0
+    (attempt / "engines_before.json").write_text(json.dumps(ENGINES))
+    (attempt / "engines_after.json").write_text(json.dumps(restarted))
+    v = cd.verdict(render, attempt, {"arm": 0, "zero_call": 0})
+    assert not v["valid"] and v["bench_problems"] == ["an engine restarted or changed during the cell: "
+                                                      "['e_0.start_time_s']"]
+    (attempt / "engines_after.json").unlink()
+    (attempt / "gates" / "verdict.json").unlink()
+    assert "the engine record is missing" in cd.verdict(render, attempt, {"arm": 0, "zero_call": 0})["bench_problems"][0]
 
 
 def test_status_verdict_publish_and_resume(lease, tmp_path):

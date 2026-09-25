@@ -1,6 +1,10 @@
 {
  "loop_lag": {
-  "samples": 0
+  "samples": 1,
+  "p50_ms": 1.106452904641628,
+  "p99_ms": 1.106452904641628,
+  "p999_ms": 1.106452904641628,
+  "max_ms": 1.106452904641628
  },
  "telemetry_read": "per_round",
  "telemetry_age_ms": null,

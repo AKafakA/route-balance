@@ -31,6 +31,10 @@ The driver writes group.json from the scope. A pattern is a manifest path: eithe
       every cell that loaded it: a different md5 under one path is a file that changed during the campaign.
   - The bench side of each record is equal across the group: sampling, max_connections, request_timeout_s,
     dataset_sha256, tokenizer_id and prompt_order.
+  - The engines (D48, the first rule on execution): each cell's engines_before.json equals its engines_after.json
+    (no engine restarted or changed during the cell), and every cell of the group ran on the same engines with
+    the same launches: the deploy.sh command, the KV cache each engine built, its model and context length.
+    Only the start time may differ between cells (an engine restarted between them with the same launch).
 Every offending key is reported with both values and the cells that hold them.
 """
 from __future__ import annotations
@@ -41,7 +45,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from gates.cell import Cell, GroupSpec, Problems, changed_keys, flatten, open_cell, run
+from gates.cell import Cell, GroupSpec, Problems, changed_keys, engine_changes, flatten, open_cell, run
 
 NOT_COMPARED = ("config_digest",)
 FOLLOW_SYSTEM = ("loaded",)                       # may differ exactly where system.* differs
@@ -91,7 +95,7 @@ def parity_problems(cells: list[Cell]) -> tuple[list[str], str]:
     if len(set(ids)) != len(ids):
         p.add("a cell is listed twice", ", ".join(sorted({i for i in ids if ids.count(i) > 1})))
     specs: dict[str, GroupSpec] = {c.cell_id: c.group_spec for c in cells}
-    flats, bench, config_of = {}, {}, {}
+    flats, bench, config_of, launches = {}, {}, {}, {}
     for c in cells:
         rec, spec = c.record, specs[c.cell_id]
         label = rec.labels["group"] if "group" in rec.labels else _MISSING
@@ -106,6 +110,11 @@ def parity_problems(cells: list[Cell]) -> tuple[list[str], str]:
         for change in before.code.changed():
             p.add("the scheduler's code changed on disk after it started (restart it)", f"{c.cell_id}: {change}")
         flats[c.cell_id] = flatten(before.model_dump(mode="json"))
+        engines_before = c.engines("before")
+        changed = engine_changes(engines_before, c.engines("after"))
+        if changed:
+            p.add("an engine restarted or changed during a cell", f"{c.cell_id}: {changed}")
+        launches[c.cell_id] = {i: e.launch() for i, e in engines_before.instances.items()}
         bench[c.cell_id] = {k: getattr(rec, k) for k in BENCH_KEYS} | {"sampling": rec.sampling.model_dump(mode="json")}
     groups = {s.group for s in specs.values()}
     references = {s.reference for s in specs.values()}
@@ -120,9 +129,26 @@ def parity_problems(cells: list[Cell]) -> tuple[list[str], str]:
         _ablation_group(p, specs, flats, config_of, reference)
     _one_content_per_path(p, flats)
     _bench(p, bench)
+    _same_launches(p, launches)
     group = next(iter(groups)) if len(groups) == 1 else "?"
     kind = "main group" if reference is None else f"ablation group against {reference}"
     return p.lines(), f"{len(cells)} cells of {kind} {group} differ only as declared"
+
+
+def _same_launches(p: Problems, launches: dict[str, dict[str, dict]]) -> None:
+    ids = list(launches)
+    for cid in ids[1:]:
+        a, b = launches[ids[0]], launches[cid]
+        if set(a) != set(b):
+            p.add("the cells ran on different engines", f"{ids[0]}: {sorted(a)} vs {cid}: {sorted(b)}")
+            continue
+        for inst in sorted(a):
+            for key in sorted(set(a[inst]) | set(b[inst])):
+                va = a[inst][key] if key in a[inst] else _MISSING
+                vb = b[inst][key] if key in b[inst] else _MISSING
+                if va != vb:
+                    p.add(f"the engines were launched differently: {inst}.{key}",
+                          f"{ids[0]}: {_show(va)} vs {cid}: {_show(vb)}")
 
 
 def _main_group(p: Problems, specs: dict, flats: dict) -> None:

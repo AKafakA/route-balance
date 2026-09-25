@@ -11,6 +11,8 @@ scripts/run_cell.sh writes, per cell, <cells_root>/<cell_id>/:
   manifest_after.json     GET /v1/manifest after the last reply
   group.json              {"group", "reference", "intended_differences"}: the cell's comparison group, written
                           from the scope (gates/parity.py)
+  engines_before.json     every engine of the fleet as it reports itself before the cell, with the launch command
+  engines_after.json      deploy.sh ran for it, and again after the last reply (tools/engines.py, D48)
   gates/*.log, latency.jsonl (the D38 sweep only)       not read by the gates
 Every reader is strict. The gate that reads a file fails on any of these: the file is missing; a key is
 missing or unknown; a value has the wrong type; a number is not finite; a JSON key is repeated. Nothing is
@@ -255,6 +257,38 @@ def _parse(model, data: Any, what: str):
         raise GateError(f"{what}: {e}") from e
 
 
+# ---------------------------------------------------------------- engines_before.json / engines_after.json
+
+class EngineLaunch(Strict):
+    """One engine as it reports itself (tools/engines.py), with the launch command deploy.sh ran for it."""
+    argv_sha256: str = Field(pattern=_SHA256)
+    argv: str = Field(min_length=1)            # the planned vLLM arguments
+    gpus: str = Field(min_length=1)            # CUDA_VISIBLE_DEVICES, as planned and as executed
+    cmdline: str = Field(min_length=1)         # the process's command line, read on the node after deploy
+    start_time_s: float = Field(gt=0)
+    cache_config: dict[str, str] = Field(min_length=1)
+    model: str = Field(min_length=1)
+    max_model_len: int = Field(ge=1)
+
+    def launch(self) -> dict:
+        """Everything but the start time: what a cell of the group must share with every other."""
+        return self.model_dump(mode="json", exclude={"start_time_s"})
+
+
+class Engines(Strict):
+    record_sha256: str = Field(pattern=_SHA256)
+    instances: dict[str, EngineLaunch] = Field(min_length=1)
+
+
+def engine_changes(before: Engines, after: Engines) -> list[str]:
+    """What differs between a cell's two readings: a restart (start time) or another launch."""
+    if set(before.instances) != set(after.instances):
+        return [f"instances {sorted(before.instances)} vs {sorted(after.instances)}"]
+    return [f"{i}.{k}" for i in sorted(before.instances)
+            for k, v in before.instances[i].model_dump(mode="json").items()
+            if after.instances[i].model_dump(mode="json")[k] != v]
+
+
 # ---------------------------------------------------------------- the directory
 
 @dataclass(frozen=True)
@@ -321,6 +355,9 @@ class Cell:
     @cached_property
     def group_spec(self) -> GroupSpec:
         return _parse(GroupSpec, self._json("group.json"), f"{self.dir}/group.json")
+
+    def engines(self, when: Literal["before", "after"]) -> Engines:
+        return _parse(Engines, self._json(f"engines_{when}.json"), f"{self.dir}/engines_{when}.json")
 
 
 def open_cell(path: Path) -> Cell:

@@ -4,7 +4,9 @@
 #
 #   scripts/run_scope.sh --render DIR --rows G1,W2,... --max-invalid N [--restart "CMD"] \
 #                        --scheduler URL --scheduler-log-dir DIR --fleet FLEET.json --hosts HOSTS.json \
-#                        --data-root DIR --cells-root DIR --mirror DEST
+#                        --engines-record FILE --data-root DIR --cells-root DIR --mirror DEST
+#
+# --engines-record is the --record file of the deploy.sh engines run that launched the fleet's engines (D48).
 #
 # The rows are run in the plan's order whatever order they are given in; every requested cell must belong to
 # the fleet given (a topology or model-family change is a redeploy, then a run of its own rows). Before every
@@ -26,18 +28,19 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 usage() { echo "usage: $0 --render DIR --rows R1,R2 --max-invalid N [--restart CMD] --scheduler URL" \
-               "--scheduler-log-dir DIR --fleet F --hosts H --data-root DIR --cells-root DIR --mirror DEST" >&2; exit 2; }
-RENDER= ROWS= MAXINV= RESTART= URL= LOGDIR= FLEET= HOSTS= DATA= ROOT= MIRROR=
+               "--scheduler-log-dir DIR --fleet F --hosts H --engines-record FILE --data-root DIR --cells-root DIR" \
+               "--mirror DEST" >&2; exit 2; }
+RENDER= ROWS= MAXINV= RESTART= URL= LOGDIR= FLEET= HOSTS= ENGINES= DATA= ROOT= MIRROR=
 while [ $# -gt 0 ]; do
   case "$1" in
     --render) RENDER=$2 ;; --rows) ROWS=$2 ;; --max-invalid) MAXINV=$2 ;; --restart) RESTART=$2 ;;
     --scheduler) URL=$2 ;; --scheduler-log-dir) LOGDIR=$2 ;; --fleet) FLEET=$2 ;; --hosts) HOSTS=$2 ;;
-    --data-root) DATA=$2 ;; --cells-root) ROOT=$2 ;; --mirror) MIRROR=$2 ;;
+    --data-root) DATA=$2 ;; --cells-root) ROOT=$2 ;; --mirror) MIRROR=$2 ;; --engines-record) ENGINES=$2 ;;
     *) usage ;;
   esac
   shift 2
 done
-for v in RENDER ROWS MAXINV URL LOGDIR FLEET HOSTS DATA ROOT MIRROR; do [ -n "${!v}" ] || usage; done
+for v in RENDER ROWS MAXINV URL LOGDIR FLEET HOSTS ENGINES DATA ROOT MIRROR; do [ -n "${!v}" ] || usage; done
 case "$MAXINV" in ''|*[!0-9]*) usage ;; esac
 
 source "$REPO/scripts/mirror.sh"
@@ -82,7 +85,8 @@ for cell in "${CELLS[@]}"; do
   scheduler_current || exit 2
   set +e
   scripts/run_cell.sh --render "$RENDER" --cell "$cell" --scheduler "$URL" --scheduler-log-dir "$LOGDIR" \
-      --fleet "$FLEET" --hosts "$HOSTS" --data-root "$DATA" --cells-root "$ROOT" --mirror "$MIRROR"
+      --fleet "$FLEET" --hosts "$HOSTS" --engines-record "$ENGINES" --data-root "$DATA" --cells-root "$ROOT" \
+      --mirror "$MIRROR"
   rc=$?
   set -e
   case "$rc" in

@@ -32,7 +32,8 @@ def test_every_argument_is_required():
 
 def test_a_bad_max_invalid_is_refused():
     args = ["--render", "r", "--rows", "G1", "--max-invalid", "many", "--scheduler", "u", "--scheduler-log-dir", "l",
-            "--fleet", "f", "--hosts", "h", "--data-root", "d", "--cells-root", "c", "--mirror", "m"]
+            "--fleet", "f", "--hosts", "h", "--engines-record", "e", "--data-root", "d", "--cells-root", "c",
+            "--mirror", "m"]
     assert _run("run_scope.sh", *args).returncode == 2
 
 
@@ -68,10 +69,12 @@ def test_the_mirror_never_writes_over_another_run_and_proves_identity(tmp_path):
 
 def test_an_unknown_render_stops_before_anything_is_sent(tmp_path):
     args = ["--render", str(tmp_path / "none"), "--cell", "x__l12__s1", "--scheduler", "http://127.0.0.1:9",
-            "--scheduler-log-dir", str(tmp_path), "--fleet", "f", "--hosts", "h", "--data-root", str(tmp_path),
-            "--cells-root", str(tmp_path / "cells"), "--mirror", str(tmp_path / "mirror")]
+            "--scheduler-log-dir", str(tmp_path), "--fleet", "f", "--hosts", "h", "--engines-record", "e",
+            "--data-root", str(tmp_path), "--cells-root", str(tmp_path / "cells"), "--mirror", str(tmp_path / "mirror")]
     r = _run("run_cell.sh", *args)
     assert r.returncode == 2 and "prepare refused" in r.stderr
+    without = [a for a in args if a not in ("--engines-record", "e")]            # the deploy record is required
+    assert "usage" in _run("run_cell.sh", *without).stderr
     assert not (tmp_path / "cells").exists() and not (tmp_path / "mirror").exists()
 
 
@@ -82,3 +85,12 @@ def test_the_runner_reads_its_tokenizer_offline_from_the_pinned_snapshots():
     assert line.startswith('HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 "$PY" -m bench.runner')
     assert 'source "$REPO/scripts/node_layout.sh"' in text
     assert "RB_HF_HOME=$MYDATA/hf" in (REPO / "scripts" / "node_layout.sh").read_text()
+
+
+def test_every_cell_reads_its_engines_before_and_after():
+    """D48: run_cell.sh reads every engine after the warm-up and again after the runner."""
+    text = (REPO / "scripts" / "run_cell.sh").read_text()
+    outs = [ln for ln in text.splitlines() if "--out \"$ATTEMPT/engines_" in ln]
+    assert [o.split("engines_")[1].split(".json")[0] for o in outs] == ["before", "after"]
+    assert text.index("drv warmup") < text.index("engines_before.json") < text.index("-m bench.runner") \
+        < text.index("engines_after.json")

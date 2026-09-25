@@ -191,7 +191,8 @@ cancellation before and after a round places a request, and duplicate request id
 - `scripts/` (about 1,900 lines of shell):
   - `setup.sh`: one node, per role; resumable across the V100 driver reboot; ends with a self-check.
   - `deploy.sh` and the stop scripts.
-  - `run_cell.sh`: drain, apply, preflight, warm up, run, gates, publish, mirror. `run_scope.sh` runs a
+  - `run_cell.sh`: drain, apply, preflight, warm up, read the engines (`tools/engines.py`), run, read them
+    again, gates, publish, mirror. `run_scope.sh` runs a
     scope's cells.
 - `configs/`: the fleets, engine args, presets, the lease scope and the pre-registered rules. Owner values
   are `OWNER-MUST-SET` until set, and a render refuses them.

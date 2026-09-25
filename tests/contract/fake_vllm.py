@@ -36,6 +36,11 @@ class FakeState:
     served: tuple[str, ...] = ()  # default-ok: the model ids /v1/models lists (vLLM's served model names)
     live_running: bool = False  # default-ok: report the chat streams in flight as the running gauge
     streams: int = 0  # default-ok: chat streams in flight
+    start_time_s: float = 1790000000.0  # default-ok: process_start_time_seconds (a restart changes it)
+    # default-ok: the labels of vllm:cache_config_info, as vLLM 0.18.1 reports them (a subset)
+    cache_config: tuple[tuple[str, str], ...] = (("block_size", "16"), ("cache_dtype", "auto"),
+                                                 ("enable_prefix_caching", "True"), ("gpu_memory_utilization", "0.9"),
+                                                 ("num_gpu_blocks", "8000"))
 
     def metrics_text(self) -> str:
         self.scrapes += 1
@@ -57,6 +62,10 @@ class FakeState:
         lines += [f'vllm:e2e_request_latency_seconds_bucket{{engine="0",le="{b}",model_name="M"}} 3.0'
                   for b in (0.3, 0.5, 1.0, "+Inf")]
         lines.append('vllm:num_preemptions_created{engine="0",model_name="M"} 1.7e9')
+        lines += ["# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.",
+                  "# TYPE process_start_time_seconds gauge", f"process_start_time_seconds {self.start_time_s}"]
+        info = ",".join(f'{k}="{v}"' for k, v in self.cache_config)
+        lines += ["# TYPE vllm:cache_config_info gauge", f'vllm:cache_config_info{{{info},engine="0"}} 1.0']
         return "\n".join(lines) + "\n"
 
 

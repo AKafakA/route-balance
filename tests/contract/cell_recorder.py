@@ -34,6 +34,7 @@ from bench.runner import CellSpec, run_cell
 from routebalance.config import config_digest, load_fleet, parse_scheduler
 from tests.contract.fake_vllm import FakeState, make_app
 from tests.unit.fakes import SAMPLING, FakeTokenizer, write_dataset
+from tools.engines import engines
 
 # group -> (reference config id or None, {config id: its intended differences}): the group.json of each cell.
 # g1 is a main comparison group of five systems, with RouteBalance on the pollers' cache (D54) and v3's
@@ -166,6 +167,13 @@ class LiveFleet:
         self.hosts_path.write_text(json.dumps({node: {"address": address, "hw": hw}
                                                for _, _, node, hw, address in INSTANCES}))
         self.fleet = load_fleet(self.fleet_path, self.hosts_path)
+        self.engines_record = w / "engines.record"            # as deploy.sh engines --record writes it (D48)
+        argv = {i.instance_id: f"--model {i.model} --port {i.port} --max-num-seqs {i.tier.max_num_seqs}" for i in self.fleet}
+        self.engines_record.write_text("# deploy.sh engines (recorder)\n" + "".join(
+            f"{i.instance_id}\t{i.node}\t{i.address}\t{i.port}\t0\t{i.tier.gpu}\t1\t{i.model}\t{argv[i.instance_id]}\n"
+            for i in self.fleet) + "".join(
+            f"started\t{i.instance_id}\t{self.states[i.instance_id].start_time_s}\t0\t"
+            f"/venv/bin/python -u -m vllm.entrypoints.openai.api_server {argv[i.instance_id]}\n" for i in self.fleet))
         self.engines = []
         for inst in self.fleet:
             r = web.AppRunner(make_app(self.states[inst.instance_id]))
@@ -205,6 +213,7 @@ class LiveFleet:
         reference, declared = GROUPS[group]
         digest = config_digest(parse_scheduler(doc))
         await self.post_config(doc)
+        engines_before = await engines(self.fleet, self.engines_record, 5.0)
         stats_before = await self.flushed_stats()
         manifest_before = await self.get("/v1/manifest")
         offset = len(self.log_lines())
@@ -221,6 +230,7 @@ class LiveFleet:
             record = await run_cell(spec, prompts, client, run_id)
         stats_after = await self.flushed_stats()
         manifest_after = await self.get("/v1/manifest")
+        engines_after = await engines(self.fleet, self.engines_record, 5.0)
         window = [json.loads(x) for x in self.log_lines()[offset:]]
         cell = cells_root / cell_id
         cell.mkdir(parents=True)
@@ -231,7 +241,8 @@ class LiveFleet:
         (cell / "decisions.jsonl").write_text("".join(json.dumps(x) + "\n" for x in window
                                                       if x["config_digest"] == digest))
         for name, obj in (("stats_before", stats_before), ("stats_after", stats_after),
-                          ("manifest_before", manifest_before), ("manifest_after", manifest_after)):
+                          ("manifest_before", manifest_before), ("manifest_after", manifest_after),
+                          ("engines_before", engines_before), ("engines_after", engines_after)):
             (cell / f"{name}.json").write_text(json.dumps(obj, indent=1))
         return cell
 

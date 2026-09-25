@@ -185,3 +185,46 @@ def test_setup_fleet_checks_the_data_disk_table_before_ssh(tmp_path, disks, mess
 def test_setup_documents_the_data_disk_rule():
     text = (REPO / "scripts/setup.sh").read_text()
     assert "--data-disk" in text and "candidate_disks" in text and "has partitions; refusing" in text
+
+
+SERVE_OWN_START = r"""
+import http.server, os, sys
+ticks = os.sysconf("SC_CLK_TCK")
+btime = next(int(l.split()[1]) for l in open("/proc/stat") if l.startswith("btime"))
+start = btime + int(open("/proc/self/stat").read().rsplit(")", 1)[1].split()[19]) / ticks
+class H(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        body = f"# TYPE process_start_time_seconds gauge\nprocess_start_time_seconds {start}\n".encode()
+        self.send_response(200); self.end_headers(); self.wfile.write(body)
+    def log_message(self, *a): pass
+http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
+"""
+
+
+def test_node_ctl_started_reports_what_the_recorded_engine_process_executes(tmp_path):
+    """D48: the start time on the engine's port must be the recorded pid's, and the record gets its GPUs and
+    command line from /proc; another process answering on the port is refused."""
+    import socket
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    (tmp_path / "srv.py").write_text(SERVE_OWN_START)
+    lib = f"export RB_CTL_AS_LIBRARY=1; source scripts/node_layout.sh; source scripts/node_ctl.sh; RB_RUN={tmp_path}; "
+    launch = (f'setsid --fork bash -c "$RECORD_AND_EXEC"\'; exec "$@"\' _ {tmp_path}/engine.{{id}}.pid LOG "$BOOT_ID" '
+              f'env CUDA_VISIBLE_DEVICES=2,3 {{cmd}} < /dev/null > /dev/null 2>&1\n'
+              f'for i in $(seq 1 50); do [ -s {tmp_path}/engine.{{id}}.pid ] && break; sleep 0.1; done\n')
+    cleanup = (f"trap 'stop_group {tmp_path}/engine.E.pid E > /dev/null; "
+               f"stop_group {tmp_path}/engine.S.pid S > /dev/null' EXIT\n")
+    script = lib + cleanup + launch.format(id="E", cmd=f"{sys.executable} {tmp_path}/srv.py {port}") + "sleep 1\n" + \
+        launch.format(id="S", cmd="sleep 30") + f"""
+for i in $(seq 1 50); do curl -sf -m 1 http://127.0.0.1:{port}/metrics > /dev/null && break; sleep 0.1; done
+cmd_started E {port}
+( cmd_started S {port} ) 2>&1 | tail -1 || true
+"""
+    r = bash(script)
+    assert r.returncode == 0, r.stdout + r.stderr
+    lines = r.stdout.strip().splitlines()
+    fields = lines[0].split("\t")
+    assert fields[:2] == ["started", "E"] and float(fields[2]) > 1.7e9 and fields[3] == "2,3", r.stdout + r.stderr
+    assert fields[4] == f"{sys.executable} {tmp_path}/srv.py {port}"
+    assert "another process answers" in lines[-1]

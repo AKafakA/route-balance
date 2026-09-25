@@ -14,6 +14,9 @@ The cell directory holds (the layout the gates read):
   decisions.jsonl                     the decision-log lines of this cell's window, all with the cell's digest
   latency.jsonl                       the latency-sweep lines of the window (the D38 sweep configuration only)
   window.json                         the byte offsets of the two logs that bound the window
+  engines_before.json, engines_after.json   each engine as it reports itself (start time, KV cache config,
+                                      model, context) with its deploy.sh launch command (D48); a change
+                                      between the two, a restart, makes the cell invalid
   gates/<gate>.log, gates/verdict.json
 Exit codes of every subcommand: 0 done, 1 refused or failed (the message says why).
 """
@@ -40,7 +43,8 @@ from bench.schema import parse, read_json
 from bench.scope import ExpectedCell, Scope, expected_cells, group_record
 from routebalance.backend import BackendClient
 from routebalance.config import ConfigError, loads_strict
-from tools import direct
+from gates.cell import GateError, engine_changes, open_cell
+from tools import direct, engines
 from tools.campaign import load_plan
 
 SETTLE_S = 3.0          # how long the logs may take to reach the disk (the server flushes every 1 s)
@@ -153,6 +157,24 @@ async def post_config(url: str, attempt: Path, config_digest: str, fleet_digest:
     if got != (config_digest, fleet_digest):
         raise ConfigError(f"the scheduler now runs config {got[0]} on fleet {got[1]}; the cell needs "
                           f"{config_digest} on {fleet_digest}")
+
+
+async def engines_snapshot(render: Path, cell: str, fleet: Path, hosts: Path, record: Path, out: Path) -> None:
+    """Every engine of the cell's fleet as it reports itself, with its deploy-record launch (tools/engines.py)."""
+    scope, plan = load(render)
+    exp = expected(scope, cell)
+    instances = fleet_of(plan, exp.group, fleet, hosts)
+    _write_json(out, await engines.engines(instances, record, direct.SCRAPE_TIMEOUT_S))
+
+
+def engine_problems(d: Path) -> list[str]:
+    """D48: every engine served the whole cell as one process with one launch."""
+    try:
+        cell = open_cell(d)
+        changed = engine_changes(cell.engines("before"), cell.engines("after"))
+    except GateError as e:
+        return [f"the engine record is missing or malformed: {str(e)[:300]}"]
+    return [f"an engine restarted or changed during the cell: {changed}"] if changed else []
 
 
 async def warm_up(render: Path, cell: str, fleet: Path, hosts: Path, attempt: Path) -> None:
@@ -296,7 +318,7 @@ def check_launch(plan: dict, manifest: dict) -> list[str]:
 def verdict(render: Path, attempt: Path, gates: dict[str, int]) -> dict:
     scope, _ = load(render)
     exp = expected(scope, attempt.name)
-    problems = record_problems(scope, exp, attempt)
+    problems = record_problems(scope, exp, attempt) + engine_problems(attempt)
     out = {"cell_id": attempt.name, "bench_problems": problems, "gates": gates,
            "valid": not problems and all(rc == 0 for rc in gates.values()) and set(gates) == set(GATES)}
     _write_json(attempt / "gates" / "verdict.json", out)
@@ -498,6 +520,7 @@ def main(argv: list[str]) -> int:
     cmd("drain", "render", "cell", "fleet", "hosts", "scheduler")
     cmd("post-config", "scheduler", "attempt", "config-digest", "fleet-digest")
     cmd("warmup", "render", "cell", "fleet", "hosts", "attempt")
+    cmd("engines", "render", "cell", "fleet", "hosts", "engines-record", "out")
     cmd("before", "scheduler", "attempt", "log-dir", "config-digest", "sweep")
     cmd("after", "scheduler", "attempt", "config-digest")
     cmd("check-scheduler", "render", "attempt")
@@ -511,7 +534,8 @@ def main(argv: list[str]) -> int:
     cmd("code", "scheduler")
     cmd("retire", "cells-root", "cell")
     a = ap.parse_args(argv)
-    p = {k: Path(v) for k, v in vars(a).items() if k in ("render", "cells_root", "fleet", "hosts", "attempt", "log_dir")}
+    p = {k: Path(v) for k, v in vars(a).items()
+         if k in ("render", "cells_root", "fleet", "hosts", "attempt", "log_dir", "engines_record", "out")}
     if a.cmd == "prepare":
         for k, v in prepare(p["render"], a.cell, p["cells_root"], p["fleet"], p["hosts"]).items():
             print(f"{k}={shlex.quote(v)}")
@@ -520,6 +544,8 @@ def main(argv: list[str]) -> int:
         print(f"engines idle after {waited:.1f} s")
     elif a.cmd == "post-config":
         asyncio.run(post_config(a.scheduler, p["attempt"], a.config_digest, a.fleet_digest))
+    elif a.cmd == "engines":
+        asyncio.run(engines_snapshot(p["render"], a.cell, p["fleet"], p["hosts"], p["engines_record"], p["out"]))
     elif a.cmd == "warmup":
         asyncio.run(warm_up(p["render"], a.cell, p["fleet"], p["hosts"], p["attempt"]))
     elif a.cmd == "before":

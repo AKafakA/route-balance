@@ -329,3 +329,39 @@ def test_a_record_without_a_config_id_fails(tmp_path):
     cells = group(tmp_path, W4)
     edit_json(record(cells[1]), lambda r: r["labels"].pop("config_id"))
     assert any("has no config_id label" in p for p in problems(cells)[0])
+
+
+def _engines(cell, fn, whens=("before", "after")):
+    for when in whens:
+        edit_json(cell / f"engines_{when}.json", fn)
+
+
+def test_an_engine_launched_differently_in_one_cell_fails_the_group(tmp_path):
+    """D48: every cell of a group ran on the same engine launches, whatever the group declares."""
+    cells = group(tmp_path, G1)
+    _engines(cells[1], lambda d: d["instances"]["L_2"]["cache_config"].update(num_gpu_blocks="7000"))
+    found, _ = problems(cells)
+    assert any("the engines were launched differently: L_2.cache_config" in f for f in found)
+    cells = group(tmp_path / "argv", G1)
+    _engines(cells[2], lambda d: d["instances"]["S_0"].update(argv_sha256="0" * 64))
+    assert any("L_2" not in f and "S_0.argv_sha256" in f for f in problems(cells)[0])
+    cells = group(tmp_path / "gpus", G1)                                # the same argv on other GPUs of the node
+    _engines(cells[3], lambda d: d["instances"]["S_1"].update(gpus="1"))
+    assert any("the engines were launched differently: S_1.gpus" in f for f in problems(cells)[0])
+
+
+def test_a_restart_during_a_cell_fails_and_one_between_cells_does_not(tmp_path):
+    cells = group(tmp_path, G1)
+    _engines(cells[0], lambda d: d["instances"]["S_1"].update(start_time_s=1790000060.0), whens=("after",))
+    found, _ = problems(cells)
+    assert any("an engine restarted or changed during a cell" in f and "S_1.start_time_s" in f for f in found)
+    cells = group(tmp_path / "between", G1)
+    _engines(cells[0], lambda d: d["instances"]["S_1"].update(start_time_s=1790000060.0))   # the same launch
+    assert problems(cells)[0] == []
+
+
+def test_a_cell_without_its_engine_record_fails(tmp_path, capsys):
+    cells = group(tmp_path, G1)
+    (cells[0] / "engines_after.json").unlink()
+    assert main(["--cells", *map(str, cells)]) == 1
+    assert "engines_after.json is missing" in capsys.readouterr().out

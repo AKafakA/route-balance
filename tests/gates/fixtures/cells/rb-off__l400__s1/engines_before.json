@@ -1,0 +1,53 @@
+{
+ "record_sha256": "fbfbc0697e072fa14d09bf9dd677372b132cc280b1cd75bc2f956cfe0f519203",
+ "instances": {
+  "S_0": {
+   "argv_sha256": "f011645a667654301b51d2895b660dcf5b365fbb4cdd704e53e7aea33ab052cb",
+   "argv": "--model S --port 47441 --max-num-seqs 8",
+   "gpus": "0",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 47441 --max-num-seqs 8",
+   "start_time_s": 1790000000.0,
+   "cache_config": {
+    "block_size": "16",
+    "cache_dtype": "auto",
+    "enable_prefix_caching": "True",
+    "gpu_memory_utilization": "0.9",
+    "num_gpu_blocks": "8000"
+   },
+   "model": "S",
+   "max_model_len": 4096
+  },
+  "S_1": {
+   "argv_sha256": "2670587fc816f67819eb89542e5105f8cd20d270707e0e7dfed5a658c6d915ed",
+   "argv": "--model S --port 47409 --max-num-seqs 8",
+   "gpus": "0",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 47409 --max-num-seqs 8",
+   "start_time_s": 1790000000.0,
+   "cache_config": {
+    "block_size": "16",
+    "cache_dtype": "auto",
+    "enable_prefix_caching": "True",
+    "gpu_memory_utilization": "0.9",
+    "num_gpu_blocks": "8000"
+   },
+   "model": "S",
+   "max_model_len": 4096
+  },
+  "L_2": {
+   "argv_sha256": "5432627190e9a003fff32fa85ea3197df6c9e8d9a9c2ae97eb15da617b7672b9",
+   "argv": "--model L --port 46111 --max-num-seqs 8",
+   "gpus": "0",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model L --port 46111 --max-num-seqs 8",
+   "start_time_s": 1790000000.0,
+   "cache_config": {
+    "block_size": "16",
+    "cache_dtype": "auto",
+    "enable_prefix_caching": "True",
+    "gpu_memory_utilization": "0.9",
+    "num_gpu_blocks": "8000"
+   },
+   "model": "L",
+   "max_model_len": 4096
+  }
+ }
+}

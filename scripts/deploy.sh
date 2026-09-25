@@ -15,7 +15,10 @@
 #   documents them; OWNER-MUST-SET values are refused). --artifacts, --tree and --log-dir are paths on the
 #   node (--tree: the repository copy the scheduler venv was installed from; --log-dir must be new or empty).
 #   Health is /health; the served config and fleet digests must equal the local ones.
-# --record FILE receives the rendered plan (engines) or the launch line and digests (scheduler).
+# --record FILE receives the rendered plan (engines) or the launch line and digests (scheduler). For engines it
+#   then gets one "started" line per engine once all are healthy: its process start time, CUDA_VISIBLE_DEVICES
+#   and command line as the node reports them (node_ctl.sh started). tools/engines.py checks every cell's engines
+#   against it (D48): an engine not launched by that deploy run is refused.
 # --health-timeout-s defaults to 1800 (engines: loading 72B weights) and 600 (scheduler).
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -77,7 +80,12 @@ deploy_engines() {
   local i
   for i in "${!pids[@]}"; do wait "${pids[$i]}" || failed+=("${ids[$i]}"); done
   [ "${#failed[@]}" -eq 0 ] || die "not healthy: ${failed[*]} (the others keep running; stop_engines.sh stops all)"
-  say "ALL $(wc -l <<< "$lines") ENGINES HEALTHY"
+  local started
+  while IFS=$'\t' read -r id node addr port gpus cls n model argv; do     # D48: what each engine executes
+    started=$(rb_ctl 60 "$addr" started "$id" "$port") || die "cannot read what $id executes"
+    echo "$started" >> "$RECORD"
+  done <<< "$lines"
+  say "ALL $(wc -l <<< "$lines") ENGINES HEALTHY; each one's start time, GPUs and command line recorded in $RECORD"
 }
 
 deploy_scheduler() {
