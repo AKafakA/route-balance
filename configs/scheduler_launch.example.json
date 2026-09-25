@@ -1,0 +1,7 @@
+{
+  "host": "0.0.0.0",
+  "port": 8200,
+  "torch_threads": "OWNER-MUST-SET",
+  "max_connections": "OWNER-MUST-SET",
+  "request_timeout_s": "OWNER-MUST-SET"
+}

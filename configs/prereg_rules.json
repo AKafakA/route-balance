@@ -1,0 +1,23 @@
+{
+  "judge_key": "deepeval-llama3.1-8b-it_reference",
+  "quality_floor": "OWNER-MUST-SET",
+  "equal_quality": {
+    "tolerance": "OWNER-MUST-SET",
+    "bootstrap_resamples": "OWNER-MUST-SET",
+    "confidence": "OWNER-MUST-SET",
+    "bootstrap_seed": "OWNER-MUST-SET"
+  },
+  "goodput_slo": {
+    "kind": "e2e_affine",
+    "base_ms": "OWNER-MUST-SET",
+    "per_output_token_ms": "OWNER-MUST-SET"
+  },
+  "g1": {
+    "tier_mix_shift_min": "OWNER-MUST-SET",
+    "mean_latency_gain_l30_min": "OWNER-MUST-SET",
+    "p99_ratio_l30_max": "OWNER-MUST-SET",
+    "quality_tolerance": "OWNER-MUST-SET",
+    "l12_mean_latency_ratio_max": "OWNER-MUST-SET",
+    "presets_required": "OWNER-MUST-SET"
+  }
+}
