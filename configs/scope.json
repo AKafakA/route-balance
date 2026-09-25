@@ -4,7 +4,7 @@
   "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). Owner 09-25: the client's connection bound (8192) is set far above any in-flight count and a cell in which any request waited for a connection is invalid (rerun with a larger bound); the request timeout (900 s, above the server's 600 s) and the send-lag bound (100 ms) are failure bounds.",
   "server": "D44: the scheduler launch values, identical for every system (owner 09-25): 8 torch threads per model call on the one shared 4-thread pool; the engine and telemetry connection bound 4096, far above any in-flight count (a cell in which any request waited for a connection is invalid: rerun with a larger bound); the request timeout 600 s, a failure bound. The baselines' routers call their model one request at a time on a separate lane, as shipped routers do.",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
-  "datasets": "eval_qwen is the v3 evaluation set; the other three are written by tools/prompt_set.py from the scored corpora (train_scored_filtered.jsonl for Qwen, gemma3_merged_test/train.jsonl for Gemma; each training split is checked disjoint from its evaluation set). The Gemma prompt count check needs the Gemma tokenizer id (owner).",
+  "datasets": "eval_qwen is the v3 evaluation set; the other three are written by tools/prompt_set.py from the scored corpora (train_scored_filtered.jsonl for Qwen, gemma3_merged_test/train.jsonl for Gemma; each training split is checked disjoint from its evaluation set). Owner 09-25: each model's own tokenizer; the four Gemma-3 models ship byte-identical tokenizer files and one chat template (checked on the Hub 09-25), so google/gemma-3-1b-it gives every Gemma model's count, and each cell checks the count every engine reports.",
   "scored_corpora": "D62: quality is looked up by (prompt, served model) in these scored corpora, as in v2 and v3 (analysis/quality.py; judge key in configs/prereg_rules.json).",
   "traces": "Each Qwen cell sends the whole evaluation set (3534 prompts), each Gemma cell its 1979 (v3). W5's step 6 -> 30 -> 6 needs its segment sizes, the gamma CV^2 = 4 trace (burstiness 0.25) its rate, and the W1b sweep (6 -> 36 in steps of 6, at most 14919 prompts a cell) its segment sizes: owner values.",
   "owner": "g1_weights: the two G1 presets; decoupled_weights: the four RB-decoupled presets of W2 and W8 (both from rb_weights).",
@@ -33,10 +33,10 @@
                  "tokenizer_id": "Qwen/Qwen2.5-3B"},
   "eval_gemma": {"path": "gemma_eval_prompts.jsonl",
                  "sha256": "a44301e59500d7071e0095f95b88439f17e5c656617c0921ad91646d7223f05a", "rows": 1979,
-                 "tokenizer_id": "OWNER-MUST-SET"},
+                 "tokenizer_id": "google/gemma-3-1b-it"},
   "train_gemma": {"path": "gemma_train_prompts.jsonl",
                   "sha256": "72b8ee82ed3139b824c76fb000ea805cfa9e290ca2e3c04bb0bcb5d8e794cd71", "rows": 8086,
-                  "tokenizer_id": "OWNER-MUST-SET"}
+                  "tokenizer_id": "google/gemma-3-1b-it"}
  },
  "scored_corpora": {
   "qwen": {"path": "test_scored_filtered.jsonl", "sha256": "8cebecb53a51eadce8b72e36a92975fc76df9b143f90909ee13c833c0a899bbc"},

@@ -73,3 +73,12 @@ def test_an_unknown_render_stops_before_anything_is_sent(tmp_path):
     r = _run("run_cell.sh", *args)
     assert r.returncode == 2 and "prepare refused" in r.stderr
     assert not (tmp_path / "cells").exists() and not (tmp_path / "mirror").exists()
+
+
+def test_the_runner_reads_its_tokenizer_offline_from_the_pinned_snapshots():
+    """The benchmark's tokenizer is the one setup.sh pinned under RB_HF_HOME, never a fresh download of main."""
+    text = (REPO / "scripts" / "run_cell.sh").read_text()
+    (line,) = [ln for ln in text.splitlines() if "-m bench.runner" in ln]
+    assert line.startswith('HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 "$PY" -m bench.runner')
+    assert 'source "$REPO/scripts/node_layout.sh"' in text
+    assert "RB_HF_HOME=$MYDATA/hf" in (REPO / "scripts" / "node_layout.sh").read_text()

@@ -39,6 +39,7 @@ done
 for v in RENDER CELL URL LOGDIR FLEET HOSTS DATA ROOT MIRROR; do [ -n "${!v}" ] || usage; done
 
 source "$REPO/scripts/mirror.sh"
+source "$REPO/scripts/node_layout.sh"   # RB_HF_HOME: the Hub snapshots setup.sh pinned (the runner's tokenizer)
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 drv() { "$PY" -m tools.cell_driver "$@"; }
 fail() { echo "$(ts) [run_cell] $CELL: $*" >&2; exit "${RC:-2}"; }
@@ -67,9 +68,10 @@ drv before --scheduler "$URL" --attempt "$ATTEMPT" --log-dir "$LOGDIR" --config-
     --sweep "$SWEEP" || fail "snapshot before"
 drv check-scheduler --render "$RENDER" --attempt "$ATTEMPT" || fail "restart the scheduler (see above)"
 
-# ---- 6. the bench runner (writes <cell_id>.cell.json into the attempt directory)
+# ---- 6. the bench runner (writes <cell_id>.cell.json into the attempt directory); offline, from the pinned
+#         snapshots, like the scheduler (node_ctl.sh)
 set +e
-"$PY" -m bench.runner --scope "$RENDER/scope.json" --cell "$CELL" --scheduler-url "$URL" --data-root "$DATA" \
+HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 "$PY" -m bench.runner --scope "$RENDER/scope.json" --cell "$CELL" --scheduler-url "$URL" --data-root "$DATA" \
     --out-dir "$ATTEMPT"
 BENCH=$?
 set -e
