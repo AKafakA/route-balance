@@ -1,4 +1,4 @@
-"""Per-cell summary: quality, cost, throughput, latency, SLO goodput and scheduler overhead.
+"""Per-cell summary: quality, cost, throughput, latency, SLO attainment and scheduler overhead.
 
 Every metric is over the cell's successful requests. A cell with a failed request is still summarised and
 counted, but it carries a problem and is invalid (analysis/validity.py adds the execution checks).
@@ -12,7 +12,9 @@ counted, but it carries a problem and is invalid (analysis/validity.py adds the 
               USD per 1k successful requests, with prices from the fleet config (USD per token)
   throughput  successful requests / duration_s
   e2e         client end-to-end latency, mean / p50 / p99 in ms (numpy, linear-interpolated percentiles)
-  goodput     successful requests that met the preregistered SLO (analysis/rules.py), per second of duration_s
+  slo         the share of the cell's requests that met the SLO at each level, tight and loose (analysis/slo.py:
+              TTFT and TPOT within k times the served tier's single-request values); a failed request never
+              does. None only for the re-aggregated v3 cells, whose records carry no scheduler-side TTFT
   overhead    for each scheduler timing (timings_ms): mean / p50 / p99 in ms; and the off-instance residual
               e2e - server_latency (client, network, scheduler queueing and decision time)
   prompt tokens   a request whose backend-reported prompt_tokens differs from the count the client sent is a
@@ -33,7 +35,7 @@ from typing import Iterable, Mapping, Optional, Sequence
 import numpy as np
 
 from analysis.quality import ScoredCorpus
-from analysis.rules import GoodputSlo
+from analysis.slo import LEVELS, CellSlo
 from analysis.validity import integrity_problems
 from bench.records import CellRecord
 from routebalance.config import ConfigError, fleet_digest
@@ -46,8 +48,10 @@ class Outcome:
     prompt: str
     ok: bool
     model: Optional[str]
+    instance_id: Optional[str]
     output_tokens: Optional[int]
     e2e_s: float
+    ttft_s: Optional[float]               # the scheduler's backend clock: its call to the instance -> first token
     server_latency_s: Optional[float]
     timings_ms: Optional[Mapping[str, float]]
     prompt_tokens_sent: Optional[int]
@@ -77,8 +81,8 @@ class CellSummary:
     cost_decode_per_1k: Optional[float]
     throughput_rps: float
     e2e_ms: Optional[Spread]
-    slo_met: int
-    goodput_rps: float
+    slo_attainment_tight: Optional[float]
+    slo_attainment_loose: Optional[float]
     overhead_ms: dict[str, Spread]
     off_instance_ms: Optional[Spread]
     prompt_token_mismatches: Optional[int]    # sent count != vLLM's count; None when not recorded
@@ -110,18 +114,19 @@ def outcomes_of(cell: CellRecord) -> list[Outcome]:
     for r in cell.requests:
         rep = r.reply
         if rep is None:
-            out.append(Outcome(prompt=r.prompt, ok=False, model=None, output_tokens=None, e2e_s=r.e2e_s,
-                               server_latency_s=None, timings_ms=None, prompt_tokens_sent=r.prompt_tokens,
-                               prompt_tokens_served=None))
+            out.append(Outcome(prompt=r.prompt, ok=False, model=None, instance_id=None, output_tokens=None,
+                               e2e_s=r.e2e_s, ttft_s=None, server_latency_s=None, timings_ms=None,
+                               prompt_tokens_sent=r.prompt_tokens, prompt_tokens_served=None))
         else:
-            out.append(Outcome(prompt=r.prompt, ok=True, model=rep.model, output_tokens=rep.output_tokens,
-                               e2e_s=r.e2e_s, server_latency_s=rep.server_latency_s, timings_ms=rep.timings_ms,
+            out.append(Outcome(prompt=r.prompt, ok=True, model=rep.model, instance_id=rep.instance_id,
+                               output_tokens=rep.output_tokens, e2e_s=r.e2e_s, ttft_s=rep.ttft_s,
+                               server_latency_s=rep.server_latency_s, timings_ms=rep.timings_ms,
                                prompt_tokens_sent=r.prompt_tokens, prompt_tokens_served=rep.prompt_tokens))
     return out
 
 
 def summarize_cell(cell: CellRecord, corpus: ScoredCorpus, fleet: Sequence[Instance],
-                   slo: GoodputSlo) -> CellSummary:
+                   slo: CellSlo) -> CellSummary:
     """A campaign cell, summarised against the fleet it ran on."""
     problems = integrity_problems(cell)
     if fleet_digest(list(fleet)) != cell.identity_start.fleet_digest:
@@ -131,7 +136,7 @@ def summarize_cell(cell: CellRecord, corpus: ScoredCorpus, fleet: Sequence[Insta
 
 
 def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, quality: ScoredCorpus,
-              prices: Mapping[str, float], slo: GoodputSlo, problems: Sequence[str]) -> CellSummary:
+              prices: Mapping[str, float], slo: Optional[CellSlo], problems: Sequence[str]) -> CellSummary:
     """`problems` are the caller's execution findings (integrity_problems for a cell record); the metric
     problems (failed requests, unmatched prompts, models the corpus never scores, unpriced models, mixed timings) are added
     here."""
@@ -172,7 +177,13 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
     overhead, overhead_problem = _overhead(ok)
     if overhead_problem:
         problems.append(overhead_problem)
-    slo_met = sum(slo.met(o.e2e_s, o.output_tokens) for o in ok)
+    outside = [] if slo is None else sorted({o.instance_id for o in ok} - slo.instances())
+    if outside:
+        problems.append(f"served instances outside the fleet the SLO was built for: {outside}")
+    attainment = {level: None if slo is None or outside or not outcomes else
+                  sum(slo.met(level, o.instance_id, o.e2e_s, o.server_latency_s, o.ttft_s, o.output_tokens)
+                      for o in ok) / len(outcomes)
+                  for level in LEVELS}
     residual = [o.e2e_s - o.server_latency_s for o in ok if o.server_latency_s is not None]
     counted = [o for o in ok if o.prompt_tokens_sent is not None and o.prompt_tokens_served is not None]
     mismatched = sum(o.prompt_tokens_sent != o.prompt_tokens_served for o in counted)
@@ -188,7 +199,7 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
         quality_zeros_excluded=math.fsum(nonzero) / len(nonzero) if nonzero else None,
         cost_decode_per_1k=cost, throughput_rps=len(ok) / duration_s,
         e2e_ms=spread([o.e2e_s for o in ok], 1000.0) if ok else None,
-        slo_met=slo_met, goodput_rps=slo_met / duration_s, overhead_ms=overhead,
+        slo_attainment_tight=attainment["tight"], slo_attainment_loose=attainment["loose"], overhead_ms=overhead,
         off_instance_ms=spread(residual, 1000.0) if ok and len(residual) == len(ok) else None,
         prompt_token_mismatches=mismatched if ok and len(counted) == len(ok) else None,
         problems=tuple(problems))

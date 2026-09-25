@@ -6,8 +6,9 @@ seed fixes the arrivals, and with per_seed order also the prompt order, for ever
   1. B's quality q_B and metric value m_B are its means over S.
   2. The treatment presets used are those with a cell for every seed in S (the rest are listed as excluded);
      each preset's point is its mean over S.
-  3. For each metric (mean E2E, p99 E2E, decode cost), the treatment's frontier is its Pareto-efficient
-     presets (quality up, metric down), by increasing quality. The treatment's value at q_B is the linear
+  3. For each metric (mean E2E, p99 E2E, decode cost, the tight and loose SLO miss shares), the treatment's
+     frontier is its Pareto-efficient presets (quality up, metric down), by increasing quality. The treatment's
+     value at q_B is the linear
      interpolation between the two frontier presets around q_B. Past either end, the end preset is used if its
      quality is within the tolerance of q_B; otherwise there is no equal-quality point (never extrapolated).
   4. delta = treatment - baseline (negative: the treatment is faster or cheaper); relative = treatment/baseline - 1.

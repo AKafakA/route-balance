@@ -44,7 +44,8 @@ def test_one_seed_gives_the_interpolated_delta_without_a_ci():
     assert mean.delta == pytest.approx(-1250.0) and mean.relative == pytest.approx(-0.5)
     assert mean.ci is None and mean.undefined_resamples == 0
     assert row.matched_presets == ("rb-a", "rb-c") and row.excluded_presets == ()
-    assert [d.metric for d in row.deltas] == ["e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k"]
+    assert [d.metric for d in row.deltas] == ["e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k", "slo_miss_tight",
+                                             "slo_miss_loose"]
     assert row.deltas[2].delta == pytest.approx(-1.25)
 
 

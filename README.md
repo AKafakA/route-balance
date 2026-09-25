@@ -58,8 +58,11 @@ zero-fill (`tools/fork_tpot_features.py`, comparisons only).
 | `configs/prereg_rules.json` | the preregistered analysis rules, including the G1 gate |
 | `tools/campaign.py` | `dry-run` lists every cell, the hours and every value still `OWNER-MUST-SET`; `render` writes the scope, the configuration files and the plan the drivers run from, in stages as lease pins and decisions arrive |
 | `tools/calibrate_driver.py` | W1: closed-loop TPOT at fixed concurrency levels, for `tools/calibrate_tpot_curve.py` |
+| `tools/slo_base.py` | each tier's single-request TTFT and TPOT from W1 at b = 1: the SLO's bases (`analysis/slo.py`) |
 | `tools/prompt_set.py` | benchmark prompt files from the scored corpora |
 | `scripts/run_cell.sh`, `scripts/run_scope.sh` | one cell end to end (drain, configuration, preflight, direct warm-up, the window of the scheduler's logs, gates, two locations); the rows of a render in order, resuming |
 
 A cell's quality is the mean DeepEval score of its successful requests, looked up by (prompt, served model) in
-the scored corpus, as in v2 and v3 (`analysis/quality.py`).
+the scored corpus, as in v2 and v3 (`analysis/quality.py`). A request meets its SLO when its TTFT and TPOT are
+within k times its tier's single-request values (after SOLA; k by model size in `configs/prereg_rules.json`);
+goodput is the largest rate that keeps 90% or 99% of requests within it (`analysis/slo.py`).

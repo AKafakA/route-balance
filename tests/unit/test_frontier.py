@@ -1,7 +1,7 @@
-"""Frontier points: seed means, Pareto efficiency, goodput above the floor, refusal of invalid cells."""
+"""Frontier points: seed means, Pareto efficiency, refusal of invalid cells."""
 import pytest
 
-from analysis.frontier import CellPoint, best_goodput, by_config, cell_point, config_points, frontiers, pareto
+from analysis.frontier import CellPoint, by_config, cell_point, config_points, frontiers, pareto
 from analysis.manifest import Coverage
 from analysis.metrics import CellSummary, Spread
 from bench.arrivals import constant_trace
@@ -9,10 +9,11 @@ from bench.scope import ConfigEntry, DatasetEntry, ExpectedCell
 from routebalance.config import ConfigError
 
 
-def pt(config, system, seed, q, mean, trace="l30", goodput=1.0, knob=None, group="g1"):
+def pt(config, system, seed, q, mean, trace="l30", miss=0.0, knob=None, group="g1"):
     return CellPoint(group=group, config_id=config, system=system, knob=config if knob is None else knob, dispatch="lor",
                      trace_id=trace, seed=seed, quality=q, e2e_mean_ms=mean, e2e_p99_ms=3 * mean,
-                     cost_decode_per_1k=mean / 1000, goodput_rps=goodput, throughput_rps=20.0)
+                     cost_decode_per_1k=mean / 1000, slo_miss_tight=miss, slo_miss_loose=miss / 2,
+                     throughput_rps=20.0)
 
 
 def test_pareto_keeps_the_efficient_points_in_quality_order():
@@ -44,11 +45,11 @@ def test_frontiers_are_per_system_and_trace():
         frontiers(pts, "quality")
 
 
-def test_best_goodput_is_taken_above_the_quality_floor():
-    pts = config_points([pt("a", "S", 1, 0.30, 100, goodput=9.0), pt("b", "S", 1, 0.40, 100, goodput=5.0),
-                         pt("c", "S", 1, 0.45, 100, goodput=4.0), pt("d", "T", 1, 0.2, 100, goodput=9.0)])
-    best = best_goodput(pts, quality_floor=0.35)
-    assert best[("g1", "l30", "S")].config_id == "b" and best[("g1", "l30", "T")] is None
+def test_the_slo_miss_share_is_a_frontier_metric():
+    pts = config_points([pt("a", "S", 1, 0.40, 100, miss=0.02), pt("b", "S", 1, 0.45, 100, miss=0.10),
+                         pt("c", "S", 1, 0.42, 100, miss=0.20), pt("a", "S", 2, 0.40, 100, miss=0.04)])
+    assert next(p for p in pts if p.config_id == "a").slo_miss_tight == pytest.approx(0.03)
+    assert [p.config_id for p in frontiers(pts, "slo_miss_tight")[("g1", "l30", "S")]] == ["a", "b"]
 
 
 def test_groups_are_never_pooled():
@@ -72,9 +73,9 @@ def _expected():
 def _summary(problems):
     return CellSummary(cell_id="a__l30__s1", n_requests=10, n_ok=10, n_failed=0, quality=0.4, matched=10,
                        corpus_gap=0, unmatched=0, n_zero=1, coverage=1.0, quality_zeros_excluded=0.44,
-                       cost_decode_per_1k=0.02, throughput_rps=9.0, e2e_ms=Spread(100.0, 90.0, 300.0), slo_met=8,
-                       goodput_rps=8.0, overhead_ms={}, off_instance_ms=None, prompt_token_mismatches=0,
-                       problems=problems)
+                       cost_decode_per_1k=0.02, throughput_rps=9.0, e2e_ms=Spread(100.0, 90.0, 300.0),
+                       slo_attainment_tight=0.75, slo_attainment_loose=0.875, overhead_ms={}, off_instance_ms=None,
+                       prompt_token_mismatches=0, problems=problems)
 
 
 def _coverage(ok, fleet_problems=None):
@@ -84,8 +85,8 @@ def _coverage(ok, fleet_problems=None):
 
 def test_cell_points_come_only_from_cells_ok_in_the_manifest_and_valid():
     p = cell_point(_expected(), _summary(()), _coverage(("a__l30__s1",)))
-    assert (p.group, p.system, p.knob, p.quality, p.e2e_mean_ms, p.e2e_p99_ms, p.goodput_rps) == (
-        "g1", "S", "k", 0.4, 100.0, 300.0, 8.0)
+    assert (p.group, p.system, p.knob, p.quality, p.e2e_mean_ms, p.e2e_p99_ms) == ("g1", "S", "k", 0.4, 100.0, 300.0)
+    assert (p.slo_miss_tight, p.slo_miss_loose) == (0.25, 0.125)
     with pytest.raises(ConfigError, match="invalid"):
         cell_point(_expected(), _summary(("1/10 requests failed",)), _coverage(("a__l30__s1",)))
     with pytest.raises(ConfigError, match="not ok in the manifest"):

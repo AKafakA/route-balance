@@ -1,8 +1,9 @@
-"""Frontier points per system per trace, and the best SLO goodput above the quality floor.
+"""Frontier points per system per trace.
 
 Everything is compared within one comparison group (bench/scope.py: one dataset, prompt order and fleet) and
 one trace; cells of different groups are never pooled. A configuration's point is the mean over its seeds of
-each per-seed cell metric (quality, mean and p99 end-to-end latency, decode cost, goodput, throughput);
+each per-seed cell metric (quality, mean and p99 end-to-end latency, decode cost, the SLO miss shares at the
+tight and loose levels (1 - attainment, analysis/slo.py), throughput);
 `seeds` says which seeds. Only cells that are ok in the manifest and valid in their summary enter.
 A configuration is on its system's frontier for a metric when no other configuration of the same system,
 group and trace has at least its quality and at most its metric value, with one of the two strict.
@@ -10,7 +11,7 @@ group and trace has at least its quality and at most its metric value, with one 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable, Optional, Sequence
+from typing import Iterable, Sequence
 
 import numpy as np
 
@@ -19,8 +20,8 @@ from analysis.metrics import CellSummary
 from bench.scope import ExpectedCell
 from routebalance.config import ConfigError
 
-METRICS = ("e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k")   # lower is better
-_AVERAGED = ("quality", *METRICS, "goodput_rps", "throughput_rps")
+METRICS = ("e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k", "slo_miss_tight", "slo_miss_loose")   # lower is better
+_AVERAGED = ("quality", *METRICS, "throughput_rps")
 Key = tuple[str, str, str]
 
 
@@ -38,7 +39,8 @@ class CellPoint:
     e2e_mean_ms: float
     e2e_p99_ms: float
     cost_decode_per_1k: float
-    goodput_rps: float
+    slo_miss_tight: float
+    slo_miss_loose: float
     throughput_rps: float
 
 
@@ -55,7 +57,8 @@ class ConfigPoint:
     e2e_mean_ms: float
     e2e_p99_ms: float
     cost_decode_per_1k: float
-    goodput_rps: float
+    slo_miss_tight: float
+    slo_miss_loose: float
     throughput_rps: float
 
 
@@ -68,10 +71,13 @@ def cell_point(exp: ExpectedCell, s: CellSummary, coverage: Coverage) -> CellPoi
         raise ConfigError(f"group {exp.group}: {coverage.fleet_problems[exp.group]}; its cells cannot be compared")
     if not s.valid:
         raise ConfigError(f"cell {s.cell_id} is invalid and cannot enter a comparison: {list(s.problems)}")
+    if s.slo_attainment_tight is None or s.slo_attainment_loose is None:
+        raise ConfigError(f"cell {s.cell_id} was summarised without its SLO")
     return CellPoint(group=exp.group, config_id=exp.config_id, system=exp.config.system, knob=exp.config.knob,
                      dispatch=exp.config.dispatch, trace_id=exp.trace_id, seed=exp.seed, quality=s.quality,
                      e2e_mean_ms=s.e2e_ms.mean, e2e_p99_ms=s.e2e_ms.p99, cost_decode_per_1k=s.cost_decode_per_1k,
-                     goodput_rps=s.goodput_rps, throughput_rps=s.throughput_rps)
+                     slo_miss_tight=1.0 - s.slo_attainment_tight, slo_miss_loose=1.0 - s.slo_attainment_loose,
+                     throughput_rps=s.throughput_rps)
 
 
 def by_config(points: Iterable[CellPoint]) -> dict[Key, dict[int, CellPoint]]:
@@ -121,14 +127,3 @@ def frontiers(points: Sequence[ConfigPoint], metric: str) -> dict[Key, list[Conf
     return {key: [grp[i] for i in pareto([(p.quality, getattr(p, metric)) for p in grp])]
             for key, grp in sorted(groups.items())}
 
-
-def best_goodput(points: Sequence[ConfigPoint], quality_floor: float) -> dict[Key, Optional[ConfigPoint]]:
-    """{(group, trace_id, system): the configuration with the highest goodput among those with quality >= the
-    floor, or None when no configuration of the system reaches the floor there}."""
-    out: dict[Key, Optional[ConfigPoint]] = {}
-    for p in sorted(points, key=lambda p: (p.group, p.trace_id, p.system, p.config_id)):
-        key = (p.group, p.trace_id, p.system)
-        best = out.setdefault(key, None)
-        if p.quality >= quality_floor and (best is None or p.goodput_rps > best.goodput_rps):
-            out[key] = p
-    return out

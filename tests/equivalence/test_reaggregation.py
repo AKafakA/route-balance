@@ -11,13 +11,11 @@ import pytest
 
 from analysis.metrics import summarize
 from analysis.quality import ScoredCorpus
-from analysis.rules import GoodputSlo
 from tests.equivalence.banked_cells import (JUDGE_KEY, TEST_CORPUS, V3_PRICES, banked_outcomes,
                                             load_banked_cell)
 
 FIXTURES = {"wq0.5_wl0.3_wc0.2_lambda30_n3534", "pt_sq_l30_n3534", "pt_rand_l30_n3534", "ap_pw07_rr_l30_n3534",
             "br4_t07_rr_l30_n3534"}
-SLO = GoodputSlo(kind="e2e_affine", base_ms=1e9, per_output_token_ms=0.0)     # goodput is not in the v3 table
 COST_REL = 1e-12
 COUNTS = ("n", "err", "n_zero")
 EXACT = ("q", "coverage", "mean_ms", "p99_ms", "thru")
@@ -29,7 +27,7 @@ def corpus(oracle):
 
 
 def _rebuilt(name, cell, corpus):
-    s = summarize(name, banked_outcomes(cell), cell["duration"], corpus, V3_PRICES, SLO, [])
+    s = summarize(name, banked_outcomes(cell), cell["duration"], corpus, V3_PRICES, None, [])     # no SLO in v3's table
     return s, {"n": s.n_ok, "err": s.n_failed, "n_zero": s.n_zero, "q": s.quality, "coverage": s.coverage,
                "cost_decode": s.cost_decode_per_1k, "mean_ms": s.e2e_ms.mean, "p99_ms": s.e2e_ms.p99,
                "thru": s.throughput_rps}

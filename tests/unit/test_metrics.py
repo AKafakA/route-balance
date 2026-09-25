@@ -7,7 +7,7 @@ import pytest
 
 from analysis.metrics import Outcome, decode_prices, spread, summarize, summarize_cell
 from analysis.quality import ScoredCorpus
-from analysis.rules import GoodputSlo
+from analysis.slo import CellSlo, Limits, SloBase
 from bench.arrivals import constant_trace
 from bench.dataset import load_prompts
 from bench.records import Sampling
@@ -18,17 +18,18 @@ from tests.unit.fakes import CONFIG_DIGEST, SAMPLING, FakeScheduler, FakeTokeniz
 
 CORPUS = ScoredCorpus({"p0": {"small": 0.0, "large": 1.0}, "p1": {"small": 0.5, "large": 0.7}, "p2": {"large": 0.9}})
 PRICES = {"small": 1e-7, "large": 4e-7}
-SLO = GoodputSlo(kind="e2e_affine", base_ms=1000.0, per_output_token_ms=10.0)
+SLO = CellSlo({"tight": {"i0": Limits(1.0, 0.01)}, "loose": {"i0": Limits(2.0, 0.02)}})
 
 
-def _ok(prompt, model, out, e2e, server=0.25, timings=None, sent=5, served=5):
-    return Outcome(prompt=prompt, ok=True, model=model, output_tokens=out, e2e_s=e2e, server_latency_s=server,
+def _ok(prompt, model, out, e2e, server=0.25, timings=None, sent=5, served=5, ttft=0.0):
+    return Outcome(prompt=prompt, ok=True, model=model, instance_id="i0", output_tokens=out, e2e_s=e2e, ttft_s=ttft,
+                   server_latency_s=server,
                    timings_ms={"queue_ms": e2e, "decide_ms": 1.0} if timings is None else timings,
                    prompt_tokens_sent=sent, prompt_tokens_served=served)
 
 
-FAILED = Outcome(prompt="p0", ok=False, model=None, output_tokens=None, e2e_s=30.0, server_latency_s=None,
-                 timings_ms=None, prompt_tokens_sent=5, prompt_tokens_served=None)
+FAILED = Outcome(prompt="p0", ok=False, model=None, instance_id=None, output_tokens=None, e2e_s=30.0, ttft_s=None,
+                 server_latency_s=None, timings_ms=None, prompt_tokens_sent=5, prompt_tokens_served=None)
 CELL = [_ok("p0", "small", 10, 0.5), _ok("p1", "large", 20, 1.5), _ok("p2", "small", 30, 2.0),
         _ok("p1", "small", 40, 1.2), FAILED]
 
@@ -48,7 +49,8 @@ def test_every_metric_on_a_small_cell():
     e2e = [0.5, 1.5, 2.0, 1.2]
     assert s.e2e_ms.mean == float(np.mean(e2e) * 1000) and s.e2e_ms.p99 == float(np.percentile(e2e, 99) * 1000)
     assert s.e2e_ms.p50 == pytest.approx(1350.0)
-    assert (s.slo_met, s.goodput_rps) == (2, 0.5)                    # deadlines 1100, 1200, 1300, 1400 ms
+    # decode 0.25 s each: TTFT 0.25 / 1.25 / 1.75 / 0.95 s, TPOT 0.25 / (10, 20, 30, 40 - 1) s; the failed one misses
+    assert (s.slo_attainment_tight, s.slo_attainment_loose) == (1 / 5, 3 / 5)
     assert set(s.overhead_ms) == {"queue_ms", "decide_ms"} and s.overhead_ms["decide_ms"].mean == 1.0
     assert s.overhead_ms["queue_ms"] == spread(e2e, 1.0)
     assert s.off_instance_ms == spread([x - 0.25 for x in e2e], 1000.0)
@@ -124,6 +126,9 @@ def test_prices_come_from_the_fleet_tiers():
 
 
 FLEET = [Instance("m-small_0", Tier("m-small_a30", "m-small", "a30", 1e-7, 2e-7, 256), "node1", "h1", 8000)]
+# the fake scheduler replies with TTFT 1 ms and 4 ms on the engine; each request's e2e adds the client's own time
+CELL_SLO = CellSlo.of({"tight": {"m-small": 10.0}, "loose": {"m-small": 15.0}},
+                      SloBase(unit="s", ttft_s={"m-small_a30": 1.0}, tpot_s={"m-small_a30": 1.0}, provenance={}), FLEET)
 
 
 def _record(tmp_path, **fake):
@@ -137,31 +142,44 @@ def _record(tmp_path, **fake):
 
 def test_a_cell_is_scored_by_prompt_and_served_model(tmp_path):
     rec, corpus = _record(tmp_path)
-    s = summarize_cell(rec, corpus, FLEET, SLO)
+    s = summarize_cell(rec, corpus, FLEET, CELL_SLO)
     assert (s.quality, s.matched, s.corpus_gap, s.coverage) == (0.5, 12, 0, 1.0) and s.valid
     first = rec.requests[0].prompt
     other_model = ScoredCorpus({p: ({"m-large": 0.9} if p == first else m) for p, m in corpus._scores.items()})
-    s = summarize_cell(rec, other_model, FLEET, SLO)
+    s = summarize_cell(rec, other_model, FLEET, CELL_SLO)
     assert (s.quality, s.matched, s.corpus_gap, s.coverage) == (0.5, 11, 1, 11 / 12) and s.valid
 
 
 def test_a_cell_record_is_summarised_against_its_fleet(tmp_path):
     rec, corpus = _record(tmp_path, fail=lambda i: i == 4)
-    s = summarize_cell(rec, corpus, FLEET, SLO)
+    s = summarize_cell(rec, corpus, FLEET, CELL_SLO)
     assert s.problems == ("1/12 requests failed",)
     assert (s.n_ok, s.matched, s.quality, s.coverage) == (11, 11, 0.5, 1.0)
+    assert (s.slo_attainment_tight, s.slo_attainment_loose) == (11 / 12, 11 / 12)      # the failed request misses
     assert math.isclose(s.cost_decode_per_1k, 10 * 2e-7 * 1000) and s.prompt_token_mismatches == 0
+
+
+def test_a_cell_served_outside_the_slos_fleet_is_flagged_not_crashed(tmp_path):
+    rec, corpus = _record(tmp_path)
+    other = [Instance("m-small_1", FLEET[0].tier, "node1", "h1", 8000)]
+    other_slo = CellSlo.of({"tight": {"m-small": 10.0}, "loose": {"m-small": 15.0}},
+                           SloBase(unit="s", ttft_s={"m-small_a30": 1.0}, tpot_s={"m-small_a30": 1.0}, provenance={}),
+                           other)
+    s = summarize_cell(rec, corpus, other, other_slo)
+    assert s.slo_attainment_tight is None and s.slo_attainment_loose is None
+    assert s.problems == ("the fleet given to the analysis is not the fleet the cell ran on",
+                          "served instances outside the fleet the SLO was built for: ['m-small_0']")
 
 
 def test_another_fleet_cannot_price_a_cell(tmp_path):
     rec, corpus = _record(tmp_path)
     other = [Instance("m-small_0", Tier("m-small_a30", "m-small", "a30", 1e-7, 9e-7, 256), "node1", "h1", 8000)]
-    assert summarize_cell(rec, corpus, FLEET, SLO).valid
-    assert summarize_cell(rec, corpus, other, SLO).problems == (
+    assert summarize_cell(rec, corpus, FLEET, CELL_SLO).valid
+    assert summarize_cell(rec, corpus, other, CELL_SLO).problems == (
         "the fleet given to the analysis is not the fleet the cell ran on",)
 
 
 def test_a_second_template_on_the_serving_side_is_caught(tmp_path):
     rec, corpus = _record(tmp_path, extra_prompt_tokens=19)
-    s = summarize_cell(rec, corpus, FLEET, SLO)
+    s = summarize_cell(rec, corpus, FLEET, CELL_SLO)
     assert s.prompt_token_mismatches == 12 and not s.valid

@@ -64,7 +64,8 @@ def banked_outcomes(cell: dict) -> list[Outcome]:
     out = []
     for r in cell["response_details"]:
         ok = not r["error"]
-        out.append(Outcome(prompt=unwrap_chat(r["prompt"]), ok=ok, model=r["model"] if ok else None,
-                           output_tokens=r["output_len"] if ok else None, e2e_s=r["e2el"], server_latency_s=None,
+        out.append(Outcome(prompt=unwrap_chat(r["prompt"]), ok=ok, model=r["model"] if ok else None, instance_id=None,
+                           output_tokens=r["output_len"] if ok else None, e2e_s=r["e2el"], ttft_s=None,
+                           server_latency_s=None,
                            timings_ms=None, prompt_tokens_sent=None, prompt_tokens_served=None))
     return out
