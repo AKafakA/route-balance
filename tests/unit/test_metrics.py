@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from analysis.metrics import Outcome, decode_prices, spread, summarize, summarize_cell
-from analysis.quality import ScoredCorpus
+from analysis.quality import ScoredCorpus, ScoreStore
 from analysis.slo import CellSlo, Limits, SloBase
 from bench.arrivals import constant_trace
 from bench.dataset import load_prompts
@@ -22,13 +22,15 @@ SLO = CellSlo({"tight": {"i0": Limits(1.0, 0.01)}, "loose": {"i0": Limits(2.0, 0
 
 
 def _ok(prompt, model, out, e2e, server=0.25, timings=None, sent=5, served=5, ttft=0.0):
-    return Outcome(prompt=prompt, ok=True, model=model, instance_id="i0", output_tokens=out, e2e_s=e2e, ttft_s=ttft,
+    return Outcome(prompt=prompt, ok=True, model=model, instance_id="i0", text=f"{prompt} by {model}", output_tokens=out,
+                   e2e_s=e2e, ttft_s=ttft,
                    server_latency_s=server,
                    timings_ms={"queue_ms": e2e, "decide_ms": 1.0} if timings is None else timings,
                    prompt_tokens_sent=sent, prompt_tokens_served=served)
 
 
-FAILED = Outcome(prompt="p0", ok=False, model=None, instance_id=None, output_tokens=None, e2e_s=30.0, ttft_s=None,
+FAILED = Outcome(prompt="p0", ok=False, model=None, instance_id=None, text=None, output_tokens=None, e2e_s=30.0,
+                 ttft_s=None,
                  server_latency_s=None, timings_ms=None, prompt_tokens_sent=5, prompt_tokens_served=None)
 CELL = [_ok("p0", "small", 10, 0.5), _ok("p1", "large", 20, 1.5), _ok("p2", "small", 30, 2.0),
         _ok("p1", "small", 40, 1.2), FAILED]
@@ -183,3 +185,53 @@ def test_a_second_template_on_the_serving_side_is_caught(tmp_path):
     rec, corpus = _record(tmp_path, extra_prompt_tokens=19)
     s = summarize_cell(rec, corpus, FLEET, CELL_SLO)
     assert s.prompt_token_mismatches == 12 and not s.valid
+
+
+# ---------------------------------------------------------------- the budget sweep's cells (D67)
+
+def _budget_record(tmp_path, budgets):
+    """The fake cell as a budget cell: request i carries budgets[i] (fake replies: 10 output tokens, "ok")."""
+    rec, _ = _record(tmp_path)
+    return rec.model_copy(update={"budgets_sha256": "b" * 64, "requests": [
+        r.model_copy(update={"budget_cost": budgets(r)}) for r in rec.requests]})
+
+
+def test_a_budget_cell_is_scored_on_its_served_text_and_counts_exhaustion_as_v3(tmp_path):
+    from analysis.quality import text_sha256
+    tier = FLEET[0].tier
+
+    def budgets(r):              # 0: the prompt alone is over budget; 1: the reply spends it all; others: plenty
+        prompt = r.prompt_tokens * tier.cost_in
+        return {0: prompt / 2, 1: prompt + 10 * tier.cost_out}.get(r.index, 1.0)
+    rec = _budget_record(tmp_path, budgets)
+    store = ScoreStore({(r.prompt, "m-small", text_sha256("ok")): 0.25 for r in rec.requests})
+    s = summarize_cell(rec, store, FLEET, CELL_SLO)
+    assert (s.quality, s.matched, s.unscored, s.budget_exhausted) == (0.25, 12, 0, 2) and s.valid
+    partial = ScoreStore({k: v for k, v in store._scores.items() if k[0] != rec.requests[5].prompt})
+    s = summarize_cell(rec, partial, FLEET, CELL_SLO)
+    assert s.quality is None and s.unscored == 1 and not s.valid
+    assert "1/12 served texts have no judged score: the cell's quality is unavailable until they are judged (D67)" \
+        in s.problems
+
+
+def test_a_budget_cell_takes_the_store_and_every_other_cell_the_corpus(tmp_path):
+    rec, corpus = _record(tmp_path)
+    with pytest.raises(ConfigError, match="served-text score store"):
+        summarize_cell(rec, ScoreStore({}), FLEET, CELL_SLO)
+    (tmp_path / "b").mkdir()
+    budget_rec = _budget_record(tmp_path / "b", lambda r: 1.0)
+    with pytest.raises(ConfigError, match="served-text score store"):
+        summarize_cell(budget_rec, corpus, FLEET, CELL_SLO)
+    assert summarize_cell(rec, corpus, FLEET, CELL_SLO).budget_exhausted is None
+
+
+def test_a_budget_cell_on_the_wrong_fleet_is_flagged_not_crashed(tmp_path):
+    from analysis.quality import text_sha256
+    rec = _budget_record(tmp_path, lambda r: 1.0)
+    other = [Instance("m-small_1", FLEET[0].tier, "node1", "h1", 8000)]
+    slo = CellSlo.of({"tight": {"m-small": 10.0}, "loose": {"m-small": 15.0}},
+                     SloBase(unit="s", ttft_s={"m-small_a30": 1.0}, tpot_s={"m-small_a30": 1.0}, provenance={}), other)
+    store = ScoreStore({(r.prompt, "m-small", text_sha256("ok")): 0.25 for r in rec.requests})
+    s = summarize_cell(rec, store, other, slo)
+    assert s.budget_exhausted is None and not s.valid
+    assert "request 0 was served outside the fleet given: exhaustion cannot be counted" in s.problems

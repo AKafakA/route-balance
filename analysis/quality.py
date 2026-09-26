@@ -10,16 +10,22 @@ scored name). A scored corpus is JSONL, one prompt per line:
   {"prompt": str, "models": {<model>: {"llm_judge_scores": {<judge_key>: score in [0, 1], ...}, ...}, ...}, ...}
 A prompt in two records, across all corpora loaded together, is an error. The campaign render pins each
 family's corpus (scope.json scored_corpora); tests/equivalence re-aggregates the banked v3 cells with it.
+
+The budget sweep's cells are the exception (D67): a reply cut short by its budget is not the answer the corpus
+scored, so their quality is the judged score of the text actually served, from the ScoreStore below
+(tools/judge_served.py). analysis/metrics.summarize_cell takes the store for a budget cell and the corpus for
+every other.
 """
 from __future__ import annotations
 
+import hashlib
 import math
 from pathlib import Path
 from typing import Literal, Optional, Sequence
 
 from routebalance.config import ConfigError, loads_strict
 
-Outcome = Literal["matched", "corpus_gap", "unmatched"]
+Outcome = Literal["matched", "corpus_gap", "unmatched", "unscored"]
 
 
 def _score(value: object, where: str) -> float:
@@ -54,7 +60,8 @@ class ScoredCorpus:
     def __len__(self) -> int:
         return len(self._scores)
 
-    def lookup(self, prompt: str, model: str) -> tuple[Outcome, Optional[float]]:
+    def lookup(self, prompt: str, model: str, text: Optional[str]) -> tuple[Outcome, Optional[float]]:
+        del text                          # the pair was scored, whatever text was served (as v2 and v3)
         per_model = self._scores.get(prompt)
         if per_model is None:
             return "unmatched", None
@@ -94,3 +101,71 @@ def _scored(rec, judge_key: str, where: str) -> tuple[str, dict[str, float]]:
             continue                                       # a corpus gap for this model
         per_model[model] = _score(judged[judge_key], f"{where}: {model!r} {judge_key}")
     return rec["prompt"], per_model
+
+
+# ---------------------------------------------------------------- the budget sweep: the served text (D67)
+
+STORE_KEYS = frozenset({"prompt", "model", "text_sha256", "text", "scores"})
+
+
+def text_sha256(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def parse_store_line(rec: object, where: str) -> tuple[tuple[str, str, str], str, dict[str, float]]:
+    """(key, text, scores) of one store line; anything malformed raises."""
+    if not isinstance(rec, dict) or set(rec) != STORE_KEYS:
+        raise ConfigError(f"{where}: a store line has exactly the keys {sorted(STORE_KEYS)}")
+    prompt, model, sha, text, scores = (rec[k] for k in ("prompt", "model", "text_sha256", "text", "scores"))
+    if not (isinstance(prompt, str) and prompt) or not (isinstance(model, str) and model):
+        raise ConfigError(f"{where}: prompt and model must be non-empty strings")
+    if not isinstance(text, str) or not isinstance(sha, str) or text_sha256(text) != sha:
+        raise ConfigError(f"{where}: the text does not hash to its text_sha256")
+    if not isinstance(scores, dict) or not scores:
+        raise ConfigError(f"{where}: scores must be a non-empty object")
+    return (prompt, model, sha), text, {k: _score(v, f"{where} {k}") for k, v in scores.items()}
+
+
+class ScoreStore:
+    """The budget sweep's quality (D67): the judged score of the text actually served, by (prompt, model,
+    sha256(text)), under one judge key. tools/judge_served.py writes the store, JSONL, one line per text:
+      {"prompt": str, "model": str, "text_sha256": <hex of the text's UTF-8 bytes>, "text": str,
+       "scores": {<judge_key>: score in [0, 1], ...}}
+    A served text is
+      matched   scored under the judge key (0.0 is a real score); an empty text scores 0 without a line, as in
+                v2 and v3 (the judge scores no empty response)
+      unscored  not scored: no other text's score stands in, and the cell's quality is unavailable until it is
+    A key scored twice under one judge key across the loaded files is an error, and so is a line whose text does
+    not hash to its text_sha256."""
+
+    def __init__(self, scores: dict[tuple[str, str, str], float]):
+        self._scores = scores
+        self.models = frozenset(m for _, m, _ in scores)
+
+    def __len__(self) -> int:
+        return len(self._scores)
+
+    def lookup(self, prompt: str, model: str, text: Optional[str]) -> tuple[Outcome, Optional[float]]:
+        if text is None:
+            raise ValueError("the score store looks up the served text; none was given")
+        if text == "":
+            return "matched", 0.0
+        score = self._scores.get((prompt, model, text_sha256(text)))
+        return ("unscored", None) if score is None else ("matched", score)
+
+    @classmethod
+    def load(cls, paths: Sequence[Path], judge_key: str) -> "ScoreStore":
+        """A text may be scored by several judges, in any files; one judge scores a text once."""
+        scores: dict[tuple[str, str, str], float] = {}
+        seen: set[tuple[tuple[str, str, str], str]] = set()
+        for path in paths:
+            for lineno, rec in read_jsonl(path):
+                key, _, judged = parse_store_line(rec, f"{path}:{lineno}")
+                for jk in judged:
+                    if (key, jk) in seen:
+                        raise ConfigError(f"{path}:{lineno}: this (prompt, model, text) is already in the store "
+                                          f"under {jk}")
+                    seen.add((key, jk))
+                if judge_key in judged:
+                    scores[key] = judged[judge_key]
+        return cls(scores)
