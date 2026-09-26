@@ -158,7 +158,9 @@ def load_best_route(checkpoint: Path, max_length: int) -> tuple[Classify, dict[i
         raise ConfigError(f"best_route: no label_to_model in {results}: {e!r}") from e
     if not isinstance(label_to_model, dict) or not label_to_model:
         raise ConfigError(f"best_route: label_to_model in {results} must be a non-empty object")
-    return _DebertaClassifier(checkpoint, max_length), {int(k): str(v) for k, v in label_to_model.items()}
+    classify = _DebertaClassifier(checkpoint, max_length)
+    classify("construction probe")       # the first forward pays one-time setup here, not in a measured cell
+    return classify, {int(k): str(v) for k, v in label_to_model.items()}
 
 
 # ---------------------------------------------------------------- AvengersPro

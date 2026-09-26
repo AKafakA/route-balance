@@ -108,7 +108,7 @@ def test_the_tracked_files_dry_run_every_row():
     assert list(rows) == ["W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
                           "W8-cal", "W8", "W9", "W11", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 32, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 90, "W3": 100, "W5": 30, "W7": 36,
+    assert cells == {"G1": 44, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 90, "W3": 100, "W5": 30, "W7": 36,
                      "W7b": 9, "W8": 156, "W9": 260, "W11": 12}      # W8: the Qwen grid's baselines (D70)
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
     assert held == HELD
@@ -157,9 +157,10 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 441        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
+    assert len(expanded) == 453        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
     #                                    the budget sweep's filter arms (rb, rb-static x 2 families; rb-learned, Qwen);
-    #                                    Gemma BEST-Route, 4 t x 3 dispatchers (D70)
+    #                                    Gemma BEST-Route, 4 t x 3 dispatchers (D70); the power-of-two probe
+    #                                    controls (10 AP + 2 dispatcher-only, D59)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
@@ -211,7 +212,7 @@ def test_the_tracked_files_render_with_every_lease_input():
     by_block = {}
     for c in cells:
         by_block[c.block] = by_block.get(c.block, 0) + 1
-    assert by_block["G1"] == 32 and by_block["W2b"] == 20 and by_block["W4-ablations"] == 72
+    assert by_block["G1"] == 44 and by_block["W2b"] == 20 and by_block["W4-ablations"] == 72
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():
         assert campaign.config_digest(parse_scheduler(doc)) == scope.configs[cid].config_digest

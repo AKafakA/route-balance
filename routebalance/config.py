@@ -376,7 +376,7 @@ class SchedulerConfig(_Strict):
                              "on dead-reckoned counts: it runs with dead reckoning (its random dispatch reads no load)")
         if self.telemetry_read == "per_request" and self.pipeline.dispatch.type not in LOAD_READING_DISPATCHERS:
             raise ValueError(f"a per-request probe would change nothing for the {self.pipeline.dispatch.type} "
-                             f"dispatcher, which reads no load (v3 skipped it)")
+                             f"dispatcher, which reads no load")
         if self.mode != "routebalance" and self.budget.admission_filter:
             raise ValueError("the budget admission filter exists only in routebalance mode (pipeline systems get the clamp)")
         return self

@@ -34,7 +34,7 @@ import asyncio
 import math
 import time
 from dataclasses import dataclass, field
-from typing import Awaitable, Callable, Iterable, Sequence
+from typing import Awaitable, Callable, Iterable, Optional, Sequence
 
 import aiohttp
 
@@ -210,7 +210,8 @@ class TelemetryView:
     async def fetch(self, instance_ids: Sequence[str]) -> dict[str, Load]:
         """Scrape these instances now, concurrently, and return their loads from scrapes sent after this call
         began: this one's, or a concurrent fetch's newer one. An instance without such a scrape fails the whole
-        fetch; an older snapshot is never used, however young. Only without background pollers."""
+        fetch; an older snapshot is never used, however young. Each scrape is bounded by the scrape timeout, not
+        by max_age_ms, which bounds a cached snapshot (D30). Only without background pollers."""
         if self._state == "running":
             raise RuntimeError("fetch() with background pollers running: a view either polls or fetches")
         by_id = {i.instance_id: i for i in self._instances}
@@ -221,7 +222,7 @@ class TelemetryView:
                   or self._entries[i].requested_at < started}
         if failed:
             raise InstanceStateUnavailable(f"the load fetch failed for {failed}")
-        return self.loads(instance_ids)
+        return self._loads(instance_ids, max_age_s=None)
 
     async def fetch_round(self) -> dict[str, Load]:
         """RouteBalance's per-batch load fetch (D53): every instance, at a round's start."""
@@ -265,6 +266,10 @@ class TelemetryView:
     # ---------------------------------------------------------------- reads and updates
 
     def loads(self, instance_ids: Iterable[str]) -> dict[str, Load]:
+        """The loads from the current snapshots, each at most max_age_ms old."""
+        return self._loads(instance_ids, max_age_s=self._max_age_s)
+
+    def _loads(self, instance_ids: Iterable[str], max_age_s: Optional[float]) -> dict[str, Load]:
         self._check_pollers()
         now = self._clock()
         out: dict[str, Load] = {}
@@ -274,9 +279,9 @@ class TelemetryView:
             if snap is None:
                 raise InstanceStateUnavailable(f"{iid}: no usable telemetry ({entry.error})")
             age = now - entry.requested_at
-            if age > self._max_age_s:
+            if max_age_s is not None and age > max_age_s:
                 raise InstanceStateUnavailable(f"{iid}: telemetry is {age * 1000:.0f} ms old "
-                                               f"(max {self._max_age_s * 1000:.0f} ms; last error: {entry.error})")
+                                               f"(max {max_age_s * 1000:.0f} ms; last error: {entry.error})")
             in_flight = len(entry.open_tokens)
             if self._dead_reckoning:
                 running = min(snap.num_running, in_flight)

@@ -4,7 +4,8 @@ Every baseline (and rb_decoupled) selects an instance this way:
   1. the router picks a model from the fleet's models (unique, fleet order), given the user's text;
   2. the candidates are that model's instances in fleet order (every instance for passthrough);
   3. their loads come from the shared TelemetryView, which raises rather than report an idle instance: from
-     the pollers' cache, or (probe, v3's per-request arm, D55) from a fetch of the candidates made now;
+     the pollers' cache, or (probe, v3's per-request arm, D55) from a fetch made now of the candidates the
+     dispatcher compares (every candidate; power of two's drawn pair, D59);
   4. the dispatcher picks one candidate on the engines' own counts (dead reckoning is RouteBalance's own), and
      the dispatch is recorded in the view at once (no await in between): its pending decode tokens and in-flight
      count are tracked for every system, and concurrent selections of a baseline see each other only through
@@ -76,10 +77,15 @@ async def select_instance(router: Router, dispatcher: Dispatcher, instances: Seq
                                          models)
     t1 = time.perf_counter()
     candidates = _candidates(instances, decision.model)
-    ids = [c.instance_id for c in candidates]
-    loads = await view.fetch(ids) if probe else view.loads(ids)   # raises InstanceStateUnavailable
-    t2 = time.perf_counter()
-    chosen = dispatcher.choose(candidates, loads)
+    if probe:
+        probed = dispatcher.probe_set(candidates)
+        loads = await view.fetch([c.instance_id for c in probed])       # raises InstanceStateUnavailable
+        t2 = time.perf_counter()
+        chosen = dispatcher.choose_probed(probed, loads)
+    else:
+        loads = view.loads([c.instance_id for c in candidates])        # raises InstanceStateUnavailable
+        t2 = time.perf_counter()
+        chosen = dispatcher.choose(candidates, loads)
     token = view.record_dispatch(chosen.instance_id, decode_tokens[chosen.model])
     t3 = time.perf_counter()
     ms = 1000.0

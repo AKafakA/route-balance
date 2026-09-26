@@ -3,7 +3,7 @@ import asyncio
 
 import pytest
 
-from routebalance.baselines.dispatch import LeastOutstanding, RoundRobin
+from routebalance.baselines.dispatch import LeastOutstanding, PowerOfTwo, RoundRobin
 from routebalance.baselines.pipeline import fleet_models, select_instance, unwrap_chat_prompt
 from routebalance.baselines.routers import ALL_INSTANCES, PassthroughRouter, Router, RouterDecision, RouterRequest
 from routebalance.telemetry import InstanceStateUnavailable, TelemetryView
@@ -126,6 +126,23 @@ def test_a_probe_fetches_the_routers_candidates_only():
     assert probed.fetched == [i.instance_id for i in seven]
     assert select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(), cached).instance is seven[2]
     assert not hasattr(cached, "fetched")                     # the cache read never fetches
+
+
+def test_a_power_of_two_probe_fetches_its_drawn_pair_with_the_cache_forms_draws():
+    """D59: po2-probe fetches only the two instances it compares, drawn as the cache form draws them."""
+    loads = {i.instance_id: load(running=n) for n, i in enumerate(FLEET)}
+    cached, probed = FakeView(loads), FakeView(loads)
+    a, b = PowerOfTwo(seed=1), PowerOfTwo(seed=1)
+    pairs = set()
+    for _ in range(20):
+        via_cache = select(PassthroughRouter(), a, cached)
+        via_probe = select(PassthroughRouter(), b, probed, probe=True)
+        assert via_probe.instance is via_cache.instance
+        assert len(probed.fetched) == 2 and via_probe.instance.instance_id in probed.fetched
+        assert probed.asked[-1] == probed.fetched                    # dispatched on the fetch, nothing else
+        pairs.add(tuple(sorted(probed.fetched)))
+    assert len(pairs) > 1                                            # the pair is drawn anew for each request
+    assert all(len(ids) == len(FLEET) for ids in cached.asked)       # the cache form reads every candidate
 
 
 def test_overhead_is_split_and_adds_up():

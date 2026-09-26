@@ -193,7 +193,7 @@ def test_status_verdict_publish_and_resume(lease, tmp_path):
     render, root, fleet, hosts, result = lease
     scope, _ = cd.load(render)
     run, report = cd.cells_to_run(render, ["G1"], root, fleet, hosts)
-    assert len(run) == 32 and run[0].startswith("g1.qwen.rb.") and report == []
+    assert len(run) == 44 and run[0].startswith("g1.qwen.rb.") and report == []
     attempt = cd.Path(cd.prepare(render, CELL, root, fleet, hosts)["ATTEMPT"])
     with pytest.raises(ConfigError, match="no cell record"):
         cd.publish(attempt, root)
@@ -234,7 +234,7 @@ def test_an_unpublished_record_is_never_run_again(lease):
 def test_the_rows_are_done_only_when_every_cell_is_and_parity_passed(lease, monkeypatch):
     render, root, *_ = lease
     problems, published = cd.rows_status(render, ["G1"], root)
-    assert len(problems) == 32 and published == []
+    assert len(problems) == 44 and published == []
     (root / CELL / "gates").mkdir(parents=True)
     (root / CELL / "gates" / "verdict.json").write_text(json.dumps({"valid": False}))
     problems, published = cd.rows_status(render, ["G1"], root)

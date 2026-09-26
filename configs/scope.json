@@ -112,13 +112,14 @@
    "levels": [1, 4, 16, 32, 64, 96],
    "requests_per_level": 128},
   {"id": "G1", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "thesis gate: RB-new / RB-static / RB-decoupled x 2 presets + AvengersPro pw0.7/0.8 on least-outstanding, lambda 12 and 30; each read two ways (D54, D55): RouteBalance per batch and on the pollers' cache, RB-decoupled and AvengersPro on the pollers' cache and with v3's per-request probe",
-   "plan": "32 cells, 3 h",
+   "about": "thesis gate: RB-new / RB-static / RB-decoupled x 2 presets + AvengersPro pw0.7/0.8 on least-outstanding and on power of two, and power of two alone, lambda 12 and 30; each read two ways (D54, D55, D59): RouteBalance per batch and on the pollers' cache, RB-decoupled, AvengersPro and power of two on the pollers' cache and with v3's per-request probe (power of two fetches its two drawn instances)",
+   "plan": "44 cells, ~4.1 h",
    "blocks": [
     {"name": "G1", "group": "g1", "dataset": "eval_qwen", "axes": {"w": "$owner:g1_weights"},
      "configs": ["qwen.rb.{w}", "qwen.rb-poll.{w}", "qwen.rb-static.{w}", "qwen.rb-static-poll.{w}", "qwen.rb-dec.{w}",
                  "qwen.rb-dec-probe.{w}", "qwen.ap.pw070.lor", "qwen.ap.pw070.lor-probe", "qwen.ap.pw080.lor",
-                 "qwen.ap.pw080.lor-probe"],
+                 "qwen.ap.pw080.lor-probe", "qwen.ap.pw070.po2", "qwen.ap.pw070.po2-probe", "qwen.ap.pw080.po2",
+                 "qwen.ap.pw080.po2-probe", "qwen.disp.po2", "qwen.disp.po2-probe"],
      "traces": ["l12", "l30"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "g1",
      "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},

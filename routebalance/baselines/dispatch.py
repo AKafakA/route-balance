@@ -39,6 +39,16 @@ class Dispatcher(ABC):
     @abstractmethod
     def _choose(self, candidates: Sequence[Instance], loads: Mapping[str, Load]) -> Instance: ...
 
+    def probe_set(self, candidates: Sequence[Instance]) -> Sequence[Instance]:
+        """With the per-request probe: the candidates to fetch now; choose_probed then picks among them on
+        their fetched loads. Every candidate by default; power of two draws its pair here, so it fetches only
+        the two instances it compares (D59)."""
+        return candidates
+
+    def choose_probed(self, probed: Sequence[Instance], loads: Mapping[str, Load]) -> Instance:
+        """`probed` is what probe_set returned; `loads` covers each of them."""
+        return self.choose(probed, loads)
+
     def observe_completion(self, instance_id: str, e2e_s: float, output_tokens: int) -> None:
         """Called for every completed request (e2e_s: from sending it to its last token); only
         lowest_latency learns from it."""
@@ -84,14 +94,33 @@ class LeastOutstanding(Dispatcher):
 
 class PowerOfTwo(Dispatcher):
     """Two distinct candidates drawn uniformly (random.sample, as v3), the shorter queue wins, the first
-    drawn on a tie. A single candidate is taken without drawing, so it consumes no randomness."""
+    drawn on a tie. A single candidate is taken without drawing, so it consumes no randomness. With the probe
+    the pair is drawn first and only its two instances are fetched: the same draws as the cache form in every run
+    whose load reads succeed. A failed read fails its request, and a run with a failed request enters no
+    comparison (analysis/metrics.py); after one, the probe form has consumed a draw the cache form has not."""
 
     def __init__(self, seed: int):
         self._rng = random.Random(seed)
 
-    def _choose(self, candidates, loads):
-        pair = candidates if len(candidates) < 2 else self._rng.sample(candidates, 2)
+    def _draw(self, candidates):
+        return list(candidates) if len(candidates) < 2 else self._rng.sample(candidates, 2)
+
+    @staticmethod
+    def _shorter(pair, loads):
         return min(pair, key=lambda i: _queue(loads[i.instance_id]))
+
+    def _choose(self, candidates, loads):
+        return self._shorter(self._draw(candidates), loads)
+
+    def probe_set(self, candidates):
+        if not candidates:
+            raise ValueError("PowerOfTwo: no candidates")
+        return self._draw(candidates)
+
+    def choose_probed(self, probed, loads):
+        if not 1 <= len(probed) <= 2:
+            raise ValueError(f"PowerOfTwo: choose_probed takes the drawn pair, got {len(probed)} instance(s)")
+        return self._shorter(probed, loads)
 
 
 class RandomDispatch(Dispatcher):

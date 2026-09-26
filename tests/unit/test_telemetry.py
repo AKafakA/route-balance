@@ -125,6 +125,21 @@ def test_age_is_measured_from_when_the_scrape_was_sent():
         view.loads(["a"])
 
 
+def test_a_fetch_is_bounded_by_the_scrape_timeout_not_by_max_age():
+    """D30: max_age_ms bounds a cached snapshot; a fetch's own scrape may take longer (its timeout bounds it)."""
+    clock = Clock()
+
+    async def slow_fetch(inst):
+        clock.t += 0.6                                         # longer than max_age_ms, within timeout_s
+        return metrics(running=2)
+
+    view = view_with(slow_fetch, instances=(A,), clock=clock, max_age_ms=500.0, dead_reckoning=False)
+    loads = run(view.fetch(["a"]))
+    assert loads["a"].stats.num_running == 2 and loads["a"].age_ms == pytest.approx(600.0)
+    with pytest.raises(InstanceStateUnavailable, match="old"):   # the same snapshot, read as a cache: too old
+        view.loads(["a"])
+
+
 # ---------------------------------------------------------------- dispatch bookkeeping
 
 def test_in_flight_requests_the_engine_does_not_show_are_counted_as_waiting():
