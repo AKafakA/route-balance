@@ -1,18 +1,20 @@
-"""The judge loop for the served-response score store (D39): collect every text that has no score yet, and merge
-the judge's scores back into the store.
+"""The judge loop for the budget sweep's served texts (D67): collect every text that has no score yet, and merge
+the judge's scores back into the served-text score store (analysis/quality.py ScoreStore).
 
-    python -m tools.judge_served collect --judge-key K --store STORE.jsonl... --texts TEXTS.jsonl...
-                                         --cells ROOT... --render DIR --data-root DIR --family qwen [gemma]
-                                         --out JUDGE_INPUT.jsonl
+    python -m tools.judge_served collect --judge-key K --store STORE.jsonl... --cells ROOT... --render DIR
+                                         --data-root DIR --family qwen --out JUDGE_INPUT.jsonl
     python -m tools.judge_served merge --judge-key K --store STORE.jsonl... --judge-input JUDGE_INPUT.jsonl
                                        --judge-output JUDGE_OUTPUT.jsonl --out NEW_STORE.jsonl
 
-collect reads the texts to be scored: the W0/W8-ref references (tools/reference_generation.py texts.jsonl) and
-every successful request of every cell under the cells roots (<root>/<cell_id>/<cell_id>.cell.json). A text is a
-(prompt, model, sha256(text)) key (analysis/quality.py); one already scored under the judge key is skipped, and
-each remaining key is written once. The prompt's reference answer comes from the scored corpora the render's
-plan pins (references.<family>: path under the data root and sha256, checked); the judge is reference-grounded,
-and a prompt without a reference answer fails the collection.
+A budget cell's quality is the judged score of the text it actually served: a reply cut short by its budget is
+judged as served (every other cell's quality is the lookup of its prompt and model, D62). collect reads every
+successful request of every budget cell (a record with a budget table) under the cells roots
+(<root>/<cell_id>/<cell_id>.cell.json); other cells are skipped and counted. A text is a (prompt, model,
+sha256(text)) key; one already scored under the judge key is skipped, and each remaining key is written once. An
+empty text is not sent (the judge scores no empty response): the store scores it 0 (D67, as v2 and v3). The
+prompt's reference answer comes from the scored corpora the render's plan pins (scored_corpora.<family>: path
+under the data root and sha256, checked); the judge is reference-grounded, and a prompt without a reference
+answer fails the collection.
 
 The judge is the DeepEval G-Eval scorer on the analysis machine (not in this repository; Llama-3.1-8B-Instruct
 served by vLLM, judge key deepeval-llama3.1-8b-it_reference). Its input is JSONL, one entry per line:
@@ -23,9 +25,7 @@ reference each truncated to 2048 characters), takes the model names from the FIR
 same entries in the same order with models.<name>.llm_judge_scores.<judge key> = a score in [0, 1] added where
 the metric returned one (the rest are listed in <output>.failures.json). Every other field comes back unchanged.
 So each input line here holds exactly one text under the fixed model name "served" (the served model and the
-text hash ride along in its fields): every line is scored whatever model served it. An empty text is never
-scored by that judge; collect lists such texts in <out>.empty.jsonl and does not send them, so the cells that
-served one keep an unavailable quality.
+text hash ride along in its fields): every line is scored whatever model served it.
 
 merge checks the judge's output line by line against the input (count, order, request_id and every field but
 the score) and writes the scored texts to a new store file: never an existing one, never a key already in the
@@ -38,7 +38,7 @@ import hashlib
 import json
 import sys
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 from analysis.quality import parse_store_line, read_jsonl, text_sha256
 from bench.records import CELL_SUFFIX, read_cell, records_in
@@ -61,8 +61,10 @@ def store_keys(paths: Sequence[Path], judge_key: str) -> set[tuple[str, str, str
     return keys
 
 
-def served_texts(roots: Sequence[Path]) -> Iterable[tuple[str, str, str, str]]:
-    """(prompt, model, text, where) of every successful request of every cell under the roots."""
+def served_texts(roots: Sequence[Path]) -> tuple[list[tuple[str, str, str, str]], int]:
+    """(prompt, model, text, where) of every successful request of every budget cell under the roots, and how
+    many other cells were skipped."""
+    out, skipped = [], 0
     for root in roots:
         for d in sorted(p for p in Path(root).iterdir() if p.is_dir()):
             names = records_in(d)
@@ -71,21 +73,12 @@ def served_texts(roots: Sequence[Path]) -> Iterable[tuple[str, str, str, str]]:
             if names != [f"{d.name}{CELL_SUFFIX}"]:
                 raise ConfigError(f"{d}: a cell directory holds exactly its own record, found {names}")
             cell = read_cell(d / names[0])
-            for r in cell.requests:
-                if r.reply is not None:
-                    yield r.prompt, r.reply.model, r.reply.generated_text, f"{cell.cell_id}#{r.index}"
-
-
-def reference_texts(paths: Sequence[Path]) -> Iterable[tuple[str, str, str, str]]:
-    """(prompt, model, text, where) of every successful reference-generation request."""
-    for path in paths:
-        for lineno, rec in read_jsonl(path):
-            if not isinstance(rec, dict) or not isinstance(rec.get("success"), bool):
-                raise ConfigError(f"{path}:{lineno}: not a reference-generation line")
-            if rec["success"]:
-                if text_sha256(rec["text"]) != rec["text_sha256"]:
-                    raise ConfigError(f"{path}:{lineno}: the text does not hash to its text_sha256")
-                yield rec["prompt"], rec["model"], rec["text"], f"{path.name}:{lineno}"
+            if cell.budgets_sha256 is None:
+                skipped += 1
+                continue
+            out += [(r.prompt, r.reply.model, r.reply.generated_text, f"{cell.cell_id}#{r.index}")
+                    for r in cell.requests if r.reply is not None]
+    return out, skipped
 
 
 def references(paths: Sequence[Path]) -> dict[str, str]:
@@ -108,9 +101,9 @@ def pinned_corpora(plan: dict, families: Sequence[str], data_root: Path) -> list
     """The reference corpora of the families, refused unless each file has the plan's sha256."""
     out = []
     for family in families:
-        if family not in plan["references"]:
-            raise ConfigError(f"the plan has no references for {family!r}")
-        entry = plan["references"][family]
+        if family not in plan["scored_corpora"]:
+            raise ConfigError(f"the plan has no scored corpus for {family!r}")
+        entry = plan["scored_corpora"][family]
         path = Path(data_root) / entry["path"]
         sha = hashlib.sha256(path.read_bytes()).hexdigest()
         if sha != entry["sha256"]:
@@ -123,20 +116,22 @@ def line_id(key: tuple[str, str, str]) -> str:
     return hashlib.sha256("\x00".join(key).encode("utf-8")).hexdigest()[:24]
 
 
-def collect(judge_key: str, store: Sequence[Path], texts: Sequence[Path], cells: Sequence[Path],
-            corpora: Sequence[Path]) -> tuple[list[dict], list[dict]]:
-    """(judge input lines, empty texts)."""
+def collect(judge_key: str, store: Sequence[Path], cells: Sequence[Path],
+            corpora: Sequence[Path]) -> tuple[list[dict], int, int]:
+    """(judge input lines, empty texts not sent, cells skipped as not budget cells)."""
     scored = store_keys(store, judge_key)
     refs = references(corpora)
-    lines, empty, seen = [], [], set()
+    lines, seen = [], set()
+    empty = 0
     missing_ref: list[str] = []
-    for prompt, model, text, where in [*reference_texts(texts), *served_texts(cells)]:
+    served, skipped = served_texts(cells)
+    for prompt, model, text, where in served:
         key = (prompt, model, text_sha256(text))
         if key in scored or key in seen:
             continue
         seen.add(key)
         if not text:
-            empty.append({"prompt": prompt, "model": model, "first_seen": where})
+            empty += 1                                   # scored 0 by the store (D67), never sent
             continue
         if prompt not in refs:
             missing_ref.append(where)
@@ -146,7 +141,7 @@ def collect(judge_key: str, store: Sequence[Path], texts: Sequence[Path], cells:
     if missing_ref:
         raise ConfigError(f"{len(missing_ref)} texts have a prompt with no reference answer in the corpora, "
                           f"e.g. {missing_ref[:3]}")
-    return lines, empty
+    return lines, empty, skipped
 
 
 def merge(judge_key: str, store: Sequence[Path], judge_input: Path, judge_output: Path) -> tuple[list[dict], list[str]]:
@@ -201,23 +196,19 @@ def main(argv: list[str]) -> int:
         p.add_argument("--judge-key", required=True)
         p.add_argument("--store", type=Path, nargs="*", default=[], help="the store files so far")
         p.add_argument("--out", type=Path, required=True)
-    c.add_argument("--texts", type=Path, nargs="*", default=[], help="reference-generation texts.jsonl files")
-    c.add_argument("--cells", type=Path, nargs="*", default=[], help="cells roots")
-    c.add_argument("--render", type=Path, required=True, help="the campaign render whose plan pins the references")
+    c.add_argument("--cells", type=Path, nargs="+", required=True, help="cells roots")
+    c.add_argument("--render", type=Path, required=True, help="the campaign render whose plan pins the corpora")
     c.add_argument("--data-root", type=Path, required=True)
-    c.add_argument("--family", nargs="+", required=True, help="the families whose references to load")
+    c.add_argument("--family", nargs="+", required=True, help="the families whose reference answers to load")
     m.add_argument("--judge-input", type=Path, required=True)
     m.add_argument("--judge-output", type=Path, required=True)
     a = ap.parse_args(argv)
     if a.cmd == "collect":
         corpora = pinned_corpora(load_plan(a.render), a.family, a.data_root)
-        lines, empty = collect(a.judge_key, a.store, a.texts, a.cells, corpora)
+        lines, empty, skipped = collect(a.judge_key, a.store, a.cells, corpora)
         _write_new(a.out, lines)
-        if empty:
-            _write_new(a.out.with_name(a.out.name + ".empty.jsonl"), empty)
-            print(f"WARNING: {len(empty)} empty served texts cannot be judged (the scorer skips empty responses); "
-                  f"their cells' quality stays unavailable: {a.out.name}.empty.jsonl")
-        print(f"{a.out}: {len(lines)} texts to judge under {a.judge_key}")
+        print(f"{a.out}: {len(lines)} texts to judge under {a.judge_key}; {empty} empty served texts (scored 0, not "
+              f"sent); {skipped} cells without a budget skipped (their quality is the lookup)")
         return 0
     new, unscored = merge(a.judge_key, a.store, a.judge_input, a.judge_output)
     _write_new(a.out, new)

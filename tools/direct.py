@@ -1,7 +1,7 @@
 """Requests sent directly to the engines, never through the scheduler.
 
 Used for what must not enter the scheduler's decision log or counters: waiting for idle engines (drain),
-warming the engines up before a cell, and the closed-loop runs of W0 (references) and W1 (calibration).
+warming the engines up before a cell, and the closed-loop runs of W1 (calibration).
 Every request goes through the scheduler's own backend client (routebalance.backend), so it is sent exactly as
 a served request is: the raw prompt as the single user message, templated once by vLLM, with the scope's
 sampling. Engine load is read from the same Prometheus /metrics the telemetry view scrapes.
@@ -142,8 +142,7 @@ class LoopResult:
 
 
 async def closed_loop(backend: BackendClient, inst: Instance, measured: Sequence[Prompt], concurrency: int,
-                      sampling: Sampling, *, request_prefix: str, fillers: Sequence[Prompt] = (),
-                      on_measured: Optional[Callable[[int, GenerationResult], None]] = None) -> LoopResult:
+                      sampling: Sampling, *, request_prefix: str, fillers: Sequence[Prompt] = ()) -> LoopResult:
     """See the module docstring."""
     if concurrency < 1:
         raise ConfigError("concurrency must be at least 1")
@@ -163,8 +162,6 @@ async def closed_loop(backend: BackendClient, inst: Instance, measured: Sequence
             if queue:
                 i, p = queue.pop()
                 results[i] = await backend.generate(inst, request(f"{request_prefix}.m{i}", p, sampling))
-                if on_measured is not None:          # e.g. written at once, so a later failure loses nothing
-                    on_measured(i, results[i])
                 left -= 1
                 if left == 0:
                     done.set()

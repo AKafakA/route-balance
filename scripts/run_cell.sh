@@ -3,15 +3,18 @@
 # the cell directory layout is documented there.
 #
 #   scripts/run_cell.sh --render DIR --cell CELL_ID --scheduler URL --scheduler-log-dir DIR \
-#                       --fleet FLEET.json --hosts HOSTS.json --data-root DIR --cells-root DIR --mirror DEST
+#                       --fleet FLEET.json --hosts HOSTS.json --engines-record FILE --data-root DIR \
+#                       --cells-root DIR --mirror DEST
 #
 #   --render             a campaign render (python -m tools.campaign render): scope.json, configs/, plan.json
 #   --scheduler-log-dir  the running scheduler's --log-dir (decisions.jsonl, latency.<digest>.jsonl)
+#   --engines-record     the --record file of the deploy.sh engines run that launched the fleet (D48)
 #   --cells-root         the first location (this node); DEST (rsync syntax, local or host:path) the second
 #
 # Order: drain the engines and the scheduler; POST the cell's configuration (every cell: it resets the
 # dispatcher's RNG, the LRU and lowest_latency state) and check the digests it returns; preflight; warm the
-# engines up directly (never through the scheduler) and drain again; check the scheduler's code and launch
+# engines up directly (never through the scheduler) and drain again; read every engine as it reports itself
+# (start time, KV cache, model, context) with its launch command; check the scheduler's code and launch
 # values against the scope; snapshot stats and manifest once the logs are settled; run the bench runner; snapshot
 # again and cut this cell's window out of the decision log (and the latency sweep's log); gates arm and
 # zero_call; the verdict; publish the attempt as the cell; mirror it; parity when the cell completes its group.
@@ -26,19 +29,21 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 usage() { echo "usage: $0 --render DIR --cell ID --scheduler URL --scheduler-log-dir DIR --fleet F --hosts H" \
-               "--data-root DIR --cells-root DIR --mirror DEST" >&2; exit 2; }
-RENDER= CELL= URL= LOGDIR= FLEET= HOSTS= DATA= ROOT= MIRROR=
+               "--engines-record FILE --data-root DIR --cells-root DIR --mirror DEST" >&2; exit 2; }
+RENDER= CELL= URL= LOGDIR= FLEET= HOSTS= ENGINES= DATA= ROOT= MIRROR=
 while [ $# -gt 0 ]; do
   case "$1" in
     --render) RENDER=$2 ;; --cell) CELL=$2 ;; --scheduler) URL=$2 ;; --scheduler-log-dir) LOGDIR=$2 ;;
     --fleet) FLEET=$2 ;; --hosts) HOSTS=$2 ;; --data-root) DATA=$2 ;; --cells-root) ROOT=$2 ;; --mirror) MIRROR=$2 ;;
+    --engines-record) ENGINES=$2 ;;
     *) usage ;;
   esac
   shift 2
 done
-for v in RENDER CELL URL LOGDIR FLEET HOSTS DATA ROOT MIRROR; do [ -n "${!v}" ] || usage; done
+for v in RENDER CELL URL LOGDIR FLEET HOSTS ENGINES DATA ROOT MIRROR; do [ -n "${!v}" ] || usage; done
 
 source "$REPO/scripts/mirror.sh"
+source "$REPO/scripts/node_layout.sh"   # RB_HF_HOME: the Hub snapshots setup.sh pinned (the runner's tokenizer)
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 drv() { "$PY" -m tools.cell_driver "$@"; }
 fail() { echo "$(ts) [run_cell] $CELL: $*" >&2; exit "${RC:-2}"; }
@@ -59,25 +64,31 @@ drv post-config --scheduler "$URL" --attempt "$ATTEMPT" --config-digest "$CONFIG
     --expect-config-digest "$CONFIG_DIGEST" --expect-fleet-digest "$FLEET_DIGEST" > "$ATTEMPT/gates/preflight.log" 2>&1 \
   || { cat "$ATTEMPT/gates/preflight.log"; fail "preflight failed"; }
 
-# ---- 4. warm-up straight to the engines, then drain
+# ---- 4. warm-up straight to the engines, then drain; the engines as they report themselves (D48)
 drv warmup --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --attempt "$ATTEMPT" || fail "warm-up"
+drv engines --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --engines-record "$ENGINES" \
+    --out "$ATTEMPT/engines_before.json" || fail "the engines could not be read"
 
 # ---- 5. stats and manifest before (settled logs), the scheduler's code and launch values
 drv before --scheduler "$URL" --attempt "$ATTEMPT" --log-dir "$LOGDIR" --config-digest "$CONFIG_DIGEST" \
     --sweep "$SWEEP" || fail "snapshot before"
 drv check-scheduler --render "$RENDER" --attempt "$ATTEMPT" || fail "restart the scheduler (see above)"
 
-# ---- 6. the bench runner (writes <cell_id>.cell.json into the attempt directory)
+# ---- 6. the bench runner (writes <cell_id>.cell.json into the attempt directory); offline, from the pinned
+#         snapshots, like the scheduler (node_ctl.sh)
 set +e
-"$PY" -m bench.runner --scope "$RENDER/scope.json" --cell "$CELL" --scheduler-url "$URL" --data-root "$DATA" \
+HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 "$PY" -m bench.runner --scope "$RENDER/scope.json" --cell "$CELL" --scheduler-url "$URL" --data-root "$DATA" \
     --out-dir "$ATTEMPT"
 BENCH=$?
 set -e
 [ -f "$ATTEMPT/$CELL.cell.json" ] || fail "the runner wrote no record (exit $BENCH)"
 
-# ---- 7. stats and manifest after, and this cell's slice of the logs
+# ---- 7. stats and manifest after, and this cell's slice of the logs; the engines again (a restart shows)
 drv after --scheduler "$URL" --attempt "$ATTEMPT" --config-digest "$CONFIG_DIGEST" \
   || { echo "$(ts) [run_cell] $CELL: the logs could not be sliced; the cell is kept but cannot pass its gates"; }
+drv engines --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --engines-record "$ENGINES" \
+    --out "$ATTEMPT/engines_after.json" \
+  || { echo "$(ts) [run_cell] $CELL: the engines could not be read after the cell; the cell is kept and invalid"; }
 
 # ---- 8. gates on the cell, the verdict, publish
 GATE_ARGS=()

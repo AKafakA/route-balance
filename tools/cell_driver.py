@@ -14,6 +14,9 @@ The cell directory holds (the layout the gates read):
   decisions.jsonl                     the decision-log lines of this cell's window, all with the cell's digest
   latency.jsonl                       the latency-sweep lines of the window (the D38 sweep configuration only)
   window.json                         the byte offsets of the two logs that bound the window
+  engines_before.json, engines_after.json   each engine as it reports itself (start time, KV cache config,
+                                      model, context) with its deploy.sh launch command (D48); a change
+                                      between the two, a restart, makes the cell invalid
   gates/<gate>.log, gates/verdict.json
 Exit codes of every subcommand: 0 done, 1 refused or failed (the message says why).
 """
@@ -40,7 +43,8 @@ from bench.schema import parse, read_json
 from bench.scope import ExpectedCell, Scope, expected_cells, group_record
 from routebalance.backend import BackendClient
 from routebalance.config import ConfigError, loads_strict
-from tools import direct
+from gates.cell import GateError, engine_changes, open_cell
+from tools import direct, engines
 from tools.campaign import load_plan
 
 SETTLE_S = 3.0          # how long the logs may take to reach the disk (the server flushes every 1 s)
@@ -153,6 +157,24 @@ async def post_config(url: str, attempt: Path, config_digest: str, fleet_digest:
     if got != (config_digest, fleet_digest):
         raise ConfigError(f"the scheduler now runs config {got[0]} on fleet {got[1]}; the cell needs "
                           f"{config_digest} on {fleet_digest}")
+
+
+async def engines_snapshot(render: Path, cell: str, fleet: Path, hosts: Path, record: Path, out: Path) -> None:
+    """Every engine of the cell's fleet as it reports itself, with its deploy-record launch (tools/engines.py)."""
+    scope, plan = load(render)
+    exp = expected(scope, cell)
+    instances = fleet_of(plan, exp.group, fleet, hosts)
+    _write_json(out, await engines.engines(instances, record, direct.SCRAPE_TIMEOUT_S))
+
+
+def engine_problems(d: Path) -> list[str]:
+    """D48: every engine served the whole cell as one process with one launch."""
+    try:
+        cell = open_cell(d)
+        changed = engine_changes(cell.engines("before"), cell.engines("after"))
+    except GateError as e:
+        return [f"the engine record is missing or malformed: {str(e)[:300]}"]
+    return [f"an engine restarted or changed during the cell: {changed}"] if changed else []
 
 
 async def warm_up(render: Path, cell: str, fleet: Path, hosts: Path, attempt: Path) -> None:
@@ -296,7 +318,7 @@ def check_launch(plan: dict, manifest: dict) -> list[str]:
 def verdict(render: Path, attempt: Path, gates: dict[str, int]) -> dict:
     scope, _ = load(render)
     exp = expected(scope, attempt.name)
-    problems = record_problems(scope, exp, attempt)
+    problems = record_problems(scope, exp, attempt) + engine_problems(attempt)
     out = {"cell_id": attempt.name, "bench_problems": problems, "gates": gates,
            "valid": not problems and all(rc == 0 for rc in gates.values()) and set(gates) == set(GATES)}
     _write_json(attempt / "gates" / "verdict.json", out)
@@ -367,6 +389,17 @@ def _runs(dirs: list[str]) -> list[list[str]]:
     return out
 
 
+GATES_DIR = Path(__file__).resolve().parents[1] / "gates"
+
+
+def gate_code() -> str:
+    """sha256 over the gates' source (names and bytes): a parity record made by other gate code is not reused."""
+    h = hashlib.sha256()
+    for f in sorted(GATES_DIR.glob("*.py")):
+        h.update(f.name.encode() + b"\0" + f.read_bytes() + b"\0")
+    return h.hexdigest()
+
+
 def _parity_records(root: Path, group: str) -> list[Path]:
     d = Path(root) / "_groups" / group
     return sorted(d.glob("parity.*.json")) if d.is_dir() else []
@@ -374,16 +407,17 @@ def _parity_records(root: Path, group: str) -> list[Path]:
 
 def parity(render: Path, root: Path, group: str) -> Optional[int]:
     """Run the parity gate over a ready group, unless its latest record already covers exactly these runs (each
-    cell's directory and record sha256); each run is kept (_groups/<group>/parity.<stamp>.{log,json}), none is
-    overwritten. The gate's exit code, or None while the group is not ready."""
+    cell's directory and record sha256) under the same gate code (a fixed gate runs again); each run is kept
+    (_groups/<group>/parity.<stamp>.{log,json}), none is overwritten. The gate's exit code, or None while the
+    group is not ready."""
     dirs = group_ready(render, root, group)
     if not dirs:
         return None
-    runs = _runs(dirs)
+    runs, code = _runs(dirs), gate_code()
     records = _parity_records(root, group)
     if records:
         last = read_json(records[-1])
-        if last["cells"] == runs:
+        if last["cells"] == runs and last.get("gate_code") == code:   # a record without one predates the key
             return last["rc"]
     stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
     out = Path(root) / "_groups" / group
@@ -392,7 +426,8 @@ def parity(render: Path, root: Path, group: str) -> Optional[int]:
     with open(log, "x") as f:                            # "x": never an existing record
         rc = subprocess.run([sys.executable, "-m", "gates.parity", "--cells", *dirs], stdout=f,
                             stderr=subprocess.STDOUT).returncode
-    _write_json(out / f"parity.{stamp}.json", {"group": group, "rc": rc, "cells": runs, "log": log.name})
+    _write_json(out / f"parity.{stamp}.json", {"group": group, "rc": rc, "cells": runs, "gate_code": code,
+                                                "log": log.name})
     return rc
 
 
@@ -446,8 +481,9 @@ def rows_status(render: Path, rows: list[str], root: Path) -> tuple[list[str], l
             continue
         records = _parity_records(root, group)
         last = read_json(records[-1]) if records else None
-        if last is None or last["cells"] != _runs(dirs):
-            problems.append(f"group {group} is complete but parity has not run over its current cells")
+        if last is None or last["cells"] != _runs(dirs) or last.get("gate_code") != gate_code():
+            problems.append(f"group {group} is complete but parity has not run over its current cells "
+                            "with the current gate code")
         elif last["rc"] != 0:
             problems.append(f"group {group} failed its parity gate (see {records[-1].parent / last['log']})")
     published = [c.cell_id for c in cells if cell_dir(root, c.cell_id).is_dir()]
@@ -484,6 +520,7 @@ def main(argv: list[str]) -> int:
     cmd("drain", "render", "cell", "fleet", "hosts", "scheduler")
     cmd("post-config", "scheduler", "attempt", "config-digest", "fleet-digest")
     cmd("warmup", "render", "cell", "fleet", "hosts", "attempt")
+    cmd("engines", "render", "cell", "fleet", "hosts", "engines-record", "out")
     cmd("before", "scheduler", "attempt", "log-dir", "config-digest", "sweep")
     cmd("after", "scheduler", "attempt", "config-digest")
     cmd("check-scheduler", "render", "attempt")
@@ -497,7 +534,8 @@ def main(argv: list[str]) -> int:
     cmd("code", "scheduler")
     cmd("retire", "cells-root", "cell")
     a = ap.parse_args(argv)
-    p = {k: Path(v) for k, v in vars(a).items() if k in ("render", "cells_root", "fleet", "hosts", "attempt", "log_dir")}
+    p = {k: Path(v) for k, v in vars(a).items()
+         if k in ("render", "cells_root", "fleet", "hosts", "attempt", "log_dir", "engines_record", "out")}
     if a.cmd == "prepare":
         for k, v in prepare(p["render"], a.cell, p["cells_root"], p["fleet"], p["hosts"]).items():
             print(f"{k}={shlex.quote(v)}")
@@ -506,6 +544,8 @@ def main(argv: list[str]) -> int:
         print(f"engines idle after {waited:.1f} s")
     elif a.cmd == "post-config":
         asyncio.run(post_config(a.scheduler, p["attempt"], a.config_digest, a.fleet_digest))
+    elif a.cmd == "engines":
+        asyncio.run(engines_snapshot(p["render"], a.cell, p["fleet"], p["hosts"], p["engines_record"], p["out"]))
     elif a.cmd == "warmup":
         asyncio.run(warm_up(p["render"], a.cell, p["fleet"], p["hosts"], p["attempt"]))
     elif a.cmd == "before":

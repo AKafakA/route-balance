@@ -137,6 +137,27 @@ $(tail -30 "$log")"
   note "$id healthy after $(( $(date +%s) - t0 ))s, serving $model on port $port"
 }
 
+# What a healthy engine executes (D48), one line for deploy.sh's record:
+#   started <id> <process_start_time_seconds> <CUDA_VISIBLE_DEVICES> <command line>
+# read from the recorded process (its /proc environment and command line) and from the engine answering on the
+# port (its /metrics start time), which must be that process: its /proc start time in epoch seconds (btime +
+# starttime / CLK_TCK, the formula of Prometheus's process collector) agrees to within rounding.
+cmd_started() {
+  local id="$1" port="$2" pidf="$RB_RUN/engine.$1.pid" pid start own cuda cmdline
+  pid=$(pid_of "$pidf")
+  alive "$pid" || fail "$id is not running"
+  start=$(curl -sf -m 10 "http://127.0.0.1:$port/metrics" \
+          | awk '$1 == "process_start_time_seconds" {v = $2; n++} END {if (n != 1) exit 1; print v}') \
+    || fail "$id: /metrics on port $port has no single process_start_time_seconds"
+  own=$(awk -v t="$(start_time "$pid")" -v hz="$(getconf CLK_TCK)" '/^btime/ {printf "%.3f", $2 + t / hz}' /proc/stat)
+  awk -v a="$start" -v b="$own" 'BEGIN {d = a - b; exit !(d < 0.05 && d > -0.05)}' \
+    || fail "$id: the engine on port $port started at $start, its recorded pid $pid at $own: another process answers"
+  cuda=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^CUDA_VISIBLE_DEVICES=//p')
+  [ -n "$cuda" ] || fail "$id: pid $pid has no CUDA_VISIBLE_DEVICES"
+  cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline")
+  printf 'started\t%s\t%s\t%s\t%s\n' "$id" "$start" "$cuda" "${cmdline% }"
+}
+
 cmd_stop() {
   stop_group "$RB_RUN/engine.$1.pid" "$1"
 }
@@ -235,6 +256,7 @@ rb_ctl() {
     preflight) [ $# -eq 2 ] || fail "usage: preflight <gpu_class> <gpus_on_node>"; cmd_preflight "$@" ;;
     launch) [ $# -gt 5 ] || fail "usage: launch <id> <port> <gpus> <model> <revision> <argv...>"; cmd_launch "$@" ;;
     wait) [ $# -eq 4 ] || fail "usage: wait <id> <port> <model> <timeout_s>"; cmd_wait "$@" ;;
+    started) [ $# -eq 2 ] || fail "usage: started <id> <port>"; cmd_started "$@" ;;
     stop) [ $# -eq 1 ] || fail "usage: stop <id>"; cmd_stop "$@" ;;
     gpus-free) [ $# -eq 1 ] || fail "usage: gpus-free <gpus>"; cmd_gpus_free "$@" ;;
     sched-start) [ $# -eq 9 ] || fail "usage: sched-start <run_dir> <tree> <artifacts> <log_dir> <host> <port> <threads> <conns> <timeout>"

@@ -3,6 +3,10 @@
 #
 #   setup_fleet.sh --fleet F --hosts H --engine-args E --scheduler-node N --hf-token-file LOCAL_PATH
 #                  --tree REMOTE_DIR --log-dir LOCAL_DIR [--hub configs/scheduler_hub.json] [--ssh-user U]
+#                  [--data-disks FILE]
+#
+# --data-disks: {"<node>": "/dev/<disk>"} for nodes whose scratch disk is not the node type's default (some d7525
+# have no NVMe disk); setup.sh gets --data-disk for those nodes, and refuses the others' missing default.
 #
 # Per node: the git-tracked files of this repository go to REMOTE_DIR (rsync), the token to
 # ~/.rb-setup/hf_token (mode 600, over ssh stdin: never on a command line), then
@@ -17,13 +21,13 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/lib_operator.sh"
 set -euo pipefail
 
-FLEET="" HOSTS="" EA="" SCHED="" TOKEN="" TREE="" LOGDIR="" HUB="$RB_REPO/configs/scheduler_hub.json"
+FLEET="" HOSTS="" EA="" SCHED="" TOKEN="" TREE="" LOGDIR="" HUB="$RB_REPO/configs/scheduler_hub.json" DISKS=""
 while [ $# -gt 0 ]; do
   [ $# -ge 2 ] || die "$1 needs a value"
   case "$1" in
     --fleet) FLEET="$2" ;; --hosts) HOSTS="$2" ;; --engine-args) EA="$2" ;; --scheduler-node) SCHED="$2" ;;
     --hf-token-file) TOKEN="$2" ;; --tree) TREE="$2" ;; --log-dir) LOGDIR="$2" ;; --hub) HUB="$2" ;;
-    --ssh-user) SSH_USER="$2" ;;
+    --ssh-user) SSH_USER="$2" ;; --data-disks) DISKS="$2" ;;
     *) die "unknown argument $1" ;;
   esac
   shift 2
@@ -35,6 +39,18 @@ require_py
 existing FLEET HOSTS EA TOKEN HUB
 absolute LOGDIR
 nodes=$(plan nodes --fleet "$FLEET" --hosts "$HOSTS") || die "invalid fleet/hosts"
+if [ -n "$DISKS" ]; then       # every key a fleet node, every value a /dev path
+  existing DISKS
+  RB_NODES="$nodes" "$PY" - "$DISKS" <<'PYEOF' || die "invalid --data-disks $DISKS"
+import json, os, re, sys
+d = json.load(open(sys.argv[1]))
+nodes = {line.split("\t")[0] for line in os.environ["RB_NODES"].splitlines() if line}
+assert isinstance(d, dict) and d, "a non-empty {node: /dev/disk} object"
+for k, v in d.items():
+    assert k in nodes, f"{k} is not a node of the fleet"
+    assert isinstance(v, str) and re.fullmatch(r"/dev/[a-z0-9]+", v), f"{k}: {v!r} is not a /dev disk"
+PYEOF
+fi
 plan engines --fleet "$FLEET" --hosts "$HOSTS" --engine-args "$EA" > /dev/null || die "invalid engine args"
 awk -F'\t' -v n="$SCHED" '$1 == n {found = 1} END {exit !found}' <<< "$nodes" \
   || die "scheduler node $SCHED serves no instance of $FLEET"
@@ -51,9 +67,13 @@ run_setup() {    # run_setup <addr> <log> <setup.sh args...>: 0 ready, 3 reboot 
 }
 
 setup_node() {   # setup_node <node> <addr>
-  local node="$1" addr="$2" log="$LOGDIR/setup.$1.log" rc models=() spec i
+  local node="$1" addr="$2" log="$LOGDIR/setup.$1.log" rc models=() spec i disk disk_args=()
   while read -r spec; do models+=(--model "$spec"); done < <(plan models --fleet "$FLEET" --hosts "$HOSTS" --engine-args "$EA" --node "$node")
   [ "${#models[@]}" -gt 0 ] || { echo "no models for $node" >> "$log"; return 1; }
+  if [ -n "$DISKS" ]; then
+    disk=$("$PY" -c 'import json, sys; print(json.load(open(sys.argv[1])).get(sys.argv[2], ""))' "$DISKS" "$node")
+    [ -z "$disk" ] || disk_args=(--data-disk "$disk")
+  fi
   {
     say "sync tree -> $node:$TREE"
     (cd "$RB_REPO" && git ls-files -z | timeout 600 rsync -a --from0 --files-from=- \
@@ -62,7 +82,7 @@ setup_node() {   # setup_node <node> <addr>
       "umask 077 && mkdir -p .rb-setup && cat > $REMOTE_TOKEN" < "$TOKEN" || { echo "token copy failed"; return 1; }
   } >> "$log" 2>&1
   for i in 1 2; do
-    rc=0; run_setup "$addr" "$log" --role engine --hf-token-file "$REMOTE_TOKEN" "${models[@]}" || rc=$?
+    rc=0; run_setup "$addr" "$log" --role engine --hf-token-file "$REMOTE_TOKEN" "${models[@]}" ${disk_args[@]+"${disk_args[@]}"} || rc=$?
     [ "$rc" -eq 3 ] && [ "$i" -eq 1 ] || break
     say "$node: REBOOT REQUIRED -> rebooting" >> "$log"
     rb_ssh 30 "$addr" sudo reboot >> "$log" 2>&1 || true
@@ -76,7 +96,7 @@ setup_node() {   # setup_node <node> <addr>
   done
   [ "$rc" -eq 0 ] || { say "$node: engine setup failed (exit $rc)" >> "$log"; return 1; }
   if [ "$node" = "$SCHED" ]; then
-    run_setup "$addr" "$log" --role scheduler --hf-token-file "$REMOTE_TOKEN" "${hub_args[@]}" \
+    run_setup "$addr" "$log" --role scheduler --hf-token-file "$REMOTE_TOKEN" "${hub_args[@]}" ${disk_args[@]+"${disk_args[@]}"} \
       || { say "$node: scheduler setup failed" >> "$log"; return 1; }
   fi
   say "$node: ready" >> "$log"

@@ -1,13 +1,13 @@
 """Preregistered analysis rules (configs/prereg_rules.json), fixed before the lease and read by the analysis.
 
   judge_key       the quality metric of record: the key of the DeepEval score in the scored corpora
-  quality_floor   goodput is compared only between configurations whose mean quality is at least this
   equal_quality   tolerance: a treatment preset is "at equal quality" with a baseline when their mean
                   qualities differ by at most this (absolute score units); interpolation along the
                   treatment's frontier may also reach this far past its end points
                   bootstrap_resamples, confidence, bootstrap_seed: the percentile bootstrap over seeds
-  goodput_slo     per-request deadline: a successful request meets its SLO when
-                  e2e_ms <= base_ms + per_output_token_ms * output_tokens
+  slo             D57, after SOLA (analysis/slo.py): the multiplier k of each level, by served model, on the
+                  served tier's single-request TTFT and TPOT (tight, loose); attainment_levels, the attainment
+                  shares at which goodput is read (the largest rate that keeps them)
   g1              the thesis gate (D16, D36), decided from the G1 cells (configs/scope.json) as soon as they
                   finish. RB-new (the profiled-curve arm) is compared with RB-decoupled on the same preset:
                     tier_mix_shift_min            RB-new's tier mix moves with load: the largest change of any
@@ -31,7 +31,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from bench.schema import Strict, parse, read_json
 from routebalance.config import ConfigError
@@ -39,13 +39,24 @@ from routebalance.config import ConfigError
 PLACEHOLDER = "OWNER-MUST-SET"
 
 
-class GoodputSlo(Strict):
-    kind: Literal["e2e_affine"]
-    base_ms: float = Field(gt=0)
-    per_output_token_ms: float = Field(ge=0)
+class SloRule(Strict):
+    tight: dict[str, float] = Field(min_length=1)       # k by served model
+    loose: dict[str, float] = Field(min_length=1)
+    attainment_levels: list[float] = Field(min_length=1)
 
-    def met(self, e2e_s: float, output_tokens: int) -> bool:
-        return e2e_s * 1000.0 <= self.base_ms + self.per_output_token_ms * output_tokens
+    @model_validator(mode="after")
+    def _consistent(self) -> "SloRule":
+        if set(self.tight) != set(self.loose):
+            raise ValueError("tight and loose name the same models")
+        if not all(0 < self.tight[m] <= self.loose[m] for m in self.tight):
+            raise ValueError("every k is positive and a model's loose k is at least its tight k")
+        if not all(0 < a <= 1 for a in self.attainment_levels) or \
+                len(set(self.attainment_levels)) != len(self.attainment_levels):
+            raise ValueError("attainment levels are distinct shares in (0, 1]")
+        return self
+
+    def k(self) -> dict[str, dict[str, float]]:
+        return {"tight": dict(self.tight), "loose": dict(self.loose)}
 
 
 class EqualQuality(Strict):
@@ -66,9 +77,8 @@ class G1Rule(Strict):
 
 class Rules(Strict):
     judge_key: str = Field(min_length=1)
-    quality_floor: float = Field(ge=0, le=1)
     equal_quality: EqualQuality
-    goodput_slo: GoodputSlo
+    slo: SloRule
     g1: G1Rule
 
 

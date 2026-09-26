@@ -4,8 +4,13 @@
 # One lease node's environment, from the v3 recipe (driver + CUDA 12.8.0 local repo) adapted to official
 # vLLM in a fresh venv. Runs on the node itself; idempotent, fail-loud, resumable across the driver reboot.
 #
-#   setup.sh --role engine    --hf-token-file PATH --model ORG/NAME@REV [--model ...]
+#   setup.sh --role engine    --hf-token-file PATH --model ORG/NAME@REV [--model ...] [--data-disk DEV]
 #   setup.sh --role scheduler --hf-token-file PATH --model ORG/NAME@REV [...] [--tokenizer ORG/NAME@REV ...]
+#                             [--data-disk DEV]
+#
+#   /mydata goes on the node type's scratch disk (c4130 /dev/sdb, d7525/d8545 /dev/nvme0n1, as v3). Some d7525
+#   have no NVMe disk: then --data-disk must name one, and without it setup fails and lists the candidates (whole
+#   disks without partitions, mounts or the root filesystem). A disk with any of those is always refused.
 #
 #   engine     driver + CUDA toolkit, python3.10-dev, $ENGINE_VENV with vllm==$VLLM_VERSION, the weights of
 #              every --model (the tiers this node serves: python -m tools.engine_plan models ... --node N)
@@ -61,7 +66,7 @@ say() { echo "[$(ts)] $*"; }
 step() { echo; echo "===== [$(ts)] $* ====="; }
 die() { echo "[$(ts)] SETUP FAILED: $*" >&2; exit 1; }
 
-ROLE="" TOKEN_FILE="" MODELS=() TOKENIZERS=()
+ROLE="" TOKEN_FILE="" MODELS=() TOKENIZERS=() DATA_DISK=""
 
 parse_args() {
   while [ $# -gt 0 ]; do
@@ -70,6 +75,7 @@ parse_args() {
       --hf-token-file) [ $# -ge 2 ] || die "--hf-token-file needs a value"; TOKEN_FILE="$2"; shift 2 ;;
       --model) [ $# -ge 2 ] || die "--model needs a value"; MODELS+=("$2"); shift 2 ;;
       --tokenizer) [ $# -ge 2 ] || die "--tokenizer needs a value"; TOKENIZERS+=("$2"); shift 2 ;;
+      --data-disk) [ $# -ge 2 ] || die "--data-disk needs a value"; DATA_DISK="$2"; shift 2 ;;
       -h|--help) sed -n '4,/^$/p' "${BASH_SOURCE[0]}"; exit 0 ;;
       *) die "unknown argument $1" ;;
     esac
@@ -136,7 +142,24 @@ detect_gpu() {
   row=$(gpu_row "$ids") || die "GPU device id 10de:$ids is not one of this lease's (V100/A30/A100); see gpu_row"
   read -r GPU_CLASS HW_TYPE GPU_COUNT ARCH MYDATA_DEV <<< "$row"
   [ "$(echo "$lines" | wc -l)" -eq "$GPU_COUNT" ] || die "$HW_TYPE should have $GPU_COUNT GPU(s), lspci shows $(echo "$lines" | wc -l)"
+  if [ -n "$DATA_DISK" ]; then
+    MYDATA_DEV="$DATA_DISK"
+  elif [ ! -b "$MYDATA_DEV" ] && ! [ -s "$STATE_DIR/mydata.uuid" ] && ! mountpoint -q "$MYDATA"; then
+    die "$HW_TYPE's scratch disk $MYDATA_DEV does not exist on this node; pass --data-disk one of: $(candidate_disks)"
+  fi
   say "gpu=$GPU_CLASS x$GPU_COUNT hw=$HW_TYPE arch=$ARCH /mydata disk=$MYDATA_DEV"
+}
+
+candidate_disks() {   # whole disks with no partitions, no mounts and not the root filesystem's
+  local root name
+  root=$(lsblk -nro PKNAME "$(findmnt -no SOURCE /)" 2>/dev/null)
+  while read -r name type; do
+    [ "$type" = disk ] || continue
+    [ "$name" = "$root" ] && continue
+    [ "$(lsblk -nro NAME "/dev/$name" | wc -l)" -eq 1 ] || continue            # has partitions
+    lsblk -nro MOUNTPOINT "/dev/$name" | grep -q . && continue
+    printf '/dev/%s(%s) ' "$name" "$(lsblk -dnro SIZE "/dev/$name")"
+  done < <(lsblk -dnro NAME,TYPE)
 }
 
 mount_mydata() {
@@ -151,9 +174,12 @@ mount_mydata() {
     sudo mkdir -p "$MYDATA" && sudo mount "UUID=$uuid" "$MYDATA" || die "cannot remount $MYDATA (UUID=$uuid)"
   else                                           # first run: format the scratch disk, as v3 did
     [ -b "$MYDATA_DEV" ] || die "$MYDATA_DEV is not a block device"
+    [ "$(lsblk -dnro TYPE "$MYDATA_DEV")" = disk ] || die "$MYDATA_DEV is not a whole disk"
     if lsblk -nro MOUNTPOINT "$MYDATA_DEV" | grep -q .; then
       die "$MYDATA_DEV (or a partition of it) is in use: $(lsblk -nro NAME,MOUNTPOINT "$MYDATA_DEV" | tr '\n' ' ')"
     fi
+    [ "$(lsblk -nro NAME "$MYDATA_DEV" | wc -l)" -eq 1 ] || die "$MYDATA_DEV has partitions; refusing to format it"
+    [ "$(lsblk -nro PKNAME "$(findmnt -no SOURCE /)")" != "$(basename "$MYDATA_DEV")" ] || die "$MYDATA_DEV holds /"
     sudo mkfs.ext4 -F -q "$MYDATA_DEV" || die "mkfs.ext4 $MYDATA_DEV"
     uuid=$(sudo blkid -s UUID -o value "$MYDATA_DEV") && [ -n "$uuid" ] || die "no UUID on $MYDATA_DEV"
     echo "$uuid" > "$STATE_DIR/mydata.uuid"

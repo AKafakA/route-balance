@@ -8,8 +8,8 @@ rendered into the files the drivers run from.
 A render writes a new directory (never an existing one):
   scope.json          the scope in bench/scope.py's schema; bench.runner and analysis.manifest read it
   configs/<id>.json   each configuration's complete scheduler document; scripts/run_cell.sh POSTs it
-  plan.json           the rows in lease order with their cells, the direct rows' parameters (W0 references,
-                      W1 calibration), groups and fleets, server launch values, warm-up and drain bounds
+  plan.json           the rows in lease order with their cells, the direct rows' parameters (W1 calibration),
+                      groups and fleets, server launch values, warm-up and drain bounds, the scored corpora
   render.json         the inputs (sha256 of every file) and everything left out
 The render is staged over the lease: pins (artifacts built or measured on the lease, such as the W1 TPOT
 table) and decisions (owner choices made after a gate) arrive as it goes. A block whose configurations need a
@@ -40,11 +40,11 @@ scope.json (the lease rows around bench/scope.py's blocks)
   server {torch_threads, max_connections, request_timeout_s}     the scheduler launch values (D44)
   warmup {requests_per_instance, max_tokens, prompt}             sent to the engines directly before a cell
   drain {timeout_s}                                              the bound on waiting for idle engines
-  references {"<family>": {path, sha256}}   the corpus with each prompt's reference answer (the judge's input)
+  scored_corpora {"<family>": {path, sha256}}   the (prompt, model) score lookup the analysis reads (analysis/quality.py)
   fleets {"<name>": {family, about}};  groups {"<group>": {fleet}}
   owner {"<name>": [str, ...]}              owner-chosen axes, e.g. the two G1 presets
   decisions {"<name>": {after, about}}      owner choices made during the lease, after the named row
-  rows [...]                                in the plan's order; kind references | calibration | cells | pack
+  rows [...]                                in the plan's order; kind calibration | cells | pack
 A cells row holds blocks: bench/scope.py's block (name, group, dataset, traces, seeds, prompt_order) whose
 configs are patterns over the block's axes ({"<var>": [str, ...] | "$list:<name>" | "$owner:<name>" |
 "$decision:<name>"}). "alias" prefixes every configuration id (the same configuration run again in another
@@ -88,8 +88,8 @@ DRIVER_MINUTES = 1.0
 Owner = Literal["OWNER-MUST-SET"]
 _VAR = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _NAME = re.compile(r"[A-Za-z0-9._-]+")
-_SCHEDULER_KEYS = frozenset({"mode", "weights", "rounds", "lpt", "pending_decode", "dead_reckoning", "latency",
-                             "estimator", "budget", "telemetry", "pipeline"})
+_SCHEDULER_KEYS = frozenset({"mode", "weights", "rounds", "lpt", "pending_decode", "dead_reckoning", "telemetry_read",
+                             "latency", "estimator", "budget", "telemetry", "pipeline"})
 _WEIGHT_KEYS = ("w_quality", "w_latency", "w_cost")
 
 
@@ -343,16 +343,6 @@ class _Row(Strict):
     plan: str                       # the plan's cell count and hours for this row (section 5)
 
 
-class ReferencesRow(_Row):
-    kind: Literal["references"]
-    fleet: str
-    dataset: str
-    references: str
-    concurrency_per_instance: Union[int, Owner]
-    divergence_prompts: Union[int, Owner]
-    divergence_concurrency_per_instance: Union[int, Owner]
-
-
 class CalibrationRow(_Row):
     kind: Literal["calibration"]
     fleet: str
@@ -370,7 +360,7 @@ class PackRow(_Row):
     kind: Literal["pack"]
 
 
-Row = Annotated[Union[ReferencesRow, CalibrationRow, CellsRow, PackRow], Field(discriminator="kind")]
+Row = Annotated[Union[CalibrationRow, CellsRow, PackRow], Field(discriminator="kind")]
 _ROW_META = {"id", "kind", "prio", "enabled", "why", "about", "plan"}
 
 
@@ -394,7 +384,7 @@ class DecisionEntry(Strict):
     about: str
 
 
-class ReferencesEntry(Strict):
+class CorpusEntry(Strict):
     path: str
     sha256: Union[str, Owner]
 
@@ -406,7 +396,7 @@ class ScopeFile(Strict):
     warmup: dict[str, Any]
     drain: dict[str, Any]
     datasets: dict[str, dict[str, Any]]
-    references: dict[str, ReferencesEntry]
+    scored_corpora: dict[str, CorpusEntry]
     traces: dict[str, dict[str, Any]]
     fleets: dict[str, FleetEntry]
     groups: dict[str, GroupEntry]
@@ -442,8 +432,12 @@ def load_scope_file(path: Path = SCOPE) -> ScopeFile:
         for name, thing in things:
             if not thing.enabled and not (thing.why and thing.why.strip()):
                 raise ConfigError(f"{path}: {name} is disabled without a reason")
-        if isinstance(r, (ReferencesRow, CalibrationRow)) and r.fleet not in scope.fleets:
+        if isinstance(r, CalibrationRow) and r.fleet not in scope.fleets:
             raise ConfigError(f"{path}: row {r.id}: unknown fleet {r.fleet!r}")
+    families = {f.family for f in scope.fleets.values()}
+    if set(scope.scored_corpora) != families:
+        raise ConfigError(f"{path}: scored_corpora must give one corpus per fleet family {sorted(families)}, "
+                          f"not {sorted(scope.scored_corpora)}")
     for g, entry in scope.groups.items():
         if entry.fleet not in scope.fleets:
             raise ConfigError(f"{path}: group {g}: unknown fleet {entry.fleet!r}")
@@ -788,17 +782,12 @@ def _plan(scope: ScopeFile, plans: list[BlockPlan], fleets: Mapping[str, tuple[s
             entry["groups"] = sorted({bp.block.group for bp in bps if bp.reason is None})
             entry["pending"] = {bp.block.name: bp.reason for bp in bps if bp.reason is not None}
             entry["disabled_blocks"] = {b.name: b.why for b in row.blocks if not b.enabled}
-        elif isinstance(row, (ReferencesRow, CalibrationRow)):
+        elif isinstance(row, CalibrationRow):
             if row.dataset not in scope.datasets:
                 raise ConfigError(f"row {row.id}: unknown dataset {row.dataset!r}")
-            if isinstance(row, ReferencesRow) and row.references not in scope.references:
-                raise ConfigError(f"row {row.id}: unknown references {row.references!r}")
             params = row.model_dump(mode="json", exclude=_ROW_META)
             unset = placeholders(params, row.id) + placeholders(scope.datasets[row.dataset], f"datasets.{row.dataset}") \
                 + placeholders(scope.model_dump(mode="json", include={"warmup", "drain"}))
-            if isinstance(row, ReferencesRow):
-                unset += placeholders(scope.references[row.references].model_dump(mode="json"),
-                                      f"references.{row.references}")
             entry["params"] = params
             if not row.enabled:
                 entry["blocked"] = f"disabled: {row.why}"
@@ -820,7 +809,7 @@ def _plan(scope: ScopeFile, plans: list[BlockPlan], fleets: Mapping[str, tuple[s
                        for name, f in scope.fleets.items()},
             "server": section(Server, scope.server, "server"), "warmup": section(Warmup, scope.warmup, "warmup"),
             "drain": section(Drain, scope.drain, "drain"),
-            "references": {k: v.model_dump(mode="json") for k, v in scope.references.items()},
+            "scored_corpora": {k: v.model_dump(mode="json") for k, v in scope.scored_corpora.items()},
             "datasets": {n: d.model_dump(mode="json") for n, d in datasets.items()}}
     return plan, blocked
 
@@ -890,7 +879,7 @@ def dry_run(presets_file: PresetsFile, scope: ScopeFile) -> dict:
     resolver = Resolver(presets_file, {})
     plans = plan_blocks(scope, expanded, presets_file.lists, {})
     owner = set(placeholders(scope.model_dump(mode="json", include={"server", "bench", "warmup", "drain",
-                                                                   "datasets", "references"})))
+                                                                   "datasets", "scored_corpora"})))
     for p in expanded.values():                     # every value any configuration reads, decided or not
         needs = Needs()
         resolver.resolve(p.config, p.preset_id, needs, dict(p.variables))
@@ -902,7 +891,7 @@ def dry_run(presets_file: PresetsFile, scope: ScopeFile) -> dict:
     for row in scope.rows:
         entry: dict[str, Any] = {"id": row.id, "kind": row.kind, "prio": row.prio, "enabled": row.enabled,
                                  "why": row.why, "plan": row.plan}
-        if isinstance(row, (ReferencesRow, CalibrationRow)):
+        if isinstance(row, CalibrationRow):
             entry["owner_unset"] = placeholders(row.model_dump(mode="json", exclude=_ROW_META), row.id)
             if row.enabled:
                 owner.update(entry["owner_unset"])

@@ -6,14 +6,18 @@ seed fixes the arrivals, and with per_seed order also the prompt order, for ever
   1. B's quality q_B and metric value m_B are its means over S.
   2. The treatment presets used are those with a cell for every seed in S (the rest are listed as excluded);
      each preset's point is its mean over S.
-  3. For each metric (mean E2E, p99 E2E, decode cost), the treatment's frontier is its Pareto-efficient
-     presets (quality up, metric down), by increasing quality. The treatment's value at q_B is the linear
+  3. For each metric (mean E2E, p99 E2E, decode cost, the tight and loose SLO miss shares), the treatment's
+     frontier is its Pareto-efficient presets (quality up, metric down), by increasing quality. The treatment's
+     value at q_B is the linear
      interpolation between the two frontier presets around q_B. Past either end, the end preset is used if its
      quality is within the tolerance of q_B; otherwise there is no equal-quality point (never extrapolated).
   4. delta = treatment - baseline (negative: the treatment is faster or cheaper); relative = treatment/baseline - 1.
   5. CI: percentile bootstrap over seeds. A resample draws |S| seeds with replacement, the same draw for B and
-     every preset, and repeats 1-4. There is a CI only with >= 2 seeds and when every resample has an
-     equal-quality point (the count of those that do not is reported).
+     every preset, and repeats 1-4; `ci` is the percentile interval of the resampled deltas and `ci_relative`
+     that of the resampled relative changes (each resample's own treatment/baseline - 1, so the baseline's
+     spread over the seeds enters it). There is a CI only with >= 2 seeds and when every resample has an
+     equal-quality point (the count of those that do not is reported); no ci_relative when a resampled
+     baseline is 0.
 The presets whose own quality is within the tolerance of q_B are listed too (`matched_presets`).
 """
 from __future__ import annotations
@@ -38,6 +42,7 @@ class MetricDelta:
     relative: Optional[float]
     ci: Optional[tuple[float, float]]
     undefined_resamples: int
+    ci_relative: Optional[tuple[float, float]] = None
 
 
 @dataclass(frozen=True)
@@ -143,20 +148,25 @@ def _row(where: tuple[str, str], config_id: str, system: str, seeds: tuple[int, 
     for m in METRICS:
         base = draws.mean(config_id, m)
         at = value_at(q_b, side.point[m], tol)
-        ci, undefined = None, 0
+        ci, ci_rel, undefined = None, None, 0
         if q_boot is not None:
             m_boot = draws.resampled(config_id, m)
             boot = [value_at(q_boot[b], side.boot[m][b], tol) for b in range(len(q_boot))]
             undefined = sum(v is None for v in boot)
             if not undefined:
-                d = np.array(boot) - m_boot
-                lo, hi = np.percentile(d, [50 * (1 - rules.confidence), 50 * (1 + rules.confidence)])
-                ci = (float(lo), float(hi))
+                ci = _interval(np.array(boot) - m_boot, rules.confidence)
+                if np.all(m_boot != 0):
+                    ci_rel = _interval(np.array(boot) / m_boot - 1, rules.confidence)
         deltas.append(MetricDelta(metric=m, baseline=base, treatment=at,
                                   delta=None if at is None else at - base,
                                   relative=None if at is None or base == 0 else at / base - 1,
-                                  ci=ci, undefined_resamples=undefined))
+                                  ci=ci, undefined_resamples=undefined, ci_relative=ci_rel))
     matched = tuple(p for p, q in zip(side.presets, side.quality, strict=True) if abs(q - q_b) <= tol)
     return EqualQualityRow(group=where[0], trace_id=where[1], config_id=config_id, system=system, seeds=seeds,
                            quality=q_b, matched_presets=matched, excluded_presets=tuple(excluded),
                            deltas=tuple(deltas))
+
+
+def _interval(x: np.ndarray, confidence: float) -> tuple[float, float]:
+    lo, hi = np.percentile(x, [50 * (1 - confidence), 50 * (1 + confidence)])
+    return float(lo), float(hi)

@@ -26,9 +26,13 @@ concurrency levels with a fixed number of requests each. Output (--out), the tab
 routebalance.estimate.latency reads:
   {"unit": "ms_per_token",
    "constant": {tier: median of all the tier's samples},
-   "curve": {tier: [[b, median of the samples at b], ...]},       b >= 1 with at least MIN_SAMPLES samples
+   "curve": {tier: [[b, running max over b of the medians at b], ...]},   b >= 1 with at least MIN_SAMPLES samples
    "provenance": {"tool", "method", "min_samples", "sources": [{"file", "md5"}], "constant_samples": {tier: n},
-                  "curve_samples": {tier: [[b, n], ...]}, "b0_samples": {tier: n}}}
+                  "curve_samples": {tier: [[b, n], ...]}, "b0_samples": {tier: n},
+                  "curve_measured": {tier: [[b, median of the samples at b], ...]}, "curve_rule"}}
+A TPOT curve never decreases in b (D47): the median at a batch size can dip below a smaller batch's by sampling
+noise, and the scheduler rejects such a curve, so the curve holds the running max of the medians and the
+measured medians stay in the provenance.
 A request counts itself (its span contains its midpoint), so b = 0 only arises from an empty span or, with
 --records, a malformed record; such samples enter the constant but not the curve, and are counted. The table
 is checked with the scheduler's own validation before it is written: a value below 1 ms/token is not a TPOT
@@ -42,15 +46,17 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
 
 import numpy as np
 
-from routebalance.estimate.latency import ConstantTPOT, LatencyError, ProfiledCurveTPOT
+from routebalance.estimate.latency import MIN_TPOT_MS, ConstantTPOT, LatencyError, ProfiledCurveTPOT
 from routebalance.hw import gpu_of
 
 MIN_SAMPLES = 30
+CURVE_RULE = "running max over b of the per-b medians (D47): a TPOT curve never decreases in b"
 MIN_ITLS = 4
 
 
@@ -141,6 +147,15 @@ def v3_cell_records(path: Path, seed: int) -> list[dict]:
     return out
 
 
+def non_decreasing(points: list[list]) -> list[list]:
+    """[[b, ms], ...] by increasing b, each ms raised to the largest ms at a smaller or equal b (D47)."""
+    out, top = [], -math.inf
+    for b, ms in points:
+        top = max(top, ms)
+        out.append([b, top])
+    return out
+
+
 def build_table(records: list[dict], sources: list[Path], method: str) -> dict:
     by_tier: dict[str, list[float]] = {}
     by_point: dict[tuple[str, int], list[float]] = {}
@@ -162,12 +177,17 @@ def build_table(records: list[dict], sources: list[Path], method: str) -> dict:
     thin = sorted(t for t, v in by_tier.items() if len(v) < MIN_SAMPLES)
     if thin:
         raise SystemExit(f"tiers with fewer than {MIN_SAMPLES} samples: {thin}")
-    curve, curve_n = {}, {}
+    curve, curve_n, measured = {}, {}, {}
     for tier in sorted(by_tier):
         points = sorted((b, v) for (t, b), v in by_point.items() if t == tier and len(v) >= MIN_SAMPLES)
         if not points:
             raise SystemExit(f"{tier}: no batch size has {MIN_SAMPLES} samples")
-        curve[tier] = [[b, 1000.0 * float(np.median(v))] for b, v in points]
+        measured[tier] = [[b, 1000.0 * float(np.median(v))] for b, v in points]
+        low = [[b, ms] for b, ms in measured[tier] if ms < MIN_TPOT_MS]
+        if low:   # checked before the running max, which would lift it above an earlier point and hide it
+            raise SystemExit(f"{tier}: measured medians {low} are not a TPOT of at least {MIN_TPOT_MS} ms/token "
+                             "(client-side ITLs of a stalled relay collapse to ~0)")
+        curve[tier] = non_decreasing(measured[tier])
         curve_n[tier] = [[b, len(v)] for b, v in points]
     return {
         "unit": "ms_per_token",
@@ -177,7 +197,8 @@ def build_table(records: list[dict], sources: list[Path], method: str) -> dict:
                        "sources": [{"file": p.name, "md5": hashlib.md5(p.read_bytes()).hexdigest()}   # input order
                                    for p in sorted(sources, key=lambda p: p.name)],                  # is irrelevant
                        "constant_samples": {t: len(v) for t, v in sorted(by_tier.items())},
-                       "curve_samples": curve_n, "b0_samples": dict(sorted(b0.items()))},
+                       "curve_samples": curve_n, "b0_samples": dict(sorted(b0.items())),
+                       "curve_measured": measured, "curve_rule": CURVE_RULE},
     }
 
 
