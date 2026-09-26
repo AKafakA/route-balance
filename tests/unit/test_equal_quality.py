@@ -72,6 +72,15 @@ def test_the_bootstrap_is_deterministic_and_covers_seed_noise():
     assert lo < rows[0].delta < hi and hi - lo > 0
 
 
+def test_the_relative_ci_bootstraps_the_ratio_not_the_delta():
+    # 20% faster on every seed while the baseline itself varies 1000-2000 ms: the ratio never moves, the delta does
+    pts = [p for s, b in ((1, 1000.0), (2, 1500.0), (3, 2000.0))
+           for p in (pt("rb-a", "RB", s, 0.4, 0.8 * b), pt("ap-1", "AP", s, 0.4, b))]
+    mean = equal_quality(pts, "RB", RULES)[0].deltas[0]
+    assert mean.relative == pytest.approx(-0.2) and mean.ci_relative == pytest.approx((-0.2, -0.2))
+    assert mean.ci[1] - mean.ci[0] > 100
+
+
 def test_presets_without_the_baselines_seeds_are_excluded():
     pts = _grid(seeds=(1, 2)) + [pt("rb-x", "RB", 1, 0.42, 10.0)]
     [row] = equal_quality(pts, "RB", RULES)
