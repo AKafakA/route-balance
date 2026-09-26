@@ -44,6 +44,17 @@ def router_executor() -> ThreadPoolExecutor:
     return ThreadPoolExecutor(max_workers=ROUTER_THREADS, thread_name_prefix="router")
 
 
+# The baselines' routers call their model once per request, one request at a time, as the shipped routers do
+# (RouteLLM's server calls router.route() synchronously in its request handler; NVIDIA's LLM Router sends each
+# prompt to one Triton instance with no dynamic batching). The lane is off the event loop, like NVIDIA's separate
+# router server, so a queue forms at the router while streaming and telemetry keep running (owner 09-25).
+ROUTER_LANE_THREADS = 1
+
+
+def router_lane() -> ThreadPoolExecutor:
+    return ThreadPoolExecutor(max_workers=ROUTER_LANE_THREADS, thread_name_prefix="router-lane")
+
+
 @dataclass(frozen=True)
 class RouterRequest:
     prompt: str          # the user's text (estimate.prompt.unwrap_chat_prompt), as v3 handed it to routers
@@ -147,7 +158,9 @@ def load_best_route(checkpoint: Path, max_length: int) -> tuple[Classify, dict[i
         raise ConfigError(f"best_route: no label_to_model in {results}: {e!r}") from e
     if not isinstance(label_to_model, dict) or not label_to_model:
         raise ConfigError(f"best_route: label_to_model in {results} must be a non-empty object")
-    return _DebertaClassifier(checkpoint, max_length), {int(k): str(v) for k, v in label_to_model.items()}
+    classify = _DebertaClassifier(checkpoint, max_length)
+    classify("construction probe")       # the first forward pays one-time setup here, not in a measured cell
+    return classify, {int(k): str(v) for k, v in label_to_model.items()}
 
 
 # ---------------------------------------------------------------- AvengersPro

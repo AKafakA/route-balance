@@ -3,9 +3,13 @@
 Every baseline (and rb_decoupled) selects an instance this way:
   1. the router picks a model from the fleet's models (unique, fleet order), given the user's text;
   2. the candidates are that model's instances in fleet order (every instance for passthrough);
-  3. their loads come from the shared TelemetryView, which raises rather than report an idle instance;
-  4. the dispatcher picks one candidate, and the dispatch is recorded in the view at once (no await in
-     between), so concurrent selections see each other, as RouteBalance's own assignments do.
+  3. their loads come from the shared TelemetryView, which raises rather than report an idle instance: from
+     the pollers' cache, or (probe, v3's per-request arm, D55) from a fetch made now of the candidates the
+     dispatcher compares (every candidate; power of two's drawn pair, D59);
+  4. the dispatcher picks one candidate on the engines' own counts (dead reckoning is RouteBalance's own), and
+     the dispatch is recorded in the view at once (no await in between): its pending decode tokens and in-flight
+     count are tracked for every system, and concurrent selections of a baseline see each other only through
+     the least-recently-assigned tie-break, as a balancer reading scraped engine metrics does.
 The caller owns the returned token: record_progress as tokens stream back, then exactly one of
 record_completion or record_failure; it also reports completions and timeouts to the dispatcher.
 """
@@ -29,7 +33,7 @@ def fleet_models(instances: Sequence[Instance]) -> list[str]:
 @dataclass(frozen=True)
 class Overhead:
     router_ms: float       # routing, including the wait for a router thread
-    telemetry_ms: float    # reading the candidates' loads from the view
+    telemetry_ms: float    # reading the candidates' loads from the view (with probe: fetching them)
     dispatch_ms: float
     total_ms: float
 
@@ -56,7 +60,7 @@ def _candidates(instances: Sequence[Instance], model: str) -> list[Instance]:
 
 async def select_instance(router: Router, dispatcher: Dispatcher, instances: Sequence[Instance],
                           view: TelemetryView, request: RouterRequest, *,
-                          decode_tokens: Mapping[str, int]) -> Selection:
+                          decode_tokens: Mapping[str, int], probe: bool) -> Selection:
     """`request.prompt` is the prompt as the client sent it; the router gets the unwrapped text.
     `decode_tokens` maps every fleet model to the decode length recorded with the dispatch: the request's
     max_tokens for a baseline, as in v3, since baselines predict no length (the D38 sweep records the
@@ -73,9 +77,15 @@ async def select_instance(router: Router, dispatcher: Dispatcher, instances: Seq
                                          models)
     t1 = time.perf_counter()
     candidates = _candidates(instances, decision.model)
-    loads = view.loads([c.instance_id for c in candidates])   # raises InstanceStateUnavailable
-    t2 = time.perf_counter()
-    chosen = dispatcher.choose(candidates, loads)
+    if probe:
+        probed = dispatcher.probe_set(candidates)
+        loads = await view.fetch([c.instance_id for c in probed])       # raises InstanceStateUnavailable
+        t2 = time.perf_counter()
+        chosen = dispatcher.choose_probed(probed, loads)
+    else:
+        loads = view.loads([c.instance_id for c in candidates])        # raises InstanceStateUnavailable
+        t2 = time.perf_counter()
+        chosen = dispatcher.choose(candidates, loads)
     token = view.record_dispatch(chosen.instance_id, decode_tokens[chosen.model])
     t3 = time.perf_counter()
     ms = 1000.0

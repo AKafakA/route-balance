@@ -263,8 +263,7 @@ class Estimator(_Strict):
 
 
 class Budget(_Strict):
-    admission_filter: bool
-    confidence: float = Field(gt=0, lt=1)
+    admission_filter: bool                # v3's budget filter (routebalance/schedule/assign.py Admission)
 
 
 class Telemetry(_Strict):
@@ -318,6 +317,9 @@ class Dispatch(_Strict):
         return self
 
 
+LOAD_READING_DISPATCHERS = ("least_outstanding", "po2")    # the dispatchers whose pick depends on the loads
+
+
 class Pipeline(_Strict):
     router: Router
     dispatch: Dispatch
@@ -332,6 +334,12 @@ class SchedulerConfig(_Strict):
     # RouteBalance; a pipeline system records max_tokens (None) or, for the D38 sweep, own_length
     pending_decode: Optional[Literal["own_length", "lpt_key"]]
     dead_reckoning: bool
+    # how load is read (D53, D55, owner 09-25): RouteBalance fetches every instance per batch ("per_round"), with
+    # dead reckoning, its own mechanism. The pipeline systems read the engines' own counts, never dead reckoning:
+    # from the background pollers' cache ("poll", as llm-d's endpoint picker scrapes /metrics every 50 ms) or, as
+    # v3's baselines did, fetched for each request ("per_request"). RouteBalance on the pollers' cache ("poll") is
+    # the D54 control
+    telemetry_read: Literal["per_round", "per_request", "poll"]
     latency: Latency
     estimator: Estimator
     budget: Budget
@@ -355,9 +363,20 @@ class SchedulerConfig(_Strict):
         if self.mode != "routebalance" and self.pending_decode not in (None, "own_length"):
             raise ValueError("a pipeline system records max_tokens as pending decode, or with pending_decode "
                              "own_length (the D38 latency sweep only) the estimator's length; lpt_key is RB-only")
-        if self.mode != "routebalance" and not self.dead_reckoning:
-            raise ValueError("dead reckoning off is a RouteBalance ablation: every pipeline system reads the "
-                             "dead-reckoned view (parity)")
+        if self.mode == "routebalance" and self.telemetry_read == "per_request":
+            raise ValueError("RouteBalance reads load per round or from the pollers' cache, never per request")
+        if self.mode != "routebalance" and self.telemetry_read == "per_round":
+            raise ValueError("a pipeline system decides per request: it reads the pollers' cache or probes per request")
+        sweep = self.mode != "routebalance" and self.pending_decode == "own_length"   # the D38 latency sweep
+        if self.mode != "routebalance" and self.dead_reckoning and not sweep:
+            raise ValueError("dead reckoning is RouteBalance's own mechanism: a pipeline system reads the engines' own "
+                             "counts, from the pollers' cache (as llm-d does) or per request (as v3 did) (owner 09-25)")
+        if sweep and not self.dead_reckoning:
+            raise ValueError("the latency sweep logs the learned heads' training features, which RouteBalance serves "
+                             "on dead-reckoned counts: it runs with dead reckoning (its random dispatch reads no load)")
+        if self.telemetry_read == "per_request" and self.pipeline.dispatch.type not in LOAD_READING_DISPATCHERS:
+            raise ValueError(f"a per-request probe would change nothing for the {self.pipeline.dispatch.type} "
+                             f"dispatcher, which reads no load")
         if self.mode != "routebalance" and self.budget.admission_filter:
             raise ValueError("the budget admission filter exists only in routebalance mode (pipeline systems get the clamp)")
         return self

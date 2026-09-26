@@ -10,12 +10,12 @@
                          artifact md5s); gates/parity.py diffs it across the systems of a comparison group
   GET  /health
 
-What every system shares, by construction: one bounded HTTP session to the engines, one telemetry view
-(background pollers + dead reckoning), one backend client, one thread pool for every model call (router
-models, the estimator, the scheduling round), and one dispatch path: record the dispatch in the view,
-clamp max_tokens to the request's budget, stream from the engine reporting progress to the view, close
-the dispatch. RouteBalance schedules requests in rounds (schedule/); a pipeline system (a router, then a
-dispatcher) places each request as it arrives (baselines/pipeline.py).
+What every system shares, by construction: one bounded HTTP session to the engines, one telemetry view (dead
+reckoning, read per round, per request or from background pollers: telemetry.py), one backend client, one
+thread pool for every model call (router models, the estimator, the scheduling round), and one dispatch path:
+record the dispatch in the view, clamp max_tokens to the request's budget, stream from the engine reporting
+progress to the view, close the dispatch. RouteBalance schedules requests in rounds (schedule/); a pipeline
+system (a router, then a dispatcher) places each request as it arrives (baselines/pipeline.py).
 
 Evidence under --log-dir: decisions.jsonl, one line per request of every configuration (what was chosen,
 the state it was chosen on, the stage timings, the outcome, the config digest; RouteBalance lines also carry
@@ -50,7 +50,7 @@ from routebalance.backend import BackendClient, BackendUnreachable, GenerationRe
 from routebalance.baselines.dispatch import Dispatcher, build_dispatcher
 from routebalance.baselines.pipeline import fleet_models, select_instance
 from routebalance.baselines.routers import (DecoupledInputs, Estimate as DecoupledEstimate, Router, RouterRequest,
-                                            build_router, router_executor)
+                                            build_router, router_executor, router_lane)
 from routebalance.config import (ConfigError, SchedulerConfig, config_digest, fleet_digest, load_fleet, load_scheduler,
                                  loads_strict, parse_scheduler)
 from routebalance.decision_log import JsonlLog, LagProbe
@@ -137,8 +137,9 @@ def idle_state(tier: Tier) -> InstanceStats:
 
 
 def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_root: Path,
-                    avengers_repo: Optional[Path], executor: Executor) -> Components:
-    """Loads models and tables (seconds): call it off the event loop."""
+                    avengers_repo: Optional[Path], router_lane: Executor) -> Components:
+    """Loads models and tables (seconds): call it off the event loop. A pipeline router makes its model calls on
+    router_lane (one request at a time, as shipped routers do); RouteBalance's own calls use the shared pool."""
     from routebalance.estimate.knn import INDEX_FILE, load_knn
     from routebalance.estimate.latency import load_latency_model
     need_est, need_lat = needs(cfg)
@@ -158,7 +159,7 @@ def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_roo
                                   "prompt length, which the router interface does not carry")
             decoupled = _decoupled_inputs(cfg, fleet, c.estimator, c.latency)
         c.router = build_router(cfg.pipeline.router, artifact_root=artifact_root, avengers_repo=avengers_repo,
-                                executor=executor, decoupled=decoupled)
+                                executor=router_lane, decoupled=decoupled)
         c.dispatcher = build_dispatcher(cfg.pipeline.dispatch)
         options = cfg.pipeline.router.options()
         option = ROUTER_ARTIFACT_OPTION.get(cfg.pipeline.router.type)
@@ -279,13 +280,17 @@ class RouteBalance:
                 ests = await loop.run_in_executor(self._executor, self._c.estimator.estimate_batch,
                                                   [c.prompt for c, _, _ in batch], P_UNDER_BUDGET_TOKENS)
                 estimated = time.perf_counter()
-                loads = self._view.loads([i.instance_id for i in self._fleet])     # raises if stale
+                if self._cfg.telemetry_read == "per_round":   # the per-batch load fetch (D53); raises if any scrape failed
+                    loads = await self._view.fetch_round()
+                else:                                          # the D54 control: the pollers' cache
+                    loads = self._view.loads([i.instance_id for i in self._fleet])
+                fetched = time.perf_counter()
                 self.collector.adapt(loads)
                 requests = [RoundRequest(c.request_id, c.prompt_tokens, e,
-                                         0.0 if c.budget_cost is None else c.budget_cost)
+                                         0.0 if c.budget_cost is None else c.budget_cost, c.max_tokens)
                             for (c, _, _), e in zip(batch, ests, strict=True)]
                 cfg = self._cfg
-                admission = Admission(cfg.budget.confidence) if cfg.budget.admission_filter else None
+                admission = Admission() if cfg.budget.admission_filter else None
                 decisions = await loop.run_in_executor(self._executor, functools.partial(
                     schedule_round, requests, self._fleet, loads, self._c.latency, weights=cfg.weights,
                     normalization=cfg.latency.normalization, lpt=cfg.lpt, pending_decode=cfg.pending_decode,
@@ -313,7 +318,7 @@ class RouteBalance:
                                             "lat_s": s.candidate.latency_s} for s in d.scored]}
                 ms = 1000.0
                 timings = {"round_wait_ms": (closed - arrived) * ms, "estimator_ms": (estimated - closed) * ms,
-                           "schedule_ms": (scheduled - estimated) * ms}
+                           "stats_fetch_ms": (fetched - estimated) * ms, "schedule_ms": (scheduled - fetched) * ms}
                 if not fut.done():
                     fut.set_result(Assignment(d.instance, token, d.state, evidence, timings))
                 else:                  # the client went away while the round was scheduled
@@ -344,6 +349,7 @@ class Service:
         self._versions = library_versions()
         self._factory = factory
         self.executor = router_executor()
+        self.router_lane = router_lane()
         self._log_dir = log_dir
         self.decisions = JsonlLog(log_dir / "decisions.jsonl")
         self.latency_log: Optional[JsonlLog] = None      # the D38 sweep configurations only
@@ -359,15 +365,30 @@ class Service:
         self._active = 0
         self._swapping = False
         self.failure: Optional[str] = None
+        self.connection_waits = {"engine": 0, "telemetry": 0}   # waits for a pooled connection (a requeued one counts again)
 
     async def start(self, cfg: SchedulerConfig) -> None:
-        # streams get the whole bound; telemetry scrapes have their own small keep-alive pool
-        self._session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self._max_conn, force_close=True))
-        self._telemetry_session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=2 * len(self.fleet)))
+        # streams get the whole bound; telemetry scrapes have their own keep-alive pool, as large, so that v3's
+        # per-request probes (D55: every request fetches its candidates at once) never queue on the pool; the
+        # pollers and the per-round fetch keep at most one scrape per instance in flight either way. The bound is
+        # set far above any in-flight count; a request that ever waits for a connection is counted, and the arm
+        # gate invalidates that cell (rerun it with a larger max_connections), so the bound never shapes a result
+        self._session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self._max_conn, force_close=True),
+                                              trace_configs=[self._wait_counter("engine")])
+        self._telemetry_session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self._max_conn),
+                                                        trace_configs=[self._wait_counter("telemetry")])
         self.backend = BackendClient(self._session, self._timeout_s)
         for coro in (self.decisions.run(), self.lag.run()):
             self._tasks.append(self._watch(asyncio.create_task(coro)))
         await self.apply(cfg)
+
+    def _wait_counter(self, session: str) -> aiohttp.TraceConfig:
+        trace = aiohttp.TraceConfig()
+
+        async def queued(_session, _ctx, _params):
+            self.connection_waits[session] += 1
+        trace.on_connection_queued_start.append(queued)
+        return trace
 
     def _watch(self, task: asyncio.Task, on_fail: Optional[Callable[[BaseException], None]] = None) -> asyncio.Task:
         def done(t: asyncio.Task):
@@ -392,11 +413,15 @@ class Service:
             loop = asyncio.get_running_loop()
             comps = await loop.run_in_executor(self.executor, functools.partial(
                 self._factory, cfg, self.fleet, artifact_root=self._artifacts, avengers_repo=self._avengers,
-                executor=self.executor))
+                router_lane=self.router_lane))
             t = cfg.telemetry
             view = TelemetryView(self.fleet, lambda i: fetch_metrics(self._telemetry_session, i, t.timeout_s),
                                  poll_ms=t.poll_ms, max_age_ms=t.max_age_ms, dead_reckoning=cfg.dead_reckoning)
-            await view.start()        # every instance answered once, or this raises and the old config stays live
+            # every instance answers once, or this raises and the old config stays live
+            if cfg.telemetry_read == "poll":  # the pollers' cache (D19)
+                await view.start()
+            else:                             # fetched per round (D53) or per request (D55): no pollers
+                await view.fetch_round()
             if self._mode_task is not None:
                 self._mode_task.cancel()
                 await asyncio.gather(self._mode_task, return_exceptions=True)
@@ -457,7 +482,8 @@ class Service:
             feature_tokens = c.max_tokens
             lengths = {}
         sel = await select_instance(self._comps.router, self._comps.dispatcher, self.fleet, self.view,
-                                    RouterRequest(c.prompt, c.request_id), decode_tokens=decode)
+                                    RouterRequest(c.prompt, c.request_id), decode_tokens=decode,
+                                    probe=self.cfg.telemetry_read == "per_request")
         o = sel.overhead
         return Assignment(sel.instance, sel.token, sel.load.stats,
                           {"reason": sel.reason, "router_score": sel.score, "decode_tokens": decode[sel.model],
@@ -497,7 +523,9 @@ class Service:
         """One decision line per request, whatever happened; a latency line for the sweep configurations."""
         ok = res is not None and res.success
         line = {"request_id": c.request_id, "config_digest": self.digest, "success": ok, "error": error,
-                "max_tokens": max_tokens, "budget": None if clamp is None else asdict(clamp)}
+                "max_tokens": max_tokens, "budget": None if clamp is None else asdict(clamp),
+                "request": {"prompt_tokens": c.prompt_tokens, "max_tokens": c.max_tokens,
+                            "budget_cost": c.budget_cost}}      # as sent: the budget filter's inputs (gates/arm.py)
         if a is not None:
             line |= {"instance_id": a.instance.instance_id, "tier": a.instance.tier.tier_id, "state": asdict(a.state),
                      **a.evidence, "timings_ms": a.timings_ms}
@@ -512,18 +540,23 @@ class Service:
                                     "features": feature_values(a.state, c.prompt_tokens, a.evidence["feature_tokens"]),
                                     "tpot_s": tpot, "output_tokens": n, "success": ok})
 
+    def telemetry_read(self) -> Optional[str]:
+        return None if self.cfg is None else self.cfg.telemetry_read
+
     def stats(self) -> dict:
         ages = {}
-        if self.view is not None:
+        if self.view is not None and self.telemetry_read() == "poll":
             try:
                 loads = self.view.loads([x.instance_id for x in self.fleet])
                 ages = {i: round(load.age_ms, 1) for i, load in loads.items()}
             except Exception as e:     # stale telemetry is itself the evidence
                 ages = {"error": str(e)}
         lat = self._comps.latency
-        return {"loop_lag": self.lag.summary(), "telemetry_age_ms": ages, "active": self._active,
+        return {"loop_lag": self.lag.summary(), "telemetry_read": self.telemetry_read(),
+                "telemetry_age_ms": ages if self.telemetry_read() == "poll" else None, "active": self._active,
                 "rounds": None if self._rb is None else self._rb.rounds,
                 "booster_calls": None if lat is None else lat.predict_calls, "failure": self.failure,
+                "connection_waits": dict(self.connection_waits),
                 "logged": {"decisions": self.decisions.written, "decisions_buffered": self.decisions.buffered,
                            "latency": None if self.latency_log is None else self.latency_log.written}}
 
@@ -536,6 +569,7 @@ class Service:
         if self._swapping or self.cfg is None:
             raise Busy("a configuration is being applied")
         cfg, view, comps, rb = self.cfg, self.view, self._comps, self._rb       # one consistent snapshot
+        pollers = view.polling
         loop = asyncio.get_running_loop()
         torch = sys.modules.get("torch")      # imported by main() before serving; measured on a pool thread
         threads = None if torch is None else await loop.run_in_executor(self.executor, torch.get_num_threads)
@@ -554,7 +588,8 @@ class Service:
             "fleet": [{"instance_id": i.instance_id, "tier": i.tier.tier_id, "model": i.model, "gpu": i.tier.gpu,
                        "cost_in": i.tier.cost_in, "cost_out": i.tier.cost_out, "max_num_seqs": i.tier.max_num_seqs,
                        "node": i.node} for i in self.fleet],
-            "system": {"mode": cfg.mode, "weights": dump(cfg.weights), "rounds": dump(cfg.rounds), "lpt": cfg.lpt,
+            "system": {"mode": cfg.mode, "telemetry_read": cfg.telemetry_read, "weights": dump(cfg.weights),
+                       "rounds": dump(cfg.rounds), "lpt": cfg.lpt,
                        "pending_decode": cfg.pending_decode, "latency": dump(cfg.latency),
                        "estimator": dump(cfg.estimator), "router": None if pipe is None else dump(pipe.router),
                        "dispatch": None if pipe is None else dump(pipe.dispatch)},
@@ -563,7 +598,8 @@ class Service:
                           "dead_reckoning": view.dead_reckoning},
             "loaded": {"estimator": _name(comps.estimator), "latency_source": None if lat is None else lat.source.kind,
                        "latency_envelope": None if lat is None else lat.envelope, "router": _name(comps.router),
-                       "dispatcher": _name(comps.dispatcher), "round_loop": rb is not None},
+                       "dispatcher": _name(comps.dispatcher), "round_loop": rb is not None,
+                       "telemetry_pollers": pollers},
             "artifacts": dict(comps.artifacts),
             "code": {**self._code, **{f"{k}_now": v for k, v in code_now.items()}},
             "threadpools": pools,
@@ -571,6 +607,7 @@ class Service:
             "launch": {"torch_threads": self._torch_threads, "torch_threads_effective": threads,
                        "max_connections": self._max_conn, "request_timeout_s": self._timeout_s,
                        "router_threads": self.executor._max_workers,
+                       "router_lane_threads": self.router_lane._max_workers,
                        "engine_session": _session_settings(self._session),
                        "telemetry_session": _session_settings(self._telemetry_session),
                        "event_loop": f"{type(loop).__module__}.{type(loop).__qualname__}",
@@ -590,6 +627,7 @@ class Service:
         await self._session.close()
         await self._telemetry_session.close()
         self.executor.shutdown(wait=False, cancel_futures=True)
+        self.router_lane.shutdown(wait=False, cancel_futures=True)
 
 
 class ServeError(RuntimeError):

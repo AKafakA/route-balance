@@ -175,4 +175,6 @@ def load_knn(cfg: EstimatorConfig, artifact_root: Path, fleet_models: Collection
     encoder = SentenceTransformer(index.encoder_name, device="cpu", revision=cfg.encoder_revision)
     if encoder.get_sentence_embedding_dimension() != index.embeddings.shape[1]:
         raise ArtifactError(f"encoder {index.encoder_name} does not produce {index.embeddings.shape[1]}-d embeddings")
-    return KnnEstimator(index, encoder, k=cfg.k, prior=cfg.prior)
+    est = KnnEstimator(index, encoder, k=cfg.k, prior=cfg.prior)
+    est.search(["construction probe"])   # the first encode pays one-time setup here, not in a measured cell
+    return est

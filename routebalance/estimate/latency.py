@@ -19,7 +19,10 @@ source as a flat curve (TPOT(b) = the constant), the control that isolates the c
 Constant and curve tables are JSON documents written by tools/calibrate_tpot_curve.py:
   {"unit": "ms_per_token", "constant": {tier: ms}, "curve": {tier: [[b, ms], ...]}, "provenance": {...}}
 Values are ms per output token and at least 1 ms (v3 floored every TPOT at 1 ms, so a smaller value
-would have been served differently); curve points have integer b >= 1, strictly increasing.
+would have been served differently); curve points have integer b >= 1, strictly increasing, and a curve never
+decreases in b (D47: a physical TPOT(b) does not fall with the batch; a measured dip is sampling noise, and it
+would make a fixed_ref latency term exceed 1). tools/calibrate_tpot_curve.py writes its curves as a running
+max over b.
 
 The constant and curve sources never import xgboost and never call a booster: their predict_calls is
 always 0 (the zero-call gate).
@@ -124,6 +127,12 @@ class ProfiledCurveTPOT:
                 bs.append(point[0])
                 ms.append(_ms(point[1], f"curve[{tier!r}] at b={point[0]}"))
             self._b[tier], self._ms[tier] = bs, ms
+        for tier, ms in self._ms.items():                # every point is a TPOT first, then the shape (D47)
+            bs = self._b[tier]
+            drop = next((i for i in range(1, len(ms)) if ms[i] < ms[i - 1]), None)
+            if drop is not None:
+                raise LatencyError(f"curve[{tier!r}] decreases from {ms[drop - 1]} ms at b={bs[drop - 1]} to "
+                                   f"{ms[drop]} ms at b={bs[drop]}: a TPOT curve never decreases in b (D47)")
 
     @property
     def tiers(self) -> frozenset[str]:

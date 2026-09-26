@@ -54,14 +54,19 @@ zero-fill (`tools/fork_tpot_features.py`, comparisons only).
 | file | what it is |
 |---|---|
 | `configs/presets.json` | every scheduler configuration of the lease, as templates (`tools/campaign.py` documents the format) |
-| `configs/scope.json` | every lease row (W0-W11) in the plan's order, with its blocks, groups, traces and datasets |
+| `configs/scope.json` | every lease row (W1-W11) in the plan's order, with its blocks, groups, traces and datasets |
 | `configs/prereg_rules.json` | the preregistered analysis rules, including the G1 gate |
 | `tools/campaign.py` | `dry-run` lists every cell, the hours and every value still `OWNER-MUST-SET`; `render` writes the scope, the configuration files and the plan the drivers run from, in stages as lease pins and decisions arrive |
-| `tools/reference_generation.py` | W0: every (prompt, model) response once on the lease stack, and the load divergence sample |
-| `tools/judge_served.py` | the judge loop: served texts without a score go to the DeepEval judge, its scores into the score store |
 | `tools/calibrate_driver.py` | W1: closed-loop TPOT at fixed concurrency levels, for `tools/calibrate_tpot_curve.py` |
+| `tools/slo_base.py` | each tier's single-request TTFT and TPOT from W1 at b = 1: the SLO's bases (`analysis/slo.py`) |
+| `tools/judge_served.py` | the budget sweep's judge loop: the texts its cells served go to the DeepEval judge once, and its scores into the served-text score store |
+| `tools/engines.py` | each engine as it reports itself (start time, KV cache, model, context) with its deploy.sh launch, read before and after every cell: a restart invalidates the cell, and every cell of a group must share the launches |
 | `tools/prompt_set.py` | benchmark prompt files from the scored corpora |
-| `scripts/run_cell.sh`, `scripts/run_scope.sh` | one cell end to end (drain, configuration, preflight, direct warm-up, the window of the scheduler's logs, gates, two locations); the rows of a render in order, resuming |
+| `tools/router_training.py` | the baselines' training inputs, built fresh for both families: the scored rows every model has a score on, AvengersPro's artifacts (upstream's per-cluster ranking with per-query costs at the fleet's prices) and BEST-Route's candidates (ordered by price, 10% of the training prompts held out) |
+| `scripts/run_cell.sh`, `scripts/run_scope.sh` | one cell end to end (drain, configuration, preflight, direct warm-up, the engines before and after, the window of the scheduler's logs, gates, two locations); the rows of a render in order, resuming |
 
-A cell's quality is the judged score of the text it actually served (`analysis/quality.py`): a text without a
-score leaves the cell's quality unavailable until the judge loop has scored it.
+A cell's quality is the mean DeepEval score of its successful requests, looked up by (prompt, served model) in
+the scored corpus, as in v2 and v3 (`analysis/quality.py`). The budget sweep's cells are scored on the text actually
+served (a reply cut short by its budget is judged as served, an empty one scores 0; `tools/judge_served.py`). A request meets its SLO when its TTFT and TPOT are
+within k times its tier's single-request values (after SOLA; k by model size in `configs/prereg_rules.json`);
+goodput is the largest rate that keeps 90% or 99% of requests within it (`analysis/slo.py`).
