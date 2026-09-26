@@ -62,6 +62,7 @@ zero-fill (`tools/fork_tpot_features.py`, comparisons only).
 | `tools/judge_served.py` | the budget sweep's judge loop: the texts its cells served go to the DeepEval judge once, and its scores into the served-text score store |
 | `tools/engines.py` | each engine as it reports itself (start time, KV cache, model, context) with its deploy.sh launch, read before and after every cell: a restart invalidates the cell, and every cell of a group must share the launches |
 | `tools/prompt_set.py` | benchmark prompt files from the scored corpora |
+| `tools/router_training.py` | the baselines' training inputs, built fresh for both families: the scored rows every model has a score on, AvengersPro's artifacts (upstream's per-cluster ranking with per-query costs at the fleet's prices) and BEST-Route's candidates (ordered by price, 10% of the training prompts held out) |
 | `scripts/run_cell.sh`, `scripts/run_scope.sh` | one cell end to end (drain, configuration, preflight, direct warm-up, the engines before and after, the window of the scheduler's logs, gates, two locations); the rows of a render in order, resuming |
 
 A cell's quality is the mean DeepEval score of its successful requests, looked up by (prompt, served model) in

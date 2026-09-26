@@ -82,6 +82,7 @@
   "br.threshold.t05": 0.5,
   "br.threshold.t07": 0.7,
   "br.fallback.qwen": "Qwen/Qwen2.5-3B",
+  "br.fallback.gemma": "google/gemma-3-4b-it",
   "br.router": {"type": "best_route", "kwargs": {"checkpoint": "$pin:br.{family}:path",
                 "confidence_threshold": "$part:br.threshold.{t}", "fallback_model": "$part:br.fallback.{family}",
                 "max_length": 512}}
@@ -165,7 +166,7 @@
               "pending_decode": null, "dead_reckoning": false, "telemetry_read": "per_request", "latency": "$part:latency.curve",
               "estimator": "$part:estimator.knn", "budget": "$part:budget.off", "telemetry": "$part:telemetry",
               "pipeline": {"router": "$part:ap.router", "dispatch": "$part:dispatch.lor"}}},
-  {"id": "{family}.br.{t}.{d}", "axes": {"family": "$list:qwen_only", "t": "$list:br_t", "d": "$list:routed_dispatch"},
+  {"id": "{family}.br.{t}.{d}", "axes": {"family": "$list:all_families", "t": "$list:br_t", "d": "$list:routed_dispatch"},
    "system": "BEST-Route", "knob": "{t}", "dispatch": "{d}", "ablates": [],
    "config": {"mode": "pipeline", "weights": null, "rounds": "$part:rounds.adaptive", "lpt": "max",
               "pending_decode": null, "dead_reckoning": false, "telemetry_read": "poll", "latency": "$part:latency.curve",

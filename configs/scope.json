@@ -263,12 +263,13 @@
    "levels": [1, 4, 16, 32, 64, 96],
    "requests_per_level": 128},
   {"id": "W8", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "Gemma: RB presets, RB-decoupled, AvengersPro 5 pw, passthrough (least-outstanding) x lambda{12, 24} x 3 seeds",
-   "plan": "~80 cells, 11 h",
+   "about": "Gemma with the main Qwen grid's baselines (owner 09-26): RB presets, RB-decoupled, AvengersPro 5 pw and BEST-Route 4 t on least-outstanding, the five dispatchers x lambda{12, 24} x 3 seeds",
+   "plan": "~156 cells, ~10 h",
    "blocks": [
     {"name": "W8", "group": "gemma", "dataset": "eval_gemma",
-     "axes": {"darm": "$decision:decoupled_arm", "w": "$list:rb_weights", "dw": "$owner:decoupled_weights", "pw": "$list:ap_pw"},
-     "configs": ["gemma.{darm}.{w}", "gemma.{darm}-dec.{dw}", "gemma.ap.{pw}.lor", "gemma.disp.lor"],
+     "axes": {"darm": "$decision:decoupled_arm", "w": "$list:rb_weights", "dw": "$owner:decoupled_weights", "pw": "$list:ap_pw",
+              "t": "$list:br_t", "d": "$list:dispatchers"},
+     "configs": ["gemma.{darm}.{w}", "gemma.{darm}-dec.{dw}", "gemma.ap.{pw}.lor", "gemma.br.{t}.lor", "gemma.disp.{d}"],
      "traces": ["gl12", "gl24"], "seeds": [1, 2, 3],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
