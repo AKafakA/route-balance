@@ -6,7 +6,7 @@
 #
 #   setup.sh --role engine    --hf-token-file PATH --model ORG/NAME@REV [--model ...] [--data-disk DEV]
 #   setup.sh --role scheduler --hf-token-file PATH --model ORG/NAME@REV [...] [--tokenizer ORG/NAME@REV ...]
-#                             [--data-disk DEV]
+#                             [--data-disk DEV] [--with-tests]
 #
 #   /mydata goes on the node type's scratch disk (c4130 /dev/sdb, d7525/d8545 /dev/nvme0n1, as v3). Some d7525
 #   have no NVMe disk: then --data-disk must name one, and without it setup fails and lists the candidates (whole
@@ -18,6 +18,8 @@
 #              the pinned upstream AvengersPro and best-route-llm checkouts, every --model (sentence encoders,
 #              BEST-Route's backbone) and --tokenizer
 #              (tokenizer files only; configs/scheduler_hub.json lists both). No driver: the scheduler is CPU-only.
+#              --with-tests also builds $TEST_VENV: this repository with the dev extras (pytest), for running the
+#              test suite on the node against the same pins and Hub snapshots; nothing serves from it.
 #   Both end with a self-check that prints the versions and exits non-zero on any mismatch.
 #
 # Exit status: 0 ready; 1 failed; 3 REBOOT REQUIRED (the driver needs a reboot: reboot the node, then run
@@ -70,7 +72,7 @@ say() { echo "[$(ts)] $*"; }
 step() { echo; echo "===== [$(ts)] $* ====="; }
 die() { echo "[$(ts)] SETUP FAILED: $*" >&2; exit 1; }
 
-ROLE="" TOKEN_FILE="" MODELS=() TOKENIZERS=() DATA_DISK=""
+ROLE="" TOKEN_FILE="" MODELS=() TOKENIZERS=() DATA_DISK="" WITH_TESTS=0
 
 parse_args() {
   while [ $# -gt 0 ]; do
@@ -80,6 +82,7 @@ parse_args() {
       --model) [ $# -ge 2 ] || die "--model needs a value"; MODELS+=("$2"); shift 2 ;;
       --tokenizer) [ $# -ge 2 ] || die "--tokenizer needs a value"; TOKENIZERS+=("$2"); shift 2 ;;
       --data-disk) [ $# -ge 2 ] || die "--data-disk needs a value"; DATA_DISK="$2"; shift 2 ;;
+      --with-tests) WITH_TESTS=1; shift ;;
       -h|--help) sed -n '4,/^$/p' "${BASH_SOURCE[0]}"; exit 0 ;;
       *) die "unknown argument $1" ;;
     esac
@@ -91,6 +94,7 @@ parse_args() {
   [ -n "$TOKEN_FILE" ] || die "--hf-token-file is required"
   [ "${#MODELS[@]}" -ge 1 ] || die "at least one --model ORG/NAME@REV is required"
   if [ "$ROLE" = engine ] && [ "${#TOKENIZERS[@]}" -gt 0 ]; then die "--tokenizer is for the scheduler role"; fi
+  if [ "$ROLE" = engine ] && [ "$WITH_TESTS" = 1 ]; then die "--with-tests is for the scheduler role"; fi
   local s
   for s in "${MODELS[@]}" ${TOKENIZERS[@]+"${TOKENIZERS[@]}"}; do
     [[ "$s" =~ $SPEC_RE ]] || die "'$s' is not ORG/NAME@<40-hex Hub commit>"
@@ -310,6 +314,34 @@ scheduler_venv() {
     "$SCHED_VENV/bin/python" -m pip install -e "$REPO" || die "pip install -e $REPO"
     finish_venv "$SCHED_VENV" "$spec"
   fi
+}
+
+test_venv() {
+  local spec
+  spec="test $REPO pyproject.sha256=$(sha256sum "$REPO/pyproject.toml" | cut -c1-16)"
+  step "venv $TEST_VENV: pip install -e ${REPO}[dev], constrained to the scheduler venv's versions (the test suite only)"
+  [ -f "$SCHED_VENV/rb-setup.freeze" ] || die "no $SCHED_VENV/rb-setup.freeze: the scheduler venv comes first"
+  if new_venv "$TEST_VENV" "$spec"; then
+    # every package the scheduler venv resolved, at its version: the test venv is the serving stack plus the dev extras
+    "$SCHED_VENV/bin/python" -m tools.venv_parity --constraints "$SCHED_VENV/rb-setup.freeze" > "$TEST_VENV/rb-setup.constraints" \
+      || die "cannot write the constraints"
+    "$TEST_VENV/bin/python" -m pip install -e "${REPO}[dev]" -c "$TEST_VENV/rb-setup.constraints" \
+      || die "pip install -e ${REPO}[dev]"
+    "$TEST_VENV/bin/python" -m pip freeze --all > "$TEST_VENV/rb-setup.freeze.new"
+    "$TEST_VENV/bin/python" -m tools.venv_parity "$SCHED_VENV/rb-setup.freeze" "$TEST_VENV/rb-setup.freeze.new" \
+      || die "the test venv differs from the scheduler venv (not marked complete)"
+    rm -f "$TEST_VENV/rb-setup.freeze.new"
+    finish_venv "$TEST_VENV" "$spec"
+  fi
+  # compared on every run: the scheduler venv may have been rebuilt since (the suite compares again at run time)
+  "$TEST_VENV/bin/python" -m tools.venv_parity "$SCHED_VENV/rb-setup.freeze" "$TEST_VENV/rb-setup.freeze" \
+    || die "the test venv differs from the scheduler venv: remove $TEST_VENV deliberately and rerun"
+  local where
+  where=$(cd / && env -i HOME="$HOME" PATH="$RB_PATH" "$TEST_VENV/bin/python" -c \
+    'import os, pytest, routebalance; print(os.path.realpath(routebalance.__file__), pytest.__version__)') \
+    || die "the test venv cannot import pytest and routebalance"
+  [[ "$where" == "$(cd "$REPO" && pwd -P)"/* ]] || die "the test venv imports routebalance from $where, not $REPO"
+  say "SELF-CHECK OK: tests ($TEST_VENV: $where)"
 }
 
 # ---------------------------------------------------------------- AvengersPro (scheduler only)
@@ -573,6 +605,7 @@ main() {
     env -i HOME="$HOME" PATH="$RB_PATH" TIKTOKEN_CACHE_DIR="$RB_TIKTOKEN" "$SCHED_VENV/bin/python" -c \
       'import tiktoken; tiktoken.get_encoding("cl100k_base")' || die "tiktoken cl100k_base download"
     self_check_scheduler
+    if [ "$WITH_TESTS" = 1 ]; then test_venv; fi
   fi
 }
 

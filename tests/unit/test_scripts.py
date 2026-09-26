@@ -62,6 +62,7 @@ def test_setup_spec_pattern_is_the_plans():
     ("--role engine --hf-token-file t --model a/b@" + "0" * 40 + " --bogus", "unknown argument"),
     ("--role engine --hf-token-file", "needs a value"),
     ("--role engine --hf-token-file t --model a/b@" + "0" * 40 + " --data-disk", "needs a value"),
+    ("--role engine --hf-token-file t --model a/b@" + "0" * 40 + " --with-tests", "--with-tests is for the scheduler"),
 ])
 def test_setup_refuses_bad_arguments(args, message):
     r = bash(f"source scripts/setup.sh && parse_args {args}")
@@ -72,6 +73,9 @@ def test_setup_accepts_good_arguments():
     r = bash("source scripts/setup.sh && parse_args --role scheduler --hf-token-file t --model a/b@" + "0" * 40
              + " --tokenizer Qwen/Qwen2.5-3B@" + "1" * 40 + ' && echo "$ROLE ${#MODELS[@]} ${#TOKENIZERS[@]}"')
     assert r.returncode == 0 and r.stdout.split() == ["scheduler", "1", "1"], r.stderr
+    r = bash("source scripts/setup.sh && parse_args --role scheduler --hf-token-file t --model a/b@" + "0" * 40
+             + ' --with-tests && echo "$WITH_TESTS"')
+    assert r.returncode == 0 and r.stdout.split() == ["1"], r.stderr
 
 
 def test_setup_token_file_must_be_private(tmp_path):
@@ -93,7 +97,8 @@ def test_setup_never_installs_outside_its_own_venvs():
     code = "\n".join(ln for ln in SETUP.read_text().splitlines() if not ln.lstrip().startswith("#"))
     pythons = re.findall(r"(\S+) -m pip ", code)
     assert len(pythons) >= 5, pythons                       # pip itself, vllm, the repo, check, freeze
-    assert set(pythons) == {'"$dir/bin/python"', '"$ENGINE_VENV/bin/python"', '"$SCHED_VENV/bin/python"'}
+    assert set(pythons) == {'"$dir/bin/python"', '"$ENGINE_VENV/bin/python"', '"$SCHED_VENV/bin/python"',
+                            '"$TEST_VENV/bin/python"'}      # each made by new_venv (--with-tests: the test venv)
     assert not re.search(r"(^|[;&|(]|\bsudo)\s*(pip3?|python3(\.10)?\s+-m\s+pip)\s", code, re.M)
 
 
@@ -158,6 +163,7 @@ def test_node_ctl_requires_refs_main_at_the_pin(tmp_path):
     ("scripts/stop_scheduler.sh --fleet configs/fleet_qwen.json --hosts configs/hosts.example.json --node a30-99",
      "serves no instance"),
     ("scripts/setup_fleet.sh --fleet configs/fleet_qwen.json", "missing argument"),
+    ("scripts/setup_fleet.sh --with-tests --fleet configs/fleet_qwen.json", "missing argument"),   # a flag, no value
 ])
 def test_operator_scripts_stop_before_ssh(tmp_path, cmd, message):
     r = bash(f"bash {cmd}", env={"PY": sys.executable, "HOME": str(tmp_path)})
