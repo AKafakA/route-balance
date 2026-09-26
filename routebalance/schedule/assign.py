@@ -11,6 +11,9 @@ when the round is scheduled. Every instance of the fleet is a candidate.
   3. Before the next request, the winner's state counts the assignment: one more waiting request and the
      request's predicted decode tokens. So later requests in the round see earlier ones; later rounds see
      them through the telemetry view (record_dispatch).
+  4. on_decision, if given, is called with each decision as soon as it is made, before the next request is
+     scored: the server dispatches the request then, as v3 did (D78), so no request waits for the rest of its
+     round to be scored. The decisions are the same with or without it.
 
 The decode tokens recorded for an assignment are, with pending_decode="own_length", the expected length
 of the request on the chosen model; with "lpt_key" (v3), its LPT key (the configured statistic; "max" when
@@ -120,7 +123,8 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
                    latency: LatencyModel, *, weights: Weights, normalization: Normalization,
                    lpt: Lpt, pending_decode: PendingDecode,
                    last_assigned: MutableMapping[str, float], clock: Callable[[], float],
-                   admission: Optional[Admission] = None) -> list[Decision]:
+                   admission: Optional[Admission] = None,
+                   on_decision: Optional[Callable[[Decision], None]] = None) -> list[Decision]:
     if not instances:
         raise ValueError("no instances")
     if lpt not in ("max", "min", "mean", "off") or pending_decode not in ("own_length", "lpt_key"):
@@ -162,4 +166,6 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
         states[inst.instance_id] = replace(st, num_waiting=st.num_waiting + 1,
                                            pending_decode_tokens=st.pending_decode_tokens + tokens)
         decisions.append(Decision(req, inst, tokens, st, key, tuple(scored), admitted_all))
+        if on_decision is not None:
+            on_decision(decisions[-1])
     return decisions

@@ -62,6 +62,20 @@ def test_later_requests_see_earlier_assignments_in_the_round():
     assert lat.calls[1][0] == (0, 1, 100)                   # s0 carries a's waiting request and decode tokens
 
 
+def test_each_decision_is_handed_over_before_the_next_request_is_scored():
+    """D78: on_decision sees every decision, in order, as soon as it is made; the decisions are unchanged."""
+    w = Weights(w_quality=0.0, w_latency=1.0, w_cost=0.0)
+    lat = QueueLatency()
+    seen = []
+    rs = [req("a"), req("b"), req("c")]
+    ds = run_round(rs, latency=lat, weights=w, on_decision=lambda d: seen.append((d.request.request_id, len(lat.calls))))
+    assert [r for r, _ in seen] == [d.request.request_id for d in ds] == ["a", "b", "c"]
+    assert [n for _, n in seen] == [1, 2, 3]                 # handed over right after its own scoring, before the next
+    plain = run_round(rs, latency=QueueLatency(), weights=w)
+    picks = [(d.instance.instance_id, d.decode_tokens) for d in ds]
+    assert picks == [(d.instance.instance_id, d.decode_tokens) for d in plain]
+
+
 def test_pending_decode_records_own_length_or_the_lpt_key():
     w = Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0)   # quality: the large model wins
     assert run_round([req("a")], weights=w)[0].decode_tokens == 80

@@ -502,3 +502,55 @@ def test_a_pipeline_router_is_built_on_the_one_at_a_time_lane(tmp_path):
     service, manifest = asyncio.run(scenario())
     assert seen["lane"] is service.router_lane and seen["lane"] is not service.executor
     assert service.router_lane._max_workers == 1 and manifest["launch"]["router_lane_threads"] == 1
+
+
+class GatedLatency:
+    """The harness's latency model, except that every call after the first waits for `gate`: the round's second
+    request cannot be scored until the test opens it."""
+
+    def __init__(self, inner, gate):
+        self._inner, self._gate, self.calls = inner, gate, 0
+
+    @property
+    def predict_calls(self):
+        return self._inner.predict_calls
+
+    def latencies(self, *args):
+        self.calls += 1
+        if self.calls > 1 and not self._gate.wait(timeout=5.0):
+            raise TimeoutError("the test never opened the gate")
+        return self._inner.latencies(*args)
+
+
+def test_a_request_is_dispatched_as_soon_as_it_is_scored(tmp_path):
+    """D78 (v3's per-pick dispatch): the first request of a round reaches its engine while the rest of the round
+    is still being scored; nothing waits for the whole round."""
+    import threading
+    gate = threading.Event()
+
+    def gated_factory(cfg, fleet, **kw):
+        c = factory(cfg, fleet, **kw)
+        c.latency = GatedLatency(c.latency, gate)
+        return c
+
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            h.service._factory = gated_factory
+            await h.start(RB)
+            posts = [asyncio.create_task(h.post("/v1/completions", body(i))) for i in range(2)]
+            engines = [st for _, st in h.states]
+            for _ in range(200):                       # up to 2 s for the first request to reach an engine
+                if sum(len(st.chat_requests) for st in engines) >= 1:
+                    break
+                await asyncio.sleep(0.01)
+            reached_while_scoring = sum(len(st.chat_requests) for st in engines)
+            gate_was_shut = not gate.is_set()
+            gate.set()
+            out = await asyncio.gather(*posts)
+            await h.service.decisions.flush()
+            return reached_while_scoring, gate_was_shut, out
+    reached, shut, out = asyncio.run(scenario())
+    assert reached == 1 and shut and all(s == 200 for s, _ in out)
+    decisions = read_jsonl(tmp_path / "logs/decisions.jsonl")
+    assert sorted(d["round_pos"] for d in decisions) == [0, 1] and len({d["round"] for d in decisions}) == 1
+

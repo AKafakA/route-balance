@@ -1,6 +1,7 @@
 """The campaign render: every configuration renders to a valid scheduler document, every lease row to the
 scope's cells, and nothing the owner or the lease has not supplied yet is invented."""
 import copy
+import hashlib
 import json
 import typing
 from pathlib import Path
@@ -37,6 +38,7 @@ OWNER_SCOPE = {
     "traces.sweep6-36.segments": [{"n_requests": 2000, "rate": r} for r in (6.0, 12.0, 18.0, 24.0, 30.0, 36.0)],
     "blocks.W1b.seeds": [1, 2],
 }
+LATENCY_PATHS = ["system.latency.*"]
 DECISIONS = {"rb_default": "rb", "decoupled_arm": "rb", "headline": "q50l30c20",
              "w3_near_frontier": ["qwen.rb.q50l30c20", "qwen.ap.pw070.lor"],
              "w3_headline": ["qwen.rb.q50l30c20"], "w5_systems": ["qwen.rb.q50l30c20", "qwen.disp.lor"],
@@ -157,10 +159,12 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 453        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
+    assert len(expanded) == 789        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
     #                                    the budget sweep's filter arms (rb, rb-static x 2 families; rb-learned, Qwen);
     #                                    Gemma BEST-Route, 4 t x 3 dispatchers (D70); the power-of-two probe
-    #                                    controls (10 AP + 2 dispatcher-only, D59)
+    #                                    controls (10 AP + 2 dispatcher-only, D59); the mechanism ablations once per
+    #                                    RouteBalance latency variant (11 x 2 families x 8 weights x 2 more), and
+    #                                    abl-xgb gone (-16: rb-learned is the learned variant in W4, D78)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
@@ -175,9 +179,9 @@ def test_uniform_is_one_third_each_and_the_drops_renormalize():
     expanded = campaign.expand(presets)
     doc = campaign.render_config(expanded["qwen.rb.uniform"], resolver)[0].document
     assert doc["weights"] == {"w_quality": 1 / 3, "w_latency": 1 / 3, "w_cost": 1 / 3}
-    doc = campaign.render_config(expanded["qwen.abl-wlat0.q50l30c20"], resolver)[0].document
+    doc = campaign.render_config(expanded["qwen.rb.abl-wlat0.q50l30c20"], resolver)[0].document
     assert doc["weights"] == {"w_quality": 0.5 / 0.7, "w_latency": 0.0, "w_cost": 0.2 / 0.7}
-    doc = campaign.render_config(expanded["qwen.abl-wq0.q80l10c10"], resolver)[0].document
+    doc = campaign.render_config(expanded["qwen.rb.abl-wq0.q80l10c10"], resolver)[0].document
     assert doc["weights"]["w_quality"] == 0.0 and doc["weights"]["w_latency"] == pytest.approx(0.5)
 
 
@@ -212,7 +216,8 @@ def test_the_tracked_files_render_with_every_lease_input():
     by_block = {}
     for c in cells:
         by_block[c.block] = by_block.get(c.block, 0) + 1
-    assert by_block["G1"] == 44 and by_block["W2b"] == 20 and by_block["W4-ablations"] == 72
+    assert by_block["G1"] == 44 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 54
+    assert (by_block["W4-latency"], by_block["W4-learned"], by_block["W4-const-batch"]) == (24, 6, 6)
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():
         assert campaign.config_digest(parse_scheduler(doc)) == scope.configs[cid].config_digest
@@ -228,10 +233,9 @@ def test_groups_declare_what_each_cell_may_differ_in():
     cells = {c.cell_id: c for c in expected_cells(scope)}
     ref = group_record(scope, cells["abl.qwen.rb.q50l30c20__l12__s1"])
     assert ref == {"group": "qwen-ablation", "reference": "abl.qwen.rb.q50l30c20", "intended_differences": []}
-    arm = group_record(scope, cells["abl.qwen.abl-dr-off.q50l30c20__l30__s3"])
+    arm = group_record(scope, cells["abl.qwen.rb.abl-dr-off.q50l30c20__l30__s3"])
     assert arm["reference"] == "abl.qwen.rb.q50l30c20" and arm["intended_differences"] == ["telemetry.dead_reckoning"]
-    assert group_record(scope, cells["abl.qwen.rb-static.q50l30c20__l12__s2"])["intended_differences"] == [
-        "system.latency.source", "system.latency.envelope", "system.latency.normalization"]
+    assert group_record(scope, cells["abl.qwen.rb-static.q50l30c20__l12__s2"])["intended_differences"] == LATENCY_PATHS
     main = group_record(scope, cells["qwen.ap.pw070.lor__l30__s1"])
     assert main == {"group": "qwen", "reference": None, "intended_differences": ["system.*", "telemetry.dead_reckoning"]}
     assert group_record(scope, cells["qwen.sweep.random__sweep6-36__s1"])["intended_differences"] == []
@@ -298,15 +302,15 @@ def test_a_missing_pin_leaves_its_blocks_pending():
     p = pins(presets)
     del p["xgb-heads.qwen"]
     result = campaign.render(presets, scope, pins=p, decisions=DECISIONS, fleets=FLEETS)
-    assert "W4/W4-xgb" in result.pending and "xgb-heads.qwen" in result.pending["W4/W4-xgb"]
-    assert "W4/W4-ablations" not in result.pending
+    assert "W4/W4-learned" in result.pending and "xgb-heads.qwen" in result.pending["W4/W4-learned"]
+    assert "W4/W4-mechanisms" not in result.pending
     assert result.scope["pending"] == result.pending
 
 
 def test_missing_decisions_and_fleets_leave_blocks_pending():
     presets, scope = filled()
     result = campaign.render(presets, scope, pins=pins(presets), decisions={}, fleets={"qwen_std": FLEETS["qwen_std"]})
-    assert "rb_default" in result.pending["W2/W2-rb-l30"] and "headline" in result.pending["W4/W4-reference"]
+    assert "rb_default" in result.pending["W2/W2-rb-l30"] and "headline" in result.pending["W4/W4-latency"]
     assert "fleet 'gemma' not given" in result.pending["W8/W8"]
     assert "W2/W2-base-l30" not in result.pending and "G1/G1" not in result.pending
     assert result.blocked_rows["W8-cal"] == "fleet 'gemma' not given"
@@ -484,3 +488,51 @@ def test_a_held_block_keeps_the_campaign_incomplete(tmp_path):
     assert "W6/W6" not in result.pending and not any(c.block == "W6" for c in expected_cells(scope))   # dropped
     assert "W4/W4-arm3" not in result.pending and not any(c.block == "W4-arm3" for c in expected_cells(scope))
     assert sum(c.block == "W4-const-batch" for c in expected_cells(scope)) == 6        # the D45 control runs
+
+
+@pytest.mark.parametrize("arm", ["rb", "rb-static", "rb-learned"])
+def test_the_ablations_take_apart_the_decided_variant(arm):
+    """D78: W4's reference is rb_default's variant and its nine mechanism ablations are of that variant; the six
+    latency variants all run, one of them the reference; 90 cells whichever variant is decided."""
+    presets, scope = filled()
+    distinct = {n: {"path": p["path"], "md5": hashlib.md5(n.encode()).hexdigest()} for n, p in pins(presets).items()}
+    result = campaign.render(presets, scope, pins=distinct, decisions={**DECISIONS, "rb_default": arm}, fleets=FLEETS)
+    rendered = parse(Scope, result.scope, "rendered")
+    w4 = [c for c in expected_cells(rendered) if c.block.startswith("W4-")]
+    assert len(w4) == 90 and rendered.groups["qwen-ablation"].reference == f"abl.qwen.{arm}.q50l30c20"
+    lat = {"rb": "latency.curve", "rb-static": "latency.static", "rb-learned": "latency.xgb"}[arm]
+    want = campaign.Resolver(presets, distinct).resolve(f"$part:{lat}", "test", campaign.Needs(), {"family": "qwen"})
+    mechanisms = [c for c in w4 if c.block == "W4-mechanisms"]
+    assert len({c.config_id for c in mechanisms}) == 9
+    assert all(result.configs[c.config_id]["latency"] == want for c in mechanisms)
+    ref = group_record(rendered, next(c for c in w4 if c.config_id == f"abl.qwen.{arm}.q50l30c20"))
+    assert ref["intended_differences"] == []
+    others = {c.config_id for c in w4 if c.block in ("W4-latency", "W4-learned", "W4-const-batch")} - {ref["reference"]}
+    assert len(others) == 5 and all(
+        group_record(rendered, next(c for c in w4 if c.config_id == cid))["intended_differences"] == LATENCY_PATHS
+        for cid in others)
+    # both parity rules for an ablation group (gates/parity.py), on the rendered documents, for W4 and W11: a
+    # variant differs from the reference only in its declared patterns, and every declared pattern does differ
+    # (found 09-26: five declared leaves failed the second rule wherever a variant changed only some of them)
+    from gates.parity import matches
+    group = [c for c in expected_cells(rendered) if c.group == "qwen-ablation"]
+    base = _executed_sections(result.configs[ref["reference"]])
+    for cid in sorted({c.config_id for c in group} - {ref["reference"]}):
+        declared = group_record(rendered, next(c for c in group if c.config_id == cid))["intended_differences"]
+        flat = _executed_sections(result.configs[cid])
+        differing = [k for k in set(base) | set(flat) if base.get(k) != flat.get(k)]
+        assert declared and all(any(matches(p, k) for p in declared) for k in differing), (cid, differing, declared)
+        assert all(any(matches(p, k) for k in differing) for p in declared), (cid, "declared but equal", declared)
+
+
+def test_the_learned_variant_scores_latency_by_max_divide():
+    """D78: v3's learned variant used max-divide; fixed-reference stays the measured curve's."""
+    presets, _ = filled()
+    resolver = campaign.Resolver(presets, pins(presets))
+    expanded = campaign.expand(presets)
+    def normalization(pid):
+        return campaign.render_config(expanded[pid], resolver)[0].document["latency"]["normalization"]
+    for pid in ("qwen.rb-learned.uniform", "qwen.rb-learned-budget.uniform", "qwen.rb-learned.abl-dr-off.uniform"):
+        assert normalization(pid) == "max_divide"
+    assert normalization("qwen.rb.uniform") == "fixed_ref"
+
