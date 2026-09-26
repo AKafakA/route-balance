@@ -174,3 +174,19 @@ def test_attainment_changes_are_shown_in_points_with_the_interval_flipped():
     assert rp._change("slo_miss_tight", None, -0.05, None, (-0.08, -0.02)) == "+5.0 [+2.0, +8.0]"
     assert rp._change("e2e_mean_ms", -0.2, -100.0, (-0.25, -0.15)) == r"-20.0\% [-25.0, -15.0]"
     assert rp._change("e2e_mean_ms", None, None) == "--"
+
+
+def test_an_appendix_only_system_stays_out_of_the_main_tables_and_macros(env, monkeypatch):
+    monkeypatch.setattr(rp, "APPENDIX_SYSTEMS", frozenset({"AvengersPro"}))    # stands in for dispatcher-inflight
+    out = env["tmp"] / "r5"
+    assert rp.main(_argv(env, out)) == 0
+    report = json.loads((out / "report.json").read_text())
+    assert report["equal_quality"] == {"RouteBalance": []}
+    assert [r["config_id"] for r in report["equal_quality_appendix"]["RouteBalance"]] == ["ap-x"]
+    assert not (out / "tables" / "equal.RouteBalance.g1.l200.tex").exists()
+    assert "ap-x" in (out / "tables" / "equal_appendix.RouteBalance.g1.l200.tex").read_text()
+    assert "Min" not in (out / "macros.tex").read_text()                       # no range from an appendix row
+
+
+def test_the_dispatch_only_in_flight_row_is_appendix_only():
+    assert rp.APPENDIX_SYSTEMS == frozenset({"dispatcher-inflight"})

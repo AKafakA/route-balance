@@ -533,7 +533,7 @@ class Service:
         o = sel.overhead
         return Assignment(sel.instance, sel.token, sel.load.stats,
                           {"reason": sel.reason, "router_score": sel.score, "decode_tokens": decode[sel.model],
-                           "feature_tokens": feature_tokens, **lengths},
+                           "feature_tokens": feature_tokens, "in_flight": sel.load.in_flight, **lengths},
                           {"router_ms": o.router_ms, "telemetry_ms": o.telemetry_ms, "dispatch_ms": o.dispatch_ms})
 
     async def _serve(self, c: Completion, a: Assignment) -> dict:

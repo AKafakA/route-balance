@@ -39,14 +39,20 @@ RB = {
 }
 
 
-def _pipeline(router="best_route", dispatch="least_outstanding"):
+LOAD_READING = ("least_outstanding", "po2")
+
+
+def _pipeline(router="best_route", dispatch="least_outstanding", count=None):
+    """A pipeline system; a load-reading dispatcher reads the engines' gauges (the main grid, D84) unless told otherwise."""
     d = copy.deepcopy(RB)
     d["mode"] = "pipeline"
     d["weights"] = None
     d["pending_decode"] = None
     d["telemetry_read"] = "poll"
     d["dead_reckoning"] = False            # RouteBalance's mechanism only (owner 09-25)
-    d["pipeline"] = {"router": {"type": router, "kwargs": {}}, "dispatch": {"type": dispatch, "seed": 1}}
+    if count is None and dispatch in LOAD_READING:
+        count = "engine"
+    d["pipeline"] = {"router": {"type": router, "kwargs": {}}, "dispatch": {"type": dispatch, "seed": 1, "count": count}}
     return d
 
 
@@ -119,7 +125,7 @@ def test_valid_configs_parse():
     lambda d: d["telemetry"].update(max_age_ms=10.0),                # stale by construction
     lambda d: d["telemetry"].update(max_age_ms=100.0),               # less than 3x poll_ms
     lambda d: d.update(pipeline={"router": {"type": "passthrough", "kwargs": {}},
-                                 "dispatch": {"type": "po2", "seed": 1}}),  # pipeline section in RB mode
+                                 "dispatch": {"type": "po2", "seed": 1, "count": "in_flight"}}),  # a pipeline in RB mode
     lambda d: d.update(weights=None),                                # RB scoring without weights
     lambda d: d.pop("budget"),                                       # missing section
 ])
@@ -135,7 +141,7 @@ def test_pending_decode_is_required_exactly_in_routebalance_mode():
     d["pending_decode"] = None
     with pytest.raises(ConfigError, match="pending_decode is required"):
         parse_scheduler(d)
-    d = _pipeline()
+    d = _pipeline(dispatch="random")                       # the sweep's dispatcher (configs/presets.json)
     d["pending_decode"] = "lpt_key"
     with pytest.raises(ConfigError, match="lpt_key is RB-only"):
         parse_scheduler(d)
@@ -168,6 +174,47 @@ def test_how_load_is_read_follows_the_mode(mode, read, dr, dispatch, msg):
     else:
         with pytest.raises(ConfigError, match=msg):
             parse_scheduler(d)
+
+
+@pytest.mark.parametrize("read,dispatch", [("poll", "least_outstanding"), ("poll", "po2"),           # the cache (llm-d)
+                                           ("per_request", "least_outstanding"), ("per_request", "po2")])  # v3's probe
+def test_the_engine_gauge_controls_parse(read, dispatch):
+    d = _pipeline(dispatch=dispatch, count="engine")
+    d["telemetry_read"] = read
+    assert parse_scheduler(d).pipeline.dispatch.count == "engine"
+
+
+@pytest.mark.parametrize("dispatch", ["least_outstanding", "po2"])
+def test_the_in_flight_count_parses_from_the_cache_and_needs_no_fetch(dispatch):
+    d = _pipeline(dispatch=dispatch, count="in_flight")                  # the appendix row W12 (D84)
+    assert parse_scheduler(d).pipeline.dispatch.count == "in_flight"
+    d["telemetry_read"] = "per_request"
+    with pytest.raises(ConfigError, match="an in-flight count needs no fetch"):
+        parse_scheduler(d)
+
+
+@pytest.mark.parametrize("read", ["poll", "per_request"])
+def test_an_engine_gauge_dispatcher_is_refused_on_a_dead_reckoned_view(read):
+    # the latency sweep's exception (dead reckoning in a pipeline) must not turn "engine" into the in-flight count
+    d = _pipeline(dispatch="least_outstanding", count="engine")
+    d.update(telemetry_read=read, pending_decode="own_length", dead_reckoning=True)
+    with pytest.raises(ConfigError, match="without dead reckoning"):
+        parse_scheduler(d)
+    d["pipeline"]["dispatch"]["count"] = "in_flight"
+    if read == "poll":
+        assert parse_scheduler(d).pipeline.dispatch.count == "in_flight"      # unaffected by dead reckoning
+
+
+@pytest.mark.parametrize("dispatch,count", [("least_outstanding", None), ("po2", None), ("round_robin", "in_flight"),
+                                            ("random", "engine"), ("lowest_latency", "in_flight"),
+                                            ("least_outstanding", "queue")])
+def test_count_is_taken_by_the_load_reading_dispatchers_only(dispatch, count):
+    d = _pipeline(dispatch=dispatch)
+    d["pipeline"]["dispatch"]["count"] = count
+    if dispatch == "lowest_latency":
+        d["pipeline"]["dispatch"]["latency_window"] = 10
+    with pytest.raises(ConfigError):
+        parse_scheduler(d)
 
 
 def test_pipeline_mode_rejects_the_budget_admission_filter():

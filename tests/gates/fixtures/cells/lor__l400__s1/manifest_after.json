@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "c4bde7209b1c35901af460f7bfdea1852ced7db411d9fa2d573bd388653162e6",
- "fleet_digest": "7890f6c3119a741c24326d0a5c0a7fbabcbbd2b97ee97240f546490f1fe89dc0",
+ "config_digest": "47fcfd8b2a3b20f02db90aee34696297298e3f4e1fc9d48ae77efa1df33be4f7",
+ "fleet_digest": "14eea81ed30ba994d4734f92949310b222dae98db94a522e9da3019eeb638126",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -67,7 +67,8 @@
   "dispatch": {
    "type": "least_outstanding",
    "seed": 1,
-   "latency_window": null
+   "latency_window": null,
+   "count": "engine"
   }
  },
  "budget": {
@@ -90,9 +91,9 @@
  },
  "artifacts": {},
  "code": {
-  "routebalance": "b6811ea12967d074963c3e7898428c945a10091a240b8bb8db72af9326aa119c",
+  "routebalance": "ac1a1b94f8901e1d625d50ec1ca61d14f6fb4c51a67f6729ca38a62ba718895e",
   "avengers_pro": null,
-  "routebalance_now": "b6811ea12967d074963c3e7898428c945a10091a240b8bb8db72af9326aa119c",
+  "routebalance_now": "ac1a1b94f8901e1d625d50ec1ca61d14f6fb4c51a67f6729ca38a62ba718895e",
   "avengers_pro_now": null
  },
  "threadpools": {

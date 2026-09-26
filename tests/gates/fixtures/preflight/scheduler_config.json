@@ -42,10 +42,11 @@
    "dispatch": {
     "type": "least_outstanding",
     "seed": 1,
-    "latency_window": null
+    "latency_window": null,
+    "count": "engine"
    }
   }
  },
- "config_digest": "c4bde7209b1c35901af460f7bfdea1852ced7db411d9fa2d573bd388653162e6",
- "fleet_digest": "7890f6c3119a741c24326d0a5c0a7fbabcbbd2b97ee97240f546490f1fe89dc0"
+ "config_digest": "47fcfd8b2a3b20f02db90aee34696297298e3f4e1fc9d48ae77efa1df33be4f7",
+ "fleet_digest": "14eea81ed30ba994d4734f92949310b222dae98db94a522e9da3019eeb638126"
 }

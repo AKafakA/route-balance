@@ -79,7 +79,8 @@ def test_the_manifest_follows_a_config_swap(tmp_path):
             return before, after
     before, after = asyncio.run(scenario())
     assert after["config_digest"] != before["config_digest"] and after["system"]["mode"] == "pipeline"
-    assert after["system"]["dispatch"] == {"type": "least_outstanding", "seed": 1, "latency_window": None}
+    assert after["system"]["dispatch"] == {"type": "least_outstanding", "seed": 1, "latency_window": None,
+                                           "count": "engine"}
     assert after["loaded"] == {"estimator": None, "latency_source": None, "latency_envelope": None,
                                "router": "PassthroughRouter", "dispatcher": "LeastOutstanding", "round_loop": False,
                                "telemetry_pollers": True}

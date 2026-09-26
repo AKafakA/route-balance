@@ -108,10 +108,11 @@ def test_the_tracked_files_dry_run_every_row():
     summary = campaign.dry_run(campaign.load_presets(), campaign.load_scope_file())
     rows = {r["id"]: r for r in summary["rows"]}
     assert list(rows) == ["W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
-                          "W8-cal", "W8", "W9", "W11", "W10"]
+                          "W8-cal", "W8", "W9", "W11", "W12", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 44, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 90, "W3": 100, "W5": 30, "W7": 36,
-                     "W7b": 9, "W8": 156, "W9": 260, "W11": 12}      # W8: the Qwen grid's baselines (D70)
+                     "W7b": 9, "W8": 156, "W9": 260, "W11": 12, "W12": 10}   # W8: the Qwen grid's baselines (D70);
+    #                                                                              W12: the in-flight dispatchers (D84)
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
     assert held == HELD
     assert summary["decisions_needed"] == ["decoupled_arm", "headline", "rb_default", "w3_headline", "w3_near_frontier",
@@ -159,12 +160,14 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 789        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
+    assert len(expanded) == 793        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
     #                                    the budget sweep's filter arms (rb, rb-static x 2 families; rb-learned, Qwen);
     #                                    Gemma BEST-Route, 4 t x 3 dispatchers (D70); the power-of-two probe
     #                                    controls (10 AP + 2 dispatcher-only, D59); the mechanism ablations once per
     #                                    RouteBalance latency variant (11 x 2 families x 8 weights x 2 more), and
-    #                                    abl-xgb gone (-16: rb-learned is the learned variant in W4, D78)
+    #                                    abl-xgb gone (-16: rb-learned is the learned variant in W4, D78); the
+    #                                    dispatch-only least-outstanding and power of two counting in flight
+    #                                    (2 x 2 families, the appendix row W12, D84)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
@@ -204,6 +207,20 @@ def test_the_baseline_knobs_are_the_plans():
     assert kw["upstream_sha256"] == "85279e1f6080d87db95dcbded46d7713fcf2728b82339c3b6a30ef3b56579005"
     assert br["dispatch"]["type"] == "po2"
     assert doc("qwen.disp.lowest-latency")["pipeline"]["dispatch"]["latency_window"] == 10
+    # D84: the main grid's load-reading dispatchers read the engines' cached gauges, alone, behind the routers and
+    # behind RB-decoupled; the probes fetch the gauges per request (v3); the appendix row W12 counts in flight
+    def read(pid):
+        d = doc(pid)
+        return d["telemetry_read"], d["pipeline"]["dispatch"]["count"]
+    for pid in ("qwen.disp.lor", "qwen.disp.po2", "qwen.ap.pw070.lor", "qwen.ap.pw080.po2", "qwen.br.t03.lor",
+                "qwen.br.t00.po2", "qwen.rb-dec.uniform", "qwen.rb-static-dec.uniform", "gemma.disp.lor",
+                "gemma.ap.pw070.lor"):
+        assert read(pid) == ("poll", "engine"), pid
+    for pid in ("qwen.ap.pw070.lor-probe", "qwen.ap.pw080.po2-probe", "qwen.rb-dec-probe.uniform", "qwen.disp.po2-probe"):
+        assert read(pid) == ("per_request", "engine"), pid
+    for pid in ("qwen.disp.lor-inflight", "qwen.disp.po2-inflight"):
+        assert read(pid) == ("poll", "in_flight"), pid
+    assert doc("qwen.disp.rr")["pipeline"]["dispatch"]["count"] is None
     sweep = doc("qwen.sweep.random")
     assert (sweep["mode"], sweep["pending_decode"], sweep["pipeline"]["dispatch"]["type"]) == ("pipeline", "own_length",
                                                                                                 "random")

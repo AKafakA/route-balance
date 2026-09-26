@@ -1,11 +1,18 @@
 """Baseline dispatchers: pick one instance among the router's candidates.
 
-A dispatcher reads only the loads the pipeline hands it, taken from the shared TelemetryView: the engines' own
-num_running + num_waiting, from the pollers' 50 ms cache (as llm-d's endpoint picker reads them) or fetched for
-the request (v3's per-request probe). Dead reckoning is RouteBalance's own mechanism and no dispatcher uses it
-(owner 09-25). A dispatcher never fetches anything itself; lowest_latency also learns from the completions and
-timeouts the server reports. Candidates arrive in fleet order, and order is behaviour. least_outstanding is
-v3's shortest queue on those counts (D40: one rule, no separate shortest-queue dispatcher).
+A dispatcher reads only the loads the pipeline hands it, taken from the shared TelemetryView. The two
+load-reading dispatchers count, per instance (config `count`, D84):
+  engine     the engines' own num_running + num_waiting gauges, from the pollers' 50 ms cache (as llm-d's
+             endpoint picker reads them; the main grid) or fetched for the request (v3's per-request probe);
+  in_flight  the requests this scheduler has sent to it and not yet seen complete (Load.in_flight), as the
+             production balancers count at the proxy: Envoy's LEAST_REQUEST (power of two over its active
+             requests when host weights are equal), NGINX least_conn, the AIBrix gateway's least-request, the
+             SGLang router, LiteLLM least-busy. Only the appendix row W12.
+Dead reckoning (the split of the in-flight count by the engine's gauge, and the pending decode tokens) is
+RouteBalance's own mechanism and no dispatcher uses it (owner 09-25). A dispatcher never fetches anything itself;
+lowest_latency also learns from the completions and timeouts the server reports. Candidates arrive in fleet order,
+and order is behaviour. least_outstanding with the engine count is v3's shortest queue (D40: one rule, no
+separate shortest-queue dispatcher).
 Ties: least_outstanding gives them to the least recently assigned candidate, then to fleet order (as
 RouteBalance's own tie-break, and like the round robin among ties of stock least-connection balancers;
 v3's first-candidate rule biased the first instance); po2 keeps the first drawn (v3); lowest_latency
@@ -59,8 +66,12 @@ class Dispatcher(ABC):
         del instance_id
 
 
-def _queue(load: Load) -> int:
-    return load.stats.num_running + load.stats.num_waiting
+def _queue(load: Load, count: str) -> int:
+    if count == "in_flight":
+        return load.in_flight
+    if count == "engine":
+        return load.stats.num_running + load.stats.num_waiting
+    raise ConfigError(f"unknown dispatch count {count!r}")
 
 
 class RoundRobin(Dispatcher):
@@ -78,36 +89,39 @@ class RoundRobin(Dispatcher):
 
 
 class LeastOutstanding(Dispatcher):
-    """Shortest queue: the engine's own running + waiting (v3's shortest queue). Among equal queues the candidate
-    assigned least recently (never assigned = 0.0), then the earliest in fleet order."""
+    """The fewest outstanding requests by the configured count: in flight (NGINX least_conn) or the engine's own
+    running + waiting (v3's shortest queue). Among equal counts the candidate assigned least recently (never
+    assigned = 0.0), then the earliest in fleet order."""
 
-    def __init__(self, clock: Callable[[], float] = time.monotonic):
+    def __init__(self, count: str, clock: Callable[[], float] = time.monotonic):
+        self._count = count
         self._clock = clock
         self._assigned: dict[str, float] = {}
 
     def _choose(self, candidates, loads):
-        best = min(candidates, key=lambda c: (_queue(loads[c.instance_id]),
+        best = min(candidates, key=lambda c: (_queue(loads[c.instance_id], self._count),
                                               self._assigned.get(c.instance_id, 0.0)))  # default-ok: 0.0 = never
         self._assigned[best.instance_id] = self._clock()
         return best
 
 
 class PowerOfTwo(Dispatcher):
-    """Two distinct candidates drawn uniformly (random.sample, as v3), the shorter queue wins, the first
+    """Two distinct candidates drawn uniformly (random.sample, as v3), the one with the lower count wins (in flight:
+    Envoy's LEAST_REQUEST with equal weights and its default two choices; engine: v3's po2 queue), the first
     drawn on a tie. A single candidate is taken without drawing, so it consumes no randomness. With the probe
     the pair is drawn first and only its two instances are fetched: the same draws as the cache form in every run
     whose load reads succeed. A failed read fails its request, and a run with a failed request enters no
     comparison (analysis/metrics.py); after one, the probe form has consumed a draw the cache form has not."""
 
-    def __init__(self, seed: int):
+    def __init__(self, seed: int, count: str):
         self._rng = random.Random(seed)
+        self._count = count
 
     def _draw(self, candidates):
         return list(candidates) if len(candidates) < 2 else self._rng.sample(candidates, 2)
 
-    @staticmethod
-    def _shorter(pair, loads):
-        return min(pair, key=lambda i: _queue(loads[i.instance_id]))
+    def _shorter(self, pair, loads):
+        return min(pair, key=lambda i: _queue(loads[i.instance_id], self._count))
 
     def _choose(self, candidates, loads):
         return self._shorter(self._draw(candidates), loads)
@@ -190,9 +204,9 @@ def build_dispatcher(cfg: DispatchConfig) -> Dispatcher:
     if cfg.type == "round_robin":
         return RoundRobin()
     if cfg.type == "least_outstanding":
-        return LeastOutstanding()
+        return LeastOutstanding(cfg.count)
     if cfg.type == "po2":
-        return PowerOfTwo(cfg.seed)
+        return PowerOfTwo(cfg.seed, cfg.count)
     if cfg.type == "random":
         return RandomDispatch(cfg.seed)
     if cfg.type == "lowest_latency":

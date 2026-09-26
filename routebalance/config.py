@@ -304,20 +304,29 @@ class Router(_Strict):
         return dict(self.kwargs)
 
 
+LOAD_READING_DISPATCHERS = ("least_outstanding", "po2")    # the dispatchers whose pick depends on the loads
+
+
 class Dispatch(_Strict):
     type: Literal["round_robin", "po2", "least_outstanding", "random", "lowest_latency"]   # no shortest_queue: D40
     seed: int = Field(ge=0, lt=2**32)
     # lowest_latency only (required there, rejected elsewhere): latency samples kept per instance
     latency_window: Optional[int] = Field(default=None, ge=1)
+    # the load-reading dispatchers only (required there, rejected elsewhere; D84): what they count per instance.
+    # "engine": the engine's own running + waiting gauges (the main grid, from the pollers' 50 ms cache as llm-d's
+    # endpoint picker reads them; the probes, fetched per request as v3 did); "in_flight": the requests this
+    # scheduler sent it and has not seen complete, as Envoy's least-request and NGINX's least_conn count at the
+    # proxy (only the appendix row W12)
+    count: Optional[Literal["in_flight", "engine"]] = Field(default=None)
 
     @model_validator(mode="after")
     def _window_only_for_lowest_latency(self):
         if (self.type == "lowest_latency") != (self.latency_window is not None):
             raise ValueError("latency_window is required by the lowest_latency dispatcher and taken by no other")
+        if (self.type in LOAD_READING_DISPATCHERS) != (self.count is not None):
+            raise ValueError(f"count is required by the load-reading dispatchers {LOAD_READING_DISPATCHERS} and "
+                             "taken by no other")
         return self
-
-
-LOAD_READING_DISPATCHERS = ("least_outstanding", "po2")    # the dispatchers whose pick depends on the loads
 
 
 class Pipeline(_Strict):
@@ -335,10 +344,12 @@ class SchedulerConfig(_Strict):
     pending_decode: Optional[Literal["own_length", "lpt_key"]]
     dead_reckoning: bool
     # how load is read (D53, D55, owner 09-25): RouteBalance fetches every instance per batch ("per_round"), with
-    # dead reckoning, its own mechanism. The pipeline systems read the engines' own counts, never dead reckoning:
-    # from the background pollers' cache ("poll", as llm-d's endpoint picker scrapes /metrics every 50 ms) or, as
-    # v3's baselines did, fetched for each request ("per_request"). RouteBalance on the pollers' cache ("poll") is
-    # the D54 control
+    # dead reckoning, its own mechanism. The pipeline baselines never use dead reckoning (the D38 latency sweep, a
+    # pipeline configuration with random dispatch, logs its features on a dead-reckoned view): their load-reading
+    # dispatchers read the engines' own gauges (Dispatch.count "engine") from the background pollers' cache
+    # ("poll", as llm-d's endpoint picker scrapes /metrics every 50 ms; the main grid) or fetched for each
+    # request ("per_request", as v3's baselines did); the appendix row W12 counts in-flight requests (D84).
+    # RouteBalance on the pollers' cache ("poll") is the D54 control
     telemetry_read: Literal["per_round", "per_request", "poll"]
     latency: Latency
     estimator: Estimator
@@ -369,14 +380,20 @@ class SchedulerConfig(_Strict):
             raise ValueError("a pipeline system decides per request: it reads the pollers' cache or probes per request")
         sweep = self.mode != "routebalance" and self.pending_decode == "own_length"   # the D38 latency sweep
         if self.mode != "routebalance" and self.dead_reckoning and not sweep:
-            raise ValueError("dead reckoning is RouteBalance's own mechanism: a pipeline system reads the engines' own "
-                             "counts, from the pollers' cache (as llm-d does) or per request (as v3 did) (owner 09-25)")
+            raise ValueError("dead reckoning is RouteBalance's own mechanism: a pipeline system's dispatcher reads "
+                             "the engines' own gauges or counts in-flight requests (owner 09-25, D84)")
         if sweep and not self.dead_reckoning:
             raise ValueError("the latency sweep logs the learned heads' training features, which RouteBalance serves "
                              "on dead-reckoned counts: it runs with dead reckoning (its random dispatch reads no load)")
         if self.telemetry_read == "per_request" and self.pipeline.dispatch.type not in LOAD_READING_DISPATCHERS:
             raise ValueError(f"a per-request probe would change nothing for the {self.pipeline.dispatch.type} "
                              f"dispatcher, which reads no load")
+        if self.pipeline is not None and self.dead_reckoning and self.pipeline.dispatch.count == "engine":
+            raise ValueError("a dispatcher counting the engines' gauges needs a view without dead reckoning, which "
+                             "would replace them by the in-flight count")
+        if self.telemetry_read == "per_request" and self.pipeline.dispatch.count != "engine":
+            raise ValueError("a per-request probe fetches the engines' gauges: its dispatcher counts them "
+                             "(count engine); an in-flight count needs no fetch")
         if self.mode != "routebalance" and self.budget.admission_filter:
             raise ValueError("the budget admission filter exists only in routebalance mode (pipeline systems get the clamp)")
         return self

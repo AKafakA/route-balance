@@ -38,17 +38,19 @@ Check: every experiment parameter is a required field. Nothing is read from the 
   - `per_round`, RouteBalance's own: `fetch_round()` scrapes every instance's Prometheus `/metrics`
     (running, waiting, KV usage, preemptions) at each round's start, and the round is scheduled from that fetch.
     A failed scrape fails the round; an older snapshot is never used.
-  - `poll`: the pipeline systems, which decide per request, read the engines' own counts from a cache kept by
-    one background poller per instance every `poll_ms`, as llm-d's endpoint picker scrapes each model server's
-    `/metrics` every 50 ms. A slow instance never delays the others. RouteBalance on this cache is the D54 control.
-  - `per_request`, v3's baselines: each request `fetch()`es its router's candidates and reads the engines' own
-    counts. G1 runs it beside the cache (D55).
+  - `poll`: the pipeline systems, which decide per request, read the view from a cache kept by one background
+    poller per instance every `poll_ms`, as llm-d's endpoint picker scrapes each model server's `/metrics` every
+    50 ms. A slow instance never delays the others. RouteBalance on this cache is the D54 control.
+  - `per_request`, v3's baselines: each request `fetch()`es the candidates its dispatcher compares (every candidate
+    for least outstanding; power of two's two drawn instances, D59) and reads the engines' own counts. G1 runs it as
+    a control (D55).
 - Freshness is measured from when a scrape was sent. A malformed reply invalidates the snapshot. A failed
   fetch lets the last snapshot age out after `max_age_ms`. Nothing falls back to an idle default.
 - **Dead reckoning (RouteBalance's own).** Every request an engine serves was sent by this scheduler, so the
   scheduler's own in-flight count is the instance's load. The engine gauge only splits it into running and
   waiting: `running = min(engine running, in_flight)`, `waiting = in_flight − running`. The baselines' views run
-  with it off and read the engines' gauges.
+  with it off, and their load-reading dispatchers read the engines' gauges; only the appendix row W12 counts the
+  in-flight requests themselves, as production proxies do (D84).
 - **Pending decode tokens.** Each dispatch opens a token with its predicted decode length. Streamed
   progress counts it down. At the prediction it is extended by +10 and counts down again.
 - `Load.engine_waiting` is the raw gauge. The round-size rule reads it (`schedule/rounds.py`).
@@ -119,17 +121,19 @@ presets). The rebuild picks v3's model on all of them.
   - A router's model call runs once per request, one request at a time, on its own lane off the event loop,
     as shipped routers run theirs (RouteLLM, NVIDIA's LLM Router). Requests queue at the router; that wait is part
     of their routing time.
-- `dispatch.py` (173) picks an instance among the router's candidates:
+- `dispatch.py` (214) picks an instance among the router's candidates:
   - round robin;
-  - least outstanding: the shortest running + waiting queue on the engines' own counts (v3's shortest queue);
-  - power of two;
+  - least outstanding: the shortest running + waiting queue on the engines' own counts (v3's shortest queue, the
+    main grid); counting in-flight requests, as NGINX's `least_conn` does, in the appendix row W12 (D84);
+  - power of two: of two drawn instances, the one with the shorter engine queue; counting in-flight requests, as
+    Envoy's `LEAST_REQUEST` does with equal weights, in the appendix row W12 (D84);
   - random;
   - LiteLLM's `lowest_latency` (a 10-sample mean; a timeout counts 1000 s).
   - Ties go to the least recently assigned instance, as stock balancers rotate among ties.
-- `pipeline.py` (85): router, then candidates, then loads from the shared view, then dispatcher. The
+- `pipeline.py` (95): router, then candidates, then loads from the shared view, then dispatcher. The
   dispatch is recorded with no await in between (its in-flight count and decode tokens are tracked for every
-  system); a baseline's concurrent selections see each other only through the least-recently-assigned tie-break,
-  since it reads the engines' own counts.
+  system), so on the engines' gauges concurrent selections see each other only through the least-recently-assigned
+  tie-break, and an in-flight count (W12) includes every earlier selection.
 
 Check: replays match v3 and the banked cells for BEST-Route and AvengersPro on 3,534/3,534 prompts per
 setting. Dispatchers match v3 on a 20,000-event trace.

@@ -90,9 +90,9 @@ def test_trace_has_ties_and_both_candidate_shapes(v3):
 
 @pytest.mark.parametrize("name,make_v3,make_rebuild", [
     ("round_robin", lambda m: m("round_robin").RoundRobinDispatch(), RoundRobin),
-    ("po2 v3 default seed", lambda m: m("po2_queue").Po2QueueDispatch(), lambda: PowerOfTwo(1)),
-    ("po2 seed 0", lambda m: m("po2_queue").Po2QueueDispatch(seed=0), lambda: PowerOfTwo(0)),
-    ("po2 seed 7", lambda m: m("po2_queue").Po2QueueDispatch(seed=7), lambda: PowerOfTwo(7)),
+    ("po2 v3 default seed", lambda m: m("po2_queue").Po2QueueDispatch(), lambda: PowerOfTwo(1, "engine")),
+    ("po2 seed 0", lambda m: m("po2_queue").Po2QueueDispatch(seed=0), lambda: PowerOfTwo(0, "engine")),
+    ("po2 seed 7", lambda m: m("po2_queue").Po2QueueDispatch(seed=7), lambda: PowerOfTwo(7, "engine")),
     ("random seed 123", lambda m: m("random_dispatch").RandomDispatch(seed=123), lambda: RandomDispatch(123)),
 ])
 def test_same_instance_sequence_as_v3(v3_dispatch, name, make_v3, make_rebuild):
@@ -125,12 +125,12 @@ def test_least_outstanding_is_its_definition(v3):
     """The shortest running + waiting queue the view reports (a baseline's view: the engines' own counts), ties
     to the least recently assigned."""
     queue = lambda ev: [r + w for r, w in zip(ev.running, ev.waiting, strict=True)]   # noqa: E731
-    assert rebuild_ids(LeastOutstanding(clock=Ticks())) == least_recent_reference(queue)
+    assert rebuild_ids(LeastOutstanding("engine", clock=Ticks())) == least_recent_reference(queue)
 
 
 def test_po2_single_candidate_consumes_no_randomness(v3_dispatch):
     one = of_model("72B")[:1]
-    v3_d, ours = v3_dispatch("po2_queue").Po2QueueDispatch(seed=9), PowerOfTwo(9)
+    v3_d, ours = v3_dispatch("po2_queue").Po2QueueDispatch(seed=9), PowerOfTwo(9, "engine")
     v3_inst = [V3Instance(one[0].instance_id, one[0].model)]
     before = ours._rng.getstate()
     asyncio.run(v3_d.choose_instance(v3_inst, v3_dispatch("base").DispatchRequest(prompt=""),
@@ -158,6 +158,6 @@ def test_least_outstanding_is_v3_shortest_queue_when_in_flight_is_the_queue(v3_d
     trace = [dataclasses.replace(ev, in_flight=tuple(r + w for r, w in zip(ev.running, ev.waiting, strict=True)))
              for ev in TRACE]
     expect = v3_ids(v3_dispatch("shortest_queue").ShortestQueueDispatch(), v3_dispatch("base"), trace)
-    got = rebuild_ids(LeastOutstanding(clock=Ticks()), trace)
+    got = rebuild_ids(LeastOutstanding("engine", clock=Ticks()), trace)
     unique = [k for k, ev in enumerate(trace) if ev.in_flight.count(min(ev.in_flight)) == 1]
     assert len(unique) > N_EVENTS // 2 and all(got[k] == expect[k] for k in unique)

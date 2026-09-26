@@ -39,10 +39,15 @@ RB = {
 }
 
 
-def pipeline_cfg(dispatch="round_robin"):
+def pipeline_cfg(dispatch="round_robin", count=None):
+    """A passthrough baseline; a load-reading dispatcher reads the engines' gauges (the main grid, D84) unless told
+    otherwise."""
+    if count is None and dispatch in ("least_outstanding", "po2"):
+        count = "engine"
     d = copy.deepcopy(RB)
     d.update(mode="pipeline", weights=None, pending_decode=None, telemetry_read="poll", dead_reckoning=False,
-             pipeline={"router": {"type": "passthrough", "kwargs": {}}, "dispatch": {"type": dispatch, "seed": 1}})
+             pipeline={"router": {"type": "passthrough", "kwargs": {}},
+                       "dispatch": {"type": dispatch, "seed": 1, "count": count}})
     return d
 
 

@@ -29,12 +29,18 @@ Output, a new directory:
                loose SLO per configuration over the stationary traces, with the rates it was read from
                (analysis/slo.py)
   tables/systems.<group>.<trace>.tex         every configuration of the group at the trace
-  tables/equal.<treatment>.<group>.<trace>.tex   (the main text) every compared baseline configuration: the
+  tables/equal.<treatment>.<group>.<trace>.tex   (the main text) every compared baseline configuration except the
+               appendix-only ones (APPENDIX_SYSTEMS, below): the
                relative change of mean and P99 E2E and cost, and the change of SLO attainment in percentage
                points, each with its range over the seeds (-- where there is no equal-quality point)
   tables/equal_ci.<treatment>.<group>.<trace>.tex   (the appendix) the same changes with their request-bootstrap
                intervals
   tables/equal_seeds.<treatment>.<group>.<trace>.tex   (the appendix) each seed's changes
+  tables/equal_appendix.<treatment>.<group>.<trace>.tex   (the appendix) the appendix-only baselines
+               (APPENDIX_SYSTEMS: the dispatch-only least-outstanding and power of two counting in-flight requests,
+               D84), with their request-bootstrap intervals; they run in the main group so that they pair
+               with the main grid's runs, and never enter the equal-quality tables of the main text or
+               macros.tex (the systems tables list every configuration of a group, these included)
   macros.tex   per treatment, group and stationary trace: the range over the baseline configurations of the
                relative change of mean E2E, P99 E2E and cost at equal quality
 """
@@ -69,6 +75,7 @@ SLO_LEVELS = ("tight", "loose")
 MACRO_METRICS = {"e2e_mean_ms": "Mean", "e2e_p99_ms": "Tail", "cost_decode_per_1k": "Cost"}
 TABLE_METRICS = {**MACRO_METRICS, "slo_miss_tight": "SLO tight (pp)", "slo_miss_loose": "SLO loose (pp)"}
 ATTAINMENT = ("slo_miss_tight", "slo_miss_loose")        # shown as the change of attainment, in points
+APPENDIX_SYSTEMS = frozenset({"dispatcher-inflight"})  # D84: compared in the appendix only (equal_appendix.*)
 _DIGITS = dict(zip("0123456789",
                    ("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"), strict=True))
 
@@ -214,10 +221,12 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
             left_out[cid] = "; ".join(s.problems)
     configs = config_points(points)
     fronts = {m: {"|".join(k): [p.config_id for p in v] for k, v in frontiers(configs, m).items()} for m in METRICS}
-    eq, not_compared = {}, {}
+    eq, eq_appendix, not_compared = {}, {}, {}
     for t in treatments:
         these, not_compared[t] = comparable(points, t, inputs.scope.groups)
-        eq[t] = [asdict(r) for r in equal_quality(these, t, inputs.rules.equal_quality, samples)]
+        rows = [asdict(r) for r in equal_quality(these, t, inputs.rules.equal_quality, samples)]
+        eq[t] = [r for r in rows if r["system"] not in APPENDIX_SYSTEMS]
+        eq_appendix[t] = [r for r in rows if r["system"] in APPENDIX_SYSTEMS]
     rates = stationary_rates(inputs.scope)
     read_from: dict[str, list[float]] = {}
     for p in configs:
@@ -230,7 +239,8 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
                                                    "missing": list(cov.missing), "invalid": dict(cov.invalid),
                                                    "fleet_problems": dict(cov.fleet_problems)},
             "left_out": left_out, "cells": cells, "configs": [asdict(p) for p in configs], "frontiers": fronts,
-            "equal_quality": eq, "not_compared": not_compared, "goodput": good, "rates": rates}
+            "equal_quality": eq, "equal_quality_appendix": eq_appendix, "not_compared": not_compared,
+            "goodput": good, "rates": rates}
 
 
 # ---------------------------------------------------------------- LaTeX
@@ -344,6 +354,10 @@ def write(report: dict, out: Path) -> None:
             (out / "tables" / f"equal.{t}.{key[0]}.{key[1]}.tex").write_text(equal_table(subset))
             (out / "tables" / f"equal_ci.{t}.{key[0]}.{key[1]}.tex").write_text(equal_table(subset, "ci"))
             (out / "tables" / f"equal_seeds.{t}.{key[0]}.{key[1]}.tex").write_text(seeds_table(subset))
+    for t, rows in report["equal_quality_appendix"].items():
+        for key in sorted({(r["group"], r["trace_id"]) for r in rows}):
+            subset = [r for r in rows if (r["group"], r["trace_id"]) == key]
+            (out / "tables" / f"equal_appendix.{t}.{key[0]}.{key[1]}.tex").write_text(equal_table(subset, "ci"))
     (out / "macros.tex").write_text(macros(report))
 
 
@@ -373,7 +387,7 @@ def main(argv: list[str]) -> int:
         for key, why in skipped.items():
             print(f"  NOT COMPARED with {t}: {key}: {why}")
     for t, rows in report["equal_quality"].items():
-        for r in rows:
+        for r in rows + report["equal_quality_appendix"][t]:
             for d in r["deltas"]:
                 if d["outside_range"]:
                     print(f"  NOTE {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: the value at the "

@@ -131,8 +131,9 @@ def configs(table_md5: str) -> dict[str, dict]:
         "rb-off": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="off",
                      pending_decode="lpt_key"),               # arrival order; lpt_key and decode = the max
         "rb-poll": maxdiv | {"telemetry_read": "poll"},       # D54: RouteBalance on the pollers' cache
-        "lor": pipe(passthrough, {"type": "least_outstanding", "seed": 1}),
-        "lor-probe": pipe(passthrough, {"type": "least_outstanding", "seed": 1}, telemetry_read="per_request",
+        "lor": pipe(passthrough, {"type": "least_outstanding", "seed": 1, "count": "engine"}),   # the main grid (D84)
+        "lor-probe": pipe(passthrough, {"type": "least_outstanding", "seed": 1, "count": "engine"},
+                          telemetry_read="per_request",
                           dead_reckoning=False),           # D55: v3's per-request probe on the engine's counts
         "decoupled": pipe({"type": "rb_decoupled", "kwargs": {}}, {"type": "round_robin", "seed": 1},
                           weights=weights, latency=curve),

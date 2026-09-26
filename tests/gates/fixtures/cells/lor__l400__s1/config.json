@@ -38,7 +38,8 @@
   },
   "dispatch": {
    "type": "least_outstanding",
-   "seed": 1
+   "seed": 1,
+   "count": "engine"
   }
  }
 }
