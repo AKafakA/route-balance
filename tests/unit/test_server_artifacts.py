@@ -13,7 +13,7 @@ import pytest
 
 import routebalance.server as server
 from routebalance.baselines.routers import PassthroughRouter
-from routebalance.config import parse_scheduler
+from routebalance.config import ConfigError, parse_scheduler
 from routebalance.decision_log import JsonlLog
 from routebalance.estimate.artifacts import ArtifactError, md5_tree
 from routebalance.types import Instance, Tier
@@ -101,6 +101,38 @@ def test_avengers_pro_records_its_artifact_dir_and_its_embedder(tmp_path, monkey
                                                        "embedder": ENCODER, "embedder_revision": "e" * 40}})
     # the embedder is hashed at its pinned revision (D49), never the cached main
     assert load(cfg, tmp_path).artifacts == {"ap/kmeans.joblib": md5(b"km"), f"avengers_pro@{ENCODER}@{'e' * 40}": "9" * 32}
+
+
+def test_upstream_best_route_records_its_checkpoint_modules_and_backbone(tmp_path, monkeypatch, fake_knn):
+    """D79: the checkpoint file by file, each upstream module the router imports, and the backbone at its revision."""
+    from routebalance.baselines.routers import BEST_ROUTE_MODULES
+    seen = {}
+    monkeypatch.setattr(server, "build_router", lambda *a, **kw: seen.update(kw) or PassthroughRouter())
+    (tmp_path / "br/up").mkdir(parents=True)
+    (tmp_path / "br/up/config.bin").write_bytes(b"cfg")
+    repo = tmp_path / "best-route-llm"
+    for rel in BEST_ROUTE_MODULES:
+        (repo / rel).parent.mkdir(parents=True, exist_ok=True)
+        (repo / rel).write_bytes(rel.encode())
+    cfg = pipeline({"type": "best_route_upstream", "kwargs": {"checkpoint": "br/up", "threshold": 0.3,
+                    "base_model": "microsoft/deberta-v3-small", "base_revision": "d" * 40, "upstream_sha256": "c" * 64}})
+    with ThreadPoolExecutor(1) as ex:
+        arts = server.load_components(parse_scheduler(cfg), FLEET, artifact_root=tmp_path, avengers_repo=None,
+                                      router_lane=ex, best_route_repo=repo).artifacts
+    assert arts == {"br/up/config.bin": md5(b"cfg"),
+                    **{f"best_route_upstream@{rel}": md5(rel.encode()) for rel in BEST_ROUTE_MODULES},
+                    f"best_route_upstream@microsoft/deberta-v3-small@{'d' * 40}": "9" * 32}
+    assert seen["best_route_repo"] == repo and seen["prices"] == {"S": 1e-7}
+
+
+def test_a_model_priced_twice_differently_is_refused(tmp_path, fake_knn):
+    """The routers' cheapest-first order needs one price per model (tools/router_training refuses it too)."""
+    for cin, cout in ((1e-7, 5e-7), (0.5e-7, 1.5e-7)):      # the second has the same mean as S's (1e-7, 1e-7)
+        other = Tier("small_a100", "S", "a100", cin, cout, 8)
+        fleet = FLEET + [Instance("S_1", other, "n1", "127.0.0.1", 9001)]
+        with ThreadPoolExecutor(1) as ex, pytest.raises(ConfigError, match="two prices"):
+            server.load_components(parse_scheduler(pipeline({"type": "passthrough", "kwargs": {}})), fleet,
+                                   artifact_root=tmp_path, avengers_repo=None, router_lane=ex)
 
 
 def test_the_xgboost_source_records_every_file_it_read():

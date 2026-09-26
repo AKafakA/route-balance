@@ -15,7 +15,8 @@
 #   engine     driver + CUDA toolkit, python3.10-dev, $ENGINE_VENV with vllm==$VLLM_VERSION, the weights of
 #              every --model (the tiers this node serves: python -m tools.engine_plan models ... --node N)
 #   scheduler  python3.10-dev, $SCHED_VENV with this repository (pip install -e, its pinned dependencies),
-#              the pinned upstream AvengersPro checkout, every --model (sentence encoders) and --tokenizer
+#              the pinned upstream AvengersPro and best-route-llm checkouts, every --model (sentence encoders,
+#              BEST-Route's backbone) and --tokenizer
 #              (tokenizer files only; configs/scheduler_hub.json lists both). No driver: the scheduler is CPU-only.
 #   Both end with a self-check that prints the versions and exits non-zero on any mismatch.
 #
@@ -41,6 +42,9 @@ AP_COMMIT=dfb60b156c4b6011b89edfc8516aa16d8e4f4d38
 AP_FILE=simple_cluster_router.py
 AP_UPSTREAM_MD5=a845b36763db4ba4c22f87d78753c4bb  # $AP_FILE at $AP_COMMIT
 AP_PATCHED_MD5=658d5d1a874d71a6dcb77700e1f2a2c4   # after the local patch below (the copy v3 served)
+BR_URL=https://github.com/microsoft/best-route-llm.git
+BR_COMMIT=fc9b896a814acf7c00565fbea0803a8c20812702  # BEST-Route's authors' code, unpatched (D79)
+LLM_BLENDER_COMMIT=33204d2712944b6b17996f7c079e74cd963ccc7c   # == the pyproject pin (tests check)
 SPEC_RE='^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*@[0-9a-f]{40}$'
 
 # PCI device id of the node's GPUs -> GPU class, CloudLab hardware type, GPUs per node, driver flavour,
@@ -347,6 +351,20 @@ avengers_pro() {
     || die "$AP_DIR has changes beyond the patch: $(git -C "$AP_DIR" status --porcelain | tr '\n' ' ')"
 }
 
+best_route_llm() {
+  step "best-route-llm $BR_COMMIT -> $BR_DIR"
+  if [ ! -e "$BR_DIR" ]; then
+    rm -rf "$BR_DIR.clone"
+    git clone --quiet "$BR_URL" "$BR_DIR.clone" || die "git clone $BR_URL"
+    git -C "$BR_DIR.clone" checkout --quiet --detach "$BR_COMMIT" || die "checkout $BR_COMMIT"
+    mv "$BR_DIR.clone" "$BR_DIR"
+  fi
+  [ -d "$BR_DIR/.git" ] || die "$BR_DIR exists but is not a git checkout"
+  [ "$(git -C "$BR_DIR" rev-parse HEAD)" = "$BR_COMMIT" ] || die "$BR_DIR is at $(git -C "$BR_DIR" rev-parse HEAD), not $BR_COMMIT"
+  [ -z "$(git -C "$BR_DIR" status --porcelain --untracked-files=no)" ] \
+    || die "$BR_DIR has local changes: $(git -C "$BR_DIR" status --porcelain | tr '\n' ' ')"
+}
+
 # ---------------------------------------------------------------- Hugging Face snapshots
 
 # hub_fetch PYTHON MODE: MODE download fetches every spec at its pinned commit; verify only reads the cache.
@@ -396,6 +414,8 @@ for spec, kind in specs:
         index = path / "model.safetensors.index.json"
         shards = sorted(set(json.loads(index.read_text())["weight_map"].values())) if index.is_file() \
             else [p.name for p in path.glob("*.safetensors")]
+        if not shards and role == "scheduler" and (path / "pytorch_model.bin").is_file():
+            shards = ["pytorch_model.bin"]   # a scheduler model published only as a PyTorch file (BEST-Route's backbone)
         if not shards:
             problems.append("no safetensors weights")
         missing = [s for s in shards if not (path / s).is_file() or (path / s).stat().st_size == 0]
@@ -467,9 +487,10 @@ self_check_scheduler() {
   step "self-check (scheduler)"
   local fail=0
   mountpoint -q "$MYDATA" || { echo "FAIL $MYDATA not mounted"; fail=1; }
-  env -i HOME="$HOME" PATH="$RB_PATH" CUDA_VISIBLE_DEVICES= "$SCHED_VENV/bin/python" - "$REPO" "$AP_DIR" <<'PY' || fail=1
-import importlib.metadata as md, os, platform, re, sys
-repo, ap = sys.argv[1], sys.argv[2]
+  env -i HOME="$HOME" PATH="$RB_PATH" CUDA_VISIBLE_DEVICES= "$SCHED_VENV/bin/python" - "$REPO" "$AP_DIR" "$BR_DIR" \
+    "$LLM_BLENDER_COMMIT" <<'PY' || fail=1
+import importlib.metadata as md, json, os, platform, re, sys
+repo, ap, br, blender_commit = sys.argv[1:5]
 fail = []
 import routebalance, routebalance.server, routebalance.estimate.knn, routebalance.baselines.routers  # noqa: F401
 import torch
@@ -497,19 +518,27 @@ sys.path.insert(0, ap)
 import simple_cluster_router  # noqa: E402,F401  upstream's module-level imports must resolve here
 if os.path.realpath(os.path.dirname(simple_cluster_router.__file__)) != os.path.realpath(ap):
     fail.append(f"simple_cluster_router came from {simple_cluster_router.__file__}")
+sys.path.insert(0, br)
+import hybrid_llm.pair_ranker.model_util  # noqa: E402  upstream BEST-Route and LLM-Blender must import here
+if not os.path.realpath(hybrid_llm.pair_ranker.model_util.__file__).startswith(os.path.realpath(br) + os.sep):
+    fail.append(f"hybrid_llm came from {hybrid_llm.pair_ranker.model_util.__file__}")
+url = json.loads(md.distribution("llm-blender").read_text("direct_url.json") or "{}")
+if url.get("vcs_info", {}).get("commit_id") != blender_commit:
+    fail.append(f"llm-blender is not at {blender_commit}: {url}")
 for f in fail:
     print("FAIL", f)
 sys.exit(1 if fail else 0)
 PY
   [ "$(git -C "$AP_DIR" rev-parse HEAD)" = "$AP_COMMIT" ] || { echo "FAIL AvengersPro HEAD"; fail=1; }
   [ "$(md5sum "$AP_DIR/$AP_FILE" | cut -d' ' -f1)" = "$AP_PATCHED_MD5" ] || { echo "FAIL AvengersPro $AP_FILE md5"; fail=1; }
+  [ "$(git -C "$BR_DIR" rev-parse HEAD)" = "$BR_COMMIT" ] || { echo "FAIL best-route-llm HEAD"; fail=1; }
   hub_fetch "$SCHED_VENV/bin/python" verify || fail=1
   env -i HOME="$HOME" PATH="$RB_PATH" TIKTOKEN_CACHE_DIR="$RB_TIKTOKEN" "$SCHED_VENV/bin/python" -c \
     'import tiktoken; tiktoken.get_encoding("cl100k_base")' || { echo "FAIL tiktoken cl100k_base not cached"; fail=1; }
   [ "$fail" -eq 0 ] || die "self-check failed (see FAIL lines above)"
   # the specs node_ctl.sh sched-start re-checks (refs/main == pin) before every scheduler launch
   printf '%s\n' "${MODELS[@]}" ${TOKENIZERS[@]+"${TOKENIZERS[@]}"} > "$SCHED_VENV/rb-setup.hub"
-  echo "SELF-CHECK OK: scheduler ($SCHED_VENV, AvengersPro $AP_COMMIT patched)"
+  echo "SELF-CHECK OK: scheduler ($SCHED_VENV, AvengersPro $AP_COMMIT patched, best-route-llm $BR_COMMIT)"
 }
 
 main() {
@@ -536,6 +565,7 @@ main() {
   else
     scheduler_venv
     avengers_pro
+    best_route_llm
     step "Hub snapshots -> $RB_HF_HOME"
     hub_fetch "$SCHED_VENV/bin/python" download || die "Hub download"
     # upstream AvengersPro's tokenizer (tiktoken fetches it on first use): cached on /mydata, not /tmp, so

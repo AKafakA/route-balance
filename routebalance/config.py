@@ -279,7 +279,7 @@ class Telemetry(_Strict):
 
 
 class Router(_Strict):
-    type: Literal["avengers_pro", "best_route", "passthrough", "rb_decoupled"]
+    type: Literal["avengers_pro", "best_route", "best_route_upstream", "passthrough", "rb_decoupled"]
     # flat, finite scalars; stored as sorted (key, value) pairs so the frozen config is truly immutable and hashable
     kwargs: tuple[tuple[str, Scalar], ...]
 

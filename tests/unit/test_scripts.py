@@ -228,3 +228,19 @@ cmd_started E {port}
     assert fields[:2] == ["started", "E"] and float(fields[2]) > 1.7e9 and fields[3] == "2,3", r.stdout + r.stderr
     assert fields[4] == f"{sys.executable} {tmp_path}/srv.py {port}"
     assert "another process answers" in lines[-1]
+
+
+def test_the_best_route_pins_agree_across_setup_pyproject_hub_and_presets():
+    """D79: setup.sh's LLM-Blender commit is pyproject's; the backbone revision the presets load is the one the
+    scheduler's Hub pins fetch; the checkout setup.sh clones is the one the presets pin by digest (the digest of
+    fc9b896's modules was computed from that checkout, 09-26)."""
+    setup = SETUP.read_text()
+    commit = re.search(r"^LLM_BLENDER_COMMIT=([0-9a-f]{40})", setup, re.M).group(1)
+    assert f"LLM-Blender.git@{commit}\"" in (REPO / "pyproject.toml").read_text()
+    presets = json.loads((REPO / "configs" / "presets.json").read_text())
+    kw = presets["parts"]["br.router"]["kwargs"]
+    hub = json.loads((REPO / "configs" / "scheduler_hub.json").read_text())
+    assert f"{kw['base_model']}@{kw['base_revision']}" in hub["models"]
+    assert re.search(r"^BR_COMMIT=fc9b896a814acf7c00565fbea0803a8c20812702 ", setup, re.M)
+    assert kw["upstream_sha256"] == "85279e1f6080d87db95dcbded46d7713fcf2728b82339c3b6a30ef3b56579005"
+

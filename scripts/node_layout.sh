@@ -10,6 +10,7 @@ RB_HF_HOME=$MYDATA/hf                 # HF_HOME of every process: weights, token
 ENGINE_VENV=$RB_ROOT/venv-engine      # official vLLM (its own torch); never shared with the scheduler
 SCHED_VENV=$RB_ROOT/venv-scheduler    # this repository, pip install -e (its own torch)
 AP_DIR=$RB_ROOT/AvengersPro           # the pinned upstream AvengersPro checkout (scheduler only)
+BR_DIR=$RB_ROOT/best-route-llm        # the pinned upstream BEST-Route checkout (scheduler only, D79)
 RB_TIKTOKEN=$RB_ROOT/tiktoken         # TIKTOKEN_CACHE_DIR of the scheduler (upstream AvengersPro's cl100k_base)
 RB_LOGS=$RB_ROOT/logs                 # engine and scheduler stdout/stderr, one file per launch
 RB_RUN=$RB_ROOT/run                   # pid files, launch commands, the scheduler's copied inputs

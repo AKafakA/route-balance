@@ -59,7 +59,7 @@ class StubEstimator:
         return [{"S": Est(0.4, 20.0), "L": Est(0.9, 30.0)} for _ in prompts]
 
 
-def factory(cfg, fleet, *, artifact_root, avengers_repo, router_lane):
+def factory(cfg, fleet, *, artifact_root, avengers_repo, router_lane, best_route_repo=None):
     c = Components()
     if cfg.mode == "routebalance" or cfg.pending_decode == "own_length":
         c.estimator = StubEstimator()
@@ -489,7 +489,7 @@ def test_a_pipeline_router_is_built_on_the_one_at_a_time_lane(tmp_path):
     """The routers' model calls run on the lane (one request at a time), never on RouteBalance's shared pool."""
     seen = {}
 
-    def recording(cfg, fleet, *, artifact_root, avengers_repo, router_lane):
+    def recording(cfg, fleet, *, artifact_root, avengers_repo, router_lane, best_route_repo=None):
         seen["lane"] = router_lane
         return factory(cfg, fleet, artifact_root=artifact_root, avengers_repo=avengers_repo, router_lane=router_lane)
 

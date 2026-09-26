@@ -49,8 +49,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from routebalance.backend import BackendClient, BackendUnreachable, GenerationRequest, GenerationResult
 from routebalance.baselines.dispatch import Dispatcher, build_dispatcher
 from routebalance.baselines.pipeline import fleet_models, select_instance
-from routebalance.baselines.routers import (DecoupledInputs, Estimate as DecoupledEstimate, Router, RouterRequest,
-                                            build_router, router_executor, router_lane)
+from routebalance.baselines.routers import (BEST_ROUTE_MODULES, DecoupledInputs, Estimate as DecoupledEstimate, Router,
+                                            RouterRequest, build_router, router_executor, router_lane)
 from routebalance.config import (ConfigError, SchedulerConfig, config_digest, fleet_digest, load_fleet, load_scheduler,
                                  loads_strict, parse_scheduler)
 from routebalance.decision_log import JsonlLog, LagProbe
@@ -73,7 +73,7 @@ THREAD_ENV = ("OMP_NUM_THREADS", "OMP_DYNAMIC", "OMP_PROC_BIND", "OMP_PLACES", "
               "MKL_DYNAMIC", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS",
               "RAYON_NUM_THREADS", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES")
 # The router option that names the artifact directory a router loads by path (its files are md5-recorded).
-ROUTER_ARTIFACT_OPTION = {"best_route": "checkpoint", "avengers_pro": "artifact_dir"}
+ROUTER_ARTIFACT_OPTION = {"best_route": "checkpoint", "best_route_upstream": "checkpoint", "avengers_pro": "artifact_dir"}
 
 
 class Busy(RuntimeError):
@@ -137,7 +137,8 @@ def idle_state(tier: Tier) -> InstanceStats:
 
 
 def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_root: Path,
-                    avengers_repo: Optional[Path], router_lane: Executor) -> Components:
+                    avengers_repo: Optional[Path], router_lane: Executor,
+                    best_route_repo: Optional[Path] = None) -> Components:
     """Loads models and tables (seconds): call it off the event loop. A pipeline router makes its model calls on
     router_lane (one request at a time, as shipped routers do); RouteBalance's own calls use the shared pool."""
     from routebalance.estimate.knn import INDEX_FILE, load_knn
@@ -158,8 +159,15 @@ def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_roo
                 raise ConfigError("rb_decoupled scores idle instances; the xgboost source needs the request's "
                                   "prompt length, which the router interface does not carry")
             decoupled = _decoupled_inputs(cfg, fleet, c.estimator, c.latency)
+        priced: dict[str, tuple[float, float]] = {}   # (input, output) per token, by model: one pair per model
+        for i in fleet:
+            pair = (i.tier.cost_in, i.tier.cost_out)
+            if priced.setdefault(i.model, pair) != pair:   # default-ok: the first instance of the model sets it
+                raise ConfigError(f"model {i.model} has two prices in the fleet ({priced[i.model]} and {pair})")
+        prices = {m: (cin + cout) / 2 for m, (cin, cout) in priced.items()}   # the routers' cheapest-first order
         c.router = build_router(cfg.pipeline.router, artifact_root=artifact_root, avengers_repo=avengers_repo,
-                                executor=router_lane, decoupled=decoupled)
+                                executor=router_lane, decoupled=decoupled, best_route_repo=best_route_repo,
+                                prices=prices)
         c.dispatcher = build_dispatcher(cfg.pipeline.dispatch)
         options = cfg.pipeline.router.options()
         option = ROUTER_ARTIFACT_OPTION.get(cfg.pipeline.router.type)
@@ -167,6 +175,10 @@ def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_roo
             c.artifacts |= md5_tree(artifact_root, str(options[option]))
         if cfg.pipeline.router.type == "avengers_pro":      # its embedder is loaded by name at a pinned revision
             c.artifacts |= model_files("avengers_pro", str(options["embedder"]), str(options["embedder_revision"]))
+        if cfg.pipeline.router.type == "best_route_upstream":   # upstream's modules and its ranker's backbone
+            c.artifacts |= {f"best_route_upstream@{rel}": hashlib.md5((best_route_repo / rel).read_bytes()).hexdigest()
+                            for rel in BEST_ROUTE_MODULES}
+            c.artifacts |= model_files("best_route_upstream", str(options["base_model"]), str(options["base_revision"]))
     return c
 
 
@@ -370,13 +382,13 @@ class RouteBalance:
 class Service:
     def __init__(self, fleet: list[Instance], *, artifact_root: Path, avengers_repo: Optional[Path],
                  request_timeout_s: float, max_connections: int, torch_threads: int, log_dir: Path,
-                 factory: Callable[..., Components] = load_components):
+                 factory: Callable[..., Components] = load_components, best_route_repo: Optional[Path] = None):
         if not fleet:
             raise ConfigError("empty fleet")
         self.fleet = fleet
         self.fleet_digest = fleet_digest(fleet)
         self._models = fleet_models(fleet)
-        self._artifacts, self._avengers = artifact_root, avengers_repo
+        self._artifacts, self._avengers, self._best_route = artifact_root, avengers_repo, best_route_repo
         self._timeout_s, self._max_conn, self._torch_threads = request_timeout_s, max_connections, torch_threads
         # the code this process runs, hashed at start (a later edit of the files does not change what runs)
         self._code = self._code_digests()
@@ -447,7 +459,7 @@ class Service:
             loop = asyncio.get_running_loop()
             comps = await loop.run_in_executor(self.executor, functools.partial(
                 self._factory, cfg, self.fleet, artifact_root=self._artifacts, avengers_repo=self._avengers,
-                router_lane=self.router_lane))
+                router_lane=self.router_lane, best_route_repo=self._best_route))
             t = cfg.telemetry
             view = TelemetryView(self.fleet, lambda i: fetch_metrics(self._telemetry_session, i, t.timeout_s),
                                  poll_ms=t.poll_ms, max_age_ms=t.max_age_ms, dead_reckoning=cfg.dead_reckoning)
@@ -735,6 +747,7 @@ def main(argv=None) -> None:
     p.add_argument("--config", type=Path, required=True, help="the scheduler configuration served at start")
     p.add_argument("--artifacts", type=Path, required=True)
     p.add_argument("--avengers-repo", type=Path, default=None, help="upstream AvengersPro checkout (its router)")
+    p.add_argument("--best-route-repo", type=Path, default=None, help="upstream best-route-llm checkout (its ranker)")
     p.add_argument("--host", required=True)
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--request-timeout-s", type=float, required=True)
@@ -754,7 +767,7 @@ def main(argv=None) -> None:
     async def serve():
         service = Service(fleet, artifact_root=a.artifacts, avengers_repo=a.avengers_repo,
                           request_timeout_s=a.request_timeout_s, max_connections=a.max_connections,
-                          torch_threads=a.torch_threads, log_dir=a.log_dir)
+                          torch_threads=a.torch_threads, log_dir=a.log_dir, best_route_repo=a.best_route_repo)
         await service.start(cfg)
         runner = web.AppRunner(build_app(service), access_log=None)
         await runner.setup()

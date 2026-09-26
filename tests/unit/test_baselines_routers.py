@@ -7,10 +7,11 @@ from pathlib import Path
 
 import pytest
 
-from routebalance.baselines.routers import (ALL_INSTANCES, AvengersProRouter, BestRouteRouter, DecoupledInputs,
-                                            Estimate, PassthroughRouter, RBDecoupledRouter, RouterRequest,
-                                            _check_recorded, _import_upstream, _rankings, build_router,
-                                            upstream_digest, validate_options)
+from routebalance.baselines.routers import (ALL_INSTANCES, BEST_ROUTE_MODULES, AvengersProRouter, BestRouteRouter,
+                                            BestRouteUpstreamRouter, DecoupledInputs, Estimate, PassthroughRouter,
+                                            RBDecoupledRouter, RouterRequest, _check_recorded, _import_upstream,
+                                            _names_the_model, _rankings, best_route_digest, build_router,
+                                            load_best_route_upstream, price_order, upstream_digest, validate_options)
 from routebalance.config import ConfigError, Router, Weights
 from tests.fleet_s2 import POOL, TIERS
 
@@ -329,3 +330,99 @@ def test_the_router_lane_runs_a_baselines_model_calls_one_at_a_time():
         return time.perf_counter() - t0
     elapsed = asyncio.run(burst())
     assert ROUTER_LANE_THREADS == 1 and state["peak"] == 1 and elapsed >= 6 * 0.02
+
+
+# ---------------------------------------------------------------- BEST-Route as its authors ship it (D79)
+
+QWEN = ["Qwen/Qwen2.5-3B", "Qwen/Qwen2.5-7B", "Qwen/Qwen2.5-14B", "Qwen/Qwen2.5-72B"]
+
+
+class FakeScores:
+    def __init__(self, scores):
+        self.scores, self.threads = scores, []
+
+    def __call__(self, prompt):
+        self.threads.append(threading.current_thread().name)
+        return list(self.scores)
+
+
+def upstream(scores, threshold, candidates=QWEN, by_price=QWEN):
+    return BestRouteUpstreamRouter(FakeScores(scores), candidates, by_price, threshold=threshold, executor=EX)
+
+
+@pytest.mark.parametrize("threshold,model", [(0.0, "Qwen/Qwen2.5-3B"), (0.3, "Qwen/Qwen2.5-14B"),
+                                             (0.6, "Qwen/Qwen2.5-14B"), (0.7, "Qwen/Qwen2.5-72B"),
+                                             (1.0, "Qwen/Qwen2.5-72B")])
+def test_upstream_best_route_takes_the_cheapest_candidate_at_the_threshold(threshold, model):
+    """upstream results_interpretation.ipynb: the lowest-cost candidate whose score clears t; the reference's is 1."""
+    d = choose(upstream([0.2, -0.1, 0.6, 1.0], threshold))
+    assert d.model == model and d.reason.startswith("best_route_upstream:") and d.reason.endswith(f":model={model}")
+
+
+def test_the_cheapest_first_order_is_the_fleets_price_order_not_the_rankers():
+    gemma = ["g-1b", "g-4b", "g-12b", "g-27b"]                    # the ranker's order: ascending size, reference last
+    prices = {"g-1b": 1e-7, "g-4b": 6e-8, "g-12b": 1e-7, "g-27b": 1.2e-7}
+    order = price_order(gemma, prices)
+    assert order == ["g-4b", "g-1b", "g-12b", "g-27b"]            # D71: 1B and 12B tie, the smaller first
+    r = upstream([0.5, 0.1, 0.4, 1.0], 0.3, candidates=gemma, by_price=order)
+    assert choose(r, pool=gemma).model == "g-1b"                  # 4B (0.1) is cheaper but misses t = 0.3
+    assert choose(upstream([0.5, 0.1, 0.4, 1.0], 0.0, candidates=gemma, by_price=order), pool=gemma).model == "g-4b"
+
+
+def test_upstream_best_route_scores_off_the_loop_and_fails_loudly():
+    r = upstream([0.2, -0.1, 0.6, 1.0], 0.0)
+    choose(r)
+    assert r._scores.threads and all(t.startswith("router") for t in r._scores.threads)
+    with pytest.raises(RuntimeError, match="not in the pool"):
+        choose(r, pool=QWEN[:3])
+    with pytest.raises(RuntimeError, match="3 scores for 4 candidates"):
+        choose(upstream([0.2, -0.1, 1.0], 0.0))
+    with pytest.raises(RuntimeError, match="the reference's last"):
+        choose(upstream([0.2, -0.1, 0.6, 0.9], 0.0))
+    with pytest.raises(ConfigError, match="reordered"):
+        upstream([0.0] * 4, 0.0, by_price=QWEN[:3] + ["Qwen/Qwen2.5-1B"])
+    with pytest.raises(ConfigError, match="outside"):
+        upstream([0.0] * 4, 1.5)
+    with pytest.raises(ConfigError, match="no price"):
+        price_order(QWEN, {m: 1.0 for m in QWEN[:3]})
+
+
+BU = {"checkpoint": "br", "threshold": 0.3, "base_model": "microsoft/deberta-v3-small", "base_revision": "a" * 40,
+      "upstream_sha256": "b" * 64}
+
+
+@pytest.mark.parametrize("kwargs,match", [
+    ({**BU, "threshold": 1.5}, "threshold"),
+    ({**BU, "checkpoint": "/abs/br"}, "relative"),
+    ({**BU, "base_revision": "main"}, "base_revision"),
+    ({k: v for k, v in BU.items() if k != "upstream_sha256"}, "upstream_sha256"),
+    ({**BU, "fallback_model": "x"}, "fallback_model"),
+    (BU, "best-route-llm checkout"),
+])
+def test_build_upstream_best_route_validates_before_loading(kwargs, match):
+    with pytest.raises(ConfigError, match=match):
+        build("best_route_upstream", kwargs)
+
+
+def test_the_best_route_checkout_must_be_the_pinned_one(tmp_path):
+    for rel in BEST_ROUTE_MODULES:
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(f"# {rel}\n")
+    digest = best_route_digest(tmp_path)
+    with pytest.raises(ConfigError, match="the config pins"):
+        load_best_route_upstream(tmp_path / "ck", tmp_path, base_model="m", base_revision="a" * 40, upstream_sha256="c" * 64)
+    with pytest.raises(ConfigError, match="has no config.bin"):
+        load_best_route_upstream(tmp_path / "ck", tmp_path, base_model="m", base_revision="a" * 40, upstream_sha256=digest)
+    (tmp_path / "hybrid_llm/pair_ranker/ranker.py").write_text("# changed\n")
+    assert best_route_digest(tmp_path) != digest
+
+
+@pytest.mark.parametrize("head,model,ok", [
+    ("Qwen2.5-3B_bo1", "Qwen/Qwen2.5-3B", True), ("gemma-3-1b_bo1", "google/gemma-3-1b-it", True),
+    ("Qwen2.5-7B_bo1", "Qwen/Qwen2.5-72B", False), ("Qwen2.5-3B_bo1", "Qwen/Qwen2.5-7B", False),
+    ("gemma-3-1b_bo1", "google/gemma-3-12b-it", False), ("Qwen2.5-3B", "Qwen/Qwen2.5-3B", False),
+])
+def test_each_head_must_name_its_fleet_model(head, model, ok):
+    """A labels file that maps a head to another model (e.g. 3B and 7B swapped) fails the load, never routes."""
+    assert _names_the_model(head, model) is ok
+

@@ -38,8 +38,8 @@ RouteBalance (mode routebalance)
     lpt_key (the configured statistic). Both in whole tokens and at least 1.
 Pipeline (mode pipeline)
   - Every line is a dispatch carrying the router's reason, prefixed by the configured router type, and a finite
-    router score. Where the reason names a tier or model (rb_decoupled, avengers_pro, a best_route fallback),
-    that is the one served.
+    router score. Where the reason names a tier or model (rb_decoupled, avengers_pro, best_route_upstream, a
+    best_route fallback), that is the one served.
   - decode_tokens and feature_tokens: the request's max_tokens, with no lengths logged. With pending_decode
     own_length (the D38 sweep) they are the expected length on the chosen model and the LPT key.
 """
@@ -61,12 +61,13 @@ from routebalance.schedule.score import EPS
 # in schedule/rounds.py fails this gate (tests/gates checks the two agree today).
 ADAPTIVE_LIMITS = frozenset({(4, 50.0), (16, 100.0), (32, 200.0)})
 REASON_PREFIX = {"passthrough": "passthrough:", "best_route": "best_route_4way:", "avengers_pro": "avengers_pro:",
-                 "rb_decoupled": "rb_decoupled:"}
+                 "rb_decoupled": "rb_decoupled:", "best_route_upstream": "best_route_upstream:"}
 # The router's reason names a model, or (rb_decoupled) the tier whose model it returned: the dispatcher then
 # places the request on any instance of that model, whatever its tier.
 NAMED = {"rb_decoupled": (re.compile(r"^rb_decoupled:tier=([^:]+):"), "tier"),
          "avengers_pro": (re.compile(r":model=(.+)$"), "model"),
-         "best_route": (re.compile(r":fallback=(.+)$"), "model")}
+         "best_route": (re.compile(r":fallback=(.+)$"), "model"),
+         "best_route_upstream": (re.compile(r":model=(.+)$"), "model")}
 REF_RTOL = 1e-9            # fixed_ref: term * latency = the reference, up to float rounding
 MEAN_RTOL = 1e-9           # lpt mean: the scheduler's mean of the lengths, up to the order of the float sum
 # max_divide: the slowest term is EPS / (max latency + EPS). Every latency is at least 1 ms/token x its length,

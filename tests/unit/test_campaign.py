@@ -197,15 +197,22 @@ def test_the_baseline_knobs_are_the_plans():
     assert (ap_q["beta"], ap_q["top_k"], ap_g["top_k"]) == (5.0, 4, 3)
     assert ap_q["embedder_revision"] == "1110a243fdf4706b3f48f1d95db1a4f5529b4d41" and len(ap_q["upstream_sha256"]) == 64
     br = doc("qwen.br.t03.po2")["pipeline"]
-    assert br["router"]["kwargs"]["max_length"] == 512 and br["router"]["kwargs"]["confidence_threshold"] == 0.3
+    kw = br["router"]["kwargs"]      # BEST-Route as its authors ship it (D79): upstream's ranker and routing rule
+    assert br["router"]["type"] == "best_route_upstream" and kw["threshold"] == 0.3
+    assert (kw["base_model"], kw["base_revision"]) == ("microsoft/deberta-v3-small",
+                                                       "a36c739020e01763fe789b4b85e2df55d6180012")
+    assert kw["upstream_sha256"] == "85279e1f6080d87db95dcbded46d7713fcf2728b82339c3b6a30ef3b56579005"
     assert br["dispatch"]["type"] == "po2"
     assert doc("qwen.disp.lowest-latency")["pipeline"]["dispatch"]["latency_window"] == 10
     sweep = doc("qwen.sweep.random")
     assert (sweep["mode"], sweep["pending_decode"], sweep["pipeline"]["dispatch"]["type"]) == ("pipeline", "own_length",
                                                                                                 "random")
-    br_g = doc("gemma.br.t05.lor")["pipeline"]["router"]["kwargs"]         # D70, D71: Gemma BEST-Route, 4B fallback
-    assert (br_g["fallback_model"], doc("qwen.br.t05.lor")["pipeline"]["router"]["kwargs"]["fallback_model"]) == \
-        ("google/gemma-3-4b-it", "Qwen/Qwen2.5-3B")
+    br_g = doc("gemma.br.t05.lor")["pipeline"]["router"]                   # D70: Gemma gets BEST-Route too
+    assert br_g["type"] == "best_route_upstream" and br_g["kwargs"]["checkpoint"] == "art/br.gemma"
+    # the owner's backup (D79): v3's 4-way recipe, with D71's fallbacks (4B for Gemma, 3B for Qwen)
+    v3 = {f: resolver.resolve("$part:br.router.v3", "test", campaign.Needs(), {"family": f, "t": "t05"})["kwargs"]
+          for f in ("gemma", "qwen")}
+    assert (v3["gemma"]["fallback_model"], v3["qwen"]["fallback_model"]) == ("google/gemma-3-4b-it", "Qwen/Qwen2.5-3B")
     assert not any("shortest" in json.dumps(doc(pid)) for pid in ("qwen.disp.lor", "qwen.disp.rr"))
 
 
