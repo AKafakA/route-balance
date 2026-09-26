@@ -37,7 +37,7 @@ def scope_dict(dataset_path, configs: dict, seeds=(1,), prompt_order="fixed", n_
         "bench": {"sampling": SAMPLING, "max_connections": 64, "request_timeout_s": 10.0,
                   "max_send_lag_ms": max_send_lag_ms},
         "datasets": {"evalset": {"path": dataset_path.name, "sha256": hashlib.sha256(dataset_path.read_bytes())
-                                 .hexdigest(), "rows": rows, "tokenizer_id": "tok-id"}},
+                                 .hexdigest(), "rows": rows, "tokenizer_id": "tok-id", "budgets": None}},
         "traces": {"l200": {"burstiness": 1.0, "segments": [{"n_requests": n_requests, "rate": rate}]}},
         "configs": {cid: {"system": system, "knob": cid, "dispatch": "lor", "config_digest": digest}
                     for cid, (system, digest) in configs.items()},
@@ -112,6 +112,7 @@ class LocalScheduler:
         self.identities = [{"config_digest": CONFIG_DIGEST, "fleet_digest": FLEET_DIGEST, "mode": "test"}] \
             if identities is None else list(identities)
         self.peers: list[int] = []
+        self.bodies: list[dict] = []           # every POST /v1/completions body, as received
         self.active = 0
         self.peak = 0
         self._loop = asyncio.new_event_loop()
@@ -124,6 +125,7 @@ class LocalScheduler:
         self.peak = max(self.peak, self.active)
         try:
             req = await request.json()
+            self.bodies.append(req)
             await asyncio.sleep(self.delay_s)
             return web.json_response(reply_body(req["request_id"], prompt_tokens=req["prompt_tokens"]))
         finally:

@@ -51,7 +51,8 @@ NOT_COMPARED = ("config_digest",)
 FOLLOW_SYSTEM = ("loaded",)                       # may differ exactly where system.* differs
 LOADED_WHERE_USED = ("artifacts", "threadpools")  # one value per key across the group (_one_content_per_path)
 HISTORY = ("threadpools",)                        # presence follows the process's history, not the system
-BENCH_KEYS = ("sampling", "max_connections", "request_timeout_s", "dataset_sha256", "tokenizer_id", "prompt_order")
+BENCH_KEYS = ("sampling", "max_connections", "request_timeout_s", "dataset_sha256", "budgets_sha256", "tokenizer_id",
+              "prompt_order")
 _MISSING = "<absent>"
 
 

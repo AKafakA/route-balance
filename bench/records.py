@@ -60,6 +60,7 @@ class RequestRecord(Strict):
     prompt_id: str
     prompt: str                          # the raw prompt that was sent
     prompt_tokens: int = Field(ge=1)     # the count sent to the scheduler (bench/dataset.py)
+    budget_cost: Optional[float]         # the budget sent (USD), budget cells only; None everywhere else
     arrival_s: float = Field(ge=0)       # scheduled send time
     sent_s: float = Field(ge=0)          # when the request was handed to the HTTP client
     e2e_s: float = Field(ge=0)           # from hand-off until the reply was read, or the failure
@@ -87,6 +88,7 @@ class CellRecord(Strict):
     trace: Trace
     arrival_digest: str
     dataset_sha256: str
+    budgets_sha256: Optional[str]        # the budget table the budgets came from; None outside the budget sweep
     tokenizer_id: str
     prompt_order: Order
     prompt_order_digest: str

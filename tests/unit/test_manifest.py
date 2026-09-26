@@ -120,6 +120,35 @@ def test_a_cell_that_is_not_its_expectation_is_invalid(env):
     assert "the arrival digest is not the schedule of the cell's trace and seed" in problems
 
 
+def test_a_cell_whose_budgets_are_not_the_scopes_is_invalid(env):
+    """W7b: a record's budget table and per-request budgets must be what its dataset entry says."""
+    dataset, out = env
+    scope = _scope(dataset)
+    path, rec = _run(scope, dataset, out, ALL[0])
+    path.unlink()
+    budgeted = [r.model_copy(update={"budget_cost": 1e-5}) for r in rec.requests]
+    write_cell(rec.model_copy(update={"budgets_sha256": "c" * 64, "requests": budgeted}), out / ALL[0])
+    problems = manifest.check(scope, out).invalid[ALL[0]]
+    assert any(p.startswith("budget table sha256 is 'ccc") for p in problems)
+    assert f"{len(budgeted)}/{len(budgeted)} requests carried a budget, the scope expects none" in problems
+
+
+def test_a_budget_cell_without_every_budget_is_invalid(env):
+    """The other direction: the scope's dataset has a budget table, the record has none, or only some budgets."""
+    dataset, out = env
+    doc = scope_dict(dataset, {k: v for k, v in CONFIGS.items()}, seeds=(1, 2), prompt_order="per_seed")
+    doc["datasets"]["evalset"]["budgets"] = {"path": "b.jsonl", "sha256": "d" * 64}
+    scope = parse(Scope, doc, "scope")
+    path, rec = _run(_scope(dataset), dataset, out, ALL[0])
+    path.unlink()
+    some = [r.model_copy(update={"budget_cost": 1e-5}) if r.index % 2 else r for r in rec.requests]
+    write_cell(rec.model_copy(update={"requests": some}), out / ALL[0])
+    problems = manifest.check(scope, out).invalid[ALL[0]]
+    assert "budget table sha256 is None, the scope expects 'ddd" + "d" * 61 + "'" in problems
+    assert f"{sum(r.budget_cost is not None for r in some)}/{len(some)} requests carried a budget, the scope expects " \
+        "all" in problems
+
+
 def test_a_cell_run_under_another_configuration_is_invalid(env):
     dataset, out = env
     scope = _scope(dataset)

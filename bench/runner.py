@@ -31,7 +31,7 @@ from typing import Optional
 from analysis.manifest import cell_problems
 from bench.arrivals import Trace, arrival_times, schedule_digest
 from bench.client import HttpSchedulerClient, SchedulerClient, parse_reply, request_body
-from bench.dataset import Prompt, PromptSet, load_hf_tokenizer, load_prompts, order_digest
+from bench.dataset import Prompt, PromptSet, attach_budgets, load_hf_tokenizer, load_prompts, order_digest
 from bench.records import (FORMAT, CellRecord, RequestRecord, Sampling, SchedulerIdentity, cell_path,
                            records_in, write_cell)
 from bench.schema import Strict
@@ -77,6 +77,7 @@ async def run_cell(spec: CellSpec, prompts: PromptSet, client: SchedulerClient, 
     return CellRecord(
         format=FORMAT, cell_id=spec.cell_id, run_id=run_id, labels=spec.labels, seed=spec.seed, trace=spec.trace,
         arrival_digest=schedule_digest(arrivals), dataset_sha256=prompts.dataset_sha256,
+        budgets_sha256=prompts.budgets_sha256,
         tokenizer_id=prompts.tokenizer_id, prompt_order=prompts.order,
         prompt_order_digest=order_digest([p.row for p in prompts.prompts]), sampling=spec.sampling,
         max_connections=client.max_connections, request_timeout_s=client.timeout_s,
@@ -97,7 +98,8 @@ async def _send(client: SchedulerClient, t0: float, index: int, request_id: str,
         e2e = time.perf_counter() - sent
         reply, error = None, f"{type(e).__name__}: {e}"
     return RequestRecord(index=index, request_id=request_id, prompt_row=prompt.row, prompt_id=prompt.prompt_id,
-                         prompt=prompt.text, prompt_tokens=prompt.prompt_tokens, arrival_s=arrival,
+                         prompt=prompt.text, prompt_tokens=prompt.prompt_tokens, budget_cost=prompt.budget_cost,
+                         arrival_s=arrival,
                          sent_s=sent - t0, e2e_s=e2e, reply=reply, error=error)
 
 
@@ -139,6 +141,8 @@ def main(argv: list[str]) -> int:
     tokenizer = load_hf_tokenizer(cell.dataset.tokenizer_id)
     prompts = load_prompts(a.data_root / cell.dataset.path, cell.trace.n_requests, cell.prompt_order, cell.seed,
                            tokenizer, cell.dataset.tokenizer_id)
+    if cell.dataset.budgets is not None:
+        prompts = attach_budgets(prompts, a.data_root / cell.dataset.budgets.path, a.data_root / cell.dataset.path)
     _check_before_sending(cell, prompts)
     spec = CellSpec(cell_id=cell.cell_id, labels=cell.labels, trace=cell.trace, seed=cell.seed,
                     sampling=scope.bench.sampling, expected_config_digest=cell.config.config_digest)
@@ -157,6 +161,9 @@ def _check_before_sending(cell: ExpectedCell, prompts: PromptSet) -> None:
     if prompts.dataset_sha256 != cell.dataset.sha256:
         raise ConfigError(f"dataset {cell.dataset.path} has sha256 {prompts.dataset_sha256}, "
                           f"the scope expects {cell.dataset.sha256}")
+    want = None if cell.dataset.budgets is None else cell.dataset.budgets.sha256
+    if prompts.budgets_sha256 != want:
+        raise ConfigError(f"the budget table has sha256 {prompts.budgets_sha256}, the scope expects {want}")
     if order_digest([p.row for p in prompts.prompts]) != cell.order_digest():
         raise ConfigError(f"the prompt order does not match the scope's (is the dataset's row count "
                           f"{cell.dataset.rows}?)")

@@ -41,7 +41,7 @@ DECISIONS = {"rb_default": "rb", "decoupled_arm": "rb", "headline": "q50l30c20",
              "w3_near_frontier": ["qwen.rb.q50l30c20", "qwen.ap.pw070.lor"],
              "w3_headline": ["qwen.rb.q50l30c20"], "w5_systems": ["qwen.rb.q50l30c20", "qwen.disp.lor"],
              "w7_systems": ["qwen.rb.q50l30c20", "qwen.rb-dec.uniform"]}
-HELD = {"W7b/W7b"}     # must run, cannot yet: always pending
+HELD: set[str] = set()     # blocks that must run but cannot yet (none since 09-25): always pending
 FLEETS = {"qwen_std": ("a" * 64, "1" * 64), "qwen_topo53": ("b" * 64, "2" * 64), "gemma": ("c" * 64, "3" * 64)}
 
 
@@ -109,9 +109,9 @@ def test_the_tracked_files_dry_run_every_row():
                           "W8-cal", "W8", "W9", "W11", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 32, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 90, "W3": 100, "W5": 30, "W7": 36,
-                     "W7b": 1, "W8": 108, "W9": 260, "W11": 12}
+                     "W7b": 9, "W8": 108, "W9": 260, "W11": 12}
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
-    assert held == {"W7b/W7b"}
+    assert held == HELD
     assert summary["decisions_needed"] == ["decoupled_arm", "headline", "rb_default", "w3_headline", "w3_near_frontier",
                                            "w5_systems",
                                            "w7_systems"]
@@ -157,7 +157,8 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 424        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only)
+    assert len(expanded) == 429        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
+    #                                    the budget sweep's filter arms (rb, rb-static x 2 families; rb-learned, Qwen)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
@@ -230,6 +231,47 @@ def test_groups_declare_what_each_cell_may_differ_in():
     main = group_record(scope, cells["qwen.ap.pw070.lor__l30__s1"])
     assert main == {"group": "qwen", "reference": None, "intended_differences": ["system.*", "telemetry.dead_reckoning"]}
     assert group_record(scope, cells["qwen.sweep.random__sweep6-36__s1"])["intended_differences"] == []
+
+
+def _executed_sections(doc: dict) -> dict:
+    """The configuration-derived part of the scheduler's manifest (routebalance/server.py), flattened as parity
+    compares it: system.*, budget.*, and the dead-reckoning and timeout keys of telemetry."""
+    from gates.cell import flatten
+    cfg, dump = parse_scheduler(doc), (lambda s: None if s is None else s.model_dump(mode="json"))
+    pipe = cfg.pipeline
+    return flatten({"system": {"mode": cfg.mode, "telemetry_read": cfg.telemetry_read, "weights": dump(cfg.weights),
+                               "rounds": dump(cfg.rounds), "lpt": cfg.lpt, "pending_decode": cfg.pending_decode,
+                               "latency": dump(cfg.latency), "estimator": dump(cfg.estimator),
+                               "router": None if pipe is None else dump(pipe.router),
+                               "dispatch": None if pipe is None else dump(pipe.dispatch)},
+                    "budget": dump(cfg.budget),
+                    "telemetry": {"timeout_s": cfg.telemetry.timeout_s, "dead_reckoning": cfg.dead_reckoning}})
+
+
+def test_every_main_groups_configurations_differ_only_as_declared():
+    """What the parity gate will find on the lease, checked on the rendered documents: in a main comparison
+    group, two configurations differ only in keys the group's patterns match (found 09-25: the budget groups
+    did not declare budget.confidence, which the filter arm sets to 0.7)."""
+    from gates.parity import matches
+    result = full_render()
+    scope = parse(Scope, result.scope, "rendered")
+    by_group: dict[str, set[str]] = {}
+    for c in expected_cells(scope):
+        by_group.setdefault(c.group, set()).add(c.config_id)
+    checked = 0
+    for g, ids in sorted(by_group.items()):
+        spec = scope.groups[g]
+        if spec.reference is not None:
+            continue
+        patterns = next(iter(spec.intended_differences.values()))
+        flats = {cid: _executed_sections(result.configs[cid]) for cid in sorted(ids)}
+        first = next(iter(flats))
+        for cid, flat in flats.items():
+            bad = [k for k in set(flat) | set(flats[first])
+                   if flat.get(k) != flats[first].get(k) and not any(matches(p, k) for p in patterns)]
+            assert bad == [], f"group {g}: {first} vs {cid} differ in {bad}, not declared ({patterns})"
+            checked += 1
+    assert checked >= 80 and {"qwen-budget-75", "g1", "qwen", "gemma"} <= set(by_group)
 
 
 def test_fill_blocks_do_not_repeat_cells_and_plain_blocks_refuse_to():
@@ -425,11 +467,16 @@ def test_references_resolve_or_fail_loudly():
 
 
 def test_a_held_block_keeps_the_campaign_incomplete(tmp_path):
+    presets, scope = filled()
+    rows = [r.model_copy(update={"blocks": [b.model_copy(update={"hold": "waits for its support"})
+                                            for b in r.blocks]}) if r.id == "W11" else r for r in scope.rows]
+    held = campaign.render(presets, scope.model_copy(update={"rows": rows}), pins=pins(presets), decisions=DECISIONS,
+                           fleets=FLEETS)
+    assert held.pending["W11/W11"] == "held: waits for its support"
+    assert "W11/W11" in parse(Scope, held.scope, "rendered").pending   # analysis.manifest never reports COMPLETE
     result = full_render()
-    assert result.pending["W7b/W7b"].startswith("held: the benchmark client sends no per-request budget_cost")
     scope = parse(Scope, result.scope, "rendered")
-    assert "W7b/W7b" in scope.pending                        # analysis.manifest never reports COMPLETE with it
-    assert not any(c.block == "W7b" for c in expected_cells(scope))
+    assert result.pending == {} and sum(c.block.startswith("W7b-") for c in expected_cells(scope)) == 9
     assert "W6/W6" not in result.pending and not any(c.block == "W6" for c in expected_cells(scope))   # dropped
     assert "W4/W4-arm3" not in result.pending and not any(c.block == "W4-arm3" for c in expected_cells(scope))
     assert sum(c.block == "W4-const-batch" for c in expected_cells(scope)) == 6        # the D45 control runs

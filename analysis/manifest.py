@@ -60,6 +60,7 @@ def expectation_problems(cell: CellRecord, exp: ExpectedCell, bench: BenchParams
         ("trace", cell.trace, exp.trace),
         ("prompt order", cell.prompt_order, exp.prompt_order),
         ("dataset sha256", cell.dataset_sha256, exp.dataset.sha256),
+        ("budget table sha256", cell.budgets_sha256, None if exp.dataset.budgets is None else exp.dataset.budgets.sha256),
         ("tokenizer", cell.tokenizer_id, exp.dataset.tokenizer_id),
         ("sampling", cell.sampling, bench.sampling),
         ("max_connections", cell.max_connections, bench.max_connections),
@@ -69,6 +70,10 @@ def expectation_problems(cell: CellRecord, exp: ExpectedCell, bench: BenchParams
         ("prompt-order digest", cell.prompt_order_digest, exp.order_digest()),
     ]
     problems = [f"{what} is {got!r}, the scope expects {want!r}" for what, got, want in checks if got != want]
+    budgeted = sum(r.budget_cost is not None for r in cell.requests)
+    if budgeted != (len(cell.requests) if exp.dataset.budgets is not None else 0):
+        problems.append(f"{budgeted}/{len(cell.requests)} requests carried a budget, the scope expects "
+                        + ("all" if exp.dataset.budgets is not None else "none"))
     lag_ms = max((r.sent_s - r.arrival_s for r in cell.requests), default=0.0) * 1000  # default-ok: no requests
     if lag_ms > bench.max_send_lag_ms:
         problems.append(f"a request started {lag_ms:.1f} ms after its arrival (bound {bench.max_send_lag_ms} ms): "

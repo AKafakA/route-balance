@@ -1,5 +1,6 @@
 """The open-loop runner: sends on schedule, records everything, never retries, refuses a wrong configuration."""
 import asyncio
+import hashlib
 import json
 
 import pytest
@@ -185,3 +186,54 @@ def test_the_exit_code_reports_a_configuration_change(tmp_path, monkeypatch, cap
     with LocalScheduler(identities=[start, {**start, "fleet_digest": "e" * 64}]) as server:
         assert runner.main(argv(server.url)) == 1
     assert "INVALID: the scheduler configuration or fleet changed during the cell" in capsys.readouterr().out
+
+
+def _budget_table(tmp_path, n_rows=12, fn=lambda i: 1e-5 * (i + 1)):
+    path = tmp_path / "budgets.jsonl"
+    path.write_text("".join(json.dumps({"id": f"p{i}", "budget_cost": fn(i), "category": "W"}) + "\n"
+                            for i in range(n_rows)))
+    return path
+
+
+def test_a_budget_dataset_sends_each_prompts_budget_and_records_it(tmp_path, monkeypatch):
+    """W7b: the dataset's budget table gives each request its budget_cost; the record keeps it and the table's
+    sha256, and the manifest checks both against the scope."""
+    dataset, table = write_dataset(tmp_path), _budget_table(tmp_path)
+    doc = scope_dict(dataset, {"rb-a": ("RouteBalance", CONFIG_DIGEST)})
+    doc["datasets"]["evalset"]["budgets"] = {"path": table.name,
+                                             "sha256": hashlib.sha256(table.read_bytes()).hexdigest()}
+    (tmp_path / "scope.json").write_text(json.dumps(doc))
+    monkeypatch.setattr(runner, "load_hf_tokenizer", lambda tokenizer_id: FakeTokenizer())
+    out = tmp_path / "cells" / "rb-a__l200__s1"
+    out.mkdir(parents=True)
+    with LocalScheduler() as server:
+        assert runner.main(["--scope", str(tmp_path / "scope.json"), "--cell", "rb-a__l200__s1", "--scheduler-url",
+                            server.url, "--data-root", str(tmp_path), "--out-dir", str(out)]) == 0
+        sent = {b["request_id"].rsplit(".", 1)[1]: b["budget_cost"] for b in server.bodies}
+    rec = read_cell(out / "rb-a__l200__s1.cell.json")
+    assert rec.budgets_sha256 == doc["datasets"]["evalset"]["budgets"]["sha256"]
+    assert all(r.budget_cost == 1e-5 * (int(r.prompt_id[1:]) + 1) == sent[str(r.index)] for r in rec.requests)
+
+
+@pytest.mark.parametrize("rows,match", [
+    (lambda t: t.write_text(t.read_text().replace('"p3"', '"p99"')), "exactly the ids"),
+    (lambda t: t.write_text("\n".join(reversed(t.read_text().splitlines())) + "\n"), "in its order"),
+    (lambda t: t.write_text(t.read_text().replace('"budget_cost": 4e-05', '"budget_cost": 0')), "positive"),
+    (lambda t: t.write_text(t.read_text().replace('"budget_cost": 4e-05', '"budget_cost": true')), "positive"),
+])
+def test_a_budget_table_that_does_not_fit_the_dataset_is_refused(tmp_path, rows, match):
+    from bench.dataset import attach_budgets
+    dataset, table = write_dataset(tmp_path), _budget_table(tmp_path)
+    rows(table)
+    prompts = load_prompts(dataset, 12, "fixed", 1, FakeTokenizer(), "tok-id")
+    with pytest.raises(ConfigError, match=match):
+        attach_budgets(prompts, table, dataset)
+
+
+def test_budgets_are_sent_only_when_the_prompt_has_one():
+    from bench.client import request_body
+    from bench.dataset import Prompt
+    p = Prompt(row=0, prompt_id="p0", text="q", prompt_tokens=3)
+    s = Sampling(**SAMPLING)
+    assert "budget_cost" not in json.loads(request_body("r", p, s))
+    assert json.loads(request_body("r", p.model_copy(update={"budget_cost": 2e-5}), s))["budget_cost"] == 2e-5

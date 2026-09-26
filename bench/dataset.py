@@ -24,9 +24,10 @@ count (vLLM usage.prompt_tokens) comes back in every reply, so the analysis can 
 from __future__ import annotations
 
 import hashlib
+import math
 import random
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Literal, Optional, Protocol
 
 from pydantic import Field
 
@@ -46,6 +47,7 @@ class Prompt(Strict):
     prompt_id: str                       # the row's "id"
     text: str                            # the raw user prompt, exactly as in the file
     prompt_tokens: int = Field(ge=1)
+    budget_cost: Optional[float] = None  # default-ok: no budget unless the dataset has a budget table (W7b)
 
 
 class PromptSet(Strict):
@@ -54,6 +56,7 @@ class PromptSet(Strict):
     order: Order
     seed: int
     prompts: list[Prompt]
+    budgets_sha256: Optional[str] = None  # default-ok: set by attach_budgets, the budget sweep only
 
 
 def read_rows(path: Path) -> list[tuple[str, str]]:
@@ -127,3 +130,32 @@ def load_prompts(path: Path, n_requests: int, order: Order, seed: int, tokenizer
 def load_hf_tokenizer(tokenizer_id: str) -> ChatTokenizer:
     from transformers import AutoTokenizer  # imported here: only the benchmark host needs transformers
     return AutoTokenizer.from_pretrained(tokenizer_id)
+
+
+def attach_budgets(prompts: PromptSet, budgets: Path, dataset: Path) -> PromptSet:
+    """Each prompt's cost budget (USD) from a budget table: JSONL, one line per prompt of the dataset, in the
+    dataset's order, {"id": <the row's id>, "budget_cost": USD > 0, ...} (v3's budget_table_cal_<mix>.jsonl;
+    its other fields document how the budget was built and are not read). A table that does not cover exactly
+    the dataset's ids, in its order, or a budget that is not a positive finite number, is refused."""
+    ids = [rid for rid, _ in read_rows(dataset)]
+    table: list[tuple[str, float]] = []
+    try:
+        lines = Path(budgets).read_bytes().decode("utf-8").splitlines()
+    except (OSError, UnicodeDecodeError) as e:
+        raise ConfigError(f"cannot read {budgets}: {e}") from e
+    for lineno, line in enumerate(lines, start=1):
+        try:
+            rec = loads_strict(line)
+        except ConfigError as e:
+            raise ConfigError(f"{budgets}:{lineno}: {e}") from e
+        cost = rec.get("budget_cost") if isinstance(rec, dict) else None
+        if not isinstance(rec, dict) or not isinstance(rec.get("id"), str) or isinstance(cost, bool) \
+                or not isinstance(cost, (int, float)) or not math.isfinite(cost) or cost <= 0:
+            raise ConfigError(f"{budgets}:{lineno}: a budget line needs a string id and a positive budget_cost")
+        table.append((rec["id"], float(cost)))
+    if [rid for rid, _ in table] != ids:
+        raise ConfigError(f"{budgets} does not list exactly the ids of {dataset}, in its order")
+    by_id = dict(table)
+    return prompts.model_copy(update={
+        "budgets_sha256": file_sha256(budgets),
+        "prompts": [p.model_copy(update={"budget_cost": by_id[p.prompt_id]}) for p in prompts.prompts]})

@@ -4,7 +4,8 @@
   "bench":    {"sampling": {...Sampling}, "max_connections": int, "request_timeout_s": float,
                "max_send_lag_ms": float},
   "datasets": {"<name>": {"path": "<relative to the data root>", "sha256": "<hex>", "rows": int,
-                          "tokenizer_id": "<HF id of the reference tokenizer>"}},
+                          "tokenizer_id": "<HF id of the reference tokenizer>",
+                          "budgets": null | {"path": "<relative to the data root>", "sha256": "<hex>"}}},
   "traces":   {"<trace_id>": {"burstiness": float, "segments": [{"n_requests": int, "rate": float}, ...]}},
   "configs":  {"<config_id>": {"system": str, "knob": str, "dispatch": str,
                                "config_digest": "<routebalance.config.config_digest of its scheduler config>"}},
@@ -59,18 +60,34 @@ class BenchParams(Strict):
     max_send_lag_ms: float = Field(gt=0)
 
 
+def _relative_path(v: str) -> str:
+    if not v or v != v.strip() or v.startswith("/") or ".." in v.split("/"):
+        raise ValueError(f"{v!r} must be a relative path inside the data root")
+    return v
+
+
+class BudgetTable(Strict):
+    """Per-request cost budgets (bench/dataset.py attach_budgets): one line per prompt of the dataset."""
+    path: str                            # relative to the data root given at run time
+    sha256: str = Field(pattern=_SHA256)
+
+    @field_validator("path")
+    @classmethod
+    def _relative(cls, v: str) -> str:
+        return _relative_path(v)
+
+
 class DatasetEntry(Strict):
     path: str                            # relative to the data root given at run time
     sha256: str = Field(pattern=_SHA256)
     rows: int = Field(ge=1)
     tokenizer_id: str = Field(min_length=1)
+    budgets: Optional[BudgetTable]       # the budget sweep's datasets only (W7b); null for every other
 
     @field_validator("path")
     @classmethod
     def _relative(cls, v: str) -> str:
-        if not v or v != v.strip() or v.startswith("/") or ".." in v.split("/"):
-            raise ValueError(f"{v!r} must be a relative path inside the data root")
-        return v
+        return _relative_path(v)
 
 
 class ConfigEntry(Strict):

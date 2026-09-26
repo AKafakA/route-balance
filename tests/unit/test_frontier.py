@@ -67,7 +67,7 @@ def _expected():
     return ExpectedCell("a__l30__s1", "main", "g1", "a", ConfigEntry(system="S", knob="k", dispatch="lor",
                                                                 config_digest="c" * 64),
                         "l30", constant_trace(10, 30.0, 1.0), 1, "fixed",
-                        DatasetEntry(path="d.jsonl", sha256="0" * 64, rows=10, tokenizer_id="t"))
+                        DatasetEntry(path="d.jsonl", sha256="0" * 64, rows=10, tokenizer_id="t", budgets=None))
 
 
 def _summary(problems):
