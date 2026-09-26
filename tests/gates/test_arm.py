@@ -3,7 +3,7 @@ import json
 
 import pytest
 
-from gates.arm import ADAPTIVE_LIMITS, _is_subsequence, arm_problems, main
+from gates.arm import ADAPTIVE_LIMITS, arm_problems, main
 from gates.cell import open_cell
 from routebalance.config import load_scheduler
 from routebalance.schedule.rounds import ADAPTIVE_LIMITS as ROUNDS_LIMITS
@@ -25,11 +25,6 @@ def test_every_recorded_cell_passes(name):
 
 def test_the_adaptive_limits_are_the_schedulers():
     assert ADAPTIVE_LIMITS == {(size, timeout) for _, size, timeout in ROUNDS_LIMITS}
-
-
-def test_subsequence():
-    assert _is_subsequence(["a", "c"], ["a", "b", "c"]) and not _is_subsequence(["c", "a"], ["a", "b", "c"])
-    assert not _is_subsequence(["a", "a"], ["a", "b"])
 
 
 def lines(fn):
@@ -232,7 +227,7 @@ def test_an_unreadable_cell_fails(tmp_path, capsys, breakage):
     assert "FAIL arm: cannot check" in capsys.readouterr().out
 
 
-def _admitted(tmp_path, keep, admitted_all=True):
+def _admitted(tmp_path, keep, admitted_all=True, budget="fits_s"):
     """rb-maxdiv's cell as if the budget filter had admitted only `keep` on its first line. That line's latency
     terms and scores are recomputed over the admitted candidates; the quality and cost terms are left as recorded,
     since arm does not check their normalization. The line is then valid except for the rule under test. The cell
@@ -254,7 +249,10 @@ def _admitted(tmp_path, keep, admitted_all=True):
         for ln in ls:
             ln["budget"] = {"max_tokens": 64, "affordable_tokens": 900, "exhausted": False}
             ln["config_digest"] = digest
+            ln["request"] = {"prompt_tokens": 10, "max_tokens": 64, "budget_cost": 1.0}     # admits every instance
         ln0 = ls[0]
+        s_cost = 10 * 1e-7 + min(int(ln0["lengths"]["S"]), 64) * 1e-7                     # S: 1e-7 in and out
+        ln0["request"]["budget_cost"] = s_cost if budget == "fits_s" else s_cost / 10    # L costs 4x S per token
         by_inst = {c["inst"]: c for c in ln0["candidates"]}
         cands = [by_inst[i] for i in keep]
         lmax = max(c["lat_s"] for c in cands)
@@ -269,19 +267,26 @@ def _admitted(tmp_path, keep, admitted_all=True):
     return problems(cell)
 
 
-def test_the_admission_filter_admits_an_ordered_subset(tmp_path):
-    """With the budget admission filter, a budgeted line may score only the admitted instances, in fleet order."""
+def test_the_admission_filter_keeps_what_v3s_rule_admits(tmp_path):
+    """v3's budget filter, recomputed by the gate: the budget fits S's expected cost only, so S_0 and S_1 remain."""
     assert _admitted(tmp_path, ["S_0", "S_1"]) == []
 
 
-def test_admitted_candidates_out_of_fleet_order_fail(tmp_path):
-    found = _admitted(tmp_path, ["S_1", "S_0"])
-    assert any("not a subset of the fleet in fleet order" in p for p in found), found
+@pytest.mark.parametrize("keep,admitted_all,budget", [
+    (["S_1", "S_0"], True, "fits_s"),                   # out of fleet order
+    (["S_0"], True, "fits_s"),                          # an admitted instance left out
+    (["S_0", "S_1", "L_2"], True, "fits_s"),            # L's expected cost is over the budget
+    (["S_0", "S_1"], False, "fits_s"),                  # admitted, but the line says none was
+])
+def test_candidates_that_are_not_v3s_filters_fail(tmp_path, keep, admitted_all, budget):
+    found = _admitted(tmp_path, keep, admitted_all=admitted_all, budget=budget)
+    assert any("not v3's budget filter's" in p for p in found), found
 
 
-def test_a_filter_that_admitted_none_scores_every_instance(tmp_path):
-    found = _admitted(tmp_path, ["S_0", "S_1"], admitted_all=False)
-    assert any("not every fleet instance in fleet order" in p for p in found), found
+def test_when_nothing_fits_the_cheapest_by_worst_case_cost_remain(tmp_path):
+    assert _admitted(tmp_path, ["S_0", "S_1"], admitted_all=False, budget="none") == []
+    found = _admitted(tmp_path / "all", ["S_0", "S_1", "L_2"], admitted_all=False, budget="none")
+    assert any("not v3's budget filter's" in p for p in found), found
 
 
 def test_rb_decoupled_may_be_served_by_another_tier_of_its_model(tmp_path):

@@ -36,8 +36,8 @@ def idle_loads():
     return {i.instance_id: Load(InstanceStats(0, 0, 0.0, 0, 4, 0), 5.0, 0, 0) for i in FLEET}
 
 
-def req(rid, s_len=100.0, l_len=80.0, qs=0.5, ql=0.9, budget=0.0, s_probs=(1.0,), l_probs=(1.0,)):
-    return RoundRequest(rid, 50, {"S": Est(qs, s_len, s_probs), "L": Est(ql, l_len, l_probs)}, budget)
+def req(rid, s_len=100.0, l_len=80.0, qs=0.5, ql=0.9, budget=0.0, max_tokens=1024):
+    return RoundRequest(rid, 50, {"S": Est(qs, s_len), "L": Est(ql, l_len)}, budget, max_tokens)
 
 
 def run_round(requests, loads=None, latency=None, **kw):
@@ -85,20 +85,43 @@ def test_winner_is_stamped_least_recently_used():
 
 
 def test_a_missing_model_estimate_raises():
-    bad = RoundRequest("x", 10, {"S": Est(0.5, 10.0)}, 0.0)
+    bad = RoundRequest("x", 10, {"S": Est(0.5, 10.0)}, 0.0, 64)
     with pytest.raises(ValueError, match="no estimate"):
         run_round([bad])
 
 
-def test_admission_drops_candidates_unlikely_to_fit_and_keeps_all_if_none_fit():
+def test_admission_keeps_the_candidates_whose_expected_cost_fits_the_budget():
+    """v3's budget filter: prompt at the input price + expected length (capped at max_tokens) at the output price."""
     w = Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0)
-    # budget 2e-5: S affords (2e-5 - 50e-7) / 1e-7 = 150 tokens, L affords (2e-5 - 200e-7)/4e-7 -> exhausted, 1 token
-    fits_s = req("a", budget=2e-5, s_probs=(0.2, 0.7, 0.1), l_probs=(0.1, 0.9))
-    d = run_round([fits_s], weights=w, admission=Admission(confidence=0.5))[0]
+    # prompt 50 tokens: S costs 5e-6 + 100 x 1e-7 = 1.5e-5, L 2e-5 + 80 x 4e-7 = 5.2e-5
+    d = run_round([req("a", budget=2e-5)], weights=w, admission=Admission())[0]
     assert d.instance.model == "S" and d.admitted_all and {s.candidate.model for s in d.scored} == {"S"}
-    fits_none = req("b", budget=2e-5, s_probs=(0.1, 0.1, 0.1, 0.7), l_probs=(0.1, 0.9))   # 150 tokens: P=0.3
-    d = run_round([fits_none], weights=w, admission=Admission(confidence=0.5))[0]
-    assert not d.admitted_all and d.instance.model == "L" and len(d.scored) == 3
+    d = run_round([req("b", budget=6e-5)], weights=w, admission=Admission())[0]
+    assert d.instance.model == "L" and d.admitted_all and len(d.scored) == 3            # both fit: quality wins
+    capped = req("c", s_len=900.0, budget=2e-5, max_tokens=100)          # S: 5e-6 + 100 x 1e-7, not 900 x 1e-7
+    d = run_round([capped], weights=w, admission=Admission())[0]
+    assert d.instance.model == "S" and d.admitted_all
+
+
+def test_when_nothing_fits_only_the_cheapest_by_worst_case_cost_remain():
+    """v3's fallback: the cheapest candidates at the prompt plus max_tokens (every instance at that cost)."""
+    w = Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0)
+    d = run_round([req("a", budget=1e-6)], weights=w, admission=Admission())[0]
+    assert not d.admitted_all and d.instance.model == "S" and {s.candidate.instance_id for s in d.scored} == {"s0", "s1"}
+    assert run_round([req("b", budget=1e-6)], weights=w)[0].instance.model == "L"        # no filter: quality wins
+
+
+def test_the_fallback_is_the_worst_case_cost_not_the_expected_one():
+    """In: A costs 1e-6 per input token and 1e-8 per output token, B the reverse. With a 1-token expectation B is
+    cheaper (prompt 50: A 5.0e-5, B 1.5e-6), at max_tokens 1024 A is (A 6.0e-5, B 1.0e-3): the worst case decides."""
+    a, b = Tier("a_a30", "A", "a30", 1e-6, 1e-8, 4), Tier("b_a30", "B", "a30", 1e-8, 1e-6, 4)
+    fleet = [Instance("a0", a, "n1", "h1", 8000), Instance("b0", b, "n2", "h2", 8000)]
+    r = RoundRequest("x", 50, {"A": Est(0.5, 1.0), "B": Est(0.9, 1.0)}, 1e-7, 1024)
+    loads = {i.instance_id: Load(InstanceStats(0, 0, 0.0, 0, 4, 0), 5.0, 0, 0) for i in fleet}
+    d = schedule_round([r], fleet, loads, QueueLatency(), weights=Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0),
+                       normalization="max_divide", lpt="max", pending_decode="own_length", last_assigned={},
+                       clock=lambda: 1.0, admission=Admission())[0]
+    assert not d.admitted_all and d.instance.instance_id == "a0" and len(d.scored) == 1
 
 
 def test_unknown_modes_raise():
@@ -106,14 +129,6 @@ def test_unknown_modes_raise():
         run_round([req("a")], lpt="median")
     with pytest.raises(ValueError):
         run_round([req("a")], pending_decode="max")
-
-
-def test_admission_never_admits_a_tier_whose_prompt_alone_exceeds_the_budget():
-    w = Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0)
-    # budget 1.9e-5: S affords 140 tokens but fits with P = 0.3; L's prompt alone costs 2e-5 (exhausted)
-    r = req("a", budget=1.9e-5, s_probs=(0.1, 0.1, 0.1, 0.7), l_probs=(0.8, 0.2))
-    d = run_round([r], weights=w, admission=Admission(confidence=0.5))[0]
-    assert not d.admitted_all and len(d.scored) == 3          # nothing admitted: all kept, the clamp bounds cost
 
 
 def test_a_negative_budget_is_rejected():

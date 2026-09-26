@@ -101,7 +101,7 @@ def configs(table_md5: str) -> dict[str, dict]:
                     "table": "calib/tpot.json", "table_md5": table_md5},
         "estimator": {"index_dir": "knn/x", "index_md5": "0" * 32, "encoder_revision": "a" * 40, "k": 50,
                       "score_type": "deepeval", "prior": "knn"},
-        "budget": {"admission_filter": False, "confidence": 0.5},
+        "budget": {"admission_filter": False},
         "telemetry": {"poll_ms": 20.0, "max_age_ms": 2000.0, "timeout_s": 2.0},
     }
     weights = {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2}

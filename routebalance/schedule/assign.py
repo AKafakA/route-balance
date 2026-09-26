@@ -50,15 +50,26 @@ class RoundRequest:
     num_prompt_tokens: int
     estimates: Mapping[str, Estimate]   # every fleet model -> its estimate for this prompt
     budget_cost: float                  # dollars; 0.0 = no budget
+    max_tokens: int                     # the request's output cap
 
     def __post_init__(self):
         if not (math.isfinite(self.budget_cost) and self.budget_cost >= 0):
             raise ValueError(f"{self.request_id}: budget_cost must be >= 0 dollars, got {self.budget_cost!r}")
+        if self.max_tokens < 1:
+            raise ValueError(f"{self.request_id}: max_tokens must be >= 1, got {self.max_tokens!r}")
 
 
 @dataclass(frozen=True)
 class Admission:
-    confidence: float                   # admit when P(length <= affordable tokens) >= confidence
+    """v3's budget filter, as its budget sweep ran it (owner 09-26; the tiered CDF filter of v3's June code): a
+    candidate is admitted when its expected cost is within the request's budget, the expected cost being the
+    prompt at the tier's input price plus the model's expected length, capped at max_tokens, at its output
+    price. When none is admitted, only the cheapest candidates by worst-case cost (the prompt plus max_tokens)
+    remain, v3's fallback for a budget rejection. (v3 checked every candidate with one length, the last model's,
+    through a leaked loop variable; here each model's own. It kept the first cheapest instance in its list;
+    here every instance at that cost, which v3's rule does not tell apart. v3 replaced an expected length that
+    truncates to 0 with 100; here 0 stays 0, no fallback value. v3's relaxation lowered only its latency
+    thresholds, which a budget cell does not have.)"""
 
 
 @dataclass(frozen=True)
@@ -96,10 +107,13 @@ def _decode_tokens(length: float) -> int:
     return max(1, int(length))
 
 
-def _admitted(inst: Instance, req: RoundRequest, confidence: float) -> bool:
-    """A tier whose price for the prompt alone exceeds the budget is never admitted."""
-    affordable, exhausted = budget.affordable_tokens(inst.tier, req.budget_cost, req.num_prompt_tokens)
-    return not exhausted and budget.p_within(req.estimates[inst.model].bucket_probs, affordable) >= confidence
+def _admitted(inst: Instance, req: RoundRequest) -> bool:
+    expected = min(int(req.estimates[inst.model].length), req.max_tokens)
+    return budget.request_cost(inst.tier, req.num_prompt_tokens, expected) <= req.budget_cost
+
+
+def _worst_case(inst: Instance, req: RoundRequest) -> float:
+    return budget.request_cost(inst.tier, req.num_prompt_tokens, req.max_tokens)
 
 
 def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instance], loads: Mapping[str, Load],
@@ -131,11 +145,12 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
                  for inst, s, lt, l0 in zip(instances, now, lat, base, strict=True)]
         admitted_all = True
         if admission is not None and req.budget_cost > 0:
-            kept = [c for c, inst in zip(cands, instances, strict=True)
-                    if _admitted(inst, req, admission.confidence)]
+            kept = [c for c, inst in zip(cands, instances, strict=True) if _admitted(inst, req)]
             admitted_all = bool(kept)
-            if kept:
-                cands = kept
+            if not kept:
+                cheapest = min(_worst_case(inst, req) for inst in instances)
+                kept = [c for c, inst in zip(cands, instances, strict=True) if _worst_case(inst, req) == cheapest]
+            cands = kept
         scored = score(cands, w_quality=weights.w_quality, w_cost=weights.w_cost, w_latency=weights.w_latency,
                        normalization=normalization)
         best = pick(scored).candidate

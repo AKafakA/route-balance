@@ -16,8 +16,7 @@
   "prior": "knn"
  },
  "budget": {
-  "admission_filter": false,
-  "confidence": 0.5
+  "admission_filter": false
  },
  "telemetry": {
   "poll_ms": 20.0,

@@ -33,7 +33,7 @@ RB = {
                 "table": "calib/t.json", "table_md5": "0" * 32},
     "estimator": {"index_dir": "knn/x", "index_md5": "0" * 32, "encoder_revision": "0" * 40, "k": 50,
                   "score_type": "deepeval", "prior": "knn"},
-    "budget": {"admission_filter": False, "confidence": 0.5},
+    "budget": {"admission_filter": False},
     "telemetry": {"poll_ms": 20.0, "max_age_ms": 2000.0, "timeout_s": 2.0},
     "pipeline": None,
 }

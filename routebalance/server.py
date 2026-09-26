@@ -287,10 +287,10 @@ class RouteBalance:
                 fetched = time.perf_counter()
                 self.collector.adapt(loads)
                 requests = [RoundRequest(c.request_id, c.prompt_tokens, e,
-                                         0.0 if c.budget_cost is None else c.budget_cost)
+                                         0.0 if c.budget_cost is None else c.budget_cost, c.max_tokens)
                             for (c, _, _), e in zip(batch, ests, strict=True)]
                 cfg = self._cfg
-                admission = Admission(cfg.budget.confidence) if cfg.budget.admission_filter else None
+                admission = Admission() if cfg.budget.admission_filter else None
                 decisions = await loop.run_in_executor(self._executor, functools.partial(
                     schedule_round, requests, self._fleet, loads, self._c.latency, weights=cfg.weights,
                     normalization=cfg.latency.normalization, lpt=cfg.lpt, pending_decode=cfg.pending_decode,
@@ -523,7 +523,9 @@ class Service:
         """One decision line per request, whatever happened; a latency line for the sweep configurations."""
         ok = res is not None and res.success
         line = {"request_id": c.request_id, "config_digest": self.digest, "success": ok, "error": error,
-                "max_tokens": max_tokens, "budget": None if clamp is None else asdict(clamp)}
+                "max_tokens": max_tokens, "budget": None if clamp is None else asdict(clamp),
+                "request": {"prompt_tokens": c.prompt_tokens, "max_tokens": c.max_tokens,
+                            "budget_cost": c.budget_cost}}      # as sent: the budget filter's inputs (gates/arm.py)
         if a is not None:
             line |= {"instance_id": a.instance.instance_id, "tier": a.instance.tier.tier_id, "state": asdict(a.state),
                      **a.evidence, "timings_ms": a.timings_ms}

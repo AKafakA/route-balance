@@ -30,7 +30,7 @@ BASE = {
                 "table": "calib/t.json", "table_md5": "0" * 32},
     "estimator": {"index_dir": "knn/x", "index_md5": "1" * 32, "encoder_revision": "e" * 40, "k": 50,
                   "score_type": "deepeval", "prior": "knn"},
-    "budget": {"admission_filter": False, "confidence": 0.5},
+    "budget": {"admission_filter": False},
     "telemetry": {"poll_ms": 50.0, "max_age_ms": 500.0, "timeout_s": 2.0},
     "pipeline": None,
 }

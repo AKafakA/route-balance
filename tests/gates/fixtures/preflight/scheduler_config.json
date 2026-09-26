@@ -27,8 +27,7 @@
    "prior": "knn"
   },
   "budget": {
-   "admission_filter": false,
-   "confidence": 0.5
+   "admission_filter": false
   },
   "telemetry": {
    "poll_ms": 20.0,
@@ -47,6 +46,6 @@
    }
   }
  },
- "config_digest": "8537413887941ed007ddf83a0028790f8e640773491338cc3f04b6ed1da6fbac",
- "fleet_digest": "106915480cf6664074c69fb2c906591265724b8b0c54c167eccaf2f14045427f"
+ "config_digest": "c4bde7209b1c35901af460f7bfdea1852ced7db411d9fa2d573bd388653162e6",
+ "fleet_digest": "7890f6c3119a741c24326d0a5c0a7fbabcbbd2b97ee97240f546490f1fe89dc0"
 }

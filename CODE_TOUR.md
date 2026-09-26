@@ -101,8 +101,9 @@ Check: the constant and curve sources never import xgboost, and `predict_calls` 
   - Each request is scored on the instances' current state.
   - The winner's state then counts the assignment (one more waiting request, plus its decode tokens), so
     later requests in the round see earlier ones.
-  - The optional budget admission filter lives here too.
-- `budget.py` (63): v3's max_tokens clamp, shared by every system, and the admission rule.
+  - The optional budget admission filter lives here too: v3's, as its budget sweep ran it (expected cost within
+    the budget, else the cheapest by worst-case cost).
+- `budget.py` (52): v3's max_tokens clamp, shared by every system, and the cost arithmetic.
 
 Check: `tests/equivalence/test_rb_decision_replay.py` re-scores every banked v3 decision (λ6 and λ30, 8
 presets). The rebuild picks v3's model on all of them.

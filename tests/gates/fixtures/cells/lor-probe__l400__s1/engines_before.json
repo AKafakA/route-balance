@@ -1,11 +1,11 @@
 {
- "record_sha256": "6d28f459014da5bcb1279c4aec894611f1d6cb0bfde7245040103ca41fccb38a",
+ "record_sha256": "8626797395aa591326d104100f5a8815283015dd2c7789b1ba651c89575882e9",
  "instances": {
   "S_0": {
-   "argv_sha256": "d99098683b7ec5e4906a74588f1ee40a67f80f2728e9e06e579c729b9305e307",
-   "argv": "--model S --port 50783 --max-num-seqs 8",
+   "argv_sha256": "8410a590be519880dba048b248fc1f6d22562d0af19c3faba6ca8fdec58feecd",
+   "argv": "--model S --port 59711 --max-num-seqs 8",
    "gpus": "0",
-   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 50783 --max-num-seqs 8",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 59711 --max-num-seqs 8",
    "start_time_s": 1790000000.0,
    "cache_config": {
     "block_size": "16",
@@ -18,10 +18,10 @@
    "max_model_len": 4096
   },
   "S_1": {
-   "argv_sha256": "c9b465b077b64394ce6df92228b0af674927c54307cc904b2a96cd77f445a756",
-   "argv": "--model S --port 54557 --max-num-seqs 8",
+   "argv_sha256": "cb622900c1efe9d6b16b791f8677857bef768667872e1e023a04fa736e23df60",
+   "argv": "--model S --port 34751 --max-num-seqs 8",
    "gpus": "0",
-   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 54557 --max-num-seqs 8",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 34751 --max-num-seqs 8",
    "start_time_s": 1790000000.0,
    "cache_config": {
     "block_size": "16",
@@ -34,10 +34,10 @@
    "max_model_len": 4096
   },
   "L_2": {
-   "argv_sha256": "2d44315e7b4c55b02a2e18596cf23020752936cdab62626b992b46bd35ea83ed",
-   "argv": "--model L --port 44839 --max-num-seqs 8",
+   "argv_sha256": "43bfa1b62c1632f71d3f017972bb67902cd7abcffc641535c2e82e00d01c272a",
+   "argv": "--model L --port 47697 --max-num-seqs 8",
    "gpus": "0",
-   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model L --port 44839 --max-num-seqs 8",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model L --port 47697 --max-num-seqs 8",
    "start_time_s": 1790000000.0,
    "cache_config": {
     "block_size": "16",

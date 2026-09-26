@@ -251,7 +251,7 @@ def _executed_sections(doc: dict) -> dict:
 def test_every_main_groups_configurations_differ_only_as_declared():
     """What the parity gate will find on the lease, checked on the rendered documents: in a main comparison
     group, two configurations differ only in keys the group's patterns match (found 09-25: the budget groups
-    did not declare budget.confidence, which the filter arm sets to 0.7)."""
+    declared budget.admission_filter only, while the filter arm also changed another budget key)."""
     from gates.parity import matches
     result = full_render()
     scope = parse(Scope, result.scope, "rendered")

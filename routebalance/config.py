@@ -263,8 +263,7 @@ class Estimator(_Strict):
 
 
 class Budget(_Strict):
-    admission_filter: bool
-    confidence: float = Field(gt=0, lt=1)
+    admission_filter: bool                # v3's budget filter (routebalance/schedule/assign.py Admission)
 
 
 class Telemetry(_Strict):

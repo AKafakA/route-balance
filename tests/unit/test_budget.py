@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from routebalance.schedule.budget import affordable_tokens, clamp, p_within, request_cost
+from routebalance.schedule.budget import affordable_tokens, clamp, request_cost
 from routebalance.types import Tier
 
 T = Tier("t", "M", "a30", 1e-7, 2e-7, 256)
@@ -28,13 +28,6 @@ def test_affordable_is_at_least_one_token():
 def test_no_budget_is_not_a_budget(bad):
     with pytest.raises(ValueError):
         clamp(T, bad, 10, 10)
-
-
-def test_p_within_counts_the_bucket_holding_the_limit_whole():
-    probs = (0.1, 0.2, 0.3, 0.4)
-    assert p_within(probs, 0) == 0.1
-    assert p_within(probs, 63) == 0.1 and p_within(probs, 64) == pytest.approx(0.3)
-    assert p_within(probs, 10_000) == pytest.approx(1.0)                # past the open-ended last bucket
 
 
 def test_reported_cost_includes_the_prompt():

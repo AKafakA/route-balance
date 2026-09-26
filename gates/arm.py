@@ -18,7 +18,10 @@ No connection bound was hit
   reached is invalid, to be rerun with a larger max_connections.
 RouteBalance (mode routebalance)
   - Every line is a dispatch with its scored candidates: every fleet instance, in fleet order. With the budget
-    admission filter the candidates are the admitted ones, or every instance when none was admitted.
+    admission filter (v3's, routebalance/schedule/assign.py Admission) the gate recomputes it from the line's
+    request (prompt tokens, max_tokens, budget), its expected lengths and the manifest's prices: the candidates
+    are the admitted instances, or, when none is admitted, the instances at the cheapest worst-case cost, in
+    fleet order, with admitted_all saying which.
   - The chosen instance is a candidate with the highest score.
   - Every score is w_quality*q + w_cost*c + w_latency*l, bitwise, which checks the weights actually used.
   - fixed_ref: every latency term lies in (0, 1], and term * latency gives the same reference for every
@@ -149,11 +152,6 @@ def _coverage(p: Problems, cell: Cell, request_ids: list[str], lines: list[dict]
         p.add("a request has more than one decision line", rid)
 
 
-def _is_subsequence(xs: list, ys: list) -> bool:
-    it = iter(ys)
-    return len(set(xs)) == len(xs) and all(x in it for x in xs)
-
-
 def _lengths(line: dict, models: set[str]) -> dict:
     lengths = _get(line, "lengths")
     if not (isinstance(lengths, dict) and models <= set(lengths) and all(_num(v) and v >= 0 for v in lengths.values())):
@@ -191,6 +189,23 @@ def _decode(p: Problems, rid: str, line: dict, cfg: SchedulerConfig, fleet_model
               f"{rid}: {line['decode_tokens']} != {want}")
 
 
+def _admission(line: dict, fleet: list[FleetEntry], lengths: dict) -> tuple[list[str], bool]:
+    """(the candidates v3's budget filter keeps, in fleet order; whether any was admitted), from the line's
+    request as sent and the fleet's prices, with the scheduler's arithmetic (routebalance/schedule/budget.py)."""
+    req = _get(line, "request")
+    if not isinstance(req, dict) or set(req) != {"prompt_tokens", "max_tokens", "budget_cost"} \
+            or not _num(req["budget_cost"]) or type(req["prompt_tokens"]) is not int or type(req["max_tokens"]) is not int:
+        raise _Malformed(f"request {req!r} does not give the prompt tokens, max_tokens and budget sent")
+    p_tok, cap, budget_cost = req["prompt_tokens"], req["max_tokens"], req["budget_cost"]
+    admitted = [f.instance_id for f in fleet
+                if p_tok * f.cost_in + min(int(lengths[f.model]), cap) * f.cost_out <= budget_cost]
+    if admitted:
+        return admitted, True
+    worst = {f.instance_id: p_tok * f.cost_in + cap * f.cost_out for f in fleet}
+    cheapest = min(worst.values())
+    return [f.instance_id for f in fleet if worst[f.instance_id] == cheapest], False
+
+
 def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], lines: list[dict], max_tokens: int) -> None:
     ids = [f.instance_id for f in fleet]
     model_of = {f.instance_id: f.model for f in fleet}
@@ -209,13 +224,16 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
             insts = [c["inst"] for c in cands]
             filter_ran = cfg.budget.admission_filter and _get(line, "budget") is not None
             admitted_all = _get(line, "admitted_all")
-            if not filter_ran and admitted_all is not True:
-                p.add("admitted_all is false but no budget filter ran", rid)
-            if not filter_ran or admitted_all is False:
+            if not filter_ran:
+                if admitted_all is not True:
+                    p.add("admitted_all is false but no budget filter ran", rid)
                 if insts != ids:
                     p.add("the RouteBalance candidates are not every fleet instance in fleet order", f"{rid}: {insts}")
-            elif not (insts and _is_subsequence(insts, ids)):
-                p.add("the admitted candidates are not a subset of the fleet in fleet order", f"{rid}: {insts}")
+            else:
+                want, fits = _admission(line, fleet, _lengths(line, models))
+                if insts != want or admitted_all is not fits:
+                    p.add("the candidates are not v3's budget filter's (admitted, else the cheapest by worst-case "
+                          "cost)", f"{rid}: {insts} (admitted_all {admitted_all}) != {want} ({fits})")
             _scores(p, rid, line, cands, w)
             _latency_terms(p, rid, cands, cfg.latency.normalization)
             lengths = _lengths(line, models)

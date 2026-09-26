@@ -33,7 +33,7 @@ RB = {
                 "table": "calib/qwen_tpot_curve.json", "table_md5": "1" * 32},
     "estimator": {"index_dir": "knn/qwen", "index_md5": "0" * 32, "encoder_revision": "a" * 40, "k": 50,
                   "score_type": "deepeval", "prior": "knn"},
-    "budget": {"admission_filter": False, "confidence": 0.5},
+    "budget": {"admission_filter": False},
     "telemetry": {"poll_ms": 50.0, "max_age_ms": 500.0, "timeout_s": 3.0},
     "pipeline": None,
 }
@@ -173,7 +173,7 @@ def test_how_load_is_read_follows_the_mode(mode, read, dr, dispatch, msg):
 def test_pipeline_mode_rejects_the_budget_admission_filter():
     d = _pipeline(router="rb_decoupled")
     d["weights"] = RB["weights"]
-    d["budget"] = {"admission_filter": True, "confidence": 0.5}
+    d["budget"] = {"admission_filter": True}
     with pytest.raises(ConfigError, match="admission filter"):
         parse_scheduler(d)
 

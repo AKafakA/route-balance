@@ -69,7 +69,6 @@ SHARED = [
     (("telemetry", "poll_ms"), 100.0, "telemetry.poll_ms"),
     (("telemetry", "max_age_ms"), 900.0, "telemetry.max_age_ms"),
     (("telemetry", "dead_reckoning"), False, "telemetry.dead_reckoning"),
-    (("budget", "confidence"), 0.9, "budget.confidence"),
     (("budget", "admission_filter"), True, "budget.admission_filter"),
     (("fleet_digest",), "f" * 64, "fleet_digest"),
     (("versions", "aiohttp"), "3.9.0", "versions.aiohttp"),

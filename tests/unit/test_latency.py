@@ -204,7 +204,7 @@ def _cfg(source, envelope, md5):
                     "table_md5": md5},
         "estimator": {"index_dir": "knn", "index_md5": "0" * 32, "encoder_revision": "a" * 40, "k": 50,
                       "score_type": "deepeval", "prior": "knn"},
-        "budget": {"admission_filter": False, "confidence": 0.5},
+        "budget": {"admission_filter": False},
         "telemetry": {"poll_ms": 50.0, "max_age_ms": 500.0, "timeout_s": 3.0}, "pipeline": None,
     }
     return parse_scheduler(doc).latency
