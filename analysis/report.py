@@ -14,20 +14,27 @@ Inputs, each checked:
   the stores   the served-text score stores (tools/judge_served.py), for the budget cells.
 Every ok cell is summarised against its group's fleet (analysis/metrics.py summarize_cell) with the preregistered
 SLO multipliers on its family's bases. A cell whose summary has problems is reported and kept out of every
-comparison, never averaged in.
+comparison, never averaged in. A valid cell's per-request values (the request bootstrap's input) must reproduce
+its summary.
 
 Output, a new directory:
   report.json  per cell: the summary, the model mix and the overhead stages; per configuration: the seed means
                (analysis/frontier.py); the frontiers per metric; for each --treatment system, the equal-quality rows
-               (analysis/equal_quality.py) and every baseline configuration it could not compare, with the
+               (analysis/equal_quality.py: one treatment configuration for every metric, each seed's value, the
+               range over the seeds and the request-bootstrap interval, D80, D81) and every baseline
+               configuration it could not compare, with the
                reason (`not_compared`: an ablation group, whose variants are read against its reference in its
                systems table; no treatment configuration at that group and trace; or no treatment preset with
                cells for every seed of the baseline); goodput at the rules' attainment levels of the tight and
                loose SLO per configuration over the stationary traces, with the rates it was read from
                (analysis/slo.py)
   tables/systems.<group>.<trace>.tex         every configuration of the group at the trace
-  tables/equal.<treatment>.<group>.<trace>.tex   every compared baseline configuration: the relative change and
-               its seed-bootstrap CI (-- where there is no equal-quality point)
+  tables/equal.<treatment>.<group>.<trace>.tex   (the main text) every compared baseline configuration: the
+               relative change of mean and P99 E2E and cost, and the change of SLO attainment in percentage
+               points, each with its range over the seeds (-- where there is no equal-quality point)
+  tables/equal_ci.<treatment>.<group>.<trace>.tex   (the appendix) the same changes with their request-bootstrap
+               intervals
+  tables/equal_seeds.<treatment>.<group>.<trace>.tex   (the appendix) each seed's changes
   macros.tex   per treatment, group and stationary trace: the range over the baseline configurations of the
                relative change of mean E2E, P99 E2E and cost at equal quality
 """
@@ -36,16 +43,19 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 from typing import Mapping, Optional, Sequence
 
-from analysis.equal_quality import equal_quality
+import numpy as np
+
+from analysis.equal_quality import SampleKey, equal_quality
 from analysis.frontier import METRICS, CellPoint, ConfigPoint, by_config, cell_point, config_points, frontiers
 from analysis.manifest import Coverage, check
-from analysis.metrics import CellSummary, summarize_cell
+from analysis.metrics import CellSummary, RequestValues, request_values, summarize_cell
 from analysis.quality import ScoredCorpus, ScoreStore
 from analysis.rules import Rules, load_rules
 from analysis.slo import CellSlo, SloBase, goodputs
@@ -57,6 +67,8 @@ from tools.campaign import load_plan
 
 SLO_LEVELS = ("tight", "loose")
 MACRO_METRICS = {"e2e_mean_ms": "Mean", "e2e_p99_ms": "Tail", "cost_decode_per_1k": "Cost"}
+TABLE_METRICS = {**MACRO_METRICS, "slo_miss_tight": "SLO tight (pp)", "slo_miss_loose": "SLO loose (pp)"}
+ATTAINMENT = ("slo_miss_tight", "slo_miss_loose")        # shown as the change of attainment, in points
 _DIGITS = dict(zip("0123456789",
                    ("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"), strict=True))
 
@@ -121,7 +133,7 @@ class Inputs:
         name = self.plan["groups"][group]["fleet"]
         return name, self.plan["fleets"][name]["family"]
 
-    def summarize(self, exp: ExpectedCell, cell: CellRecord) -> CellSummary:
+    def _sources(self, exp: ExpectedCell, cell: CellRecord) -> tuple[ScoredCorpus | ScoreStore, list[Instance], CellSlo]:
         name, family = self.group_fleet(exp.group)
         for have, what, key in ((self.fleets, "--fleet", name), (self.slo_bases, "--slo-base", family)):
             if key not in have:
@@ -131,12 +143,27 @@ class Inputs:
         if cell.budgets_sha256 is not None:
             if self.store is None:
                 raise ConfigError(f"budget cell {exp.cell_id} needs the served-text score stores (--store)")
-            quality = self.store
-        else:
-            if family not in self.corpora:
-                raise ConfigError(f"cell {exp.cell_id} needs the {family} scored corpus under --data-root")
-            quality = self.corpora[family]
-        return summarize_cell(cell, quality, fleet, slo)
+            return self.store, fleet, slo
+        if family not in self.corpora:
+            raise ConfigError(f"cell {exp.cell_id} needs the {family} scored corpus under --data-root")
+        return self.corpora[family], fleet, slo
+
+    def summarize(self, exp: ExpectedCell, cell: CellRecord) -> CellSummary:
+        return summarize_cell(cell, *self._sources(exp, cell))
+
+    def request_values(self, exp: ExpectedCell, cell: CellRecord) -> RequestValues:
+        return request_values(cell, *self._sources(exp, cell))
+
+
+def check_values(cell_id: str, s: CellSummary, v: RequestValues) -> None:
+    """The per-request values reproduce the cell's summary: the bootstrap resamples what the comparison uses."""
+    got = {k: float(x[0]) for k, x in v.at(np.arange(len(v.index))[None, :]).items()}
+    want = {"quality": s.quality, "e2e_mean_ms": s.e2e_ms.mean, "e2e_p99_ms": s.e2e_ms.p99,
+            "cost_decode_per_1k": s.cost_decode_per_1k, "slo_miss_tight": 1.0 - s.slo_attainment_tight,
+            "slo_miss_loose": 1.0 - s.slo_attainment_loose}
+    bad = {k: (got[k], w) for k, w in want.items() if not math.isclose(got[k], w, rel_tol=1e-9, abs_tol=1e-12)}
+    if bad:
+        raise ConfigError(f"cell {cell_id}: the per-request values do not reproduce the summary: {bad}")
 
 
 def comparable(points: Sequence[CellPoint], treatment: str,
@@ -168,6 +195,7 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
     cov: Coverage = check(inputs.scope, cells_root)
     expected = {e.cell_id: e for e in expected_cells(inputs.scope)}
     cells, points, left_out = {}, [], {}
+    samples: dict[SampleKey, RequestValues] = {}
     for cid in cov.ok:
         exp = expected[cid]
         if exp.group in cov.fleet_problems:
@@ -179,6 +207,9 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
                       "summary": asdict(s), "model_mix": model_mix(rec)}
         if s.valid:
             points.append(cell_point(exp, s, cov))
+            v = inputs.request_values(exp, rec)
+            check_values(cid, s, v)
+            samples[(exp.group, exp.trace_id, exp.config_id, exp.seed)] = v
         else:
             left_out[cid] = "; ".join(s.problems)
     configs = config_points(points)
@@ -186,7 +217,7 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
     eq, not_compared = {}, {}
     for t in treatments:
         these, not_compared[t] = comparable(points, t, inputs.scope.groups)
-        eq[t] = [asdict(r) for r in equal_quality(these, t, inputs.rules.equal_quality)]
+        eq[t] = [asdict(r) for r in equal_quality(these, t, inputs.rules.equal_quality, samples)]
     rates = stationary_rates(inputs.scope)
     read_from: dict[str, list[float]] = {}
     for p in configs:
@@ -224,24 +255,51 @@ def systems_table(configs: Sequence[ConfigPoint]) -> str:
     return "\n".join(rows) + "\n"
 
 
-def _delta(d: dict) -> str:
-    if d["relative"] is None:
+def _change(metric: str, relative: Optional[float], delta: Optional[float],
+            span: Optional[Sequence[float]] = None, span_delta: Optional[Sequence[float]] = None) -> str:
+    """A metric's change as the tables show it: relative (%) for latency and cost; for an SLO miss share, the
+    change of attainment in percentage points (minus the miss share's delta), with its interval flipped."""
+    if metric in ATTAINMENT:
+        if delta is None:
+            return "--"
+        tail = "" if span_delta is None else f" [{-100 * span_delta[1]:+.1f}, {-100 * span_delta[0]:+.1f}]"
+        return f"{-100 * delta:+.1f}{tail}"
+    if relative is None:
         return "--"
-    ci = d["ci_relative"]
-    tail = "" if ci is None else f" [{100 * ci[0]:+.1f}, {100 * ci[1]:+.1f}]"
-    return f"{100 * d['relative']:+.1f}\\%{tail}"
+    tail = "" if span is None else f" [{100 * span[0]:+.1f}, {100 * span[1]:+.1f}]"
+    return f"{100 * relative:+.1f}\\%{tail}"
 
 
-def equal_table(rows: Sequence[dict]) -> str:
-    names = [m for m in MACRO_METRICS]
-    out = [r"\begin{tabular}{lrr" + "r" * len(names) + "}", r"\toprule",
-           "Baseline & Quality & Seeds & " + " & ".join(MACRO_METRICS[m] for m in names) + r" \\", r"\midrule"]
+def _table(header: str, lines: Sequence[str], n_metrics: int, n_lead: int) -> str:
+    out = [r"\begin{tabular}{l" + "r" * (n_lead - 1 + n_metrics) + "}", r"\toprule", header + r" \\", r"\midrule",
+           *[ln + r" \\" for ln in lines], r"\bottomrule", r"\end{tabular}"]
+    return "\n".join(out) + "\n"
+
+
+def equal_table(rows: Sequence[dict], interval: str = "range") -> str:
+    """One line per baseline configuration: each metric's change at equal quality, with its range over the
+    seeds (interval "range", the main text) or its request-bootstrap interval ("ci", the appendix)."""
+    rel_key, abs_key = {"range": ("range_relative", "range"), "ci": ("ci_relative", "ci")}[interval]
+    names = list(TABLE_METRICS)
+    lines = []
     for r in sorted(rows, key=lambda r: (r["system"], r["config_id"])):
         by = {d["metric"]: d for d in r["deltas"]}
-        out.append(f"{_tex(r['config_id'])} & {r['quality']:.4f} & {len(r['seeds'])} & " +
-                   " & ".join(_delta(by[m]) if m in by else "--" for m in names) + r" \\")
-    out += [r"\bottomrule", r"\end{tabular}"]
-    return "\n".join(out) + "\n"
+        cells = [_change(m, by[m]["relative"], by[m]["delta"], by[m][rel_key], by[m][abs_key]) if m in by else "--"
+                 for m in names]
+        lines.append(f"{_tex(r['config_id'])} & {r['quality']:.4f} & {len(r['seeds'])} & " + " & ".join(cells))
+    return _table("Baseline & Quality & Seeds & " + " & ".join(TABLE_METRICS[m] for m in names), lines, len(names), 3)
+
+
+def seeds_table(rows: Sequence[dict]) -> str:
+    """One line per baseline configuration and seed: each metric's change on that seed alone."""
+    names = list(TABLE_METRICS)
+    lines = []
+    for r in sorted(rows, key=lambda r: (r["system"], r["config_id"])):
+        by = {d["metric"]: {v["seed"]: v for v in d["per_seed"]} for d in r["deltas"]}
+        for seed in r["seeds"]:
+            cells = [_change(m, by[m][seed]["relative"], by[m][seed]["delta"]) if m in by else "--" for m in names]
+            lines.append(f"{_tex(r['config_id'])} & {seed} & " + " & ".join(cells))
+    return _table("Baseline & Seed & " + " & ".join(TABLE_METRICS[m] for m in names), lines, len(names), 2)
 
 
 def macro_name(*parts: str) -> str:
@@ -284,6 +342,8 @@ def write(report: dict, out: Path) -> None:
         for key in sorted({(r["group"], r["trace_id"]) for r in rows}):
             subset = [r for r in rows if (r["group"], r["trace_id"]) == key]
             (out / "tables" / f"equal.{t}.{key[0]}.{key[1]}.tex").write_text(equal_table(subset))
+            (out / "tables" / f"equal_ci.{t}.{key[0]}.{key[1]}.tex").write_text(equal_table(subset, "ci"))
+            (out / "tables" / f"equal_seeds.{t}.{key[0]}.{key[1]}.tex").write_text(seeds_table(subset))
     (out / "macros.tex").write_text(macros(report))
 
 
@@ -312,6 +372,12 @@ def main(argv: list[str]) -> int:
     for t, skipped in report["not_compared"].items():
         for key, why in skipped.items():
             print(f"  NOT COMPARED with {t}: {key}: {why}")
+    for t, rows in report["equal_quality"].items():
+        for r in rows:
+            for d in r["deltas"]:
+                if d["outside_range"]:
+                    print(f"  NOTE {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: the value at the "
+                          f"seed means lies outside the range over the seeds (D81)")
     return 0
 
 

@@ -101,6 +101,62 @@ class CellSummary:
         return not self.problems
 
 
+@dataclass(frozen=True, eq=False)
+class RequestValues:
+    """A valid cell's per-request values by send position, for the request bootstrap (analysis/equal_quality.py):
+    each request's judged score (nan for a corpus gap), E2E latency, decode cost (its output tokens at the
+    served model's output price, USD) and whether it met each SLO level. at() recomputes the cell's metrics on a
+    draw of the requests as summarize() computes them on all of them, to rounding (numpy means in send order
+    where summarize() takes exactly rounded sums in record order); a draw of only corpus gaps has quality nan."""
+    index: tuple[int, ...]                 # send positions, increasing
+    prompt_ids: tuple[str, ...]
+    score: np.ndarray
+    e2e_s: np.ndarray
+    cost: np.ndarray
+    met_tight: np.ndarray
+    met_loose: np.ndarray
+
+    def at(self, draws: np.ndarray) -> dict[str, np.ndarray]:
+        """Each metric of analysis/frontier.py, and quality, on each row of `draws` (resamples x positions)."""
+        e2e = self.e2e_s[draws]
+        scores = self.score[draws]
+        scored = (~np.isnan(scores)).sum(axis=1)
+        quality = np.divide(np.nansum(scores, axis=1), scored, out=np.full(len(scored), np.nan), where=scored > 0)
+        return {"quality": quality,
+                "e2e_mean_ms": e2e.mean(axis=1) * 1000.0,
+                "e2e_p99_ms": np.percentile(e2e, 99, axis=1) * 1000.0,
+                "cost_decode_per_1k": self.cost[draws].mean(axis=1) * 1000,
+                "slo_miss_tight": 1.0 - self.met_tight[draws].mean(axis=1),
+                "slo_miss_loose": 1.0 - self.met_loose[draws].mean(axis=1)}
+
+
+def request_values(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: Sequence[Instance],
+                   slo: CellSlo) -> RequestValues:
+    """The per-request values of a cell that summarize_cell() found valid (every request succeeded, was scored
+    or is a corpus gap, and was served by a priced instance of the fleet)."""
+    prices = decode_prices(i.tier for i in fleet)
+    rows = []
+    for r, o in zip(cell.requests, outcomes_of(cell), strict=True):
+        if not o.ok:
+            raise ConfigError(f"cell {cell.cell_id}: request {r.index} failed; only a valid cell has request values")
+        outcome, score = quality.lookup(o.prompt, o.model, o.text)
+        if outcome not in ("matched", "corpus_gap") or o.model not in prices:
+            raise ConfigError(f"cell {cell.cell_id}: request {r.index} is {outcome} or unpriced; only a valid cell "
+                              "has request values")
+        rows.append((r.index, r.prompt_id, score if outcome == "matched" else math.nan, o.e2e_s,
+                     o.output_tokens * prices[o.model],
+                     *(slo.met(lvl, o.instance_id, o.e2e_s, o.server_latency_s, o.ttft_s, o.output_tokens)
+                       for lvl in LEVELS)))
+    rows.sort(key=lambda row: row[0])
+    if len({row[0] for row in rows}) != len(rows):
+        raise ConfigError(f"cell {cell.cell_id}: two requests share a send position")
+    cols = list(zip(*rows, strict=True)) if rows else [()] * 7
+    tight, loose = (cols[5 + LEVELS.index(lvl)] for lvl in ("tight", "loose"))
+    return RequestValues(index=tuple(cols[0]), prompt_ids=tuple(cols[1]), score=np.array(cols[2], dtype=float),
+                         e2e_s=np.array(cols[3], dtype=float), cost=np.array(cols[4], dtype=float),
+                         met_tight=np.array(tight, dtype=float), met_loose=np.array(loose, dtype=float))
+
+
 def decode_prices(tiers: Iterable[Tier]) -> dict[str, float]:
     """Output price (USD per token) of each served model name, from the fleet's tiers."""
     prices: dict[str, float] = {}

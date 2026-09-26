@@ -181,8 +181,9 @@ cancellation before and after a round places a request, and duplicate request id
 - `analysis/`:
   - per-cell metrics, with quality as the DeepEval score of (prompt, served model) in the scored corpus, zero-safe;
   - the cell manifest (expected cells accounted for);
-  - frontiers, equal-quality deltas with a paired seed bootstrap, the SLO (TTFT and TPOT within k times the
-    tier's single-request values, after SOLA), its attainment and goodput.
+  - frontiers, equal-quality deltas (one treatment configuration on the quality-latency frontier for every
+    metric, the range over the seeds, and a request bootstrap within the paired seeds), the SLO (TTFT and TPOT
+    within k times the tier's single-request values, after SOLA), its attainment and goodput.
   - Re-aggregating the banked v3 cells reproduces v3's tables bit-exactly.
 - `tools/` (about 3,000 lines):
   - `campaign.py`: renders the lease campaign (presets × scope) into per-cell configurations.

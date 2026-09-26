@@ -96,7 +96,11 @@ def test_the_report_compares_at_equal_quality_and_writes_the_papers_files(env):
     assert r"\eqRouteBalanceGOneLTwoZeroZeroMeanMin" in macros and r"\eqRouteBalanceGOneLTwoZeroZeroCostMax" in macros
     assert report["goodput"]["tight@0.9"]["g1|rb-a"] == {"rate": 200.0, "censored": True, "rates": [200.0]}
     assert report["not_compared"] == {"RouteBalance": {}}
-    assert "[" in (out / "tables" / "equal.RouteBalance.g1.l200.tex").read_text()      # the relative CI
+    assert "[" in (out / "tables" / "equal.RouteBalance.g1.l200.tex").read_text()      # the range over the seeds
+    assert mean["range_relative"] is not None and [v["seed"] for v in mean["per_seed"]] == [1, 2]
+    assert rows[0]["frontier_presets"] == ["rb-a", "rb-a"]                        # one preset: its own point
+    assert "[" in (out / "tables" / "equal_ci.RouteBalance.g1.l200.tex").read_text()
+    assert (out / "tables" / "equal_seeds.RouteBalance.g1.l200.tex").read_text().count(r"\\") == 3   # header + 2 seeds
     with pytest.raises(ConfigError, match="exists"):
         rp.main(_argv(env, out))
 
@@ -147,3 +151,26 @@ def test_an_ablation_group_is_not_compared_at_equal_quality():
     assert {(p.group, p.config_id) for p in these} == {("g1", "rb-a"), ("g1", "ap-1")}
     assert skipped == {"abl|l30|rb-v": "ablation group: read against its reference rb-a"}
 
+
+
+def test_request_values_that_do_not_reproduce_the_summary_are_refused():
+    import numpy as np
+    from analysis.metrics import CellSummary, RequestValues, Spread
+    one = np.ones(2)
+    v = RequestValues(index=(0, 1), prompt_ids=("a", "b"), score=np.array([0.5, 0.5]), e2e_s=np.array([1.0, 1.0]),
+                      cost=np.array([1e-6, 1e-6]), met_tight=one, met_loose=one)
+    s = CellSummary(cell_id="c", n_requests=2, n_ok=2, n_failed=0, quality=0.5, matched=2, corpus_gap=0, unmatched=0,
+                    unscored=0, budget_exhausted=None, n_zero=0, coverage=1.0, quality_zeros_excluded=0.5,
+                    cost_decode_per_1k=1e-3, throughput_rps=1.0, e2e_ms=Spread(1000.0, 1000.0, 1000.0),
+                    slo_attainment_tight=1.0, slo_attainment_loose=1.0, overhead_ms={}, off_instance_ms=None,
+                    prompt_token_mismatches=0, problems=())
+    rp.check_values("c", s, v)
+    with pytest.raises(ConfigError, match="do not reproduce the summary"):
+        rp.check_values("c", s.__class__(**{**s.__dict__, "quality": 0.6}), v)
+
+
+def test_attainment_changes_are_shown_in_points_with_the_interval_flipped():
+    # the treatment misses 5 points fewer requests: attainment +5.0, its range [+2.0, +8.0] from miss deltas [-8, -2]
+    assert rp._change("slo_miss_tight", None, -0.05, None, (-0.08, -0.02)) == "+5.0 [+2.0, +8.0]"
+    assert rp._change("e2e_mean_ms", -0.2, -100.0, (-0.25, -0.15)) == r"-20.0\% [-25.0, -15.0]"
+    assert rp._change("e2e_mean_ms", None, None) == "--"

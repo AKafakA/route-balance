@@ -5,7 +5,7 @@ import math
 import numpy as np
 import pytest
 
-from analysis.metrics import Outcome, decode_prices, spread, summarize, summarize_cell
+from analysis.metrics import Outcome, decode_prices, request_values, spread, summarize, summarize_cell
 from analysis.quality import ScoredCorpus, ScoreStore
 from analysis.slo import CellSlo, Limits, SloBase
 from bench.arrivals import constant_trace
@@ -150,6 +150,34 @@ def test_a_cell_is_scored_by_prompt_and_served_model(tmp_path):
     other_model = ScoredCorpus({p: ({"m-large": 0.9} if p == first else m) for p, m in corpus._scores.items()})
     s = summarize_cell(rec, other_model, FLEET, CELL_SLO)
     assert (s.quality, s.matched, s.corpus_gap, s.coverage) == (0.5, 11, 1, 11 / 12) and s.valid
+
+
+def test_request_values_reproduce_the_summary_by_send_position(tmp_path):
+    rec, corpus = _record(tmp_path, latency=lambda i: 0.001 * (i % 5))
+    s = summarize_cell(rec, corpus, FLEET, CELL_SLO)
+    v = request_values(rec, corpus, FLEET, CELL_SLO)
+    got = {k: float(x[0]) for k, x in v.at(np.arange(len(v.index))[None, :]).items()}
+    assert v.index == tuple(range(12)) and v.prompt_ids == tuple(r.prompt_id for r in rec.requests)
+    assert got["quality"] == s.quality and got["e2e_mean_ms"] == s.e2e_ms.mean and got["e2e_p99_ms"] == s.e2e_ms.p99
+    assert math.isclose(got["cost_decode_per_1k"], s.cost_decode_per_1k, rel_tol=1e-12)
+    assert got["slo_miss_tight"] == 1 - s.slo_attainment_tight and got["slo_miss_loose"] == 1 - s.slo_attainment_loose
+
+
+def test_a_corpus_gap_is_left_out_of_the_request_values_quality(tmp_path):
+    rec, corpus = _record(tmp_path)
+    first = rec.requests[0].prompt
+    gap = ScoredCorpus({p: ({"m-large": 0.9} if p == first else m) for p, m in corpus._scores.items()})
+    v = request_values(rec, gap, FLEET, CELL_SLO)
+    assert math.isnan(v.score[0]) and float(v.at(np.arange(12)[None, :])["quality"][0]) == 0.5
+
+
+def test_only_a_valid_cell_has_request_values(tmp_path):
+    rec, corpus = _record(tmp_path, fail=lambda i: i == 4)
+    with pytest.raises(ConfigError, match="request 4 failed"):
+        request_values(rec, corpus, FLEET, CELL_SLO)
+    rec, _ = _record(tmp_path)
+    with pytest.raises(ConfigError, match="unmatched"):
+        request_values(rec, ScoredCorpus({}), FLEET, CELL_SLO)
 
 
 def test_a_cell_record_is_summarised_against_its_fleet(tmp_path):
