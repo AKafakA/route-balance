@@ -132,6 +132,9 @@ def test_foreign_or_unflushed_lines_fail_the_window(tmp_path):
         asyncio.run(scenario([{"config_digest": "e" * 64, "request_id": "x"}], 1))
     for name in ("stats_before.json", "manifest_before.json", "window.json"):
         (attempt / name).unlink()
+    with pytest.raises(ConfigError, match="not the running scheduler's"):   # a log directory with another's lines
+        asyncio.run(scenario([], 0))
+    (logs / "decisions.jsonl").unlink()
     cd.SETTLE_S = 0.3
     with pytest.raises(ConfigError, match="did not settle"):
         asyncio.run(scenario([{"config_digest": "d" * 64, "request_id": "y"}], 5))
@@ -245,7 +248,8 @@ def test_the_rows_are_done_only_when_every_cell_is_and_parity_passed(lease, monk
     monkeypatch.setattr(cd, "status", lambda scope, exp, root: "done")
     scope, _ = cd.load(render)
     for exp in [c for c in cd.expected_cells(scope) if c.group == "g1"]:
-        (root / exp.cell_id).mkdir(exist_ok=True)
+        (root / exp.cell_id / "gates").mkdir(parents=True, exist_ok=True)
+        (root / exp.cell_id / "gates" / "verdict.json").write_text(json.dumps({"valid": True}))
         (root / exp.cell_id / f"{exp.cell_id}.cell.json").write_text("{}")
     problems, _ = cd.rows_status(render, ["G1"], root)
     assert problems == ["group g1 is complete but parity has not run over its current cells with the current gate code"]
@@ -297,3 +301,16 @@ def test_a_group_is_ready_for_parity_only_when_every_cell_is_done(lease):
     (root / CELL / "gates" / "verdict.json").write_text(json.dumps({"valid": True}))
     scope, _ = cd.load(render)
     assert cd.status(scope, cd.expected(scope, CELL), root) == "invalid" and cd.group_ready(render, root, "g1") == []
+
+
+def test_a_requested_row_with_a_pending_block_is_refused_and_an_unknown_group_raises(lease, monkeypatch):
+    render, root, fleet, hosts, _ = lease
+    scope, plan = cd.load(render)
+    for r in plan["rows"]:
+        if r["id"] == "G1":
+            r["pending"] = {"G1-x": "pins missing: ap.qwen.pw080"}
+    monkeypatch.setattr(cd, "load", lambda render: (scope, plan))
+    with pytest.raises(ConfigError, match="G1/G1-x: pins missing"):
+        cd.cells_to_run(render, ["G1"], root, fleet, hosts)
+    with pytest.raises(ConfigError, match="has no cells"):
+        cd.group_ready(render, root, "no-such-group")

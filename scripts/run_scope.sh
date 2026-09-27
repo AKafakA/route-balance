@@ -20,7 +20,8 @@
 # run is completed; a mirror copy of another run of the cell, e.g. a retired one, is never written over: the
 # run stops). The run succeeds
 # only when every rendered cell of the rows is done (published, valid, gated) and every group of theirs whose
-# parity ran has passed it; pending blocks are listed. The manifest of the whole render is printed at the end.
+# parity ran has passed it; a requested row with a pending block is refused before any run. The manifest of the
+# whole render is printed at the end.
 set -euo pipefail
 
 PY=${PY:?set PY to the scheduler venv python}

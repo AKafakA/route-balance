@@ -20,6 +20,7 @@ they are served as 0.0, as in v3; the number of 0.0 labels per model is logged a
 from __future__ import annotations
 
 import logging
+import math
 import pickle
 import threading
 from dataclasses import dataclass
@@ -86,14 +87,20 @@ def load_index(index_dir: Path, md5: str) -> KnnIndex:
         judges = state["per_judge_scores"].get(m)
         if m not in state["output_lengths"] or judges is None or DEEPEVAL_KEY not in judges:
             raise ArtifactError(f"{index_dir}: model {m!r} has no output lengths or no {DEEPEVAL_KEY!r} labels")
-        lengths[m] = _column(state["output_lengths"][m], len(emb), f"{index_dir}: lengths of {m!r}")
-        labels[m] = _column(judges[DEEPEVAL_KEY], len(emb), f"{index_dir}: labels of {m!r}")
-    return KnnIndex(str(state["embedding_model_name"]), int(state["k"]), emb, models, lengths, labels)
+        lengths[m] = _column(state["output_lengths"][m], len(emb), f"{index_dir}: lengths of {m!r}", 0.0, math.inf)
+        labels[m] = _column(judges[DEEPEVAL_KEY], len(emb), f"{index_dir}: labels of {m!r}", 0.0, 1.0)
+    k = state["k"]
+    if isinstance(k, bool) or not isinstance(k, (int, np.integer)) or k < 1:
+        raise ArtifactError(f"{index_dir}: the stored k {k!r} is not a positive integer")
+    return KnnIndex(str(state["embedding_model_name"]), int(k), emb, models, lengths, labels)
 
 
-def _column(a: object, n: int, what: str) -> np.ndarray:
+def _column(a: object, n: int, what: str, low: float, high: float) -> np.ndarray:
+    """A float32 column of length n, every value finite and in [low, high]."""
     if not (isinstance(a, np.ndarray) and a.dtype == np.float32 and a.shape == (n,)):
         raise ArtifactError(f"{what} must be a float32 array of length {n}")
+    if not (np.isfinite(a).all() and (a >= low).all() and (a <= high).all()):
+        raise ArtifactError(f"{what} must be finite and within [{low}, {high}]")
     return a
 
 

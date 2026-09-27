@@ -1,10 +1,10 @@
 # The second location, shared by run_cell.sh and run_scope.sh (sourced). A destination is rsync syntax: a local
 # path or host:path. Nothing here ever deletes or overwrites a different run on the mirror.
 
-fresh() {  # <source dir> <dest dir>: a copy would only create files (the destination is absent, partial or identical)
+fresh() {  # <source dir> <dest dir>: a copy would only create files or set a directory's time (absent, partial or identical)
   local plan
   plan=$(rsync -a --checksum --dry-run --itemize-changes --delete "$1/" "$2/") || return 1
-  ! grep -v -e '^$' -e '^created directory ' -e '+++++++++' <<< "$plan" | grep -q .
+  ! grep -v -e '^$' -e '^created directory ' -e '+++++++++' -e '^\.d\.\.t\.\.\.\.\.\. ' <<< "$plan" | grep -q .
 }
 
 mirror() {  # <source dir> <dest dir>: copy, then a dry run must succeed and list no difference or extra file

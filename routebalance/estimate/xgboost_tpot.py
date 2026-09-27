@@ -15,6 +15,7 @@ pins md5s.json itself). A booster file is named by the fleet tier_id it serves.
 """
 from __future__ import annotations
 
+import math
 import threading
 from pathlib import Path
 from typing import Collection, Mapping, Sequence
@@ -119,5 +120,7 @@ class XGBoostTPOT:
             with self._lock:
                 self._calls += 1
             for i, p in zip(members, self._boosters[tier].inplace_predict(x), strict=True):
+                if not math.isfinite(float(p)):
+                    raise ArtifactError(f"the TPOT head of tier {tier!r} predicted {float(p)!r}")
                 out[i] = max(TPOT_FLOOR_S, float(p))
         return [out[i] for i in range(len(tier_ids))]

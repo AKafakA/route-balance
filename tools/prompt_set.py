@@ -7,7 +7,7 @@ training split for W1 and W1b) are refused, not dropped: a held-out set that ove
 defect of the inputs. Every id and prompt must be unique and every prompt non-empty (bench/dataset.py reads
 the output back and checks the same).
 
-Usage: python -m tools.prompt_set --corpus TRAIN.jsonl [--exclude EVAL.jsonl ...] --out PROMPTS.jsonl
+Usage: python -m tools.prompt_set --corpus TRAIN.jsonl --exclude [EVAL.jsonl ...] --out PROMPTS.jsonl
 """
 from __future__ import annotations
 
@@ -34,7 +34,8 @@ def corpus_rows(path: Path) -> list[tuple[str, str]]:
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--corpus", type=Path, required=True)
-    ap.add_argument("--exclude", type=Path, nargs="*", default=[], help="prompt files whose prompts must not appear")
+    ap.add_argument("--exclude", type=Path, nargs="*", required=True,
+                    help="prompt files whose prompts must not appear (none: --exclude alone)")
     ap.add_argument("--out", type=Path, required=True)
     a = ap.parse_args(argv)
     if a.out.exists():

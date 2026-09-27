@@ -15,8 +15,11 @@ import time
 from pathlib import Path
 
 
+FLUSH_S = 1.0     # the server's decision and latency logs write to disk once a second
+
+
 class JsonlLog:
-    def __init__(self, path: Path, flush_s: float = 1.0):
+    def __init__(self, path: Path, flush_s: float):
         if flush_s <= 0:
             raise ValueError("flush_s must be positive")
         self.path = Path(path)
@@ -55,7 +58,6 @@ class JsonlLog:
 
 class LagProbe:
     PERIOD_S = 0.010
-    KEEP = 20_000           # the most recent samples
 
     def __init__(self):
         self._samples: list[float] = []
@@ -65,14 +67,12 @@ class LagProbe:
             t0 = time.perf_counter()
             await asyncio.sleep(self.PERIOD_S)
             self._samples.append(max(0.0, (time.perf_counter() - t0 - self.PERIOD_S) * 1000.0))
-            if len(self._samples) > 2 * self.KEEP:
-                del self._samples[:-self.KEEP]
 
     def reset(self) -> None:
         self._samples = []
 
     def summary(self) -> dict:
-        s = sorted(self._samples[-self.KEEP:])
+        s = sorted(self._samples)          # every sample since the configuration was applied (reset)
         if not s:
             return {"samples": 0}
 

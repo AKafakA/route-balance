@@ -5,7 +5,7 @@
 
 LIB_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 RB_REPO="$(cd "$LIB_HERE/.." && pwd)"
-PY="${PY:-$RB_REPO/.venv/bin/python}"      # the operator's dev venv (tools.engine_plan, routebalance.config)
+[ -n "${PY:-}" ] || { echo "set PY to the operator's venv python (e.g. PY=.venv/bin/python)" >&2; exit 2; }
 SSH_USER=""                                 # set by --ssh-user; empty = ssh's own configuration
 
 ts() { date -u +%H:%M:%SZ; }

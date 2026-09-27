@@ -56,6 +56,9 @@ def test_the_mirror_never_writes_over_another_run_and_proves_identity(tmp_path):
                         'mirror src dst/cell || echo mirror-refuses-extra\n')
     assert r.stdout.split() == ["absent-ok", "copied", "identical-ok", "changed-refused", "extra-refused",
                                 "mirror-refuses-extra"], r.stderr
+    r = _bash(tmp_path, 'rm -r dst/cell\nmirror src dst/cell\nrm dst/cell/b\ntouch -d 2001-01-01 dst/cell\n'
+                        'fresh src dst/cell && echo interrupted-copy-resumes\n')   # a partial copy's directory time
+    assert "interrupted-copy-resumes" in r.stdout, r.stderr
     r = _bash(tmp_path, 'mirror src nowhere/deeper/cell || echo failed-copy-refused\n')
     assert "failed-copy-refused" in r.stdout
     (tmp_path / "root" / "c1").mkdir(parents=True)

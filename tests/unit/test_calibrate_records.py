@@ -59,6 +59,9 @@ def test_itl_records_still_build_as_before(tmp_path):
     ([{"tier": "t", "b": 1, "tpot_s": -0.01, "output_tokens": 9}], "positive"),
     ([{"tier": "t", "b": 1, "tpot_s": 0.01, "output_tokens": 1}], "at least 2"),
     ([{"tier": "t", "b": 1, "tpot_s": None, "output_tokens": 9}], "positive"),
+    ([{"tier": "t", "b": 0, "tpot_s": 0.01, "output_tokens": 9}], "b an integer >= 1"),
+    ([{"tier": "t", "b": 1, "itl": [0.1, -0.1, 0.1, 0.1]}], "itl must be"),
+    ([{"tier": "t", "b": 1, "itl": {}}], "itl must be"),
 ])
 def test_malformed_records_are_refused(tmp_path, rows, match):
     with pytest.raises(SystemExit, match=match):

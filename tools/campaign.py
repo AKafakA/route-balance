@@ -1,8 +1,8 @@
 """The lease campaign: every configuration (configs/presets.json) and every lease row (configs/scope.json),
 rendered into the files the drivers run from.
 
-    python -m tools.campaign dry-run [--presets P] [--scope S] [--json OUT]
-    python -m tools.campaign render --out DIR [--pins PINS.json] [--decisions DECISIONS.json]
+    python -m tools.campaign dry-run --presets P --scope S [--json OUT]
+    python -m tools.campaign render --presets P --scope S --out DIR [--pins PINS.json] [--decisions DECISIONS.json]
                                     [--fleet NAME=FLEET.json ...] [--hosts HOSTS.json] [--previous DIR]
 
 A render writes a new directory (never an existing one):
@@ -311,7 +311,7 @@ class BlockSource(Strict):
     axes: dict[str, Union[list[str], str]]
     configs: list[str] = Field(min_length=1)
     traces: list[str] = Field(min_length=1)
-    seeds: Union[list[int], Owner]
+    seeds: Union[Annotated[list[int], Field(min_length=1)], Owner]
     prompt_order: Order
     fill: bool
     alias: Optional[str]
@@ -819,6 +819,8 @@ def write_render(result: RenderResult, out: Path, inputs: dict) -> None:
 def check_previous(result: RenderResult, previous: Path) -> None:
     """An earlier stage's configurations and cells survive unchanged into this one."""
     prev = Path(previous)
+    if not (prev / "render.json").is_file():
+        raise ConfigError(f"--previous {prev} is not a render (no render.json)")
     for f in sorted((prev / "configs").glob("*.json")):
         cid = f.name[:-len(".json")]
         if cid not in result.configs:
@@ -978,8 +980,8 @@ def main(argv: list[str]) -> int:
     d = sub.add_parser("dry-run")
     r = sub.add_parser("render")
     for p in (d, r):
-        p.add_argument("--presets", type=Path, default=PRESETS)
-        p.add_argument("--scope", type=Path, default=SCOPE)
+        p.add_argument("--presets", type=Path, required=True, help=f"the presets (the lease's: {PRESETS})")
+        p.add_argument("--scope", type=Path, required=True, help=f"the scope (the lease's: {SCOPE})")
     d.add_argument("--json", type=Path, help="also write the summary as JSON")
     r.add_argument("--out", type=Path, required=True)
     r.add_argument("--pins", type=Path)

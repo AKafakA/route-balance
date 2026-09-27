@@ -126,7 +126,7 @@ class Harness:
 
 def body(i, **kw):
     return {"request_id": f"cell.run.{i}", "prompt": "What is 2+2?", "prompt_tokens": 5, "max_tokens": 64,
-            "temperature": 0.0, "repetition_penalty": 1.0, "frequency_penalty": 1.2} | kw
+            "temperature": 0.0, "repetition_penalty": 1.0, "frequency_penalty": 1.2, "budget_cost": None} | kw
 
 
 def fleet_states():

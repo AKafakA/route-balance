@@ -47,7 +47,7 @@ class Prompt(Strict):
     prompt_id: str                       # the row's "id"
     text: str                            # the raw user prompt, exactly as in the file
     prompt_tokens: int = Field(ge=1)
-    budget_cost: Optional[float] = None  # default-ok: no budget unless the dataset has a budget table (W7b)
+    budget_cost: Optional[float]         # null unless the dataset has a budget table (W7b)
 
 
 class PromptSet(Strict):
@@ -112,7 +112,7 @@ def load_prompts(path: Path, n_requests: int, order: Order, seed: int, tokenizer
         raise ConfigError(f"{path} has {len(rows)} prompts; a run of {n_requests} requests cannot be served")
     chosen = prompt_order(len(rows), order, seed)[:n_requests]
     prompts = [Prompt(row=i, prompt_id=rows[i][0], text=rows[i][1],
-                      prompt_tokens=chat_prompt_tokens(tokenizer, rows[i][1])) for i in chosen]
+                      prompt_tokens=chat_prompt_tokens(tokenizer, rows[i][1]), budget_cost=None) for i in chosen]
     return PromptSet(dataset_sha256=file_sha256(path), tokenizer_id=tokenizer_id, order=order, seed=seed,
                      prompts=prompts)
 

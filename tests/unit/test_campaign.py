@@ -11,7 +11,7 @@ import pytest
 from analysis.rules import PLACEHOLDER
 from bench.schema import parse
 from bench.scope import Scope, expected_cells, group_record
-from routebalance.config import SchedulerConfig, parse_scheduler
+from routebalance.config import ConfigError, SchedulerConfig, parse_scheduler
 from tools import campaign
 from tools.campaign import PresetsFile, ScopeFile
 
@@ -197,7 +197,7 @@ def test_the_baseline_knobs_are_the_plans():
         return campaign.render_config(expanded[pid], resolver)[0].document
     ap_q = doc("qwen.ap.pw070.lor")["pipeline"]["router"]["kwargs"]
     ap_g = doc("gemma.ap.pw070.lor")["pipeline"]["router"]["kwargs"]
-    assert (ap_q["beta"], ap_q["top_k"], ap_g["top_k"]) == (5.0, 4, 3)
+    assert (ap_q["beta"], ap_q["top_k"], ap_g["beta"], ap_g["top_k"]) == (9.0, 1, 9.0, 1)   # upstream's defaults (D89)
     assert ap_q["embedder_revision"] == "1110a243fdf4706b3f48f1d95db1a4f5529b4d41" and len(ap_q["upstream_sha256"]) == 64
     br = doc("qwen.br.t03.po2")["pipeline"]
     kw = br["router"]["kwargs"]      # BEST-Route as its authors ship it (D79): upstream's ranker and routing rule
@@ -560,3 +560,16 @@ def test_the_learned_variant_scores_latency_by_max_divide():
         assert normalization(pid) == "max_divide"
     assert normalization("qwen.rb.uniform") == "fixed_ref"
 
+
+
+def test_an_enabled_block_needs_seeds_and_previous_must_be_a_render(tmp_path):
+    s = copy.deepcopy(SCOPE_JSON)
+    for path, v in OWNER_SCOPE.items():
+        _set(s, path, v)
+    _set(s, "blocks.W1b.seeds", [])
+    with pytest.raises(ConfigError, match="seeds"):
+        parse(ScopeFile, s, "scope")
+    presets, scope = filled()
+    result = campaign.render(presets, scope, pins=pins(presets), decisions={}, fleets=FLEETS)
+    with pytest.raises(ConfigError, match="not a render"):
+        campaign.check_previous(result, tmp_path / "nowhere")

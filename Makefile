@@ -4,11 +4,11 @@ ARTIFACTS ?=
 THREADS ?= 6
 SHELLCHECK ?= shellcheck
 
-.PHONY: check check-heavy lint hygiene static unit contract equivalence gates
+.PHONY: check check-heavy lint hygiene static freeze unit contract equivalence gates
 
 # Everything a commit must pass. Offline, CPU-only, no network.
 # A suite joins CHECK in the step that adds its first tests, so an empty suite can never pass silently.
-CHECK = lint hygiene static unit contract gates
+CHECK = lint hygiene static freeze unit contract gates
 check: $(CHECK)
 
 # The heavy suite: CHECK (which gains contract with its first contract tests) plus the v3 equivalence
@@ -30,6 +30,10 @@ hygiene:
 
 static:
 	$(PY) -m gates.static_defects routebalance bench analysis tools
+
+# after the freeze tag, the scope and presets change only by a logged owner decision (gates/freeze.py)
+freeze:
+	$(PY) -m gates.freeze . --tag lease-2026-09-28
 
 unit:
 	$(PY) -m pytest -q tests/unit

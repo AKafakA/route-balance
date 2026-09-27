@@ -12,7 +12,7 @@ from routebalance.config import ConfigError
 from tests.unit.fakes import CONFIG_DIGEST, FLEET_DIGEST, LocalScheduler, reply_body
 
 SAMPLING = Sampling(temperature=0.0, repetition_penalty=1.0, frequency_penalty=1.2, max_tokens=1024)
-PROMPT = Prompt(row=4, prompt_id="p4", text="raw prompt", prompt_tokens=31)
+PROMPT = Prompt(row=4, prompt_id="p4", text="raw prompt", prompt_tokens=31, budget_cost=None)
 
 
 def _reply(request_id="cell.run.0", **overrides):
@@ -22,7 +22,7 @@ def _reply(request_id="cell.run.0", **overrides):
 def test_request_body_is_the_contract():
     assert json.loads(request_body("cell.run.0", PROMPT, SAMPLING)) == {
         "request_id": "cell.run.0", "prompt": "raw prompt", "prompt_tokens": 31, "max_tokens": 1024,
-        "temperature": 0.0, "repetition_penalty": 1.0, "frequency_penalty": 1.2}
+        "temperature": 0.0, "repetition_penalty": 1.0, "frequency_penalty": 1.2, "budget_cost": None}
 
 
 def test_a_complete_reply_parses():

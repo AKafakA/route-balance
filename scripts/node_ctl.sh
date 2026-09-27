@@ -268,6 +268,6 @@ rb_ctl() {
   esac
 }
 
-if [ "${RB_CTL_AS_LIBRARY:-}" != 1 ]; then    # tests set it to call the functions above directly
+if [ -z "${BASH_SOURCE[0]:-}" ] || [ "${BASH_SOURCE[0]}" = "$0" ]; then   # streamed (bash -s) or run; tests source it
   rb_ctl "$@"
 fi

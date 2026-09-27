@@ -77,8 +77,12 @@ def read_records(path: Path) -> tuple[list[dict], str]:
             keys = frozenset(rec) if isinstance(rec, dict) else frozenset()
             if keys not in (ITL_KEYS, TPOT_KEYS):
                 raise SystemExit(f"{path}:{n}: a record has exactly the keys {sorted(ITL_KEYS)} or {sorted(TPOT_KEYS)}")
-            if not isinstance(rec["tier"], str) or type(rec["b"]) is not int:
-                raise SystemExit(f"{path}:{n}: tier must be a string and b an integer")
+            if not isinstance(rec["tier"], str) or type(rec["b"]) is not int or rec["b"] < 1:
+                raise SystemExit(f"{path}:{n}: tier must be a string and b an integer >= 1")
+            if keys == ITL_KEYS and not (isinstance(rec["itl"], list) and all(
+                    not isinstance(x, bool) and isinstance(x, (int, float)) and np.isfinite(x) and x >= 0
+                    for x in rec["itl"])):
+                raise SystemExit(f"{path}:{n}: itl must be a list of finite gaps >= 0 (s)")
             if keys == TPOT_KEYS and (type(rec["output_tokens"]) is not int or rec["output_tokens"] < 2
                                       or isinstance(rec["tpot_s"], bool) or not isinstance(rec["tpot_s"], (int, float))
                                       or not np.isfinite(rec["tpot_s"]) or rec["tpot_s"] <= 0):

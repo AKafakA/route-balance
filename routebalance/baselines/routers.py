@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Mapping, NamedTuple, Optional, Sequence
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from routebalance.schedule.score import Candidate, pick, score
 from routebalance.config import ArtifactPath, ConfigError, Router as RouterConfig, Weights, loads_strict
@@ -388,8 +388,8 @@ def load_avengers_pro(artifact_dir: Path, upstream_repo: Path, *, beta: float, t
 
     Upstream's __init__ opens an HTTP embedding client, so the object is built with __new__ and its
     route-time attributes are set directly. Every route-time field is the configuration's, never
-    upstream's default: top_k and beta (v3 ran top_k 4 for the Qwen artifacts and beta 5.0; upstream's
-    defaults are 1 and 9.0), and max_tokens and max_workers (upstream's 7500 and 4, which v3 also ran). The
+    upstream's default: top_k and beta (the presets state upstream's defaults, 1 and 9.0; v3 ran top_k 4 for
+    the Qwen artifacts and beta 5.0), and max_tokens and max_workers (upstream's 7500 and 4, which v3 also ran). The
     embedder is loaded at the pinned Hub revision, and the upstream checkout must have the pinned digest.
     """
     paths = {n: artifact_dir / n for n in ("config.json", "kmeans.joblib", "cluster_rankings.json")}
@@ -516,14 +516,8 @@ class _NoOptions(_Options):
 class _BestRouteOptions(_Options):
     checkpoint: ArtifactPath
     confidence_threshold: float = Field(ge=0, lt=1)      # 0 = pure argmax (with 4 labels, anything <= 0.25 is)
-    fallback_model: Optional[str] = None                 # absent: no fallback, so a pool miss raises
+    fallback_model: str = Field(min_length=1)            # below the threshold, or a prediction outside the pool
     max_length: int = Field(ge=1)                        # 512 = training length = the model's positions
-
-    @model_validator(mode="after")
-    def _fallback_for_threshold(self):   # checked before the checkpoint is loaded (v3 order)
-        if self.confidence_threshold > 0 and self.fallback_model is None:
-            raise ValueError("confidence_threshold > 0 needs an explicit fallback_model")
-        return self
 
 
 class _BestRouteUpstreamOptions(_Options):
@@ -536,8 +530,8 @@ class _BestRouteUpstreamOptions(_Options):
 
 class _AvengersProOptions(_Options):
     artifact_dir: ArtifactPath
-    beta: float = Field(gt=0)            # v3: 5.0
-    top_k: int = Field(ge=1)             # v3: 4 for the Qwen artifacts (recorded there), 3 for Gemma
+    beta: float = Field(gt=0)            # upstream's default 9.0 (v3: 5.0)
+    top_k: int = Field(ge=1)             # upstream's default 1 (v3: 4 for Qwen, 3 for Gemma)
     embedder: str                        # sentence-transformers model the artifact was clustered with
     embedder_revision: str = Field(pattern=r"^[0-9a-f]{40}$")   # its Hub commit
     upstream_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")     # upstream_digest() of the pinned checkout

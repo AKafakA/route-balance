@@ -10,7 +10,7 @@ POST /v1/completions   one request, JSON body, non-streaming
   max_tokens           int    the output cap
   temperature, repetition_penalty, frequency_penalty    float, passed to vLLM unchanged
   budget_cost          float  the request's cost budget in USD, only in budget cells (the scheduler clamps the
-                              output to it, routebalance/schedule/budget.py); absent otherwise
+                              output to it, routebalance/schedule/budget.py); null otherwise
 Reply: HTTP 200 with {"success": true} plus exactly the fields of bench.records.Reply:
   request_id           the echo of the request's id
   model                the served model (HF id, as priced in the fleet config and scored in the corpora)
@@ -64,9 +64,8 @@ def request_body(request_id: str, prompt: Prompt, sampling: Sampling) -> bytes:
         "temperature": sampling.temperature,
         "repetition_penalty": sampling.repetition_penalty,
         "frequency_penalty": sampling.frequency_penalty,
+        "budget_cost": prompt.budget_cost,
     }
-    if prompt.budget_cost is not None:
-        body["budget_cost"] = prompt.budget_cost
     return json.dumps(body, allow_nan=False).encode()
 
 

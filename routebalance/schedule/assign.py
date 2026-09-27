@@ -121,8 +121,8 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
                    latency: LatencyModel, *, weights: Weights, normalization: Normalization,
                    lpt: Lpt, pending_decode: PendingDecode,
                    last_assigned: MutableMapping[str, float], clock: Callable[[], float],
-                   admission: Optional[Admission] = None,
-                   on_decision: Optional[Callable[[Decision], None]] = None) -> list[Decision]:
+                   admission: Optional[Admission],
+                   on_decision: Optional[Callable[[Decision], None]]) -> list[Decision]:
     if not instances:
         raise ValueError("no instances")
     if lpt not in ("max", "min", "mean", "off") or pending_decode not in ("own_length", "lpt_key"):

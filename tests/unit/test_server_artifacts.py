@@ -192,7 +192,7 @@ def test_native_threadpools_name_libraries_without_host_paths():
 
 
 def test_a_failed_append_stays_buffered(tmp_path):
-    log = JsonlLog(tmp_path / "decisions.jsonl")
+    log = JsonlLog(tmp_path / "decisions.jsonl", 1.0)
     log.path.mkdir()                                      # appending to a directory fails, as a full disk would
 
     async def scenario():

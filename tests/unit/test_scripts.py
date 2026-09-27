@@ -113,7 +113,7 @@ def test_node_ctl_fails_loudly_on_bad_commands():
 def test_node_ctl_pid_records_survive_only_their_own_process(tmp_path):
     """A pid file names a process only while that process lives: same boot, same start time. A record from
     before a reboot, or one whose pid was reused, is not a running engine, and stop never signals it."""
-    lib = "export RB_CTL_AS_LIBRARY=1; source scripts/node_layout.sh; source scripts/node_ctl.sh; "
+    lib = "source scripts/node_layout.sh; source scripts/node_ctl.sh; "
     pidf = tmp_path / "x.pid"
     script = lib + f"""
 setsid --fork bash -c "$RECORD_AND_EXEC"'; exec "$@"' _ {pidf} LOG "$BOOT_ID" sleep 30 < /dev/null > /dev/null 2>&1
@@ -132,7 +132,7 @@ stop_group {pidf} sleeper; ! kill -0 "$pid" 2>/dev/null || {{ echo "not stopped"
 
 
 def test_node_ctl_requires_refs_main_at_the_pin(tmp_path):
-    lib = f"export RB_CTL_AS_LIBRARY=1; source scripts/node_layout.sh; source scripts/node_ctl.sh; RB_HF_HOME={tmp_path}; "
+    lib = f"source scripts/node_layout.sh; source scripts/node_ctl.sh; RB_HF_HOME={tmp_path}; "
     rev, other = "1" * 40, "2" * 40
     repo = tmp_path / "hub" / "models--org--enc"
     (repo / "refs").mkdir(parents=True)
@@ -215,7 +215,7 @@ def test_node_ctl_started_reports_what_the_recorded_engine_process_executes(tmp_
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     (tmp_path / "srv.py").write_text(SERVE_OWN_START)
-    lib = f"export RB_CTL_AS_LIBRARY=1; source scripts/node_layout.sh; source scripts/node_ctl.sh; RB_RUN={tmp_path}; "
+    lib = f"source scripts/node_layout.sh; source scripts/node_ctl.sh; RB_RUN={tmp_path}; "
     launch = (f'setsid --fork bash -c "$RECORD_AND_EXEC"\'; exec "$@"\' _ {tmp_path}/engine.{{id}}.pid LOG "$BOOT_ID" '
               f'env CUDA_VISIBLE_DEVICES=2,3 {{cmd}} < /dev/null > /dev/null 2>&1\n'
               f'for i in $(seq 1 50); do [ -s {tmp_path}/engine.{{id}}.pid ] && break; sleep 0.1; done\n')

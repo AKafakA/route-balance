@@ -53,7 +53,7 @@ from routebalance.baselines.routers import (BEST_ROUTE_MODULES, DecoupledInputs,
                                             RouterRequest, build_router, router_executor, router_lane)
 from routebalance.config import (ConfigError, SchedulerConfig, config_digest, fleet_digest, load_fleet, load_scheduler,
                                  loads_strict, parse_scheduler)
-from routebalance.decision_log import JsonlLog, LagProbe
+from routebalance.decision_log import FLUSH_S, JsonlLog, LagProbe
 from routebalance.estimate.artifacts import md5_tree
 from routebalance.estimate.features import feature_values
 from routebalance.schedule import budget
@@ -83,7 +83,7 @@ class Busy(RuntimeError):
 # ---------------------------------------------------------------- the request
 
 class Completion(BaseModel):
-    """One request as bench/client.py sends it; budget_cost is present only in budget cells."""
+    """One request as bench/client.py sends it; budget_cost is null except in budget cells."""
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True, allow_inf_nan=False)
     request_id: str = Field(min_length=1)
     prompt: str
@@ -92,7 +92,7 @@ class Completion(BaseModel):
     temperature: float = Field(ge=0)
     repetition_penalty: float = Field(gt=0)
     frequency_penalty: float
-    budget_cost: Optional[float] = Field(default=None, gt=0)   # default-ok: absent = no budget (never 0)
+    budget_cost: Optional[float] = Field(gt=0)   # null = no budget (never 0)
 
 
 @dataclass
@@ -397,7 +397,7 @@ class Service:
         self.executor = router_executor()
         self.router_lane = router_lane()
         self._log_dir = log_dir
-        self.decisions = JsonlLog(log_dir / "decisions.jsonl")
+        self.decisions = JsonlLog(log_dir / "decisions.jsonl", FLUSH_S)
         self.latency_log: Optional[JsonlLog] = None      # the D38 sweep configurations only
         self._latency_logs: dict[str, JsonlLog] = {}
         self.lag = LagProbe()
@@ -480,7 +480,7 @@ class Service:
             self.latency_log = None
             if cfg.mode == "pipeline" and cfg.pending_decode == "own_length":
                 if self.digest not in self._latency_logs:
-                    lg = JsonlLog(self._log_dir / f"latency.{self.digest[:16]}.jsonl")
+                    lg = JsonlLog(self._log_dir / f"latency.{self.digest[:16]}.jsonl", FLUSH_S)
                     self._latency_logs[self.digest] = lg
                     self._tasks.append(self._watch(asyncio.create_task(lg.run())))
                 self.latency_log = self._latency_logs[self.digest]
@@ -499,6 +499,8 @@ class Service:
         self._active += 1
         try:
             try:
+                if self.cfg.budget.admission_filter and c.budget_cost is None:
+                    raise ServeError(f"{c.request_id}: the budget filter is on and the request has no budget_cost")
                 a = await (self._await_round(c) if self._rb is not None else self._select(c))
             except BaseException as e:        # no dispatch happened: log the request anyway
                 self._log(c, None, None, c.max_tokens, None, f"{type(e).__name__}: {e}")

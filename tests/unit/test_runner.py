@@ -231,10 +231,10 @@ def test_a_budget_table_that_does_not_fit_the_dataset_is_refused(tmp_path, rows,
         attach_budgets(prompts, table, dataset)
 
 
-def test_budgets_are_sent_only_when_the_prompt_has_one():
+def test_every_request_states_its_budget_null_or_the_prompts():
     from bench.client import request_body
     from bench.dataset import Prompt
-    p = Prompt(row=0, prompt_id="p0", text="q", prompt_tokens=3)
+    p = Prompt(row=0, prompt_id="p0", text="q", prompt_tokens=3, budget_cost=None)
     s = Sampling(**SAMPLING)
-    assert "budget_cost" not in json.loads(request_body("r", p, s))
+    assert json.loads(request_body("r", p, s))["budget_cost"] is None
     assert json.loads(request_body("r", p.model_copy(update={"budget_cost": 2e-5}), s))["budget_cost"] == 2e-5

@@ -244,7 +244,8 @@ def test_build_passthrough_takes_no_kwargs():
     ({"checkpoint": "/abs/br", "confidence_threshold": 0.0, "max_length": 512}, "relative"),
     ({"checkpoint": "br", "confidence_threshold": 1.0, "max_length": 512}, "confidence_threshold"),
     ({"checkpoint": "br", "confidence_threshold": 0.0, "max_length": 512, "batch_scoring": True}, "batch_scoring"),
-    ({"checkpoint": "br", "confidence_threshold": 0.0, "max_length": 512}, "no checkpoint"),
+    ({"checkpoint": "br", "confidence_threshold": 0.0, "max_length": 512}, "fallback_model"),   # always stated
+    ({"checkpoint": "br", "confidence_threshold": 0.0, "max_length": 512, "fallback_model": "m"}, "no checkpoint"),
 ])
 def test_build_best_route_validates_before_loading(kwargs, match):
     with pytest.raises(ConfigError, match=match):

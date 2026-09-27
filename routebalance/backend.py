@@ -129,9 +129,7 @@ class _SSEParser:
 
 
 def _choices(event: dict) -> list:
-    choices = event.get("choices")
-    if choices is None:
-        return []
+    choices = event.get("choices")     # vLLM sends choices in every event, [] in the final usage chunk
     if not isinstance(choices, list) or not all(isinstance(c, dict) for c in choices):
         raise ValueError(f"malformed choices {choices!r:.80}")
     return choices
@@ -153,9 +151,10 @@ def _completion_tokens(event: dict) -> int | None:
     usage = event.get("usage")
     if usage is None:
         return None
-    if not isinstance(usage, dict) or not isinstance(usage.get("completion_tokens"), int):
+    n = usage.get("completion_tokens") if isinstance(usage, dict) else None
+    if isinstance(n, bool) or not isinstance(n, int) or n < 0:
         raise ValueError(f"malformed usage {usage!r:.80}")
-    return usage["completion_tokens"]
+    return n
 
 
 def _prompt_tokens(event: dict) -> int:
@@ -240,6 +239,8 @@ class BackendClient:
                         raise ValueError("stream ended with an unterminated event carrying text")
                     tokens = _completion_tokens(ev)
                     if tokens is not None:
+                        if output_tokens is not None and tokens < output_tokens:
+                            raise ValueError(f"completion_tokens went backwards ({output_tokens} -> {tokens})")
                         output_tokens = tokens
                         if ev.get("choices") == []:
                             final_usage = True

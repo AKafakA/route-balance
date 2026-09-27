@@ -42,7 +42,7 @@ def req(rid, s_len=100.0, l_len=80.0, qs=0.5, ql=0.9, budget=0.0, max_tokens=102
 
 def run_round(requests, loads=None, latency=None, **kw):
     args = dict(weights=W, normalization="max_divide", lpt="max", pending_decode="own_length",
-                last_assigned={}, clock=lambda: 1.0) | kw
+                last_assigned={}, clock=lambda: 1.0, admission=None, on_decision=None) | kw
     return schedule_round(requests, FLEET, loads or idle_loads(), latency or QueueLatency(), **args)
 
 
@@ -134,7 +134,7 @@ def test_the_fallback_is_the_worst_case_cost_not_the_expected_one():
     loads = {i.instance_id: Load(InstanceStats(0, 0, 0.0, 0, 4, 0), 5.0, 0, 0) for i in fleet}
     d = schedule_round([r], fleet, loads, QueueLatency(), weights=Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0),
                        normalization="max_divide", lpt="max", pending_decode="own_length", last_assigned={},
-                       clock=lambda: 1.0, admission=Admission())[0]
+                       clock=lambda: 1.0, admission=Admission(), on_decision=None)[0]
     assert not d.admitted_all and d.instance.instance_id == "a0" and len(d.scored) == 1
 
 

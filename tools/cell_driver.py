@@ -231,8 +231,11 @@ async def snapshot_before(url: str, attempt: Path, log_dir: Path, digest: str, i
     manifest = await _get(url, "/v1/manifest")
     if manifest["config_digest"] != digest:
         raise ConfigError(f"the manifest reports config {manifest['config_digest']}, the cell needs {digest}")
-    window = {"decisions": {"path": str(Path(log_dir) / "decisions.jsonl"),
-                            "start": _complete_lines(Path(log_dir) / "decisions.jsonl", 0)[1],
+    n_all, start = _complete_lines(Path(log_dir) / "decisions.jsonl", 0)
+    if n_all != stats["logged"]["decisions"]:     # the scheduler starts on an empty log directory (node_ctl.sh)
+        raise ConfigError(f"{log_dir}/decisions.jsonl holds {n_all} lines, the scheduler has logged "
+                          f"{stats['logged']['decisions']}: --log-dir is not the running scheduler's")
+    window = {"decisions": {"path": str(Path(log_dir) / "decisions.jsonl"), "start": start,
                             "logged_start": stats["logged"]["decisions"]}}
     if is_sweep:
         if type(stats["logged"]["latency"]) is not int:
@@ -369,14 +372,24 @@ def record_problems(scope: Scope, exp: ExpectedCell, d: Path) -> list[str]:
         return [f"unreadable record: {str(e)[:500]}"]
 
 
+def _gated_valid(root: Path, exp: ExpectedCell) -> bool:
+    """Published with a valid verdict: what status() reads before the record, which it then checks in full."""
+    v = cell_dir(root, exp.cell_id) / "gates" / "verdict.json"
+    return v.exists() and read_json(v)["valid"] is True
+
+
 def group_ready(render: Path, root: Path, group: str) -> list[str]:
     """The directories of a group's done cells once every cell the scope does not account for is done and none of
     its blocks is still pending in this render (an accounted cell that ran and is done is compared too)."""
     scope, plan = load(render)
     cells = [c for c in expected_cells(scope) if c.group == group]
+    if not cells:
+        raise ConfigError(f"group {group!r} has no cells in {render}")
+    required = [c for c in cells if c.cell_id not in scope.accounted]
+    if group in plan["pending_groups"] or not all(_gated_valid(root, c) for c in required):
+        return []                         # before reading any record: this runs after every cell
     states = {c.cell_id: status(scope, c, root) for c in cells}
-    if group in plan["pending_groups"] or any(states[c.cell_id] != "done" for c in cells
-                                              if c.cell_id not in scope.accounted):
+    if any(states[c.cell_id] != "done" for c in required):
         return []
     return [str(cell_dir(root, c.cell_id)) for c in cells if states[c.cell_id] == "done"]
 
@@ -461,9 +474,11 @@ def cells_to_run(render: Path, rows: list[str], root: Path, fleet: Path, hosts: 
         else:
             report.append(f"{s:10s} {c.cell_id}")
     known = {r["id"]: r for r in plan["rows"]}
+    pending = [f"{r}/{block}: {reason}" for r in rows for block, reason in known[r]["pending"].items()]
+    if pending:
+        raise ConfigError("requested rows have blocks pending in this render (render them first):\n  "
+                          + "\n  ".join(pending))
     for r in rows:
-        for block, reason in known[r]["pending"].items():
-            report.append(f"PENDING    {r}/{block}: {reason}")
         for block, why in known[r]["disabled_blocks"].items():
             report.append(f"DISABLED   {r}/{block}: {why}")
     return run, report
@@ -551,6 +566,8 @@ def main(argv: list[str]) -> int:
     elif a.cmd == "warmup":
         asyncio.run(warm_up(p["render"], a.cell, p["fleet"], p["hosts"], p["attempt"]))
     elif a.cmd == "before":
+        if a.sweep not in ("0", "1"):
+            raise ConfigError(f"--sweep is 0 or 1, not {a.sweep!r}")
         asyncio.run(snapshot_before(a.scheduler, p["attempt"], p["log_dir"], a.config_digest, a.sweep == "1"))
     elif a.cmd == "after":
         asyncio.run(snapshot_after(a.scheduler, p["attempt"], a.config_digest))
