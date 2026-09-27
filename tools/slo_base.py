@@ -28,10 +28,16 @@ def md5(path: Path) -> str:
     return hashlib.md5(Path(path).read_bytes()).hexdigest()
 
 
+def _is_count(b) -> bool:
+    return isinstance(b, int) and not isinstance(b, bool)
+
+
 def single_request_ttft(lines) -> tuple[dict[str, float], dict[str, int]]:
     """{tier: median ttft_s} over the measured, successful b = 1 requests of held instance-levels."""
     samples: dict[str, list[float]] = {}
     for x in lines:
+        if not _is_count(x["b"]):
+            raise ConfigError(f"a request of {x['tier']} has concurrency b {x['b']!r}, not a whole number")
         for k in ("filler", "held", "success"):
             if not isinstance(x[k], bool):
                 raise ConfigError(f"a b={x['b']} request of {x['tier']} has {k} {x[k]!r}, not a boolean")
@@ -49,6 +55,8 @@ def single_request_tpot(table: dict) -> dict[str, float]:
         raise ConfigError(f"the TPOT table's unit is {table.get('unit')!r}, not ms_per_token")
     out = {}
     for tier, curve in sorted(table["curve"].items()):
+        if not all(_is_count(b) for b, _ in curve):
+            raise ConfigError(f"tier {tier}: a TPOT curve point's concurrency is not a whole number")
         at1 = [ms for b, ms in curve if b == 1]
         if len(at1) != 1:
             raise ConfigError(f"tier {tier}: the TPOT curve has no single point at b = 1")

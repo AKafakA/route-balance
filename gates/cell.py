@@ -289,6 +289,12 @@ def engine_changes(before: Engines, after: Engines) -> list[str]:
             if after.instances[i].model_dump(mode="json")[k] != v]
 
 
+def fleet_uncovered(engines: Engines, manifest: Manifest) -> list[str]:
+    """D48: the engine record reads every engine of the cell's fleet, and only those."""
+    fleet = sorted(f.instance_id for f in manifest.fleet)
+    return [] if sorted(engines.instances) == fleet else [f"engines {sorted(engines.instances)} vs the fleet {fleet}"]
+
+
 # ---------------------------------------------------------------- the directory
 
 @dataclass(frozen=True)

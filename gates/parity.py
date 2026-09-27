@@ -45,7 +45,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from gates.cell import Cell, GroupSpec, Problems, changed_keys, engine_changes, flatten, open_cell, run
+from gates.cell import (Cell, GroupSpec, Problems, changed_keys, engine_changes, flatten, fleet_uncovered, open_cell,
+                        run)
 
 NOT_COMPARED = ("config_digest",)
 FOLLOW_SYSTEM = ("loaded",)                       # may differ exactly where system.* differs
@@ -112,6 +113,8 @@ def parity_problems(cells: list[Cell]) -> tuple[list[str], str]:
             p.add("the scheduler's code changed on disk after it started (restart it)", f"{c.cell_id}: {change}")
         flats[c.cell_id] = flatten(before.model_dump(mode="json"))
         engines_before = c.engines("before")
+        for gap in fleet_uncovered(engines_before, before):
+            p.add("the engine record does not cover the cell's fleet", f"{c.cell_id}: {gap}")
         changed = engine_changes(engines_before, c.engines("after"))
         if changed:
             p.add("an engine restarted or changed during a cell", f"{c.cell_id}: {changed}")

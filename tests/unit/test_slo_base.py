@@ -54,3 +54,12 @@ def test_a_flag_that_is_not_a_boolean_fails(tmp_path, field):
     requests, table = _files(tmp_path, [*_lines(), {**LINE, field: "false"}])
     assert slo_base.main(["--requests", str(requests), "--table", str(table), "--out", str(tmp_path / "b.json")]) == 1
     assert not (tmp_path / "b.json").exists()
+
+
+def test_a_concurrency_that_is_not_a_whole_number_fails(tmp_path):
+    requests, table = _files(tmp_path, [*_lines(), {**LINE, "b": True}])
+    assert slo_base.main(["--requests", str(requests), "--table", str(table), "--out", str(tmp_path / "b.json")]) == 1
+    curve = {**TABLE, "curve": {**TABLE["curve"], "s_a30": [[True, 10.0], [4, 11.0]]}}
+    requests, table = _files(tmp_path, _lines(), curve)
+    assert slo_base.main(["--requests", str(requests), "--table", str(table), "--out", str(tmp_path / "b.json")]) == 1
+    assert not (tmp_path / "b.json").exists()

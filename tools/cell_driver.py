@@ -44,7 +44,7 @@ from bench.schema import parse, read_json
 from bench.scope import ExpectedCell, Scope, expected_cells, group_record
 from routebalance.backend import BackendClient
 from routebalance.config import ConfigError, loads_strict
-from gates.cell import GateError, engine_changes, open_cell
+from gates.cell import GateError, engine_changes, fleet_uncovered, open_cell
 from tools import direct, engines
 from tools.campaign import load_plan
 
@@ -172,13 +172,16 @@ async def engines_snapshot(render: Path, cell: str, fleet: Path, hosts: Path, re
 
 
 def engine_problems(d: Path) -> list[str]:
-    """D48: every engine served the whole cell as one process with one launch."""
+    """D48: every engine of the cell's fleet served the whole cell as one process with one launch."""
     try:
         cell = open_cell(d)
-        changed = engine_changes(cell.engines("before"), cell.engines("after"))
+        before = cell.engines("before")
+        uncovered = fleet_uncovered(before, cell.manifest("before"))
+        changed = engine_changes(before, cell.engines("after"))
     except GateError as e:
         return [f"the engine record is missing or malformed: {str(e)[:300]}"]
-    return [f"an engine restarted or changed during the cell: {changed}"] if changed else []
+    return ([f"the engine record does not cover the cell's fleet: {gap}" for gap in uncovered]
+            + ([f"an engine restarted or changed during the cell: {changed}"] if changed else []))
 
 
 async def warm_up(render: Path, cell: str, fleet: Path, hosts: Path, attempt: Path) -> None:

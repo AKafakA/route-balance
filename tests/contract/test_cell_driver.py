@@ -12,6 +12,7 @@ from tests.contract.test_server import free_port
 from tests.unit import test_campaign as tc
 from tools import campaign
 from tools import cell_driver as cd
+from tests.gates.cellfix import FIXTURES
 
 FLEET = {"tiers": {"qwen2.5-3b_a30": {"model": "Qwen/Qwen2.5-3B", "gpu": "a30", "cost_in": 6e-8, "cost_out": 6e-8,
                                       "max_num_seqs": 256}},
@@ -159,6 +160,13 @@ def test_the_sweep_window_waits_for_every_latency_line(tmp_path):
     assert len((attempt / "latency.jsonl").read_text().splitlines()) == 2   # the unassigned request has none
 
 
+def _manifest(attempt, instances=("e_0",)):
+    """A recorded cell's manifest with the attempt's fleet (the engine check reads the fleet from it)."""
+    m = json.loads((FIXTURES / "cells" / "rb-maxdiv__l400__s1" / "manifest_before.json").read_text())
+    m["fleet"] = [dict(m["fleet"][0], instance_id=i) for i in instances]
+    (attempt / "manifest_before.json").write_text(json.dumps(m))
+
+
 def test_a_clean_record_with_every_gate_passed_is_valid(lease, monkeypatch):
     """Found 09-25: the gates' source directory once shadowed the gate list, and every valid cell's verdict raised."""
     render, root, fleet, hosts, _ = lease
@@ -167,6 +175,7 @@ def test_a_clean_record_with_every_gate_passed_is_valid(lease, monkeypatch):
     monkeypatch.setattr(cd, "record_problems", lambda scope, exp, d: [])
     for when in ("before", "after"):
         (attempt / f"engines_{when}.json").write_text(json.dumps(ENGINES))
+    _manifest(attempt)
     assert cd.GATES == ("arm", "zero_call")
     assert cd.verdict(render, attempt, {"arm": 0, "zero_call": 0})["valid"] is True
     for gates in ({"arm": 0}, {"arm": 0, "zero_call": 1}):
@@ -184,9 +193,15 @@ def test_an_engine_restart_during_the_cell_invalidates_it(lease, monkeypatch):
     restarted["instances"]["e_0"]["start_time_s"] += 60.0
     (attempt / "engines_before.json").write_text(json.dumps(ENGINES))
     (attempt / "engines_after.json").write_text(json.dumps(restarted))
+    _manifest(attempt)
     v = cd.verdict(render, attempt, {"arm": 0, "zero_call": 0})
     assert not v["valid"] and v["bench_problems"] == ["an engine restarted or changed during the cell: "
                                                       "['e_0.start_time_s']"]
+    (attempt / "gates" / "verdict.json").unlink()
+    _manifest(attempt, ("e_0", "e_1"))                         # an engine of the fleet the record never read
+    assert cd.verdict(render, attempt, {"arm": 0, "zero_call": 0})["bench_problems"][0] == (
+        "the engine record does not cover the cell's fleet: engines ['e_0'] vs the fleet ['e_0', 'e_1']")
+    _manifest(attempt)
     (attempt / "engines_after.json").unlink()
     (attempt / "gates" / "verdict.json").unlink()
     assert "the engine record is missing" in cd.verdict(render, attempt, {"arm": 0, "zero_call": 0})["bench_problems"][0]

@@ -364,3 +364,13 @@ def test_a_cell_without_its_engine_record_fails(tmp_path, capsys):
     (cells[0] / "engines_after.json").unlink()
     assert main(["--cells", *map(str, cells)]) == 1
     assert "engines_after.json is missing" in capsys.readouterr().out
+
+
+def test_an_engine_missing_from_every_cells_record_fails(tmp_path):
+    """D48: each cell's record reads every engine of its fleet, even when all the cells miss the same one."""
+    cells = group(tmp_path, G1)
+    for c in cells:
+        _engines(c, lambda d: d["instances"].pop("L_2"))
+    found, _ = problems(cells)
+    (line,) = [f for f in found if f.startswith("the engine record does not cover the cell's fleet")]
+    assert line.endswith(f"and {len(cells) - 5} more") and "L_2" in line        # one line, every cell counted
