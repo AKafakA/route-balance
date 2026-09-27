@@ -1,6 +1,6 @@
 {
  "notes": {
-  "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W1 -> G1 -> W1b -> G1b -> W2 -> W2b -> W4 -> W3 -> W5 -> W6 -> W7 -> W7b -> W8 -> W9 -> W11 -> W12 -> W10. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
+  "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W1 -> G1 -> W1b -> G1b -> W2 -> W2b -> W4 -> W3 -> W5 -> W6 -> W7 -> W7b -> W8 -> W9 -> W11 -> W12 -> W13 -> W10. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
   "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). Owner 09-25: the client's connection bound (8192) is set far above any in-flight count and a cell in which any request waited for a connection is invalid (rerun with a larger bound); the request timeout (900 s, above the server's 600 s) and the send-lag bound (100 ms) are failure bounds.",
   "server": "D44: the scheduler launch values, identical for every system (owner 09-25): 8 torch threads per model call on the one shared 4-thread pool; the engine and telemetry connection bound 4096, far above any in-flight count (a cell in which any request waited for a connection is invalid: rerun with a larger bound); the request timeout 600 s, a failure bound. The baselines' routers call their model one request at a time on a separate lane, as shipped routers do.",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
@@ -325,6 +325,14 @@
     {"name": "W12", "group": "qwen", "dataset": "eval_qwen", "axes": {"d": "$list:probe_dispatch"},
      "configs": ["qwen.disp.{d}-inflight"], "traces": ["l6", "l12", "l18", "l24", "l30"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W13", "kind": "cells", "prio": "good-to-have", "enabled": true, "why": null,
+   "about": "D93 (owner 09-27, optional; not for the paper if time is short): leave one source dataset out of the KNN index, online: the headline cell with rb_default's arm at lambda 12, seed 1, once per source (7), paired with W4's seed-1 reference; quality read over the held-out source's prompts and overall. The last experiment row, run only if time allows before Friday",
+   "plan": "7 cells, ~40 min",
+   "blocks": [
+    {"name": "W13", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "ds": "$list:lodo_sources"},
+     "configs": ["qwen.{arm}.abl-lodo-{ds}.{h}"], "traces": ["l12"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W10", "kind": "pack", "prio": "must", "enabled": true, "why": null,
    "about": "results in two locations (every cell is mirrored as it completes) + Drive pack before release",

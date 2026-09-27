@@ -108,11 +108,12 @@ def test_the_tracked_files_dry_run_every_row():
     summary = campaign.dry_run(campaign.load_presets(), campaign.load_scope_file())
     rows = {r["id"]: r for r in summary["rows"]}
     assert list(rows) == ["W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
-                          "W8-cal", "W8", "W9", "W11", "W12", "W10"]
+                          "W8-cal", "W8", "W9", "W11", "W12", "W13", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 44, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 90, "W3": 100, "W5": 30, "W7": 36,
-                     "W7b": 9, "W8": 156, "W9": 260, "W11": 12, "W12": 10}   # W8: the Qwen grid's baselines (D70);
-    #                                                                              W12: the in-flight dispatchers (D84)
+                     "W7b": 9, "W8": 156, "W9": 260, "W11": 12, "W12": 10, "W13": 7}   # W8: the Qwen grid's baselines (D70);
+    #                                                                              W12: the in-flight dispatchers (D84);
+    #                                                                              W13: leave one source out (D93)
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
     assert held == HELD
     assert summary["decisions_needed"] == ["decoupled_arm", "headline", "rb_default", "w3_headline", "w3_near_frontier",
@@ -160,14 +161,15 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 793        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
+    assert len(expanded) == 961        # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
     #                                    the budget sweep's filter arms (rb, rb-static x 2 families; rb-learned, Qwen);
     #                                    Gemma BEST-Route, 4 t x 3 dispatchers (D70); the power-of-two probe
     #                                    controls (10 AP + 2 dispatcher-only, D59); the mechanism ablations once per
     #                                    RouteBalance latency variant (11 x 2 families x 8 weights x 2 more), and
     #                                    abl-xgb gone (-16: rb-learned is the learned variant in W4, D78); the
     #                                    dispatch-only least-outstanding and power of two counting in flight
-    #                                    (2 x 2 families, the appendix row W12, D84)
+    #                                    (2 x 2 families, the appendix row W12, D84); the leave-one-source-out
+    #                                    indexes (7 sources x 3 variants x 8 weights, Qwen only, the optional W13, D93)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
