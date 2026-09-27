@@ -1,0 +1,15 @@
+{
+  "a30-0": {"address": "a30-0.invalid", "hw": "d7525"},
+  "a30-1": {"address": "a30-1.invalid", "hw": "d7525"},
+  "a30-2": {"address": "a30-2.invalid", "hw": "d7525"},
+  "a30-3": {"address": "a30-3.invalid", "hw": "d7525"},
+  "a30-4": {"address": "a30-4.invalid", "hw": "d7525"},
+  "a30-5": {"address": "a30-5.invalid", "hw": "d7525"},
+  "a30-6": {"address": "a30-6.invalid", "hw": "d7525"},
+  "a30-7": {"address": "a30-7.invalid", "hw": "d7525"},
+  "v100-0": {"address": "v100-0.invalid", "hw": "c4130"},
+  "v100-1": {"address": "v100-1.invalid", "hw": "c4130"},
+  "v100-2": {"address": "v100-2.invalid", "hw": "c4130"},
+  "a100-0": {"address": "a100-0.invalid", "hw": "d8545"},
+  "a100-1": {"address": "a100-1.invalid", "hw": "d8545"}
+}

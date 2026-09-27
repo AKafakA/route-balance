@@ -1,0 +1,31 @@
+{
+  "vllm": "0.18.1",
+  "tiers": {
+    "gemma-3-1b_a30": {
+      "revision": "dcc83ea841ab6100d6b47a070329e1ba4cf78752",
+      "args": {"--dtype": "bfloat16", "--tensor-parallel-size": 1, "--trust-remote-code": true,
+               "--gpu-memory-utilization": 0.9, "--max-model-len": 8192}
+    },
+    "gemma-3-4b_a30": {
+      "revision": "093f9f388b31de276ce2de164bdc2081324b9767",
+      "args": {"--dtype": "bfloat16", "--tensor-parallel-size": 1, "--trust-remote-code": true,
+               "--gpu-memory-utilization": 0.9, "--max-model-len": 8192}
+    },
+    "gemma-3-12b_a100": {
+      "revision": "96b6f1eccf38110c56df3a15bffe176da04bfd80",
+      "args": {"--dtype": "bfloat16", "--tensor-parallel-size": 1, "--trust-remote-code": true,
+               "--gpu-memory-utilization": 0.9, "--max-model-len": 8192}
+    },
+    "gemma-3-27b_a100": {
+      "revision": "005ad3404e59d6023443cb575daa05336842228a",
+      "args": {"--dtype": "bfloat16", "--tensor-parallel-size": 2, "--trust-remote-code": true,
+               "--gpu-memory-utilization": 0.9, "--max-model-len": 8192}
+    }
+  },
+  "gpus": {
+    "Gemma-3-1B_0": [0], "Gemma-3-1B_1": [0], "Gemma-3-1B_2": [0],
+    "Gemma-3-4B_0": [0], "Gemma-3-4B_1": [0], "Gemma-3-4B_2": [0], "Gemma-3-4B_3": [0], "Gemma-3-4B_4": [0],
+    "Gemma-3-12B_0": [2], "Gemma-3-12B_1": [3], "Gemma-3-12B_2": [2], "Gemma-3-12B_3": [3],
+    "Gemma-3-27B_0": [0, 1], "Gemma-3-27B_1": [0, 1]
+  }
+}
