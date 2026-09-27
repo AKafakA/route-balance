@@ -185,7 +185,7 @@ def test_an_appendix_only_system_stays_out_of_the_main_tables_and_macros(env, mo
     assert [r["config_id"] for r in report["equal_quality_appendix"]["RouteBalance"]] == ["ap-x"]
     assert not (out / "tables" / "equal.RouteBalance.g1.l200.tex").exists()
     assert "ap-x" in (out / "tables" / "equal_appendix.RouteBalance.g1.l200.tex").read_text()
-    assert "Min" not in (out / "macros.tex").read_text()                       # no range from an appendix row
+    assert "newcommand" not in (out / "macros.tex").read_text()                # no range from an appendix row
 
 
 def test_the_dispatch_only_in_flight_row_is_appendix_only():
@@ -209,3 +209,29 @@ def test_both_equal_quality_readings_are_written(env):
 
 def test_macro_names_carry_their_readings_prefix():
     assert rp.macro_name("RouteBalance", "qwen", "l12", "Cost", prefix="eqpm") == "eqpmRouteBalanceQwenLOneTwoCost"
+
+
+def test_a_value_read_at_higher_quality_is_marked():
+    assert rp._change("e2e_mean_ms", -0.2, -100.0, (-0.25, -0.15), higher=True) == r"-20.0\%$^\dagger$ [-25.0, -15.0]"
+    assert rp._change("slo_miss_tight", None, -0.05, None, (-0.08, -0.02), higher=True) == "+5.0$^\\dagger$ [+2.0, +8.0]"
+
+
+
+def test_a_higher_quality_read_is_marked_in_ranges_and_kept_out_of_the_strict_macros():
+    # the local reviewer's cases (D87): a seed read at higher quality inside a range, and a macro range across a
+    # higher-quality comparison and an equal-quality one
+    d = {"at_higher_quality": False, "per_seed": [{"at_higher_quality": True}, {"at_higher_quality": False}],
+         "higher_resamples": 0}
+    assert rp._any_higher(d, "range", (-0.6, -0.36)) and not rp._any_higher(d, "ci", (-0.5, -0.4))
+    assert rp._any_higher({**d, "higher_resamples": 3}, "ci", (-0.5, -0.4))
+    # round 2: an interval that is not printed marks nothing; only the value at the means counts then
+    assert not rp._any_higher(d, "range", None) and not rp._any_higher({**d, "higher_resamples": 3}, "ci", None)
+    flagged = {"metric": "e2e_mean_ms", "relative": -0.8, "at_higher_quality": True, "per_seed": [], "higher_resamples": 0}
+    equal = {"metric": "e2e_mean_ms", "relative": -0.0625, "at_higher_quality": False, "per_seed": [],
+             "higher_resamples": 0}
+    report = {"rates": {"l30": 30.0}, "equal_quality": {"RB": [{"group": "g1", "trace_id": "l30", "deltas": [flagged]},
+                                                               {"group": "g1", "trace_id": "l30", "deltas": [equal]}]},
+              "equal_quality_per_metric": {"RB": []}}
+    text = "\\n".join(rp._macros(report, "equal_quality", "eq"))
+    assert r"\eqRBGOneLThreeZeroMeanMin}{-6.2\%}" in text and r"\eqRBGOneLThreeZeroMeanMax}{-6.2\%}" in text
+    assert r"\eqRBGOneLThreeZeroMeanMinAll}{-80.0\%}" in text and r"\eqRBGOneLThreeZeroMeanMaxAll}{-6.2\%}" in text

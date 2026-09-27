@@ -44,9 +44,12 @@ Output, a new directory:
                with the main grid's runs, and never enter the equal-quality tables of the main text or
                macros.tex (the systems tables list every configuration of a group, these included)
   macros.tex   per treatment, group and stationary trace: the range over the baseline configurations of the
-               relative change of mean E2E, P99 E2E and cost at equal quality
-Every equal* table and macro is written for both readings: the one_config names as above, the per_metric ones
-with the prefix equal_pm (tables) and eqpm (macros). The paper's framing picks one after the runs (D86).
+               relative change of mean E2E, P99 E2E and cost at equal quality (...Min/...Max), and including the
+               comparisons read at higher quality (...MinAll/...MaxAll, D87)
+A value read at RouteBalance's frontier low end, above the baseline's quality beyond the tolerance (D87), carries
+a dagger in the tables. Every equal* table and macro is written for both readings: the one_config names as above,
+the per_metric ones with the prefix equal_pm (tables) and eqpm (macros). The paper's framing picks one after the
+runs (D86).
 """
 from __future__ import annotations
 
@@ -275,25 +278,43 @@ def systems_table(configs: Sequence[ConfigPoint]) -> str:
     return "\n".join(rows) + "\n"
 
 
+HIGHER = r"$^\dagger$"     # read at RouteBalance's frontier low end, above the baseline's quality (D87)
+
+
 def _change(metric: str, relative: Optional[float], delta: Optional[float],
-            span: Optional[Sequence[float]] = None, span_delta: Optional[Sequence[float]] = None) -> str:
+            span: Optional[Sequence[float]] = None, span_delta: Optional[Sequence[float]] = None,
+            higher: bool = False) -> str:
     """A metric's change as the tables show it: relative (%) for latency and cost; for an SLO miss share, the
-    change of attainment in percentage points (minus the miss share's delta), with its interval flipped."""
+    change of attainment in percentage points (minus the miss share's delta), with its interval flipped. A value
+    read at higher quality than the baseline's (D87) carries HIGHER."""
+    mark = HIGHER if higher else ""
     if metric in ATTAINMENT:
         if delta is None:
             return "--"
         tail = "" if span_delta is None else f" [{-100 * span_delta[1]:+.1f}, {-100 * span_delta[0]:+.1f}]"
-        return f"{-100 * delta:+.1f}{tail}"
+        return f"{-100 * delta:+.1f}{mark}{tail}"
     if relative is None:
         return "--"
     tail = "" if span is None else f" [{100 * span[0]:+.1f}, {100 * span[1]:+.1f}]"
-    return f"{100 * relative:+.1f}\\%{tail}"
+    return f"{100 * relative:+.1f}\\%{mark}{tail}"
 
 
 def _table(header: str, lines: Sequence[str], n_metrics: int, n_lead: int) -> str:
     out = [r"\begin{tabular}{l" + "r" * (n_lead - 1 + n_metrics) + "}", r"\toprule", header + r" \\", r"\midrule",
            *[ln + r" \\" for ln in lines], r"\bottomrule", r"\end{tabular}"]
     return "\n".join(out) + "\n"
+
+
+def _any_higher(d: dict, interval: str, shown: Optional[Sequence[float]]) -> bool:
+    """A cell is marked when a value it shows was read at higher quality (D87): the value at the means, or, when
+    the cell prints its range or interval (`shown`), a seed inside the range or a resample inside the interval."""
+    if shown is None:
+        within = False
+    elif interval == "range":
+        within = any(v["at_higher_quality"] for v in d["per_seed"])
+    else:
+        within = d["higher_resamples"] > 0
+    return any((d["at_higher_quality"], within))
 
 
 def equal_table(rows: Sequence[dict], interval: str = "range") -> str:
@@ -304,8 +325,9 @@ def equal_table(rows: Sequence[dict], interval: str = "range") -> str:
     lines = []
     for r in sorted(rows, key=lambda r: (r["system"], r["config_id"])):
         by = {d["metric"]: d for d in r["deltas"]}
-        cells = [_change(m, by[m]["relative"], by[m]["delta"], by[m][rel_key], by[m][abs_key]) if m in by else "--"
-                 for m in names]
+        cells = [_change(m, by[m]["relative"], by[m]["delta"], by[m][rel_key], by[m][abs_key],
+                         _any_higher(by[m], interval, by[m][abs_key] if m in ATTAINMENT else by[m][rel_key]))
+                 if m in by else "--" for m in names]
         lines.append(f"{_tex(r['config_id'])} & {r['quality']:.4f} & {len(r['seeds'])} & " + " & ".join(cells))
     return _table("Baseline & Quality & Seeds & " + " & ".join(TABLE_METRICS[m] for m in names), lines, len(names), 3)
 
@@ -317,7 +339,8 @@ def seeds_table(rows: Sequence[dict]) -> str:
     for r in sorted(rows, key=lambda r: (r["system"], r["config_id"])):
         by = {d["metric"]: {v["seed"]: v for v in d["per_seed"]} for d in r["deltas"]}
         for seed in r["seeds"]:
-            cells = [_change(m, by[m][seed]["relative"], by[m][seed]["delta"]) if m in by else "--" for m in names]
+            cells = [_change(m, by[m][seed]["relative"], by[m][seed]["delta"], higher=by[m][seed]["at_higher_quality"])
+                     if m in by else "--" for m in names]
             lines.append(f"{_tex(r['config_id'])} & {seed} & " + " & ".join(cells))
     return _table("Baseline & Seed & " + " & ".join(TABLE_METRICS[m] for m in names), lines, len(names), 2)
 
@@ -333,7 +356,9 @@ def macro_name(*parts: str, prefix: str = "eq") -> str:
 
 def macros(report: dict) -> str:
     lines = ["% Written by analysis/report.py. Ranges over the baseline configurations with an equal-quality point;",
-             "% eq* read one RouteBalance configuration for every metric, eqpm* each metric on its own frontier (D86)."]
+             "% eq* read one RouteBalance configuration for every metric, eqpm* each metric on its own frontier (D86).",
+             "% ...Min/...Max: at equal quality only; ...MinAll/...MaxAll: also the comparisons read at RouteBalance's",
+             "% frontier low end, at higher quality than the baseline's (D87; the tables mark them)."]
     for key, _, prefix in READING_OUT.values():
         lines += _macros(report, key, prefix)
     return "\n".join(lines) + "\n"
@@ -342,18 +367,21 @@ def macros(report: dict) -> str:
 def _macros(report: dict, key: str, prefix: str) -> list[str]:
     lines = []
     for t, rows in report[key].items():
-        by: dict[tuple[str, str, str], list[float]] = {}
+        by: dict[tuple[str, str, str], list[tuple[float, bool]]] = {}
         for r in rows:
             if r["trace_id"] not in report["rates"]:
                 continue
             for d in r["deltas"]:
                 if d["metric"] in MACRO_METRICS and d["relative"] is not None:
-                    by.setdefault((r["group"], r["trace_id"], d["metric"]), []).append(d["relative"])  # default-ok: grouping
+                    by.setdefault((r["group"], r["trace_id"], d["metric"]), []).append(  # default-ok: grouping
+                        (d["relative"], d["at_higher_quality"]))     # a macro shows the value at the means only
         for (group, trace, metric), vals in sorted(by.items()):
             name = macro_name(t, group, trace, MACRO_METRICS[metric], prefix=prefix)
-            lo, hi = min(vals), max(vals)
-            lines.append(f"\\newcommand{{\\{name}Min}}{{{100 * lo:.1f}\\%}}")
-            lines.append(f"\\newcommand{{\\{name}Max}}{{{100 * hi:.1f}\\%}}")
+            strict = [v for v, higher in vals if not higher]
+            for suffix, these in (("", strict), ("All", [v for v, _ in vals])):
+                if these:
+                    lines.append(f"\\newcommand{{\\{name}Min{suffix}}}{{{100 * min(these):.1f}\\%}}")
+                    lines.append(f"\\newcommand{{\\{name}Max{suffix}}}{{{100 * max(these):.1f}\\%}}")
     return lines
 
 

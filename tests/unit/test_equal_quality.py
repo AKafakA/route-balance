@@ -17,7 +17,8 @@ FRONTIER = [(0.4, 1000.0), (0.5, 2000.0)]
 @pytest.mark.parametrize("q,expected", [
     (0.425, 1250.0), (0.4, 1000.0), (0.5, 2000.0),        # inside, and on the end points
     (0.38, 1000.0), (0.52, 2000.0),                        # past an end, within the tolerance
-    (0.36, None), (0.54, None),                            # past an end, beyond it: never extrapolated
+    (0.36, 1000.0),                                        # below the low end: the low end, at higher quality (D87)
+    (0.54, None),                                          # above the high end, beyond it: never extrapolated
 ])
 def test_value_at(q, expected):
     got = value_at(q, FRONTIER, 0.03)
@@ -270,3 +271,38 @@ def test_the_per_metric_reading_bootstraps_each_metric_on_its_own_frontier():
 def test_an_unknown_reading_is_refused():
     with pytest.raises(ConfigError, match="unknown equal-quality reading"):
         equal_quality(_grid(), "RB", RULES, reading="best_of")
+
+
+
+def test_below_the_frontier_the_low_end_is_read_at_higher_quality():
+    # D87: the baseline's 0.30 is below rb-a's 0.40 by more than the tolerance: rb-a is compared, marked
+    pts = _grid()[:3] + [pt("ap-1", "AP", 1, 0.30, 2500)]
+    [row] = equal_quality(pts, "RB", RULES)
+    mean = row.deltas[0]
+    assert mean.treatment == pytest.approx(1000.0) and mean.at_higher_quality and row.frontier_presets == ("rb-a", "rb-a")
+    assert mean.per_seed[0].at_higher_quality
+    [inside] = equal_quality(_grid(), "RB", RULES)
+    assert not inside.deltas[0].at_higher_quality and not inside.deltas[0].per_seed[0].at_higher_quality
+
+
+def test_a_flat_metric_is_read_at_the_frontier_that_dominates_the_baseline():
+    # the local reviewer's case: equal SLO misses and cost for every preset keep only rb-b on those frontiers;
+    # per_metric then reads rb-b (quality 0.50) for the baseline at 0.425, at higher quality
+    pts = [CellPoint(group="g1", config_id=c, system=sys_, knob=c, dispatch="lor", trace_id="l30", seed=1, quality=q,
+                     e2e_mean_ms=m, e2e_p99_ms=p99, cost_decode_per_1k=1.0, slo_miss_tight=0.0, slo_miss_loose=0.0,
+                     throughput_rps=20.0)
+           for c, sys_, q, m, p99 in (("rb-a", "RB", 0.40, 1000, 5000), ("rb-b", "RB", 0.50, 2000, 3000),
+                                      ("ap-1", "AP", 0.425, 2500, 4000))]
+    [per] = equal_quality(pts, "RB", RULES, reading="per_metric")
+    by = {d.metric: d for d in per.deltas}
+    assert by["e2e_p99_ms"].treatment == pytest.approx(3000.0) and by["e2e_p99_ms"].at_higher_quality
+    assert by["slo_miss_loose"].treatment == 0.0 and by["slo_miss_loose"].frontier_presets == ("rb-b", "rb-b")
+    assert by["e2e_mean_ms"].treatment == pytest.approx(1250.0) and not by["e2e_mean_ms"].at_higher_quality
+
+
+
+def test_the_tolerance_boundary_survives_rounding():
+    from analysis.equal_quality import position_at
+    assert position_at(0.37, [0.4, 0.5], 0.03) == (0, 0, 0.0, False)          # 0.4 - 0.37 rounds above 0.03
+    assert position_at(0.53, [0.4, 0.5], 0.03) == (1, 1, 0.0, False)
+    assert position_at(0.36, [0.4, 0.5], 0.03)[3] and position_at(0.54, [0.4, 0.5], 0.03) is None

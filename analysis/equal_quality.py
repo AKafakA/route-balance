@@ -1,4 +1,5 @@
-"""Equal-quality comparison: every baseline configuration against the treatment at the same quality (D80, D81, D86).
+"""Equal-quality comparison: every baseline configuration against the treatment at the same quality (D80, D81, D86,
+D87).
 
 For a baseline configuration B at one trace of one comparison group (bench/scope.py; the treatment presets
 come from the same group and trace, never from another fleet, dataset or order), over B's seeds S (paired: a
@@ -14,8 +15,11 @@ seed fixes the arrivals, and with per_seed order also the prompt order, for ever
                    w = (q_B - q_lo) / (q_hi - q_lo), and every metric is read there: m_lo + w (m_hi - m_lo);
        per_metric  v2/v3's reading: each metric on the treatment's own quality-metric frontier (Pareto-efficient
                    in quality up and that metric down), read the same way at q_B.
-     Past either end of a frontier the end preset is used if its quality is within the tolerance of q_B;
-     otherwise there is no equal-quality point (never extrapolated).
+     Past the high end of a frontier the end preset is used if its quality is within the tolerance of q_B;
+     otherwise there is no equal-quality point (never extrapolated). Past the low end the lowest-quality frontier
+     preset is used (D87): within the tolerance as at the high end; further below, the treatment is compared at
+     higher quality than the baseline's, as v3's dominance reading counted it, and the value is marked
+     `at_higher_quality` (per seed too; `higher_resamples` counts such resamples; the tables mark them).
   4. delta = treatment - baseline (negative: the treatment is faster or cheaper); relative = treatment/baseline - 1.
   5. The range over the seeds (D81, the main text): steps 3-4 on each seed of S alone, B's cell at that seed
      against the frontier of the presets' cells at that seed. `per_seed` holds each seed's delta and relative
@@ -61,6 +65,7 @@ class SeedValue:
     seed: int
     delta: Optional[float]                   # None: no equal-quality point on this seed
     relative: Optional[float]
+    at_higher_quality: bool                  # read at the frontier's low end, above the baseline's quality (D87)
 
 
 @dataclass(frozen=True)
@@ -77,6 +82,8 @@ class MetricDelta:
     ci: Optional[tuple[float, float]]
     ci_relative: Optional[tuple[float, float]]
     undefined_resamples: int
+    at_higher_quality: bool                  # the value at the means is the low end, above q_B beyond the tolerance
+    higher_resamples: int                    # resamples read at the low end, above their baseline's quality (D87)
     frontier_presets: Optional[tuple[str, str]] = None   # this metric's two frontier presets, and the weight
     weight: Optional[float] = None
 
@@ -96,20 +103,23 @@ class EqualQualityRow:
     deltas: tuple[MetricDelta, ...]
 
 
-def position_at(quality: float, qualities: Sequence[float],
-                tolerance: float) -> Optional[tuple[int, int, float]]:
-    """(i, j, w): `quality` lies between the i-th and j-th of `qualities` (increasing) at weight w."""
+Position = tuple[int, int, float, bool]     # (i, j, w, at higher quality)
+
+
+def position_at(quality: float, qualities: Sequence[float], tolerance: float) -> Optional[Position]:
+    """(i, j, w, higher): `quality` lies between the i-th and j-th of `qualities` (increasing) at weight w; below
+    them all, the lowest one, with higher = True when it lies further above `quality` than the tolerance (D87)."""
     if math.isnan(quality) or any(math.isnan(q) for q in qualities):
         raise ConfigError("an equal-quality reading was given a quality that is not a number")
     if not qualities:
         return None
     last = len(qualities) - 1
     if quality <= qualities[0]:
-        return (0, 0, 0.0) if qualities[0] - quality <= tolerance else None
+        return 0, 0, 0.0, qualities[0] - quality > tolerance + _EPS           # _EPS: a rounding at the boundary
     if quality >= qualities[last]:
-        return (last, last, 0.0) if quality - qualities[last] <= tolerance else None
+        return (last, last, 0.0, False) if quality - qualities[last] <= tolerance + _EPS else None
     i = bisect.bisect_right(list(qualities), quality)         # q[0] < quality < q[last], so 1 <= i <= last
-    return i - 1, i, (quality - qualities[i - 1]) / (qualities[i] - qualities[i - 1])
+    return i - 1, i, (quality - qualities[i - 1]) / (qualities[i] - qualities[i - 1]), False
 
 
 def value_at(quality: float, frontier: Sequence[tuple[float, float]], tolerance: float) -> Optional[float]:
@@ -117,7 +127,7 @@ def value_at(quality: float, frontier: Sequence[tuple[float, float]], tolerance:
     pos = position_at(quality, [q for q, _ in frontier], tolerance)
     if pos is None:
         return None
-    i, j, w = pos
+    i, j, w, _ = pos
     return frontier[i][1] + (frontier[j][1] - frontier[i][1]) * w
 
 
@@ -132,15 +142,15 @@ class _Frontier:
         order = pareto([(float(q), float(m)) for q, m in zip(quality, latency, strict=True)])
         return cls(tuple(order), tuple(float(quality[i]) for i in order))
 
-    def at(self, quality: float, tolerance: float) -> Optional[tuple[int, int, float]]:
+    def at(self, quality: float, tolerance: float) -> Optional[Position]:
         pos = position_at(quality, self.quality, tolerance)
-        return None if pos is None else (self.order[pos[0]], self.order[pos[1]], pos[2])
+        return None if pos is None else (self.order[pos[0]], self.order[pos[1]], pos[2], pos[3])
 
 
-def _read(pos: Optional[tuple[int, int, float]], values: np.ndarray) -> Optional[float]:
+def _read(pos: Optional[Position], values: np.ndarray) -> Optional[float]:
     if pos is None:
         return None
-    i, j, w = pos
+    i, j, w, _ = pos
     return float(values[i] + (values[j] - values[i]) * w)
 
 
@@ -256,7 +266,7 @@ def _row(where: tuple[str, str], config_id: str, system: str, seeds: tuple[int, 
     tol = rules.tolerance
     q_b = float(np.mean([per_seed[s].quality for s in seeds]))
 
-    def at(fronts: Optional[Mapping[str, _Frontier]], m: str, quality: float) -> Optional[tuple[int, int, float]]:
+    def at(fronts: Optional[Mapping[str, _Frontier]], m: str, quality: float) -> Optional[Position]:
         if fronts is None or math.isnan(quality):
             return None                                        # a cell drew no scored request (resamples only)
         return fronts[m].at(quality, tol)
@@ -266,16 +276,20 @@ def _row(where: tuple[str, str], config_id: str, system: str, seeds: tuple[int, 
         base = float(np.mean([getattr(per_seed[s], m) for s in seeds]))
         value = _read(pos, side.mean[m])
         delta, relative = _change(value, base)
-        seed_values = tuple(SeedValue(s, *_change(_read(at(side.front_seed[s], m, per_seed[s].quality),
-                                                        side.seed[s][m]), getattr(per_seed[s], m)))
-                            for s in seeds)
+        seed_values = []
+        for s in seeds:
+            p_s = at(side.front_seed[s], m, per_seed[s].quality)
+            seed_values.append(SeedValue(s, *_change(_read(p_s, side.seed[s][m]), getattr(per_seed[s], m)),
+                                         at_higher_quality=p_s is not None and p_s[3]))
+        seed_values = tuple(seed_values)
         rng_d = _span([v.delta for v in seed_values]) if len(seeds) >= 2 else None
         rng_r = _span([v.relative for v in seed_values]) if len(seeds) >= 2 else None
-        ci, ci_rel, undefined = None, None, 0
+        ci, ci_rel, undefined, higher = None, None, 0, 0
         if base_boot is not None and side.boot is not None:
             m_boot = base_boot[m]
-            boot = [_read(at(f, m, float(base_boot["quality"][b])), side.boot[m][:, b])
-                    for b, f in enumerate(side.front_boot)]
+            p_boot = [at(f, m, float(base_boot["quality"][b])) for b, f in enumerate(side.front_boot)]
+            higher = sum(p is not None and p[3] for p in p_boot)
+            boot = [_read(p, side.boot[m][:, b]) for b, p in enumerate(p_boot)]
             undefined = sum(v is None for v in boot)
             if not undefined:
                 ci = _interval(np.array(boot) - m_boot, rules.confidence)
@@ -284,11 +298,11 @@ def _row(where: tuple[str, str], config_id: str, system: str, seeds: tuple[int, 
         deltas.append(MetricDelta(metric=m, baseline=base, treatment=value, delta=delta, relative=relative,
                                   per_seed=seed_values, range=rng_d, range_relative=rng_r,
                                   outside_range=any((_outside(delta, rng_d), _outside(relative, rng_r))),
-                                  ci=ci, ci_relative=ci_rel, undefined_resamples=undefined,
+                                  ci=ci, ci_relative=ci_rel, undefined_resamples=undefined, higher_resamples=higher,
                                   frontier_presets=None if pos is None else (side.presets[pos[0]], side.presets[pos[1]]),
-                                  weight=None if pos is None else pos[2]))
+                                  weight=None if pos is None else pos[2], at_higher_quality=pos is not None and pos[3]))
     pos = at(side.front, FRONTIER_METRIC, q_b)                 # the latency frontier: one_config's configuration
-    matched = tuple(p for p, q in zip(side.presets, side.mean["quality"], strict=True) if abs(q - q_b) <= tol)
+    matched = tuple(p for p, q in zip(side.presets, side.mean["quality"], strict=True) if abs(q - q_b) <= tol + _EPS)
     return EqualQualityRow(group=where[0], trace_id=where[1], config_id=config_id, system=system, seeds=seeds,
                            quality=q_b, frontier_presets=None if pos is None else
                            (side.presets[pos[0]], side.presets[pos[1]]),
