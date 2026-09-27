@@ -31,6 +31,12 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def findings(root: Path, tag: str) -> list[str]:
+    if not (Path(root) / ".git").exists():
+        # a deployed copy of the tree (setup.sh rsyncs it to the nodes), not the repository: the tag and the history
+        # live in the repository, and run_scope checks the copy's code digest
+        print(f"freeze: {root} has no .git: a deployed copy, not the repository; the freeze is checked there",
+              file=sys.stderr)
+        return []
     repo = _git(root, "rev-parse", "--git-dir")
     if repo.returncode != 0:
         raise RuntimeError(f"{root} is not a git repository: {repo.stderr.strip()}")

@@ -44,3 +44,16 @@ def test_a_change_after_the_tag_needs_its_logged_decision(tmp_path):
     assert freeze.findings(root, "lease-x") == []
     (root / "configs" / "presets.json").write_text('{"y": 3}\n')      # the entry names the exact content
     assert len(freeze.findings(root, "lease-x")) == 1
+
+
+def test_a_deployed_copy_without_git_is_named_and_a_broken_repository_raises(tmp_path, capsys):
+    import pytest
+    from gates.freeze import findings
+    copy = tmp_path / "copy"
+    copy.mkdir()
+    assert findings(copy, "lease-2026-09-28") == []
+    assert "a deployed copy" in capsys.readouterr().err
+    broken = tmp_path / "broken"
+    (broken / ".git").mkdir(parents=True)                  # a .git that is not a repository
+    with pytest.raises(RuntimeError, match="not a git repository"):
+        findings(broken, "lease-2026-09-28")
