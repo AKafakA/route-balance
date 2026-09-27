@@ -1,0 +1,31 @@
+{
+  "vllm": "0.18.1",
+  "tiers": {
+    "qwen2.5-14b_v100": {
+      "revision": "97e1e76335b7017d8f67c08a19d103c0504298c9",
+      "args": {"--dtype": "float16", "--tensor-parallel-size": 4, "--trust-remote-code": true,
+               "--gpu-memory-utilization": 0.85, "--max-model-len": 8192}
+    },
+    "qwen2.5-3b_a30": {
+      "revision": "3aab1f1954e9cc14eb9509a215f9e5ca08227a9b",
+      "args": {"--dtype": "float16", "--tensor-parallel-size": 1, "--trust-remote-code": true,
+               "--gpu-memory-utilization": 0.9, "--max-model-len": 8192}
+    },
+    "qwen2.5-72b_a100": {
+      "revision": "efba10c8e54e91e0d9570ab5f7b51a958474d4cb",
+      "args": {"--dtype": "float16", "--tensor-parallel-size": 4, "--trust-remote-code": true,
+               "--gpu-memory-utilization": 0.95, "--max-model-len": 8192, "--enforce-eager": true}
+    },
+    "qwen2.5-7b_a30": {
+      "revision": "d149729398750b98c0af14eb82c78cfe92750796",
+      "args": {"--dtype": "float16", "--tensor-parallel-size": 1, "--trust-remote-code": true,
+               "--gpu-memory-utilization": 0.9, "--max-model-len": 8192}
+    }
+  },
+  "gpus": {
+    "Qwen-2.5-14B_0": [0, 1, 2, 3], "Qwen-2.5-14B_1": [0, 1, 2, 3], "Qwen-2.5-14B_2": [0, 1, 2, 3],
+    "Qwen-2.5-3B_0": [0], "Qwen-2.5-3B_1": [0], "Qwen-2.5-3B_2": [0], "Qwen-2.5-3B_3": [0], "Qwen-2.5-3B_4": [0],
+    "Qwen-2.5-72B_0": [0, 1, 2, 3], "Qwen-2.5-72B_1": [0, 1, 2, 3],
+    "Qwen-2.5-7B_0": [0], "Qwen-2.5-7B_1": [0], "Qwen-2.5-7B_2": [0]
+  }
+}

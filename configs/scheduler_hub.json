@@ -1,0 +1,6 @@
+{
+  "models": ["sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+             "microsoft/deberta-v3-small@a36c739020e01763fe789b4b85e2df55d6180012"],
+  "tokenizers": ["Qwen/Qwen2.5-3B@3aab1f1954e9cc14eb9509a215f9e5ca08227a9b",
+                 "google/gemma-3-1b-it@dcc83ea841ab6100d6b47a070329e1ba4cf78752"]
+}

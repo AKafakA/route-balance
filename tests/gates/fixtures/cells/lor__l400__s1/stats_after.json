@@ -1,0 +1,28 @@
+{
+ "loop_lag": {
+  "samples": 8,
+  "p50_ms": 3.1541788578033447,
+  "p99_ms": 7.735159955918789,
+  "p999_ms": 7.735159955918789,
+  "max_ms": 7.735159955918789
+ },
+ "telemetry_read": "poll",
+ "telemetry_age_ms": {
+  "S_0": 10.6,
+  "S_1": 8.7,
+  "L_2": 8.4
+ },
+ "active": 0,
+ "rounds": null,
+ "booster_calls": null,
+ "failure": null,
+ "connection_waits": {
+  "engine": 0,
+  "telemetry": 0
+ },
+ "logged": {
+  "decisions": 112,
+  "decisions_buffered": 0,
+  "latency": null
+ }
+}

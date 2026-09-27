@@ -1,0 +1,52 @@
+{
+ "config": {
+  "mode": "pipeline",
+  "weights": null,
+  "rounds": {
+   "adaptive": true,
+   "max_batch": null,
+   "timeout_ms": null
+  },
+  "lpt": "max",
+  "pending_decode": null,
+  "dead_reckoning": false,
+  "telemetry_read": "poll",
+  "latency": {
+   "source": "constant",
+   "envelope": "own_length",
+   "normalization": "max_divide",
+   "table": "calib/tpot.json",
+   "table_md5": "3004488055fdb43f53da93726b9e2130"
+  },
+  "estimator": {
+   "index_dir": "knn/x",
+   "index_md5": "00000000000000000000000000000000",
+   "encoder_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "k": 50,
+   "score_type": "deepeval",
+   "prior": "knn"
+  },
+  "budget": {
+   "admission_filter": false
+  },
+  "telemetry": {
+   "poll_ms": 20.0,
+   "max_age_ms": 2000.0,
+   "timeout_s": 2.0
+  },
+  "pipeline": {
+   "router": {
+    "type": "passthrough",
+    "kwargs": {}
+   },
+   "dispatch": {
+    "type": "least_outstanding",
+    "seed": 1,
+    "latency_window": null,
+    "count": "engine"
+   }
+  }
+ },
+ "config_digest": "47fcfd8b2a3b20f02db90aee34696297298e3f4e1fc9d48ae77efa1df33be4f7",
+ "fleet_digest": "14eea81ed30ba994d4734f92949310b222dae98db94a522e9da3019eeb638126"
+}

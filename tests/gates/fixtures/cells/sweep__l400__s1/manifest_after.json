@@ -1,0 +1,190 @@
+{
+ "format": "rb-manifest/1",
+ "config_digest": "2b87d84872b59b5b0b23b467e7d5f9e559af960e1046e47b9d0f9ab404c6cdf8",
+ "fleet_digest": "14eea81ed30ba994d4734f92949310b222dae98db94a522e9da3019eeb638126",
+ "fleet": [
+  {
+   "instance_id": "S_0",
+   "tier": "small_a30",
+   "model": "S",
+   "gpu": "a30",
+   "cost_in": 1e-07,
+   "cost_out": 1e-07,
+   "max_num_seqs": 8,
+   "node": "n0"
+  },
+  {
+   "instance_id": "S_1",
+   "tier": "small_a30",
+   "model": "S",
+   "gpu": "a30",
+   "cost_in": 1e-07,
+   "cost_out": 1e-07,
+   "max_num_seqs": 8,
+   "node": "n1"
+  },
+  {
+   "instance_id": "L_2",
+   "tier": "large_a100",
+   "model": "L",
+   "gpu": "a100",
+   "cost_in": 4e-07,
+   "cost_out": 4e-07,
+   "max_num_seqs": 8,
+   "node": "n2"
+  }
+ ],
+ "system": {
+  "mode": "pipeline",
+  "telemetry_read": "poll",
+  "weights": null,
+  "rounds": {
+   "adaptive": true,
+   "max_batch": null,
+   "timeout_ms": null
+  },
+  "lpt": "max",
+  "pending_decode": "own_length",
+  "latency": {
+   "source": "constant",
+   "envelope": "own_length",
+   "normalization": "max_divide",
+   "table": "calib/tpot.json",
+   "table_md5": "3004488055fdb43f53da93726b9e2130"
+  },
+  "estimator": {
+   "index_dir": "knn/x",
+   "index_md5": "00000000000000000000000000000000",
+   "encoder_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+   "k": 50,
+   "score_type": "deepeval",
+   "prior": "knn"
+  },
+  "router": {
+   "type": "passthrough",
+   "kwargs": {}
+  },
+  "dispatch": {
+   "type": "random",
+   "seed": 7,
+   "latency_window": null,
+   "count": null
+  }
+ },
+ "budget": {
+  "admission_filter": false
+ },
+ "telemetry": {
+  "poll_ms": 20.0,
+  "max_age_ms": 2000.0,
+  "timeout_s": 2.0,
+  "dead_reckoning": true
+ },
+ "loaded": {
+  "estimator": "VaryingEstimator",
+  "latency_source": null,
+  "latency_envelope": null,
+  "router": "PassthroughRouter",
+  "dispatcher": "RandomDispatch",
+  "round_loop": false,
+  "telemetry_pollers": true
+ },
+ "artifacts": {
+  "knn/x/knn_estimator.pkl": "00000000000000000000000000000000",
+  "estimator@hf:sentence-transformers/all-MiniLM-L6-v2/model.safetensors": "f34e46da929d438c0ccffa365f614203"
+ },
+ "code": {
+  "routebalance": "ac1a1b94f8901e1d625d50ec1ca61d14f6fb4c51a67f6729ca38a62ba718895e",
+  "avengers_pro": null,
+  "routebalance_now": "ac1a1b94f8901e1d625d50ec1ca61d14f6fb4c51a67f6729ca38a62ba718895e",
+  "avengers_pro_now": null
+ },
+ "threadpools": {
+  "openblas:numpy.libs/libscipy_openblas64_-56d6093b.so": 2
+ },
+ "versions": {
+  "python": "3.10.20 (main, Apr  7 2026, 20:44:18) [Clang 22.1.1 ]",
+  "aiohappyeyeballs": "2.7.1",
+  "aiohttp": "3.10.11",
+  "aiosignal": "1.4.0",
+  "annotated-types": "0.8.0",
+  "async-timeout": "5.0.1",
+  "attrs": "26.1.0",
+  "certifi": "2026.7.22",
+  "charset-normalizer": "3.5.1",
+  "exceptiongroup": "1.3.1",
+  "filelock": "3.32.3",
+  "frozenlist": "1.8.0",
+  "fsspec": "2026.7.0",
+  "hf-xet": "1.6.0",
+  "idna": "3.20",
+  "iniconfig": "2.3.0",
+  "jinja2": "3.1.6",
+  "joblib": "1.5.3",
+  "markupsafe": "3.0.3",
+  "mpmath": "1.3.0",
+  "multidict": "6.9.1",
+  "networkx": "3.4.2",
+  "numpy": "2.2.6",
+  "packaging": "26.3",
+  "pluggy": "1.6.0",
+  "propcache": "0.5.4",
+  "pydantic": "2.13.4",
+  "pydantic-core": "2.46.4",
+  "pytest": "8.3.3",
+  "python-dateutil": "2.9.0.post0",
+  "pytz": "2026.4",
+  "pyyaml": "6.0.3",
+  "regex": "2026.9.10",
+  "requests": "2.34.2",
+  "ruff": "0.6.9",
+  "six": "1.17.0",
+  "sympy": "1.14.0",
+  "threadpoolctl": "3.7.0",
+  "tomli": "2.4.1",
+  "tqdm": "4.70.1",
+  "typing-extensions": "4.16.0",
+  "typing-inspection": "0.4.4",
+  "tzdata": "2026.4",
+  "urllib3": "2.8.0",
+  "yarl": "1.25.1"
+ },
+ "launch": {
+  "torch_threads": 1,
+  "torch_threads_effective": null,
+  "max_connections": 64,
+  "request_timeout_s": 5.0,
+  "router_threads": 4,
+  "router_lane_threads": 1,
+  "engine_session": {
+   "limit": 64,
+   "limit_per_host": 0,
+   "force_close": true
+  },
+  "telemetry_session": {
+   "limit": 64,
+   "limit_per_host": 0,
+   "force_close": false
+  },
+  "event_loop": "asyncio.unix_events._UnixSelectorEventLoop",
+  "cpus": {
+   "count": 2,
+   "affinity": 2
+  },
+  "env": {
+   "OMP_NUM_THREADS": null,
+   "OMP_DYNAMIC": null,
+   "OMP_PROC_BIND": null,
+   "OMP_PLACES": null,
+   "KMP_AFFINITY": null,
+   "MKL_NUM_THREADS": null,
+   "MKL_DYNAMIC": null,
+   "OPENBLAS_NUM_THREADS": null,
+   "VECLIB_MAXIMUM_THREADS": null,
+   "NUMEXPR_NUM_THREADS": null,
+   "RAYON_NUM_THREADS": null,
+   "TOKENIZERS_PARALLELISM": null,
+   "CUDA_VISIBLE_DEVICES": null
+  }
+ }
+}

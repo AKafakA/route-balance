@@ -1,0 +1,70 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "routebalance"
+version = "0.1.0"
+description = "RouteBalance: a unified router and load balancer for heterogeneous LLM serving"
+requires-python = "==3.10.*"
+# Scheduler host. Versions are the v3 campaign head environment (pip freeze, 2026-08-04): the packages this
+# code or upstream AvengersPro imports, and the libraries those import (scipy, tokenizers, huggingface_hub,
+# safetensors, pydantic_core, requests, PyYAML), pinned so the resolver cannot move them.
+dependencies = [
+  "numpy==2.2.6",
+  "scipy==1.13.1",
+  "scikit-learn==1.5.2",
+  "joblib==1.5.3",
+  "xgboost==3.2.0",
+  "faiss-cpu==1.13.2",
+  "torch==2.9.0",
+  "transformers==4.56.0",
+  "tokenizers==0.22.2",
+  "huggingface_hub==0.36.2",
+  "safetensors==0.8.0",
+  "sentence-transformers==5.4.1",
+  # baselines: BEST-Route's slow DeBERTa tokenizer; upstream AvengersPro imports the last three at
+  # module level (its OpenAI embedding client is bypassed, tiktoken truncates long prompts)
+  "sentencepiece==0.2.2",
+  "tiktoken==0.13.0",
+  "loguru==0.7.3",
+  "openai==2.52.0",
+  # baselines: upstream BEST-Route (microsoft/best-route-llm, D79) runs on LLM-Blender, pinned at the commit its
+  # ranker was trained with, and the three packages LLM-Blender imports at run time (the versions verified 09-26)
+  "llm-blender @ git+https://github.com/yuchenlin/LLM-Blender.git@33204d2712944b6b17996f7c079e74cd963ccc7c",
+  "accelerate==1.15.0",
+  "dataclasses-json==0.6.7",
+  "protobuf==7.36.2",
+  "uvloop==0.22.1",
+  "pydantic==2.13.4",
+  "pydantic_core==2.46.4",
+  "aiohttp==3.10.11",
+  "requests==2.32.5",
+  "PyYAML==6.0.3",
+  "tqdm==4.67.3",
+]
+
+[project.optional-dependencies]
+# Serving hosts: official vLLM (D24). It needs torch 2.10.0, this package pins 2.9.0, so the two never share
+# an environment: scripts/setup.sh installs exactly this requirement, alone, in the engine venv. This entry is
+# the record of the pin (tests check setup.sh and the engine args files against it), not an installable extra.
+serve = [
+  "vllm==0.18.1",
+]
+dev = [
+  "pytest==8.3.3",
+  "ruff==0.6.9",
+]
+
+[tool.setuptools.packages.find]
+include = ["routebalance*", "bench*", "analysis*", "gates*", "tools*"]
+
+[tool.ruff]
+line-length = 125
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,41 @@
+{
+ "dead_reckoning": true,
+ "latency": {
+  "source": "constant",
+  "envelope": "own_length",
+  "normalization": "max_divide",
+  "table": "calib/tpot.json",
+  "table_md5": "3004488055fdb43f53da93726b9e2130"
+ },
+ "estimator": {
+  "index_dir": "knn/x",
+  "index_md5": "00000000000000000000000000000000",
+  "encoder_revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "k": 50,
+  "score_type": "deepeval",
+  "prior": "knn"
+ },
+ "budget": {
+  "admission_filter": false
+ },
+ "telemetry": {
+  "poll_ms": 20.0,
+  "max_age_ms": 2000.0,
+  "timeout_s": 2.0
+ },
+ "mode": "routebalance",
+ "weights": {
+  "w_quality": 0.5,
+  "w_latency": 0.3,
+  "w_cost": 0.2
+ },
+ "telemetry_read": "per_round",
+ "pipeline": null,
+ "rounds": {
+  "adaptive": false,
+  "max_batch": 8,
+  "timeout_ms": 30.0
+ },
+ "lpt": "off",
+ "pending_decode": "lpt_key"
+}
