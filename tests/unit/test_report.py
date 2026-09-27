@@ -9,6 +9,7 @@ import pytest
 from analysis import report as rp
 from analysis.rules import load_rules
 from bench.dataset import file_sha256, load_prompts
+from tools.cell_driver import gate_code
 from bench.records import write_cell
 from bench.runner import CellSpec, run_cell
 from bench.schema import parse
@@ -84,7 +85,8 @@ def _pass_parity(cells, scope, rc=0):
         groups.setdefault(cell.group, []).append([str(cells / cell.cell_id), file_sha256(cells / cell.cell_id / name)])
     for g, runs in groups.items():
         (cells / "_groups" / g).mkdir(parents=True, exist_ok=True)
-        (cells / "_groups" / g / "parity.20260928T000000.json").write_text(json.dumps({"group": g, "rc": rc, "cells": runs}))
+        (cells / "_groups" / g / "parity.20260928T000000.json").write_text(
+            json.dumps({"group": g, "rc": rc, "cells": runs, "gate_code": gate_code()}))
 
 
 def _argv(env, out, **over):
@@ -273,6 +275,15 @@ def test_a_group_whose_parity_failed_is_left_out_whole(env):
 
 def test_a_group_without_parity_is_reported_not_run(env):
     shutil.rmtree(env["cells"] / "_groups")
+    out = env["tmp"] / "report"
+    assert rp.main(_argv(env, out)) == 1
+    report = json.loads((out / "report.json").read_text())
+    assert not report["left_out"] and set(report["parity"].values()) == {"not run"}
+
+
+def test_a_parity_record_made_by_other_gate_code_counts_as_not_run(env):
+    for f in (env["cells"] / "_groups").rglob("parity.*.json"):
+        f.write_text(json.dumps(dict(json.loads(f.read_text()), gate_code="0" * 64)))
     out = env["tmp"] / "report"
     assert rp.main(_argv(env, out)) == 1
     report = json.loads((out / "report.json").read_text())

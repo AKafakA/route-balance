@@ -121,6 +121,8 @@ class BestRouteRouter(Router):
     async def choose_model(self, request: RouterRequest, pool: Sequence[str]) -> RouterDecision:
         _require_pool(pool)
         label, prob = await _off_loop(self._executor, self._classify, request.prompt)
+        if not (math.isfinite(prob) and 0.0 <= prob <= 1.0):
+            raise RuntimeError(f"best_route: the classifier's probability {prob!r} is not in [0, 1]")
         chosen = self._label_to_model.get(label)
         if chosen is None or chosen not in pool:
             fb = self._fallback_in(pool, "pool_miss")

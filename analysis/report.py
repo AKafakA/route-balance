@@ -4,8 +4,9 @@ through this tool's output, which the paper \\input{}s).
     python -m analysis.report --render DIR --cells ROOT --data-root DIR --fleet NAME=FLEET.json [...]
         --hosts HOSTS.json --slo-base FAMILY=BASE.json [...] [--store STORE.jsonl ...]
         --rules configs/prereg_rules.json --treatment SYSTEM [...] --out DIR
-    exit 0 only when every expected cell is ok, none is left out and every group's parity passed over its current
-    cells; 1 otherwise (the report is written either way)
+    exit 0 only when the manifest is complete (every expected cell ok or accounted, nothing pending or unexpected),
+    every ok cell's gates passed and every group's parity passed over its current cells under the current gate code;
+    1 otherwise (the report is written either way); 2 for a --treatment no configuration of the render has
 
 Inputs, each checked:
   the render   plan.json (group -> fleet -> family; the scored corpora with their sha256) and scope.json (the
@@ -230,6 +231,9 @@ def parity_state(cells_root: Path, group: str, runs: Mapping[str, str]) -> str:
     if not records:
         return "not run"
     last = loads_strict(records[-1].read_text())
+    from tools.cell_driver import gate_code                  # the driver's key: a fixed gate runs again
+    if last.get("gate_code") != gate_code():                  # default-ok: a record without one predates the key
+        return "not run"
     if last["rc"] != 0:
         return "failed"
     covered = {Path(c).name: sha for c, sha in last["cells"]}
@@ -242,20 +246,23 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
     cells, points, left_out = {}, [], {}
     samples: dict[SampleKey, RequestValues] = {}
     runs: dict[str, dict[str, str]] = {}
+    gates = {cid: gate_problem(cells_root, cid) for cid in cov.ok}
     for cid in cov.ok:
-        path = cell_path(cell_dir(cells_root, cid), cid)
-        runs.setdefault(expected[cid].group, {})[cell_dir(cells_root, cid).name] = file_sha256(path)   # default-ok: grouping
+        if gates[cid] is None:                                # the driver's parity compares only done cells
+            path = cell_path(cell_dir(cells_root, cid), cid)
+            group = runs.setdefault(expected[cid].group, {})       # default-ok: grouping
+            group[cell_dir(cells_root, cid).name] = file_sha256(path)
     parity = {g: parity_state(cells_root, g, r) for g, r in sorted(runs.items())}
     for cid in cov.ok:
         exp = expected[cid]
         if exp.group in cov.fleet_problems:
             left_out[cid] = cov.fleet_problems[exp.group]
             continue
-        gate = gate_problem(cells_root, cid)
+        gate = gates[cid]
         if gate is not None:
             left_out[cid] = gate
             continue
-        if parity[exp.group] == "failed":
+        if parity.get(exp.group) == "failed":                 # default-ok: a group with no passing cell has no state
             left_out[cid] = f"parity failed for group {exp.group} (_groups/{exp.group})"
             continue
         rec = read_cell(cell_path(cell_dir(cells_root, cid), cid))
@@ -291,7 +298,9 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
     return {"format": "rb-report/1", "coverage": {"expected": cov.expected, "ok": len(cov.ok),
                                                    "missing": list(cov.missing), "invalid": dict(cov.invalid),
                                                    "fleet_problems": dict(cov.fleet_problems),
-                                                   "pending": dict(cov.pending), "unexpected": list(cov.unexpected)},
+                                                   "pending": dict(cov.pending), "unexpected": list(cov.unexpected),
+                                                   "complete": cov.complete},
+            "gate_failures": sorted(c for c, g in gates.items() if g is not None),
             "left_out": left_out, "parity": parity, "cells": cells, "configs": [asdict(p) for p in configs],
             "frontiers": fronts,
             **readings, "not_compared": not_compared, "goodput": good, "rates": rates}
@@ -489,9 +498,8 @@ def main(argv: list[str]) -> int:
                     if d["outside_range"]:
                         print(f"  NOTE ({reading}) {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: "
                               "the value at the seed means lies outside the range over the seeds (D81)")
-    complete = (cov["ok"] == cov["expected"] and not cov["invalid"] and not cov["pending"] and not cov["unexpected"]
-                and not report["left_out"] and all(s == "passed" for s in report["parity"].values()))
-    return 0 if complete else 1         # the report is written either way; 1: something is missing or left out
+    complete = cov["complete"] and not report["gate_failures"] and all(s == "passed" for s in report["parity"].values())
+    return 0 if complete else 1         # the report is written either way; 1: a cell or a group's parity is not done
 
 
 if __name__ == "__main__":
