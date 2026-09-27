@@ -254,13 +254,23 @@ nvidia_driver() {
   exit 3
 }
 
+# mig_enabled: 0 when a GPU has MIG on, 1 when every GPU reports it off; a failed query, a GPU count other than
+# GPU_COUNT or a mode other than Enabled/Disabled fails setup (an unread mode is never read as off)
+mig_enabled() {
+  local modes
+  modes=$(nvidia-smi --query-gpu=mig.mode.current --format=csv,noheader) || die "nvidia-smi could not read the MIG mode"
+  [ "$(grep -c . <<< "$modes")" -eq "$GPU_COUNT" ] || die "the MIG mode of $(grep -c . <<< "$modes") GPU(s), not $GPU_COUNT"
+  if grep -q -v -x -e Enabled -e Disabled <<< "$modes"; then die "unexpected MIG mode: $(tr '\n' ' ' <<< "$modes")"; fi
+  grep -q -x Enabled <<< "$modes"
+}
+
 mig_off() {
   [ "$ARCH" = ampere ] || return 0
   step "MIG off"
-  if nvidia-smi --query-gpu=mig.mode.current --format=csv,noheader | grep -q Enabled; then
+  if mig_enabled; then
     sudo nvidia-smi -mig 0 || die "nvidia-smi -mig 0"
   fi
-  if nvidia-smi --query-gpu=mig.mode.current --format=csv,noheader | grep -q Enabled; then
+  if mig_enabled; then
     die "MIG is still enabled: $(nvidia-smi --query-gpu=index,mig.mode.current,mig.mode.pending --format=csv,noheader | tr '\n' ' ')"
   fi
 }
@@ -477,7 +487,7 @@ self_check_engine() {
   done < <(nvidia-smi --query-gpu=name --format=csv,noheader)
   line=$("$CUDA_DIR/bin/nvcc" --version | grep -o 'release [0-9.]*')
   echo "nvcc: $line"; [ "$line" = "release 12.8" ] || { echo "FAIL nvcc $line != release 12.8"; fail=1; }
-  if [ "$ARCH" = ampere ] && nvidia-smi --query-gpu=mig.mode.current --format=csv,noheader | grep -q Enabled; then
+  if [ "$ARCH" = ampere ] && mig_enabled; then
     echo "FAIL MIG enabled"; fail=1
   fi
   env -i HOME="$HOME" PATH="$RB_PATH" CUDA_HOME="$CUDA_DIR" "$ENGINE_VENV/bin/python" - "$VLLM_VERSION" "$GPU_COUNT" <<'PY' || fail=1

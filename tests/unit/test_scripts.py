@@ -251,3 +251,16 @@ def test_the_best_route_pins_agree_across_setup_pyproject_hub_and_presets():
     assert re.search(r"^BR_COMMIT=fc9b896a814acf7c00565fbea0803a8c20812702 ", setup, re.M)
     assert kw["upstream_sha256"] == "85279e1f6080d87db95dcbded46d7713fcf2728b82339c3b6a30ef3b56579005"
 
+
+
+@pytest.mark.parametrize("modes,rc,message", [
+    ("Disabled Disabled", 1, ""), ("Disabled Enabled", 0, ""),
+    ("Disabled", 1, "the MIG mode of 1 GPU(s), not 2"), ("Disabled [N/A]", 1, "unexpected MIG mode"),
+    ("FAIL", 1, "could not read the MIG mode"), ("", 1, "the MIG mode of 0 GPU(s), not 2"),
+])
+def test_setup_never_reads_an_unread_mig_mode_as_off(tmp_path, modes, rc, message):
+    smi = tmp_path / "nvidia-smi"
+    smi.write_text("#!/bin/bash\n" + ("exit 9\n" if modes == "FAIL" else "".join(f"echo '{m}'\n" for m in modes.split())))
+    smi.chmod(0o755)
+    r = bash(f"source scripts/setup.sh && PATH={tmp_path}:$PATH && GPU_COUNT=2 && mig_enabled")
+    assert r.returncode == rc and message in r.stderr
