@@ -356,7 +356,10 @@ def status(scope: Scope, exp: ExpectedCell, root: Path) -> str:
     v = d / "gates" / "verdict.json"
     if not v.exists():
         return "not-gated"
-    if not read_json(v)["valid"]:
+    valid = read_json(v)["valid"]
+    if not isinstance(valid, bool):
+        raise ConfigError(f"{v}: 'valid' must be a boolean, got {valid!r}")
+    if not valid:
         return "invalid"
     return "invalid" if record_problems(scope, exp, d) else "done"
 

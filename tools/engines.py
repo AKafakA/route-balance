@@ -95,9 +95,15 @@ def _one_line(instance_id: str, text: str, name: str) -> str:
 
 def start_time(instance_id: str, text: str) -> float:
     line = _one_line(instance_id, text, START)
+    rest = line[len(START):]
+    if rest.startswith("{"):
+        rest = rest[rest.find("}") + 1:] if "}" in rest else ""
+    parts = rest.split()
     try:
-        value = float(line.rsplit(None, 1)[1])
-    except (IndexError, ValueError):
+        if len(parts) != 1:                            # exactly the value: no timestamp, nothing else
+            raise ValueError
+        value = float(parts[0])
+    except ValueError:
         raise ConfigError(f"{instance_id}: malformed {START} sample {line[:80]!r}") from None
     if not math.isfinite(value) or value <= 0:
         raise ConfigError(f"{instance_id}: {START}={value} is not a time")

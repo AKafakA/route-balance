@@ -82,7 +82,7 @@ def _find_sample(instance_id: str, text: str, name: str) -> float:
     line = text[hits[0]:] if end == -1 else text[hits[0]:end]
     rest = line[len(name):]
     if rest.startswith("{"):
-        rest = rest[rest.rfind("}") + 1:] if "}" in rest else ""
+        rest = rest[rest.find("}") + 1:] if "}" in rest else ""     # the label set ends at its first }
     parts = rest.split()
     try:
         if len(parts) != 1:                            # exactly the value: no timestamp, nothing else

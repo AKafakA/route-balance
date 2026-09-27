@@ -84,6 +84,8 @@ def score_of(row: dict, model: str, judge_key: str) -> Optional[float]:
     s = judged.get(judge_key) if isinstance(judged, dict) else None
     if s is None:
         return None                     # unscored: filter's escalation (D69) decides
+    if isinstance(s, bool) or not isinstance(s, (int, float)):
+        raise ConfigError(f"{model}: judge score {s!r} is not a number")
     v = float(s)
     if not (math.isfinite(v) and 0.0 <= v <= 1.0):
         raise ConfigError(f"{model}: judge score {s!r} is not in [0, 1]")
@@ -118,11 +120,18 @@ def keep_scored(rows: Sequence[dict], models: Sequence[str], judge_key: str) -> 
     return kept, dropped
 
 
+def _whole(x: object) -> bool:
+    """A non-negative whole number (a bool is not one)."""
+    if isinstance(x, bool) or not isinstance(x, (int, float)):
+        return False
+    return x >= 0 and x == int(x)
+
+
 def _tokens(row: dict, model: str, i: int) -> tuple[int, int]:
     md = row["models"][model]
     p, o = row.get("input_len"), md.get("output_length")
-    if not isinstance(p, (int, float)) or p < 0 or not isinstance(o, (int, float)) or o < 0:
-        raise ConfigError(f"row {i} ({model}): needs non-negative input_len and output_length, got {p!r}, {o!r}")
+    if not (_whole(p) and _whole(o)):
+        raise ConfigError(f"row {i} ({model}): needs whole non-negative input_len and output_length, got {p!r}, {o!r}")
     return int(p), int(o)
 
 
