@@ -1,7 +1,10 @@
 """Baseline routers: each picks a MODEL for a request; a dispatcher then picks the instance.
 
   passthrough   no model choice: the dispatcher sees every instance (the v3 "__ALL__" sentinel)
-  best_route    BEST-Route's 4-way DeBERTa classifier: argmax, with an optional confidence floor
+  best_route    v3's 4-way DeBERTa classifier for BEST-Route: argmax, with an optional confidence floor (the
+                backup of D79)
+  best_route_upstream  BEST-Route as its authors ship it (microsoft/best-route-llm): upstream's ranker and
+                its routing rule, loaded from the pinned checkout (D79)
   avengers_pro  the upstream AvengersPro cluster router, wrapped as v3 wrapped it
   rb_decoupled  RouteBalance's own predictors pick the model from UNLOADED latency (no telemetry),
                 so a dispatcher places it afterwards: "router in front of a load balancer"
@@ -161,6 +164,129 @@ def load_best_route(checkpoint: Path, max_length: int) -> tuple[Classify, dict[i
     classify = _DebertaClassifier(checkpoint, max_length)
     classify("construction probe")       # the first forward pays one-time setup here, not in a measured cell
     return classify, {int(k): str(v) for k, v in label_to_model.items()}
+
+
+# ---------------------------------------------------------------- BEST-Route, as its authors ship it (D79)
+
+# The upstream modules the router imports, relative to the checkout; their digest pins the checkout.
+BEST_ROUTE_MODULES = ("hybrid_llm/__init__.py", "hybrid_llm/pair_ranker/__init__.py", "hybrid_llm/pair_ranker/ranker.py",
+                      "hybrid_llm/pair_ranker/config.py", "hybrid_llm/pair_ranker/collator.py",
+                      "hybrid_llm/pair_ranker/model_util.py")
+BEST_ROUTE_LABELS = "route_balance_labels.json"   # our file beside upstream's checkpoint: head order -> fleet model
+
+Scores = Callable[[str], list]   # prompt -> each candidate's score in the ranker's order, the reference's (1.0) last
+
+
+class BestRouteUpstreamRouter(Router):
+    """BEST-Route's routing rule (upstream results_interpretation.ipynb, plot_matrix_of_router). The ranker has one
+    two-way head per candidate but the last, the reference model; head i estimates the probability that candidate
+    i's answer is at least as good as the reference's. A candidate's score is that probability minus its
+    complement, the reference's is 1, and the request goes to the cheapest candidate whose score is at least the
+    threshold, so the reference always qualifies. Cheapest is the fleet's per-token price order (D71): upstream
+    ranks by each test response's own cost, which a deployed router cannot know before the response exists."""
+
+    def __init__(self, scores: Scores, candidates: Sequence[str], by_price: Sequence[str], *, threshold: float,
+                 executor: Executor):
+        if len(set(candidates)) != len(candidates) or sorted(candidates) != sorted(by_price):
+            raise ConfigError(f"best_route_upstream: the price order {list(by_price)} is not the candidates "
+                              f"{list(candidates)} reordered")
+        if not -1.0 <= threshold <= 1.0:
+            raise ConfigError(f"best_route_upstream: threshold {threshold} is outside [-1, 1]")
+        self._scores, self._candidates, self._by_price = scores, tuple(candidates), tuple(by_price)
+        self._threshold, self._executor = threshold, executor
+
+    async def choose_model(self, request: RouterRequest, pool: Sequence[str]) -> RouterDecision:
+        _require_pool(pool)
+        missing = [m for m in self._candidates if m not in pool]
+        if missing:
+            raise RuntimeError(f"best_route_upstream: candidates {missing} are not in the pool {list(pool)}")
+        s = await _off_loop(self._executor, self._scores, request.prompt)
+        if len(s) != len(self._candidates) or s[-1] != 1.0:
+            raise RuntimeError(f"best_route_upstream: {len(s)} scores for {len(self._candidates)} candidates, the "
+                               f"reference's last: {s}")
+        by_model = dict(zip(self._candidates, s, strict=True))
+        chosen = next(m for m in self._by_price if by_model[m] >= self._threshold)
+        return RouterDecision(chosen, by_model[chosen],
+                              f"best_route_upstream:score={by_model[chosen]:.6f}>=t={self._threshold}:model={chosen}")
+
+
+def _names_the_model(head: str, fleet_model: str) -> bool:
+    """The candidate names of v3's converters into upstream's data format: a fleet model's repository name, or that
+    name without its "-it" suffix, then "_bo1" (one sample per model)."""
+    base, short = head.removesuffix("_bo1"), fleet_model.split("/")[-1]
+    return head.endswith("_bo1") and short in (base, f"{base}-it")
+
+
+def best_route_digest(repo: Path) -> str:
+    """sha256 over the upstream modules the router imports (path and sha256 of each, in a fixed order)."""
+    lines = []
+    for rel in BEST_ROUTE_MODULES:
+        path = Path(repo) / rel
+        try:
+            lines.append(f"{rel} {hashlib.sha256(path.read_bytes()).hexdigest()}")
+        except OSError as e:
+            raise ConfigError(f"best_route_upstream: cannot read upstream module {path}: {e}") from e
+    return hashlib.sha256("\n".join(lines).encode()).hexdigest()
+
+
+def load_best_route_upstream(checkpoint: Path, repo: Path, *, base_model: str, base_revision: str,
+                             upstream_sha256: str) -> tuple[Scores, list[str]]:
+    """A checkpoint of upstream's train_router.py, loaded and run with upstream's own code as its trainer builds
+    it: the tokenizer from the base model with the collator's source prefix, the ranker from the checkpoint's
+    saved config and weights, each prompt encoded by the collator at the lengths trained with. The base
+    model is read from the local Hub cache at its pinned revision. Returns the scorer and the candidates' fleet
+    models in the ranker's order."""
+    repo = Path(repo).resolve()
+    found = best_route_digest(repo)
+    if found != upstream_sha256:
+        raise ConfigError(f"best_route_upstream: the checkout at {repo} has digest {found}, the config pins "
+                          f"{upstream_sha256}")
+    for name in ("config.bin", "model.safetensors", BEST_ROUTE_LABELS):
+        if not (checkpoint / name).is_file():
+            raise ConfigError(f"best_route_upstream: {checkpoint} has no {name}")
+    if str(repo) not in sys.path:
+        sys.path.insert(0, str(repo))
+    import torch
+    from huggingface_hub import snapshot_download
+    from llm_blender.pair_ranker.model_util import build_tokenizer
+    collator_mod = importlib.import_module("hybrid_llm.pair_ranker.collator")
+    model_util = importlib.import_module("hybrid_llm.pair_ranker.model_util")
+    for mod in (collator_mod, model_util, sys.modules["hybrid_llm.pair_ranker.ranker"]):
+        if repo not in Path(mod.__file__).resolve().parents:
+            raise ConfigError(f"best_route_upstream: {mod.__name__} was imported from {mod.__file__}, not {repo}")
+    # upstream's pickled NClassRankerConfig (its trainer saves it; torch >= 2.6 only unpickles it when asked to)
+    config = torch.load(checkpoint / "config.bin", weights_only=False)
+    if config.model_name != base_model:
+        raise ConfigError(f"best_route_upstream: the checkpoint was trained on {config.model_name}, not {base_model}")
+    labels = loads_strict((checkpoint / BEST_ROUTE_LABELS).read_text())
+    if labels["candidate_models"] != list(config.candidate_models) or len(labels["fleet_models"]) != config.n_candidates:
+        raise ConfigError(f"best_route_upstream: {BEST_ROUTE_LABELS} lists {labels['candidate_models']}, the "
+                          f"checkpoint {config.candidate_models}")
+    for head, fleet_model in zip(config.candidate_models, labels["fleet_models"], strict=True):
+        if not _names_the_model(head, fleet_model):
+            raise ConfigError(f"best_route_upstream: head {head!r} is not the fleet model {fleet_model!r} "
+                              f"({BEST_ROUTE_LABELS})")
+    # the trainer's collator lengths (train_router.py --source_maxlength / --candidate_maxlength): the saved config
+    # never holds them (its fields are named differently), so the labels file records the values trained with
+    source_len, candidate_len = labels["source_maxlength"], labels["candidate_maxlength"]
+    if not all(type(n) is int and n > 0 for n in (source_len, candidate_len)):   # a bool is no length
+        raise ConfigError(f"best_route_upstream: {BEST_ROUTE_LABELS} needs positive integer collator lengths")
+    # the base model at its pinned revision, by path (upstream's builders take a name and a cache directory only)
+    config.model_name = snapshot_download(base_model, revision=base_revision, local_files_only=True)
+    config.cache_dir = None
+    tokenizer = build_tokenizer(config.model_name)
+    collator = collator_mod.NClassCollator(source_len, tokenizer, candidate_len)
+    model = model_util.build_nclass_ranker_from_checkpoint(str(checkpoint), config, tokenizer).eval()
+
+    def scores(prompt: str) -> list:
+        batch = collator([{"source": prompt, "scores": None, "costs": None}])
+        with torch.no_grad():
+            preds = model.predict(batch["source_ids"], batch["source_attention_mask"])["preds"]
+        heads = [torch.softmax(h[0].float(), dim=-1) for h in preds]
+        return [float(h[0] - h[1]) for h in heads] + [1.0]
+
+    scores("construction probe")          # the first forward pays one-time setup here, not in a measured cell
+    return scores, list(labels["fleet_models"])
 
 
 # ---------------------------------------------------------------- AvengersPro
@@ -407,6 +533,19 @@ class _BestRouteOptions(_Options):
         return self
 
 
+class _BestRouteUpstreamOptions(_Options):
+    checkpoint: str                                   # relative to the artifact root: upstream's checkpoint-best
+    threshold: float = Field(ge=-1, le=1)             # on the score P(as good as the reference) - P(worse)
+    base_model: str                                   # the ranker's backbone, as trained
+    base_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
+    upstream_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")   # best_route_digest() of the pinned checkout
+
+    @field_validator("checkpoint")
+    @classmethod
+    def _checkpoint_is_relative(cls, v: str) -> str:
+        return _relative_path(v)
+
+
 class _AvengersProOptions(_Options):
     artifact_dir: str                    # relative to the artifact root
     beta: float = Field(gt=0)            # v3: 5.0
@@ -428,8 +567,8 @@ def _options(model: type[_Options], cfg: RouterConfig) -> _Options:
         raise ConfigError(f"invalid {cfg.type} router kwargs: {e}") from e
 
 
-_OPTIONS = {"passthrough": _NoOptions, "best_route": _BestRouteOptions, "avengers_pro": _AvengersProOptions,
-            "rb_decoupled": _NoOptions}
+_OPTIONS = {"passthrough": _NoOptions, "best_route": _BestRouteOptions, "best_route_upstream": _BestRouteUpstreamOptions,
+            "avengers_pro": _AvengersProOptions, "rb_decoupled": _NoOptions}
 
 
 def validate_options(cfg: RouterConfig) -> None:
@@ -439,9 +578,19 @@ def validate_options(cfg: RouterConfig) -> None:
     _options(_OPTIONS[cfg.type], cfg)
 
 
+def price_order(models: Sequence[str], prices: Mapping[str, float]) -> list[str]:
+    """Cheapest first by the mean of input and output price per token; equal prices keep `models`' order (D71)."""
+    missing = [m for m in models if m not in prices]
+    if missing:
+        raise ConfigError(f"no price for {missing}")
+    return sorted(models, key=lambda m: prices[m])
+
+
 def build_router(cfg: RouterConfig, *, artifact_root: Path, avengers_repo: Optional[Path], executor: Executor,
-                 decoupled: Optional[DecoupledInputs]) -> Router:
-    """Build a router from its config. Loading models takes seconds: call this off the event loop."""
+                 decoupled: Optional[DecoupledInputs], best_route_repo: Optional[Path] = None,
+                 prices: Optional[Mapping[str, float]] = None) -> Router:
+    """Build a router from its config. Loading models takes seconds: call this off the event loop. `prices`: the
+    fleet's mean per-token price by model (best_route_upstream's cheapest-first order)."""
     if cfg.type == "passthrough":
         _options(_NoOptions, cfg)
         return PassthroughRouter()
@@ -450,6 +599,15 @@ def build_router(cfg: RouterConfig, *, artifact_root: Path, avengers_repo: Optio
         classify, labels = load_best_route(artifact_root / br.checkpoint, br.max_length)
         return BestRouteRouter(classify, labels, threshold=br.confidence_threshold, fallback=br.fallback_model,
                                executor=executor)
+    if cfg.type == "best_route_upstream":
+        bu = _options(_BestRouteUpstreamOptions, cfg)
+        if best_route_repo is None or prices is None:
+            raise ConfigError("best_route_upstream needs the upstream best-route-llm checkout and the fleet's prices")
+        scores, candidates = load_best_route_upstream(artifact_root / bu.checkpoint, best_route_repo,
+                                                      base_model=bu.base_model, base_revision=bu.base_revision,
+                                                      upstream_sha256=bu.upstream_sha256)
+        return BestRouteUpstreamRouter(scores, candidates, price_order(candidates, prices), threshold=bu.threshold,
+                                       executor=executor)
     if cfg.type == "avengers_pro":
         ap = _options(_AvengersProOptions, cfg)
         if avengers_repo is None:
