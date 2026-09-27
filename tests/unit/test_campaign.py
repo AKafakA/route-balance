@@ -105,7 +105,7 @@ def full_render(**over):
 # ---------------------------------------------------------------- the tracked files
 
 def test_the_tracked_files_dry_run_every_row():
-    summary = campaign.dry_run(campaign.load_presets(), campaign.load_scope_file())
+    summary = campaign.dry_run(campaign.load_presets(campaign.PRESETS), campaign.load_scope_file(campaign.SCOPE))
     rows = {r["id"]: r for r in summary["rows"]}
     assert list(rows) == ["W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
                           "W8-cal", "W8", "W9", "W11", "W12", "W13", "W10"]

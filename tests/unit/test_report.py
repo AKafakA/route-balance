@@ -8,7 +8,7 @@ import pytest
 
 from analysis import report as rp
 from analysis.rules import load_rules
-from bench.dataset import load_prompts
+from bench.dataset import file_sha256, load_prompts
 from bench.records import write_cell
 from bench.runner import CellSpec, run_cell
 from bench.schema import parse
@@ -69,8 +69,22 @@ def env(tmp_path):
                                                                 latency=lambda i, s=slow: 0.02 if s else 0.002), "r1"))
         (cells / cell.cell_id).mkdir()
         write_cell(rec, cells / cell.cell_id)
+        (cells / cell.cell_id / "gates").mkdir()
+        (cells / cell.cell_id / "gates" / "verdict.json").write_text('{"valid": true}')   # run_cell.sh's verdict
+    _pass_parity(cells, scope)
     return {"render": render, "cells": cells, "data_root": tmp_path, "fleet": fleet, "hosts": hosts, "base": base,
             "rules": rules_path, "tmp": tmp_path}
+
+
+def _pass_parity(cells, scope, rc=0):
+    """A parity record per group over its current cells, as tools/cell_driver.py writes it."""
+    groups = {}
+    for cell in expected_cells(scope):
+        (name,) = [f.name for f in (cells / cell.cell_id).glob("*.cell.json")]
+        groups.setdefault(cell.group, []).append([str(cells / cell.cell_id), file_sha256(cells / cell.cell_id / name)])
+    for g, runs in groups.items():
+        (cells / "_groups" / g).mkdir(parents=True, exist_ok=True)
+        (cells / "_groups" / g / "parity.20260928T000000.json").write_text(json.dumps({"group": g, "rc": rc, "cells": runs}))
 
 
 def _argv(env, out, **over):
@@ -133,7 +147,7 @@ def test_only_one_segment_poisson_traces_have_a_rate(env):
 def test_a_missing_treatment_seed_or_system_is_listed_and_the_report_still_writes(env):
     shutil.rmtree(env["cells"] / cell_id("rb-a", "l200", 2))
     out = env["tmp"] / "r4"
-    assert rp.main(_argv(env, out, **{"--treatment": ["RouteBalance", "BEST-Route"]})) == 0
+    assert rp.main(_argv(env, out, **{"--treatment": ["RouteBalance", "BEST-Route"]})) == 1    # a cell is missing
     report = json.loads((out / "report.json").read_text())
     assert report["equal_quality"] == {"RouteBalance": [], "BEST-Route": []}
     assert report["not_compared"] == {
@@ -235,3 +249,30 @@ def test_a_higher_quality_read_is_marked_in_ranges_and_kept_out_of_the_strict_ma
     text = "\\n".join(rp._macros(report, "equal_quality", "eq"))
     assert r"\eqRBGOneLThreeZeroMeanMin}{-6.2\%}" in text and r"\eqRBGOneLThreeZeroMeanMax}{-6.2\%}" in text
     assert r"\eqRBGOneLThreeZeroMeanMinAll}{-80.0\%}" in text and r"\eqRBGOneLThreeZeroMeanMaxAll}{-6.2\%}" in text
+
+
+def test_a_cell_whose_gates_failed_is_left_out_and_the_exit_is_1(env):
+    (env["cells"] / "ap-x__l200__s1" / "gates" / "verdict.json").write_text('{"valid": false}')
+    out = env["tmp"] / "report"
+    assert rp.main(_argv(env, out)) == 1
+    report = json.loads((out / "report.json").read_text())
+    assert report["left_out"] == {"ap-x__l200__s1": "its gates did not pass (gates/verdict.json)"}
+
+
+def test_a_group_whose_parity_failed_is_left_out_whole(env):
+    for f in (env["cells"] / "_groups").rglob("parity.*.json"):
+        rec = json.loads(f.read_text())
+        f.write_text(json.dumps(dict(rec, rc=1)))
+    out = env["tmp"] / "report"
+    assert rp.main(_argv(env, out)) == 1
+    report = json.loads((out / "report.json").read_text())
+    assert len(report["left_out"]) == 4 and all(w.startswith("parity failed") for w in report["left_out"].values())
+    assert set(report["parity"].values()) == {"failed"}
+
+
+def test_a_group_without_parity_is_reported_not_run(env):
+    shutil.rmtree(env["cells"] / "_groups")
+    out = env["tmp"] / "report"
+    assert rp.main(_argv(env, out)) == 1
+    report = json.loads((out / "report.json").read_text())
+    assert not report["left_out"] and set(report["parity"].values()) == {"not run"}

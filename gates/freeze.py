@@ -31,8 +31,14 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def findings(root: Path, tag: str) -> list[str]:
-    if _git(root, "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}").returncode != 0:
-        return []                                             # before the freeze
+    repo = _git(root, "rev-parse", "--git-dir")
+    if repo.returncode != 0:
+        raise RuntimeError(f"{root} is not a git repository: {repo.stderr.strip()}")
+    t = _git(root, "rev-parse", "--verify", "--quiet", f"refs/tags/{tag}")
+    if t.returncode == 1:
+        return []                                             # before the freeze: the tag does not exist yet
+    if t.returncode != 0:
+        raise RuntimeError(f"git rev-parse refs/tags/{tag}: {t.stderr.strip()}")
     changed = []
     for f in FROZEN:
         r = _git(root, "diff", "--quiet", tag, "--", f)

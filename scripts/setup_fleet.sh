@@ -2,7 +2,7 @@
 # Run setup.sh on every node of a fleet, in parallel (run from the operator machine).
 #
 #   setup_fleet.sh --fleet F --hosts H --engine-args E --scheduler-node N --hf-token-file LOCAL_PATH
-#                  --tree REMOTE_DIR --log-dir LOCAL_DIR [--hub configs/scheduler_hub.json] [--ssh-user U]
+#                  --tree REMOTE_DIR --log-dir LOCAL_DIR --hub configs/scheduler_hub.json [--ssh-user U]
 #                  [--data-disks FILE] [--with-tests]
 #
 # --data-disks: {"<node>": "/dev/<disk>"} for nodes whose scratch disk is not the node type's default (some d7525
@@ -22,7 +22,7 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "$HERE/lib_operator.sh"
 set -euo pipefail
 
-FLEET="" HOSTS="" EA="" SCHED="" TOKEN="" TREE="" LOGDIR="" HUB="$RB_REPO/configs/scheduler_hub.json" DISKS=""
+FLEET="" HOSTS="" EA="" SCHED="" TOKEN="" TREE="" LOGDIR="" HUB="" DISKS=""
 TEST_ARGS=()
 while [ $# -gt 0 ]; do
   if [ "$1" = --with-tests ]; then TEST_ARGS=(--with-tests); shift; continue; fi
@@ -35,7 +35,7 @@ while [ $# -gt 0 ]; do
   esac
   shift 2
 done
-for v in FLEET HOSTS EA SCHED TOKEN TREE LOGDIR; do [ -n "${!v}" ] || die "missing argument ($v); see the header of $0"; done
+for v in FLEET HOSTS EA SCHED TOKEN TREE LOGDIR HUB; do [ -n "${!v}" ] || die "missing argument ($v); see the header of $0"; done
 [ -f "$TOKEN" ] && [ $(( 8#$(stat -c %a "$TOKEN") & 8#077 )) -eq 0 ] || die "$TOKEN must exist with mode 600"
 [[ "$TREE" =~ ^[A-Za-z0-9._/-]+$ ]] || die "--tree must be a plain path"
 require_py

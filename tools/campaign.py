@@ -145,7 +145,7 @@ def _list_axis(axis: Union[list[str], str], lists: Mapping[str, list[str]], wher
     raise ConfigError(f"{where}: a template axis is a list or \"$list:<known list>\", got {axis!r}")
 
 
-def load_presets(path: Path = PRESETS) -> PresetsFile:
+def load_presets(path: Path) -> PresetsFile:
     return parse(PresetsFile, read_json(path), f"presets {path}")
 
 
@@ -410,7 +410,7 @@ class Drain(Strict):
     timeout_s: float = Field(gt=0)
 
 
-def load_scope_file(path: Path = SCOPE) -> ScopeFile:
+def load_scope_file(path: Path) -> ScopeFile:
     scope = parse(ScopeFile, read_json(path), f"lease scope {path}")
     ids = [r.id for r in scope.rows]
     if len(set(ids)) != len(ids):

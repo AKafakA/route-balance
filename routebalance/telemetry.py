@@ -80,9 +80,15 @@ def _find_sample(instance_id: str, text: str, name: str) -> float:
         raise InstanceStateUnavailable(f"{instance_id}: {name} appears more than once (one engine per instance)")
     end = text.find("\n", hits[0])
     line = text[hits[0]:] if end == -1 else text[hits[0]:end]
+    rest = line[len(name):]
+    if rest.startswith("{"):
+        rest = rest[rest.rfind("}") + 1:] if "}" in rest else ""
+    parts = rest.split()
     try:
-        value = float(line.rsplit(None, 1)[1])
-    except (IndexError, ValueError):
+        if len(parts) != 1:                            # exactly the value: no timestamp, nothing else
+            raise ValueError
+        value = float(parts[0])
+    except ValueError:
         raise InstanceStateUnavailable(f"{instance_id}: malformed sample {line[:80]!r}") from None
     if not math.isfinite(value) or value < 0:
         raise InstanceStateUnavailable(f"{instance_id}: {name}={value} is not a finite non-negative number")

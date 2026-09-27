@@ -131,6 +131,11 @@ def test_malformed_indexes_are_refused(tmp_path, mutate):
         load_index(*_write(tmp_path, state))
 
 
+def test_an_index_whose_rows_are_not_unit_vectors_is_refused(tmp_path):
+    with pytest.raises(ArtifactError, match="L2-normalised"):             # the inner product is a cosine only on unit rows
+        load_index(*_write(tmp_path, dict(_state(), embeddings=(EMB * 2).astype(np.float32))))
+
+
 class _Tripwire:
     def __reduce__(self):
         return (_tripped, ())

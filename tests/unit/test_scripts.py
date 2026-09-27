@@ -182,7 +182,8 @@ def test_setup_fleet_checks_the_data_disk_table_before_ssh(tmp_path, disks, mess
     token.chmod(0o600)
     table = tmp_path / "disks.json"
     table.write_text(json.dumps(disks))
-    r = bash(f"bash scripts/setup_fleet.sh --fleet configs/fleet_qwen.json --hosts configs/hosts.example.json "
+    r = bash(f"bash scripts/setup_fleet.sh --fleet configs/fleet_qwen.json --hub configs/scheduler_hub.json "
+             f"--hosts configs/hosts.example.json "
              f"--engine-args configs/engine_args_qwen.json --scheduler-node a100-0 --hf-token-file {token} "
              f"--tree rb --log-dir {tmp_path}/logs --data-disks {table}", env={"PY": sys.executable, "HOME": str(tmp_path)})
     assert r.returncode == 1 and "invalid --data-disks" in r.stderr and message in r.stdout + r.stderr, r.stdout + r.stderr

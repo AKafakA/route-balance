@@ -53,6 +53,7 @@ def test_payload_sends_the_raw_prompt_once_and_the_fork_fields():
     ("null_event", "malformed stream"),
     ("null_choice", "malformed stream"),
     ("int_content", "malformed stream"),
+    ("no_delta", "malformed stream"),
     ("unterminated", "malformed stream"),
 ])
 def test_bad_streams_are_failures_not_results(mode, match):

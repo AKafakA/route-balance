@@ -83,6 +83,15 @@ def test_a_configuration_change_during_the_cell_is_recorded(tmp_path):
     assert "the scheduler configuration or fleet changed during the cell" in integrity_problems(rec)
 
 
+def test_a_prompt_token_count_that_differs_from_the_backends_invalidates_the_cell(tmp_path):
+    rec = _run(_spec(), _prompts(tmp_path), FakeScheduler())
+    bad = rec.requests[4].model_copy(update={"reply": rec.requests[4].reply.model_copy(
+        update={"prompt_tokens": rec.requests[4].prompt_tokens + 1})})
+    rec = rec.model_copy(update={"requests": [*rec.requests[:4], bad, *rec.requests[5:]]})
+    assert integrity_problems(rec) == ["1 requests: the backend prefilled a different number of prompt tokens than the "
+                                       "client sent (D34)"]
+
+
 def test_a_scheduler_lost_at_the_end_still_leaves_a_record(tmp_path):
     rec = _run(_spec(), _prompts(tmp_path), FakeScheduler(identities=(IDENTITY, RuntimeError("down"))))
     assert rec.identity_end is None and rec.identity_end_error == "RuntimeError: down"

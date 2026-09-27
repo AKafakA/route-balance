@@ -4,7 +4,8 @@
 fresh() {  # <source dir> <dest dir>: a copy would only create files or set a directory's time (absent, partial or identical)
   local plan
   plan=$(rsync -a --checksum --dry-run --itemize-changes --delete "$1/" "$2/") || return 1
-  ! grep -v -e '^$' -e '^created directory ' -e '+++++++++' -e '^\.d\.\.t\.\.\.\.\.\. ' <<< "$plan" | grep -q .
+  grep -q -v -e '^$' -e '^created directory ' -e '+++++++++' -e '^\.d\.\.t\.\.\.\.\.\. ' <<< "$plan" && return 1
+  [ $? -eq 1 ]      # grep: 0 a line would change (not fresh, above), 1 none would (fresh), 2 grep failed
 }
 
 mirror() {  # <source dir> <dest dir>: copy, then a dry run must succeed and list no difference or extra file

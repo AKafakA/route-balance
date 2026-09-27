@@ -27,6 +27,7 @@ class FakeState:
     # default-ok: ok | http500 | no_choices | no_usage | malformed | cut | crlf | multiline | null_event |
     # null_choice | int_content | unterminated | slow_headers | close_after_body | merged | engine_error
     # | no_final_usage (continuous usage on every chunk, but the stream stops before the final usage chunk)
+    # | no_delta (a choice without its delta, then a complete finish)
     chat_mode: str = "ok"  # default-ok: see the list above
     chat_tokens: tuple[str, ...] = ("Hello", " world")
     chat_delay_s: float = 0.0  # default-ok: no pacing unless a test asks for it
@@ -128,6 +129,9 @@ def make_app(state: FakeState) -> web.Application:
             "null_event": b"data: null\n\n",
             "null_choice": b'data: {"choices": [null]}\n\n',
             "int_content": b'data: {"choices": [{"delta": {"content": 5}}]}\n\n',
+            "no_delta": b'data: {"choices": [{"index": 0}], "usage": {"prompt_tokens": 5, "completion_tokens": 1}}\n\n'
+                        b'data: {"choices": [], "usage": {"prompt_tokens": 5, "completion_tokens": 1}}\n\n'
+                        b'data: [DONE]\n\n',
         }
         if mode in special:
             await resp.write(special[mode])

@@ -67,7 +67,7 @@ class Finding:
     message: str
 
     def __str__(self) -> str:
-        return f"{self.kind:14s} {SECRET.sub('<redacted>', self.path)}:{self.line}  {self.message}"
+        return f"{self.kind:14s} {SECRET.sub('<redacted>', self.path)}:{self.line}  {SECRET.sub('<redacted>', self.message)}"
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
@@ -95,8 +95,13 @@ def _versions(root: Path) -> list[tuple[str, str, str]]:
     """(relative path, where, text) for every version of every file in scope."""
     out: list[tuple[str, str, str]] = []
     if _in_git_root(root):
-        cached = [p for p in _git(root, "ls-files", "-z", "--cached").stdout.decode().split("\0") if p]
-        others = [p for p in _git(root, "ls-files", "-z", "--others", "--exclude-standard").stdout.decode().split("\0") if p]
+        listings = []
+        for args in (("ls-files", "-z", "--cached"), ("ls-files", "-z", "--others", "--exclude-standard")):
+            r = _git(root, *args)
+            if r.returncode != 0:
+                raise OSError(f"git {' '.join(args)} failed: {r.stderr.decode().strip()}")
+            listings.append([p for p in r.stdout.decode().split("\0") if p])
+        cached, others = listings
         for rel in sorted(set(cached)):
             staged = _git(root, "show", f":{rel}")
             if staged.returncode != 0:

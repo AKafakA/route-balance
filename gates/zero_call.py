@@ -30,8 +30,11 @@ def zero_call_problems(cell: Cell) -> tuple[list[str], str]:
     loaded = before.loaded.latency_source
     if loaded is not None and loaded != source:
         problems.append(f"the configured latency source is {source!r} but the scheduler loaded {loaded!r}")
-    if source not in BOOSTER_FREE:
+    if source == "xgboost":
         return problems, f"{cell.cell_id}: not applicable ({source!r} source)"
+    if source not in BOOSTER_FREE:
+        return problems + [f"unknown latency source {source!r}"], f"{cell.cell_id}: unknown latency source"
+
     for when in ("before", "after"):
         calls = cell.stats(when).booster_calls
         if loaded is None and calls is not None:

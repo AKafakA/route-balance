@@ -79,6 +79,9 @@ def load_index(index_dir: Path, md5: str) -> KnnIndex:
     emb = state["embeddings"]
     if not (isinstance(emb, np.ndarray) and emb.dtype == np.float32 and emb.ndim == 2 and len(emb) > 0):
         raise ArtifactError(f"{index_dir}: embeddings must be a non-empty (N, d) float32 array")
+    norms = np.linalg.norm(emb.astype(np.float64), axis=1)
+    if not np.all(np.abs(norms - 1.0) <= 1e-3):     # the inner product is a cosine only on unit rows
+        raise ArtifactError(f"{index_dir}: embedding rows must be L2-normalised (norms {norms.min():.4f}-{norms.max():.4f})")
     models = tuple(state["model_names"])
     if not models or len(set(models)) != len(models):
         raise ArtifactError(f"{index_dir}: model names {models!r} are empty or repeated")

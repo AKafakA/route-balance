@@ -24,7 +24,7 @@
 #       2 it could not run (no record; the attempt stays under <cells-root>/_attempts); 3 the mirror failed.
 set -euo pipefail
 
-PY=${PY:?set PY to the scheduler venv python}
+[ -n "${PY:-}" ] || { echo "set PY to the scheduler venv python" >&2; exit 2; }   # env-ok: the interpreter path, not a setting
 PY=$(command -v "$PY") || { echo "PY=$PY is not an executable" >&2; exit 2; }   # one absolute interpreter for all steps
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
@@ -34,6 +34,7 @@ usage() { echo "usage: $0 --render DIR --cell ID --scheduler URL --scheduler-log
 RENDER= CELL= URL= LOGDIR= FLEET= HOSTS= ENGINES= DATA= ROOT= MIRROR=
 RC=2                    # fail()'s exit code: a cell that could not run (never taken from the caller's environment)
 while [ $# -gt 0 ]; do
+  [ $# -ge 2 ] || usage          # every flag takes a value
   case "$1" in
     --render) RENDER=$2 ;; --cell) CELL=$2 ;; --scheduler) URL=$2 ;; --scheduler-log-dir) LOGDIR=$2 ;;
     --fleet) FLEET=$2 ;; --hosts) HOSTS=$2 ;; --data-root) DATA=$2 ;; --cells-root) ROOT=$2 ;; --mirror) MIRROR=$2 ;;

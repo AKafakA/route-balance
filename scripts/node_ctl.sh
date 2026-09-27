@@ -52,16 +52,18 @@ log_of() {           # the log file recorded for a process, or empty
 
 port_free() { ! ss -Hltn "sport = :$1" | grep -q .; }
 
-gpu_uuids() {        # uuids of the listed GPU indices
-  local idx
+gpu_uuids() {        # uuids of the listed GPU indices; fails when nvidia-smi fails or an index has no GPU
+  local idx u
   for idx in ${1//,/ }; do
-    nvidia-smi --query-gpu=index,uuid --format=csv,noheader | awk -F', ' -v i="$idx" '$1 == i {print $2}'
+    u=$(nvidia-smi --query-gpu=index,uuid --format=csv,noheader | awk -F', ' -v i="$idx" '$1 == i {print $2}') || return 1
+    [ -n "$u" ] || return 1
+    echo "$u"
   done
 }
 
 busy_pids() {        # pids of compute processes on the listed GPU indices
   local uuids
-  uuids=$(gpu_uuids "$1")
+  uuids=$(gpu_uuids "$1") || return 1
   nvidia-smi --query-compute-apps=gpu_uuid,pid --format=csv,noheader | while IFS=', ' read -r u p; do
     if grep -qx "$u" <<< "$uuids"; then echo "$p"; fi
   done

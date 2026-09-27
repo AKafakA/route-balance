@@ -225,8 +225,8 @@ class BackendClient:
                         else:
                             itl.append(now - last)
                         last = now
-                        delta = choices[0].get("delta")
-                        if delta is not None and not isinstance(delta, dict):
+                        delta = choices[0]["delta"]                 # a choice without one is malformed
+                        if not isinstance(delta, dict):
                             raise ValueError(f"malformed delta {delta!r:.80}")
                         text = delta.get("content") if delta else None    # the first delta carries only the role
                         if text is not None and not isinstance(text, str):

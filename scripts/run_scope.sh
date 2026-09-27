@@ -24,7 +24,7 @@
 # whole render is printed at the end.
 set -euo pipefail
 
-PY=${PY:?set PY to the scheduler venv python}
+[ -n "${PY:-}" ] || { echo "set PY to the scheduler venv python" >&2; exit 2; }   # env-ok: the interpreter path, not a setting
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
@@ -33,6 +33,7 @@ usage() { echo "usage: $0 --render DIR --rows R1,R2 --max-invalid N [--restart C
                "--mirror DEST" >&2; exit 2; }
 RENDER= ROWS= MAXINV= RESTART= URL= LOGDIR= FLEET= HOSTS= ENGINES= DATA= ROOT= MIRROR=
 while [ $# -gt 0 ]; do
+  [ $# -ge 2 ] || usage          # every flag takes a value
   case "$1" in
     --render) RENDER=$2 ;; --rows) ROWS=$2 ;; --max-invalid) MAXINV=$2 ;; --restart) RESTART=$2 ;;
     --scheduler) URL=$2 ;; --scheduler-log-dir) LOGDIR=$2 ;; --fleet) FLEET=$2 ;; --hosts) HOSTS=$2 ;;

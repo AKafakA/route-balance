@@ -4,12 +4,16 @@ through this tool's output, which the paper \\input{}s).
     python -m analysis.report --render DIR --cells ROOT --data-root DIR --fleet NAME=FLEET.json [...]
         --hosts HOSTS.json --slo-base FAMILY=BASE.json [...] [--store STORE.jsonl ...]
         --rules configs/prereg_rules.json --treatment SYSTEM [...] --out DIR
+    exit 0 only when every expected cell is ok, none is left out and every group's parity passed over its current
+    cells; 1 otherwise (the report is written either way)
 
 Inputs, each checked:
   the render   plan.json (group -> fleet -> family; the scored corpora with their sha256) and scope.json (the
                expected cells); a fleet file must have the plan's fleet_sha256 for its name;
   the cells    analysis/manifest.py check: only ok cells enter; a group whose cells ran on two fleets is left out
-               whole (its fleet problem is reported);
+               whole (its fleet problem is reported); a cell enters only with a passing gate verdict
+               (gates/verdict.json), and no cell of a group whose latest parity record failed enters; a group
+               whose parity has not run over its current cells is reported ("parity");
   per family   the SLO bases (tools/slo_base.py) and the scored corpus under --data-root, pinned by the plan;
   the stores   the served-text score stores (tools/judge_served.py), for the budget cells.
 Every ok cell is summarised against its group's fleet (analysis/metrics.py summarize_cell) with the preregistered
@@ -65,6 +69,7 @@ from typing import Mapping, Optional, Sequence
 import numpy as np
 
 from bench.dataset import file_sha256
+from bench.schema import loads_strict
 from analysis.equal_quality import READINGS, SampleKey, equal_quality
 from analysis.frontier import METRICS, CellPoint, ConfigPoint, by_config, cell_point, config_points, frontiers
 from analysis.manifest import Coverage, check
@@ -205,15 +210,53 @@ def comparable(points: Sequence[CellPoint], treatment: str,
     return [p for p in points if (p.group, p.trace_id, p.config_id) in keep], skipped
 
 
+def gate_problem(cells_root: Path, cell_id: str) -> Optional[str]:
+    """Why a cell's per-cell gates do not pass (scripts/run_cell.sh writes gates/verdict.json), or None."""
+    v = cell_dir(cells_root, cell_id) / "gates" / "verdict.json"
+    if not v.is_file():
+        return "no gate verdict (gates/verdict.json)"
+    verdict = loads_strict(v.read_text())
+    if not isinstance(verdict, dict) or verdict.get("valid") is not True:   # default-ok: a missing key is not valid
+        return "its gates did not pass (gates/verdict.json)"
+    return None
+
+
+def parity_state(cells_root: Path, group: str, runs: Mapping[str, str]) -> str:
+    """'passed' when the group's latest parity record (tools/cell_driver.py) passed and covers exactly these runs
+    ({cell directory name: record sha256}; names, since the record holds the node's paths and the analysis may read
+    the mirror), 'failed' when it did not pass, else 'not run' (the group is not complete, or a cell ran again)."""
+    d = cells_root / "_groups" / group
+    records = sorted(d.glob("parity.*.json")) if d.is_dir() else []
+    if not records:
+        return "not run"
+    last = loads_strict(records[-1].read_text())
+    if last["rc"] != 0:
+        return "failed"
+    covered = {Path(c).name: sha for c, sha in last["cells"]}
+    return "passed" if all(covered.get(c) == sha for c, sha in runs.items()) else "not run"
+
+
 def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
     cov: Coverage = check(inputs.scope, cells_root)
     expected = {e.cell_id: e for e in expected_cells(inputs.scope)}
     cells, points, left_out = {}, [], {}
     samples: dict[SampleKey, RequestValues] = {}
+    runs: dict[str, dict[str, str]] = {}
+    for cid in cov.ok:
+        path = cell_path(cell_dir(cells_root, cid), cid)
+        runs.setdefault(expected[cid].group, {})[cell_dir(cells_root, cid).name] = file_sha256(path)   # default-ok: grouping
+    parity = {g: parity_state(cells_root, g, r) for g, r in sorted(runs.items())}
     for cid in cov.ok:
         exp = expected[cid]
         if exp.group in cov.fleet_problems:
             left_out[cid] = cov.fleet_problems[exp.group]
+            continue
+        gate = gate_problem(cells_root, cid)
+        if gate is not None:
+            left_out[cid] = gate
+            continue
+        if parity[exp.group] == "failed":
+            left_out[cid] = f"parity failed for group {exp.group} (_groups/{exp.group})"
             continue
         rec = read_cell(cell_path(cell_dir(cells_root, cid), cid))
         s = inputs.summarize(exp, rec)
@@ -248,7 +291,8 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
     return {"format": "rb-report/1", "coverage": {"expected": cov.expected, "ok": len(cov.ok),
                                                    "missing": list(cov.missing), "invalid": dict(cov.invalid),
                                                    "fleet_problems": dict(cov.fleet_problems)},
-            "left_out": left_out, "cells": cells, "configs": [asdict(p) for p in configs], "frontiers": fronts,
+            "left_out": left_out, "parity": parity, "cells": cells, "configs": [asdict(p) for p in configs],
+            "frontiers": fronts,
             **readings, "not_compared": not_compared, "goodput": good, "rates": rates}
 
 
@@ -426,6 +470,9 @@ def main(argv: list[str]) -> int:
           f"{len(report['left_out'])} cells left out of the comparisons")
     for cid, why in sorted(report["left_out"].items()):
         print(f"  LEFT OUT {cid}: {why}")
+    for g, state in report["parity"].items():
+        if state != "passed":
+            print(f"  PARITY {g}: {state}")
     for t, skipped in report["not_compared"].items():
         for key, why in skipped.items():
             print(f"  NOT COMPARED with {t}: {key}: {why}")
@@ -436,7 +483,9 @@ def main(argv: list[str]) -> int:
                     if d["outside_range"]:
                         print(f"  NOTE ({reading}) {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: "
                               "the value at the seed means lies outside the range over the seeds (D81)")
-    return 0
+    complete = (cov["ok"] == cov["expected"] and not cov["invalid"] and not report["left_out"]
+                and all(s == "passed" for s in report["parity"].values()))
+    return 0 if complete else 1         # the report is written either way; 1: something is missing or left out
 
 
 if __name__ == "__main__":

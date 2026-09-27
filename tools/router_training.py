@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import random
 import sys
 from pathlib import Path
@@ -81,7 +82,12 @@ def score_of(row: dict, model: str, judge_key: str) -> Optional[float]:
     md = models.get(model) if isinstance(models, dict) else None
     judged = md.get("llm_judge_scores") if isinstance(md, dict) else None
     s = judged.get(judge_key) if isinstance(judged, dict) else None
-    return None if s is None else float(s)
+    if s is None:
+        return None                     # unscored: filter's escalation (D69) decides
+    v = float(s)
+    if not (math.isfinite(v) and 0.0 <= v <= 1.0):
+        raise ConfigError(f"{model}: judge score {s!r} is not in [0, 1]")
+    return v
 
 
 def row_id(row: dict, i: int) -> str:

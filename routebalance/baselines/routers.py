@@ -422,11 +422,14 @@ def load_avengers_pro(artifact_dir: Path, upstream_repo: Path, *, beta: float, t
     up.embedder = _LocalEmbedder(embedder, embedder_revision)
     up.kmeans_model = joblib.load(paths["kmeans.joblib"])
     up.cluster_centers = up.kmeans_model.cluster_centers_
+    # upstream always builds Normalizer(norm="l2") (simple_cluster_router.py:374), which is stateless; fitting
+    # only satisfies sklearn. A shipped normalizer is accepted only if it is exactly that (ours ship none).
+    up.normalizer = Normalizer(norm="l2").fit(np.zeros((1, up.cluster_centers.shape[1])))
     norm = artifact_dir / "normalizer.joblib"
     if norm.is_file():
-        up.normalizer = joblib.load(norm)
-    else:   # L2 normalisation is stateless; fitting only satisfies sklearn (the Gemma artifact ships none)
-        up.normalizer = Normalizer(norm="l2").fit(np.zeros((1, up.cluster_centers.shape[1])))
+        shipped = joblib.load(norm)
+        if not (isinstance(shipped, Normalizer) and shipped.norm == "l2"):
+            raise ConfigError(f"avengers_pro: {norm} is not upstream's L2 Normalizer: {shipped!r}")
     up.cluster_rankings = _rankings(loads_strict(paths["cluster_rankings.json"].read_text()), models)
     if set(up.cluster_rankings) != set(range(len(up.cluster_centers))):   # upstream skips an unranked cluster
         raise ConfigError(f"avengers_pro: rankings cover clusters {sorted(up.cluster_rankings)}, "

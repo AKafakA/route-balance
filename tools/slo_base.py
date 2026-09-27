@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import statistics
 import sys
 from pathlib import Path
@@ -32,7 +33,10 @@ def single_request_ttft(lines) -> tuple[dict[str, float], dict[str, int]]:
     samples: dict[str, list[float]] = {}
     for x in lines:
         if x["b"] == 1 and not x["filler"] and x["held"] and x["success"]:
-            samples.setdefault(x["tier"], []).append(float(x["ttft_s"]))   # default-ok: grouping into a new list
+            ttft = float(x["ttft_s"])
+            if not (math.isfinite(ttft) and ttft > 0):
+                raise ConfigError(f"a measured b=1 request of {x['tier']} has ttft_s {x['ttft_s']!r}")
+            samples.setdefault(x["tier"], []).append(ttft)   # default-ok: grouping into a new list
     return {t: statistics.median(v) for t, v in sorted(samples.items())}, {t: len(v) for t, v in sorted(samples.items())}
 
 

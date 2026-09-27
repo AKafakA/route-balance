@@ -26,12 +26,17 @@ def _name(raw: str) -> str:
 
 
 def packages(lines: Iterable[str]) -> dict[str, str]:
-    """name -> version (a pin) or url (a direct install); editable lines are left out."""
+    """name -> version (a pin) or url (a direct install); editable lines, comments and blank lines are left out,
+    and any other line is refused."""
     out = {}
     for line in lines:
-        m = _LINE.match(line.strip())
-        if m:
-            out[_name(m.group(1))] = m.group(3)
+        s = line.strip()
+        if not s or s.startswith("#") or s.startswith("-e "):
+            continue
+        m = _LINE.match(s)
+        if not m:
+            raise ValueError(f"unreadable freeze line {s!r}")
+        out[_name(m.group(1))] = m.group(3)
     return out
 
 
@@ -55,7 +60,11 @@ def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__, file=sys.stderr)
         return 2
-    sched, test = (packages(Path(p).read_text().splitlines()) for p in argv)
+    try:
+        sched, test = (packages(Path(p).read_text().splitlines()) for p in argv)
+    except ValueError as e:
+        print(f"venv_parity: {e}", file=sys.stderr)
+        return 2
     diff = differences(sched, test)
     for d in diff:
         print(f"FAIL {d}")

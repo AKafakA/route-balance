@@ -60,6 +60,8 @@ def test_parse_reads_the_four_gauges_and_ignores_the_rest():
     (metrics(kv=1.5), "> 1"),
     (metrics().replace("0.1\n", "NaN\n", 1), "finite"),
     (metrics().replace(" 2.0\n", " two\n", 1), "malformed"),
+    (metrics().replace(" 2.0\n", " 2.0 1700000000000\n", 1), "malformed"),   # a timestamp is never read as the value
+    (metrics().replace(" 2.0\n", "\n", 1), "malformed"),
     ("", "lacks"),
     (metrics().replace("vllm:num_requests_waiting", "vllm:num_requests_waiting_by_reason"), "lacks"),
     ("vllm:num_requests_running 1.0\n" + metrics(), "more than once"),        # duplicate on the very first line
