@@ -137,8 +137,10 @@ def make_app(state: FakeState) -> web.Application:
             await resp.write(special[mode])
             return resp
         if mode == "multiline":                    # one SSE event whose data spans two lines
-            await resp.write(b'data: {"choices":\ndata: [{"delta": {"role": "assistant"}}]}\n\n')
-            await resp.write(b'data: {"choices": [{"delta": {"content": "x"}}]}\n\n')
+            await resp.write(b'data: {"choices":\ndata: [{"delta": {"role": "assistant"}}], '
+                             b'"usage": {"prompt_tokens": 5, "completion_tokens": 0}}\n\n')
+            await resp.write(b'data: {"choices": [{"delta": {"content": "x"}}], '
+                             b'"usage": {"prompt_tokens": 5, "completion_tokens": 1}}\n\n')
             await resp.write(b'data: {"choices": [], "usage": {"prompt_tokens": 5, "completion_tokens": 1}}\n\n'
                              b'data: [DONE]\n\n')
             return resp

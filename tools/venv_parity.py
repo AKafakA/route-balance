@@ -49,13 +49,23 @@ def differences(sched: dict[str, str], test: dict[str, str]) -> list[str]:
 
 def constraints(lines: Iterable[str]) -> list[str]:
     """The `name==version` pins of a freeze, for `pip install -c`."""
-    matched = (_LINE.match(ln.strip()) for ln in lines)
-    return [f"{m.group(1)}=={m.group(3)}" for m in matched if m and m.group(2) == "=="]
+    kept = [ln.strip() for ln in lines if ln.strip() and not ln.strip().startswith(("#", "-e "))]
+    matched = []
+    for ln in kept:
+        m = _LINE.match(ln)
+        if not m:
+            raise ValueError(f"unreadable freeze line {ln!r}")
+        matched.append(m)
+    return [f"{m.group(1)}=={m.group(3)}" for m in matched if m.group(2) == "=="]
 
 
 def main(argv: list[str]) -> int:
     if len(argv) == 2 and argv[0] == "--constraints":
-        print("\n".join(constraints(Path(argv[1]).read_text().splitlines())))
+        try:
+            print("\n".join(constraints(Path(argv[1]).read_text().splitlines())))
+        except ValueError as e:
+            print(f"venv_parity: {e}", file=sys.stderr)
+            return 2
         return 0
     if len(argv) != 2:
         print(__doc__, file=sys.stderr)

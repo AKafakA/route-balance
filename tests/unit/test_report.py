@@ -147,13 +147,14 @@ def test_only_one_segment_poisson_traces_have_a_rate(env):
 def test_a_missing_treatment_seed_or_system_is_listed_and_the_report_still_writes(env):
     shutil.rmtree(env["cells"] / cell_id("rb-a", "l200", 2))
     out = env["tmp"] / "r4"
-    assert rp.main(_argv(env, out, **{"--treatment": ["RouteBalance", "BEST-Route"]})) == 1    # a cell is missing
+    assert rp.main(_argv(env, out)) == 1                                          # a cell is missing
     report = json.loads((out / "report.json").read_text())
-    assert report["equal_quality"] == {"RouteBalance": [], "BEST-Route": []}
+    assert report["equal_quality"] == {"RouteBalance": []}
     assert report["not_compared"] == {
-        "RouteBalance": {"g1|l200|ap-x": "no RouteBalance preset has cells for every seed [1, 2]"},
-        "BEST-Route": {"g1|l200|ap-x": "no BEST-Route configuration at g1/l200",
-                       "g1|l200|rb-a": "no BEST-Route configuration at g1/l200"}}
+        "RouteBalance": {"g1|l200|ap-x": "no RouteBalance preset has cells for every seed [1, 2]"}}
+    # a treatment no configuration of the render has is refused before anything is written
+    assert rp.main(_argv(env, env["tmp"] / "r5", **{"--treatment": ["RouteBalance", "BEST-Route"]})) == 2
+    assert not (env["tmp"] / "r5").exists()
 
 
 def test_an_ablation_group_is_not_compared_at_equal_quality():

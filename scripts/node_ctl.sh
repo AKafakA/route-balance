@@ -50,7 +50,11 @@ log_of() {           # the log file recorded for a process, or empty
   if [ -f "$1" ]; then cut -d' ' -f2 "$1"; fi
 }
 
-port_free() { ! ss -Hltn "sport = :$1" | grep -q .; }
+port_free() {       # no listener on the port; a failed ss fails, never reads as free
+  local out
+  out=$(ss -Hltn "sport = :$1") || fail "ss failed while checking port $1"
+  [ -z "$out" ]
+}
 
 gpu_uuids() {        # uuids of the listed GPU indices; fails when nvidia-smi fails or an index has no GPU
   local idx u

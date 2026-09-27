@@ -290,7 +290,8 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
             for lvl in SLO_LEVELS for att in inputs.rules.slo.attainment_levels}
     return {"format": "rb-report/1", "coverage": {"expected": cov.expected, "ok": len(cov.ok),
                                                    "missing": list(cov.missing), "invalid": dict(cov.invalid),
-                                                   "fleet_problems": dict(cov.fleet_problems)},
+                                                   "fleet_problems": dict(cov.fleet_problems),
+                                                   "pending": dict(cov.pending), "unexpected": list(cov.unexpected)},
             "left_out": left_out, "parity": parity, "cells": cells, "configs": [asdict(p) for p in configs],
             "frontiers": fronts,
             **readings, "not_compared": not_compared, "goodput": good, "rates": rates}
@@ -463,6 +464,11 @@ def main(argv: list[str]) -> int:
     a = ap.parse_args(argv)
     inputs = Inputs(a.render, a.data_root, _pairs(a.fleet, "fleet"), a.hosts, _pairs(a.slo_base, "slo-base"),
                     a.store, load_rules(a.rules))
+    known = {e.config.system for e in expected_cells(inputs.scope)}
+    unknown = sorted(set(a.treatment) - known)
+    if unknown:
+        print(f"--treatment {unknown}: no configuration of the render has that system ({sorted(known)})", file=sys.stderr)
+        return 2
     report = build(inputs, a.cells, a.treatment)
     write(report, a.out)
     cov = report["coverage"]
@@ -483,8 +489,8 @@ def main(argv: list[str]) -> int:
                     if d["outside_range"]:
                         print(f"  NOTE ({reading}) {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: "
                               "the value at the seed means lies outside the range over the seeds (D81)")
-    complete = (cov["ok"] == cov["expected"] and not cov["invalid"] and not report["left_out"]
-                and all(s == "passed" for s in report["parity"].values()))
+    complete = (cov["ok"] == cov["expected"] and not cov["invalid"] and not cov["pending"] and not cov["unexpected"]
+                and not report["left_out"] and all(s == "passed" for s in report["parity"].values()))
     return 0 if complete else 1         # the report is written either way; 1: something is missing or left out
 
 

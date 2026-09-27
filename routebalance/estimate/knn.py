@@ -80,7 +80,8 @@ def load_index(index_dir: Path, md5: str) -> KnnIndex:
     if not (isinstance(emb, np.ndarray) and emb.dtype == np.float32 and emb.ndim == 2 and len(emb) > 0):
         raise ArtifactError(f"{index_dir}: embeddings must be a non-empty (N, d) float32 array")
     norms = np.linalg.norm(emb.astype(np.float64), axis=1)
-    if not np.all(np.abs(norms - 1.0) <= 1e-3):     # the inner product is a cosine only on unit rows
+    if not np.all(np.abs(norms - 1.0) <= 5e-7):     # unit rows (float32 rounding; the pinned indexes <= 1.5e-7), so
+        #                                               1 - similarity + _DISTANCE_EPS stays positive
         raise ArtifactError(f"{index_dir}: embedding rows must be L2-normalised (norms {norms.min():.4f}-{norms.max():.4f})")
     models = tuple(state["model_names"])
     if not models or len(set(models)) != len(models):
@@ -148,6 +149,8 @@ class KnnEstimator:
         return [self._aggregate(idx[i], dist[i], budget_tokens) for i in range(len(prompts))]
 
     def _aggregate(self, idx: np.ndarray, dist: np.ndarray, budget_tokens: int) -> dict[str, Estimate]:
+        if not np.all(dist + _DISTANCE_EPS > 0):
+            raise ArtifactError(f"a neighbour's distance {float(dist.min())!r} is below -{_DISTANCE_EPS}: rows not unit")
         w = 1.0 / (dist + _DISTANCE_EPS)
         w /= w.sum()
         w32 = w.astype(np.float32)   # v3 kept a float32 copy for the histogram and the budget share

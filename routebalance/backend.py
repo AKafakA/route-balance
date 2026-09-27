@@ -215,6 +215,8 @@ class BackendClient:
                                 on_progress(tokens)
                             output_tokens = tokens
                         choices = _choices(ev)
+                        if choices and tokens is None:      # continuous usage was requested for every chunk
+                            raise ValueError("a streamed chunk without its usage")
                         if not choices:
                             if tokens is not None and ev.get("choices") == []:
                                 final_usage = True

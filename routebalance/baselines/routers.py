@@ -201,7 +201,7 @@ class BestRouteUpstreamRouter(Router):
         if missing:
             raise RuntimeError(f"best_route_upstream: candidates {missing} are not in the pool {list(pool)}")
         s = await _off_loop(self._executor, self._scores, request.prompt)
-        if len(s) != len(self._candidates) or s[-1] != 1.0:
+        if len(s) != len(self._candidates) or s[-1] != 1.0 or not all(math.isfinite(x) for x in s):
             raise RuntimeError(f"best_route_upstream: {len(s)} scores for {len(self._candidates)} candidates, the "
                                f"reference's last: {s}")
         by_model = dict(zip(self._candidates, s, strict=True))

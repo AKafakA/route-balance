@@ -46,7 +46,7 @@ def test_payload_sends_the_raw_prompt_once_and_the_fork_fields():
 @pytest.mark.parametrize("mode,match", [
     ("http500", "HTTP 500"),
     ("no_choices", "no streamed message with choices"),
-    ("no_usage", "no final usage chunk"),
+    ("no_usage", "a streamed chunk without its usage"),
     ("no_final_usage", "no final usage chunk"),
     ("engine_error", "server error: 'engine died'"),
     ("malformed", "malformed stream"),
