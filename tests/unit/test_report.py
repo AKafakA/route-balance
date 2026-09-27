@@ -190,3 +190,22 @@ def test_an_appendix_only_system_stays_out_of_the_main_tables_and_macros(env, mo
 
 def test_the_dispatch_only_in_flight_row_is_appendix_only():
     assert rp.APPENDIX_SYSTEMS == frozenset({"dispatcher-inflight"})
+
+
+def test_both_equal_quality_readings_are_written(env):
+    # D86: the same runs, read with one configuration for every metric and with each metric on its own frontier
+    out = env["tmp"] / "r6"
+    assert rp.main(_argv(env, out)) == 0
+    report = json.loads((out / "report.json").read_text())
+    one, per = report["equal_quality"]["RouteBalance"], report["equal_quality_per_metric"]["RouteBalance"]
+    assert [r["config_id"] for r in one] == [r["config_id"] for r in per] == ["ap-x"]
+    assert report["equal_quality_appendix"] == report["equal_quality_per_metric_appendix"] == {"RouteBalance": []}
+    for prefix in ("equal", "equal_pm"):
+        for kind in ("", "_ci", "_seeds"):
+            assert "ap-x" in (out / "tables" / f"{prefix}{kind}.RouteBalance.g1.l200.tex").read_text()
+    macros = (out / "macros.tex").read_text()
+    assert r"\eqRouteBalanceGOneLTwoZeroZeroMeanMin" in macros and r"\eqpmRouteBalanceGOneLTwoZeroZeroMeanMin" in macros
+
+
+def test_macro_names_carry_their_readings_prefix():
+    assert rp.macro_name("RouteBalance", "qwen", "l12", "Cost", prefix="eqpm") == "eqpmRouteBalanceQwenLOneTwoCost"

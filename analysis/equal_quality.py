@@ -1,4 +1,4 @@
-"""Equal-quality comparison: every baseline configuration against the treatment at the same quality (D80, D81).
+"""Equal-quality comparison: every baseline configuration against the treatment at the same quality (D80, D81, D86).
 
 For a baseline configuration B at one trace of one comparison group (bench/scope.py; the treatment presets
 come from the same group and trace, never from another fleet, dataset or order), over B's seeds S (paired: a
@@ -6,12 +6,16 @@ seed fixes the arrivals, and with per_seed order also the prompt order, for ever
   1. B's quality q_B and metric values are its means over S.
   2. The treatment presets used are those with a cell for every seed in S (the rest are listed as excluded);
      each preset's point is its mean over S.
-  3. One treatment configuration for every metric (D80): the treatment's frontier is its presets that are
-     Pareto-efficient in quality (up) and mean E2E latency (down), by increasing quality. At q_B the treatment's
-     configuration lies between the two frontier presets around q_B, at weight w = (q_B - q_lo) / (q_hi - q_lo),
-     and every metric (mean and p99 E2E, decode cost, the tight and loose SLO miss shares) is read there:
-     m_lo + w (m_hi - m_lo). Past either end the end preset is used if its quality is within the tolerance of
-     q_B; otherwise there is no equal-quality point (never extrapolated).
+  3. The treatment's value of each metric (mean and p99 E2E, decode cost, the tight and loose SLO miss shares) at
+     q_B, by one of two readings (D86: both are reported, the framing is chosen after the runs):
+       one_config  one treatment configuration for every metric (D80): the treatment's frontier is its presets
+                   that are Pareto-efficient in quality (up) and mean E2E latency (down), by increasing quality;
+                   at q_B the configuration lies between the two frontier presets around q_B, at weight
+                   w = (q_B - q_lo) / (q_hi - q_lo), and every metric is read there: m_lo + w (m_hi - m_lo);
+       per_metric  v2/v3's reading: each metric on the treatment's own quality-metric frontier (Pareto-efficient
+                   in quality up and that metric down), read the same way at q_B.
+     Past either end of a frontier the end preset is used if its quality is within the tolerance of q_B;
+     otherwise there is no equal-quality point (never extrapolated).
   4. delta = treatment - baseline (negative: the treatment is faster or cheaper); relative = treatment/baseline - 1.
   5. The range over the seeds (D81, the main text): steps 3-4 on each seed of S alone, B's cell at that seed
      against the frontier of the presets' cells at that seed. `per_seed` holds each seed's delta and relative
@@ -28,7 +32,8 @@ seed fixes the arrivals, and with per_seed order also the prompt order, for ever
      CI only when the cells' requests are given and every resample has an equal-quality point (the count of
      those that do not is reported); no ci_relative when a resampled baseline is 0.
 The presets whose own quality is within the tolerance of q_B are listed too (`matched_presets`), and so are the
-two frontier presets and the weight of step 3 (`frontier_presets`, `weight`).
+two frontier presets and the weight of step 3: per metric (MetricDelta), and on the row for the latency frontier
+(the one configuration of one_config).
 """
 from __future__ import annotations
 
@@ -45,6 +50,7 @@ from analysis.rules import EqualQuality
 from routebalance.config import ConfigError
 
 FRONTIER_METRIC = "e2e_mean_ms"
+READINGS = ("one_config", "per_metric")
 FIELDS = ("quality", *METRICS)
 SampleKey = tuple[str, str, str, int]        # (group, trace_id, config_id, seed)
 _EPS = 1e-12
@@ -71,6 +77,8 @@ class MetricDelta:
     ci: Optional[tuple[float, float]]
     ci_relative: Optional[tuple[float, float]]
     undefined_resamples: int
+    frontier_presets: Optional[tuple[str, str]] = None   # this metric's two frontier presets, and the weight
+    weight: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -144,23 +152,30 @@ def _change(at: Optional[float], base: float) -> tuple[Optional[float], Optional
 
 class _Side:
     """The treatment presets at one (group, trace, seeds): their metric values at the means over the seeds, at
-    each seed, and at each request resample, with the frontier of each."""
+    each seed, and at each request resample, with the frontier each metric is read on (the reading's)."""
 
     def __init__(self, table: dict, where: tuple[str, str], seeds: tuple[int, ...], presets: tuple[str, ...],
-                 draws: Optional[dict[int, np.ndarray]], samples: Optional[Mapping[SampleKey, RequestValues]]):
+                 draws: Optional[dict[int, np.ndarray]], samples: Optional[Mapping[SampleKey, RequestValues]],
+                 reading: str):
         self.presets = presets
+        by = {m: FRONTIER_METRIC if reading == "one_config" else m for m in METRICS}   # the frontier's metric
         cells = [table[(*where, p)] for p in presets]
         self.seed = {s: {f: np.array([getattr(c[s], f) for c in cells]) for f in FIELDS} for s in seeds}
         self.mean = {f: np.mean([self.seed[s][f] for s in seeds], axis=0) for f in FIELDS}
-        self.front = _Frontier.of(self.mean["quality"], self.mean[FRONTIER_METRIC])
-        self.front_seed = {s: _Frontier.of(v["quality"], v[FRONTIER_METRIC]) for s, v in self.seed.items()}
+
+        def fronts(values: Mapping[str, np.ndarray]) -> Optional[dict[str, _Frontier]]:
+            if np.isnan(values["quality"]).any():
+                return None                                    # a preset drew no scored request
+            built = {k: _Frontier.of(values["quality"], values[k]) for k in set(by.values())}
+            return {m: built[by[m]] for m in METRICS}
+        self.front = fronts(self.mean)
+        self.front_seed = {s: fronts(v) for s, v in self.seed.items()}
         self.boot: Optional[dict[str, np.ndarray]] = None             # field -> presets x resamples
-        self.front_boot: list[Optional[_Frontier]] = []          # None: a preset drew no scored request
+        self.front_boot: list[Optional[dict[str, _Frontier]]] = []
         if draws is not None and samples is not None:
             per = [_resampled(where, p, seeds, draws, samples) for p in presets]
             self.boot = {f: np.array([r[f] for r in per]) for f in FIELDS}
-            self.front_boot = [None if np.isnan(self.boot["quality"][:, b]).any() else
-                               _Frontier.of(self.boot["quality"][:, b], self.boot[FRONTIER_METRIC][:, b])
+            self.front_boot = [fronts({f: v[:, b] for f, v in self.boot.items()})
                                for b in range(self.boot["quality"].shape[1])]
 
 
@@ -197,9 +212,13 @@ def _check_paired(where: tuple[str, str], seeds: tuple[int, ...], configs: Seque
 
 
 def equal_quality(points: Iterable[CellPoint], treatment: str, rules: EqualQuality,
-                  samples: Optional[Mapping[SampleKey, RequestValues]] = None) -> list[EqualQualityRow]:
+                  samples: Optional[Mapping[SampleKey, RequestValues]] = None,
+                  reading: str = "one_config") -> list[EqualQualityRow]:
     """One row per baseline configuration, group and trace; the treatment is the system named `treatment`.
-    `samples` holds every compared cell's per-request values, for the request bootstrap (none: no CI)."""
+    `samples` holds every compared cell's per-request values, for the request bootstrap (none: no CI); `reading`
+    is one of READINGS (step 3)."""
+    if reading not in READINGS:
+        raise ConfigError(f"unknown equal-quality reading {reading!r}; one of {READINGS}")
     table = by_config(points)
     system_of = {key: next(iter(per_seed.values())).system for key, per_seed in table.items()}
     sides: dict[tuple, _Side] = {}
@@ -224,7 +243,7 @@ def equal_quality(points: Iterable[CellPoint], treatment: str, rules: EqualQuali
             draws = drawn[(where, seeds)][1]
         key = (where, seeds, eligible)
         if key not in sides:
-            sides[key] = _Side(table, where, seeds, eligible, draws, samples)
+            sides[key] = _Side(table, where, seeds, eligible, draws, samples, reading)
         base_boot = None if draws is None else _resampled(where, config_id, seeds, draws, samples)
         rows.append(_row(where, config_id, system_of[(*where, config_id)], seeds, per_seed, sides[key], base_boot,
                          [c for c in presets if c not in eligible], rules))
@@ -236,34 +255,39 @@ def _row(where: tuple[str, str], config_id: str, system: str, seeds: tuple[int, 
          excluded: list[str], rules: EqualQuality) -> EqualQualityRow:
     tol = rules.tolerance
     q_b = float(np.mean([per_seed[s].quality for s in seeds]))
-    pos = side.front.at(q_b, tol)
-    pos_seed = {s: side.front_seed[s].at(per_seed[s].quality, tol) for s in seeds}
-    pos_boot = None
-    if base_boot is not None and side.boot is not None:
-        pos_boot = [None if f is None or math.isnan(base_boot["quality"][b]) else f.at(float(base_boot["quality"][b]), tol)
-                    for b, f in enumerate(side.front_boot)]
+
+    def at(fronts: Optional[Mapping[str, _Frontier]], m: str, quality: float) -> Optional[tuple[int, int, float]]:
+        if fronts is None or math.isnan(quality):
+            return None                                        # a cell drew no scored request (resamples only)
+        return fronts[m].at(quality, tol)
     deltas = []
     for m in METRICS:
+        pos = at(side.front, m, q_b)
         base = float(np.mean([getattr(per_seed[s], m) for s in seeds]))
-        at = _read(pos, side.mean[m])
-        delta, relative = _change(at, base)
-        seed_values = tuple(SeedValue(s, *_change(_read(pos_seed[s], side.seed[s][m]), getattr(per_seed[s], m)))
+        value = _read(pos, side.mean[m])
+        delta, relative = _change(value, base)
+        seed_values = tuple(SeedValue(s, *_change(_read(at(side.front_seed[s], m, per_seed[s].quality),
+                                                        side.seed[s][m]), getattr(per_seed[s], m)))
                             for s in seeds)
         rng_d = _span([v.delta for v in seed_values]) if len(seeds) >= 2 else None
         rng_r = _span([v.relative for v in seed_values]) if len(seeds) >= 2 else None
         ci, ci_rel, undefined = None, None, 0
-        if pos_boot is not None:
+        if base_boot is not None and side.boot is not None:
             m_boot = base_boot[m]
-            boot = [_read(p, side.boot[m][:, b]) for b, p in enumerate(pos_boot)]
+            boot = [_read(at(f, m, float(base_boot["quality"][b])), side.boot[m][:, b])
+                    for b, f in enumerate(side.front_boot)]
             undefined = sum(v is None for v in boot)
             if not undefined:
                 ci = _interval(np.array(boot) - m_boot, rules.confidence)
                 if np.all(m_boot != 0):
                     ci_rel = _interval(np.array(boot) / m_boot - 1, rules.confidence)
-        deltas.append(MetricDelta(metric=m, baseline=base, treatment=at, delta=delta, relative=relative,
+        deltas.append(MetricDelta(metric=m, baseline=base, treatment=value, delta=delta, relative=relative,
                                   per_seed=seed_values, range=rng_d, range_relative=rng_r,
                                   outside_range=any((_outside(delta, rng_d), _outside(relative, rng_r))),
-                                  ci=ci, ci_relative=ci_rel, undefined_resamples=undefined))
+                                  ci=ci, ci_relative=ci_rel, undefined_resamples=undefined,
+                                  frontier_presets=None if pos is None else (side.presets[pos[0]], side.presets[pos[1]]),
+                                  weight=None if pos is None else pos[2]))
+    pos = at(side.front, FRONTIER_METRIC, q_b)                 # the latency frontier: one_config's configuration
     matched = tuple(p for p, q in zip(side.presets, side.mean["quality"], strict=True) if abs(q - q_b) <= tol)
     return EqualQualityRow(group=where[0], trace_id=where[1], config_id=config_id, system=system, seeds=seeds,
                            quality=q_b, frontier_presets=None if pos is None else

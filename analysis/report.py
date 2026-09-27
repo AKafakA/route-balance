@@ -20,9 +20,11 @@ its summary.
 Output, a new directory:
   report.json  per cell: the summary, the model mix and the overhead stages; per configuration: the seed means
                (analysis/frontier.py); the frontiers per metric; for each --treatment system, the equal-quality rows
-               (analysis/equal_quality.py: one treatment configuration for every metric, each seed's value, the
-               range over the seeds and the request-bootstrap interval, D80, D81) and every baseline
-               configuration it could not compare, with the
+               (analysis/equal_quality.py, each seed's value, the range over the seeds and the request-bootstrap
+               interval, D80, D81) by both readings (D86): "equal_quality" (one_config: one treatment
+               configuration for every metric) and "equal_quality_per_metric" (per_metric: each metric on its own
+               frontier, as v2/v3), each with its "_appendix" rows; and every baseline configuration it could not
+               compare, with the
                reason (`not_compared`: an ablation group, whose variants are read against its reference in its
                systems table; no treatment configuration at that group and trace; or no treatment preset with
                cells for every seed of the baseline); goodput at the rules' attainment levels of the tight and
@@ -43,6 +45,8 @@ Output, a new directory:
                macros.tex (the systems tables list every configuration of a group, these included)
   macros.tex   per treatment, group and stationary trace: the range over the baseline configurations of the
                relative change of mean E2E, P99 E2E and cost at equal quality
+Every equal* table and macro is written for both readings: the one_config names as above, the per_metric ones
+with the prefix equal_pm (tables) and eqpm (macros). The paper's framing picks one after the runs (D86).
 """
 from __future__ import annotations
 
@@ -58,7 +62,7 @@ from typing import Mapping, Optional, Sequence
 
 import numpy as np
 
-from analysis.equal_quality import SampleKey, equal_quality
+from analysis.equal_quality import READINGS, SampleKey, equal_quality
 from analysis.frontier import METRICS, CellPoint, ConfigPoint, by_config, cell_point, config_points, frontiers
 from analysis.manifest import Coverage, check
 from analysis.metrics import CellSummary, RequestValues, request_values, summarize_cell
@@ -76,6 +80,10 @@ MACRO_METRICS = {"e2e_mean_ms": "Mean", "e2e_p99_ms": "Tail", "cost_decode_per_1
 TABLE_METRICS = {**MACRO_METRICS, "slo_miss_tight": "SLO tight (pp)", "slo_miss_loose": "SLO loose (pp)"}
 ATTAINMENT = ("slo_miss_tight", "slo_miss_loose")        # shown as the change of attainment, in points
 APPENDIX_SYSTEMS = frozenset({"dispatcher-inflight"})  # D84: compared in the appendix only (equal_appendix.*)
+# reading -> (report key, table prefix, macro prefix); both readings are always written (D86)
+READING_OUT = {"one_config": ("equal_quality", "equal", "eq"),
+               "per_metric": ("equal_quality_per_metric", "equal_pm", "eqpm")}
+assert set(READING_OUT) == set(READINGS)
 _DIGITS = dict(zip("0123456789",
                    ("Zero", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine"), strict=True))
 
@@ -221,12 +229,15 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
             left_out[cid] = "; ".join(s.problems)
     configs = config_points(points)
     fronts = {m: {"|".join(k): [p.config_id for p in v] for k, v in frontiers(configs, m).items()} for m in METRICS}
-    eq, eq_appendix, not_compared = {}, {}, {}
+    readings: dict[str, dict[str, list[dict]]] = {k: {} for key, _, _ in READING_OUT.values()
+                                                   for k in (key, f"{key}_appendix")}
+    not_compared = {}
     for t in treatments:
         these, not_compared[t] = comparable(points, t, inputs.scope.groups)
-        rows = [asdict(r) for r in equal_quality(these, t, inputs.rules.equal_quality, samples)]
-        eq[t] = [r for r in rows if r["system"] not in APPENDIX_SYSTEMS]
-        eq_appendix[t] = [r for r in rows if r["system"] in APPENDIX_SYSTEMS]
+        for reading, (key, _, _) in READING_OUT.items():
+            rows = [asdict(r) for r in equal_quality(these, t, inputs.rules.equal_quality, samples, reading)]
+            readings[key][t] = [r for r in rows if r["system"] not in APPENDIX_SYSTEMS]
+            readings[f"{key}_appendix"][t] = [r for r in rows if r["system"] in APPENDIX_SYSTEMS]
     rates = stationary_rates(inputs.scope)
     read_from: dict[str, list[float]] = {}
     for p in configs:
@@ -239,8 +250,7 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
                                                    "missing": list(cov.missing), "invalid": dict(cov.invalid),
                                                    "fleet_problems": dict(cov.fleet_problems)},
             "left_out": left_out, "cells": cells, "configs": [asdict(p) for p in configs], "frontiers": fronts,
-            "equal_quality": eq, "equal_quality_appendix": eq_appendix, "not_compared": not_compared,
-            "goodput": good, "rates": rates}
+            **readings, "not_compared": not_compared, "goodput": good, "rates": rates}
 
 
 # ---------------------------------------------------------------- LaTeX
@@ -312,18 +322,26 @@ def seeds_table(rows: Sequence[dict]) -> str:
     return _table("Baseline & Seed & " + " & ".join(TABLE_METRICS[m] for m in names), lines, len(names), 2)
 
 
-def macro_name(*parts: str) -> str:
+def macro_name(*parts: str, prefix: str = "eq") -> str:
     """A LaTeX command name from free parts: letters kept, digits spelled, every part capitalised."""
     out = []
     for part in parts:
         word = "".join(_DIGITS[ch] if ch in _DIGITS else ch for ch in part if ch.isalnum())
         out.append(word[:1].upper() + word[1:])
-    return "eq" + "".join(out)
+    return prefix + "".join(out)
 
 
 def macros(report: dict) -> str:
-    lines = ["% Written by analysis/report.py. Ranges over the baseline configurations with an equal-quality point."]
-    for t, rows in report["equal_quality"].items():
+    lines = ["% Written by analysis/report.py. Ranges over the baseline configurations with an equal-quality point;",
+             "% eq* read one RouteBalance configuration for every metric, eqpm* each metric on its own frontier (D86)."]
+    for key, _, prefix in READING_OUT.values():
+        lines += _macros(report, key, prefix)
+    return "\n".join(lines) + "\n"
+
+
+def _macros(report: dict, key: str, prefix: str) -> list[str]:
+    lines = []
+    for t, rows in report[key].items():
         by: dict[tuple[str, str, str], list[float]] = {}
         for r in rows:
             if r["trace_id"] not in report["rates"]:
@@ -332,11 +350,11 @@ def macros(report: dict) -> str:
                 if d["metric"] in MACRO_METRICS and d["relative"] is not None:
                     by.setdefault((r["group"], r["trace_id"], d["metric"]), []).append(d["relative"])  # default-ok: grouping
         for (group, trace, metric), vals in sorted(by.items()):
-            name = macro_name(t, group, trace, MACRO_METRICS[metric])
+            name = macro_name(t, group, trace, MACRO_METRICS[metric], prefix=prefix)
             lo, hi = min(vals), max(vals)
             lines.append(f"\\newcommand{{\\{name}Min}}{{{100 * lo:.1f}\\%}}")
             lines.append(f"\\newcommand{{\\{name}Max}}{{{100 * hi:.1f}\\%}}")
-    return "\n".join(lines) + "\n"
+    return lines
 
 
 def write(report: dict, out: Path) -> None:
@@ -348,16 +366,17 @@ def write(report: dict, out: Path) -> None:
     for key in sorted({(c.group, c.trace_id) for c in configs}):
         subset = [c for c in configs if (c.group, c.trace_id) == key]
         (out / "tables" / f"systems.{key[0]}.{key[1]}.tex").write_text(systems_table(subset))
-    for t, rows in report["equal_quality"].items():
-        for key in sorted({(r["group"], r["trace_id"]) for r in rows}):
-            subset = [r for r in rows if (r["group"], r["trace_id"]) == key]
-            (out / "tables" / f"equal.{t}.{key[0]}.{key[1]}.tex").write_text(equal_table(subset))
-            (out / "tables" / f"equal_ci.{t}.{key[0]}.{key[1]}.tex").write_text(equal_table(subset, "ci"))
-            (out / "tables" / f"equal_seeds.{t}.{key[0]}.{key[1]}.tex").write_text(seeds_table(subset))
-    for t, rows in report["equal_quality_appendix"].items():
-        for key in sorted({(r["group"], r["trace_id"]) for r in rows}):
-            subset = [r for r in rows if (r["group"], r["trace_id"]) == key]
-            (out / "tables" / f"equal_appendix.{t}.{key[0]}.{key[1]}.tex").write_text(equal_table(subset, "ci"))
+    for key, table, _ in READING_OUT.values():
+        for t, rows in report[key].items():
+            for g, trace in sorted({(r["group"], r["trace_id"]) for r in rows}):
+                subset = [r for r in rows if (r["group"], r["trace_id"]) == (g, trace)]
+                (out / "tables" / f"{table}.{t}.{g}.{trace}.tex").write_text(equal_table(subset))
+                (out / "tables" / f"{table}_ci.{t}.{g}.{trace}.tex").write_text(equal_table(subset, "ci"))
+                (out / "tables" / f"{table}_seeds.{t}.{g}.{trace}.tex").write_text(seeds_table(subset))
+        for t, rows in report[f"{key}_appendix"].items():
+            for g, trace in sorted({(r["group"], r["trace_id"]) for r in rows}):
+                subset = [r for r in rows if (r["group"], r["trace_id"]) == (g, trace)]
+                (out / "tables" / f"{table}_appendix.{t}.{g}.{trace}.tex").write_text(equal_table(subset, "ci"))
     (out / "macros.tex").write_text(macros(report))
 
 
@@ -386,12 +405,13 @@ def main(argv: list[str]) -> int:
     for t, skipped in report["not_compared"].items():
         for key, why in skipped.items():
             print(f"  NOT COMPARED with {t}: {key}: {why}")
-    for t, rows in report["equal_quality"].items():
-        for r in rows + report["equal_quality_appendix"][t]:
-            for d in r["deltas"]:
-                if d["outside_range"]:
-                    print(f"  NOTE {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: the value at the "
-                          f"seed means lies outside the range over the seeds (D81)")
+    for reading, (key, _, _) in READING_OUT.items():
+        for t, rows in report[key].items():
+            for r in rows + report[f"{key}_appendix"][t]:
+                for d in r["deltas"]:
+                    if d["outside_range"]:
+                        print(f"  NOTE ({reading}) {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: "
+                              "the value at the seed means lies outside the range over the seeds (D81)")
     return 0
 
 

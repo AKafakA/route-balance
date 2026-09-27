@@ -144,9 +144,9 @@ def _cell(config, system, seed, scores, e2e_s, cost=None, prompts=None):
                       seed=seed, throughput_rps=20.0, **point), (("g1", "l30", config, seed), v))
 
 
-def _run(cells, rules=RULES):
+def _run(cells, rules=RULES, reading="one_config"):
     pts = [c[0] for c in cells]
-    return equal_quality(pts, "RB", rules, dict(c[1] for c in cells))
+    return equal_quality(pts, "RB", rules, dict(c[1] for c in cells), reading=reading)
 
 
 def _latency(seed):
@@ -233,3 +233,40 @@ def test_a_quality_that_is_not_a_number_is_refused():
     from analysis.equal_quality import position_at
     with pytest.raises(ConfigError, match="not a number"):
         position_at(float("nan"), [0.4, 0.5], 0.03)
+
+
+def _kinked():
+    """rb-c is off the latency frontier but has the best p99 and cost: the readings differ exactly there."""
+    return [CellPoint(group="g1", config_id=c, system=sys_, knob=c, dispatch="lor", trace_id="l30", seed=1, quality=q,
+                      e2e_mean_ms=m, e2e_p99_ms=p99, cost_decode_per_1k=cost, slo_miss_tight=0.1, slo_miss_loose=0.05,
+                      throughput_rps=20.0)
+            for c, sys_, q, m, p99, cost in (("rb-a", "RB", 0.40, 1000, 5000, 1.0), ("rb-b", "RB", 0.50, 2000, 3000, 3.0),
+                                             ("rb-c", "RB", 0.45, 3000, 1000, 0.1), ("ap-1", "AP", 0.425, 2500, 4000, 2.0))]
+
+
+def test_the_per_metric_reading_reads_each_metric_on_its_own_frontier():
+    # v2/v3's reading (D86): p99's frontier is rb-c, rb-b; the baseline's 0.425 is within the tolerance of rb-c's 0.45
+    [one] = equal_quality(_kinked(), "RB", RULES, reading="one_config")
+    [per] = equal_quality(_kinked(), "RB", RULES, reading="per_metric")
+    one_by, per_by = ({d.metric: d for d in r.deltas} for r in (one, per))
+    assert per_by["e2e_mean_ms"].treatment == pytest.approx(1250.0)
+    assert one_by["e2e_mean_ms"].treatment == pytest.approx(1250.0)
+    assert per_by["e2e_p99_ms"].treatment == pytest.approx(1000.0) and one_by["e2e_p99_ms"].treatment == pytest.approx(4500)
+    assert per_by["cost_decode_per_1k"].treatment == pytest.approx(0.1)
+    assert one_by["cost_decode_per_1k"].treatment == pytest.approx(1.5)
+    assert per_by["e2e_p99_ms"].frontier_presets == ("rb-c", "rb-c") and per_by["e2e_p99_ms"].weight == 0.0
+    assert one_by["e2e_p99_ms"].frontier_presets == ("rb-a", "rb-b") and one_by["e2e_p99_ms"].weight == pytest.approx(0.25)
+    assert per.frontier_presets == one.frontier_presets == ("rb-a", "rb-b")      # the row: the latency frontier
+
+
+def test_the_per_metric_reading_bootstraps_each_metric_on_its_own_frontier():
+    # the treatment is 0.5 s faster on every request: both readings give the same mean-latency CI, from one draw
+    cells = [c for s in (1, 2) for c in (_cell("rb-a", "RB", s, [0.5] * N, _latency(s) - 0.5),
+                                         _cell("ap-1", "AP", s, [0.5] * N, _latency(s)))]
+    one, per = (_run(cells, reading=r)[0].deltas[0] for r in ("one_config", "per_metric"))
+    assert one.ci == pytest.approx((-500.0, -500.0)) and per.ci == pytest.approx((-500.0, -500.0))
+
+
+def test_an_unknown_reading_is_refused():
+    with pytest.raises(ConfigError, match="unknown equal-quality reading"):
+        equal_quality(_grid(), "RB", RULES, reading="best_of")
