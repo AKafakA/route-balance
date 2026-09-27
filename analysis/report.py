@@ -75,7 +75,7 @@ from bench.schema import loads_strict
 from analysis.equal_quality import READINGS, SampleKey, equal_quality
 from analysis.frontier import METRICS, CellPoint, ConfigPoint, by_config, cell_point, config_points, frontiers
 from analysis.manifest import Coverage, check
-from analysis.metrics import CellSummary, RequestValues, request_values, summarize_cell
+from analysis.metrics import NO_QUALITY, CellSummary, RequestValues, request_values, summarize_cell
 from analysis.quality import ScoredCorpus, ScoreStore
 from analysis.rules import Rules, load_rules
 from analysis.slo import CellSlo, SloBase, goodputs
@@ -212,6 +212,12 @@ def comparable(points: Sequence[CellPoint], treatment: str,
     return [p for p in points if (p.group, p.trace_id, p.config_id) in keep], skipped
 
 
+def only_missing_quality(config_id: str, problems: Sequence[str]) -> bool:
+    """A latency-sweep run's prompts are training prompts, with no scored answers: its missing quality is by design,
+    and only that problem is."""
+    return ".sweep." in config_id and bool(problems) and all(q.endswith(NO_QUALITY) for q in problems)
+
+
 def gate_problem(cells_root: Path, cell_id: str) -> Optional[str]:
     """Why a cell's per-cell gates do not pass (scripts/run_cell.sh writes gates/verdict.json), or None."""
     v = cell_dir(cells_root, cell_id) / "gates" / "verdict.json"
@@ -244,7 +250,7 @@ def parity_state(cells_root: Path, group: str, runs: Mapping[str, str]) -> str:
 def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
     cov: Coverage = check(inputs.scope, cells_root)
     expected = {e.cell_id: e for e in expected_cells(inputs.scope)}
-    cells, points, left_out = {}, [], {}
+    cells, points, left_out, no_quality = {}, [], {}, set()
     samples: dict[SampleKey, RequestValues] = {}
     runs: dict[str, dict[str, str]] = {}
     gates = {cid: gate_problem(cells_root, cid) for cid in cov.ok}
@@ -277,6 +283,8 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
             samples[(exp.group, exp.trace_id, exp.config_id, exp.seed)] = v
         else:
             left_out[cid] = "; ".join(s.problems)
+            if only_missing_quality(exp.config_id, s.problems):
+                no_quality.add(cid)
     configs = config_points(points)
     fronts = {m: {"|".join(k): [p.config_id for p in v] for k, v in frontiers(configs, m).items()} for m in METRICS}
     readings: dict[str, dict[str, list[dict]]] = {k: {} for key, _, _ in READING_OUT.values()
@@ -302,8 +310,8 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
                                                    "pending": dict(cov.pending), "unexpected": list(cov.unexpected),
                                                    "complete": cov.complete},
             "gate_failures": sorted(c for c, g in gates.items() if g is not None),
-            # a left-out cell is a failure unless it is a latency-sweep run (training prompts: no quality, by design)
-            "failures": sorted(c for c in left_out if ".sweep." not in expected[c].config_id),
+            # a left-out cell is a failure unless it is a latency-sweep run whose only problem is its missing quality
+            "failures": sorted(c for c in left_out if c not in no_quality),
             "left_out": left_out, "parity": parity, "cells": cells, "configs": [asdict(p) for p in configs],
             "frontiers": fronts,
             **readings, "not_compared": not_compared, "goodput": good, "rates": rates}

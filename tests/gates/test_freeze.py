@@ -57,3 +57,5 @@ def test_a_deployed_copy_without_git_is_named_and_a_broken_repository_raises(tmp
     (broken / ".git").mkdir(parents=True)                  # a .git that is not a repository
     with pytest.raises(RuntimeError, match="not a git repository"):
         findings(broken, "lease-2026-09-28")
+    with pytest.raises(RuntimeError, match="not a directory"):
+        findings(tmp_path / "missing", "lease-2026-09-28")

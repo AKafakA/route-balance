@@ -314,3 +314,14 @@ def test_a_requested_row_with_a_pending_block_is_refused_and_an_unknown_group_ra
         cd.cells_to_run(render, ["G1"], root, fleet, hosts)
     with pytest.raises(ConfigError, match="has no cells"):
         cd.group_ready(render, root, "no-such-group")
+
+
+@pytest.mark.parametrize("cmd", ["status", "published", "plan", "groups"])
+@pytest.mark.parametrize("rows", ["", ","])
+def test_a_row_selection_that_names_no_row_is_refused(lease, cmd, rows):
+    render, root, *_ = lease
+    extra = {"status": ["--cells-root", str(root)], "published": ["--cells-root", str(root)],
+             "plan": ["--cells-root", str(root), "--fleet", "f", "--hosts", "h"], "groups": []}[cmd]
+    with pytest.raises(SystemExit) as e:
+        cd.main([cmd, "--render", str(render), "--rows", rows, *extra])
+    assert e.value.code == 2

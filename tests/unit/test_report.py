@@ -288,3 +288,12 @@ def test_a_parity_record_made_by_other_gate_code_counts_as_not_run(env):
     assert rp.main(_argv(env, out)) == 1
     report = json.loads((out / "report.json").read_text())
     assert not report["left_out"] and set(report["parity"].values()) == {"not run"}
+
+
+def test_only_a_sweep_runs_missing_quality_is_exempt():
+    none = ["3534/3534 successful requests have a prompt absent from the scored corpora",
+            "no successful request has a judged score"]
+    assert rp.only_missing_quality("qwen.rb.sweep.x", none)
+    assert not rp.only_missing_quality("qwen.rb.uniform", none)
+    assert not rp.only_missing_quality("qwen.rb.sweep.x", [*none, "2/3534 requests failed"])
+    assert not rp.only_missing_quality("qwen.rb.sweep.x", [])

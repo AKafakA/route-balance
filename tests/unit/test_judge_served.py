@@ -133,7 +133,7 @@ def test_the_merge_command_writes_a_new_store_file_and_never_overwrites(tmp_path
     lines, _, _ = js.collect(KEY, [], [root], [_refs(tmp_path, prompts)])
     sent = _jsonl(tmp_path / "in.jsonl", lines)
     back = _jsonl(tmp_path / "out.jsonl", _judge(lines))
-    argv = ["merge", "--judge-key", KEY, "--judge-input", str(sent), "--judge-output", str(back),
+    argv = ["merge", "--judge-key", KEY, "--store", "--judge-input", str(sent), "--judge-output", str(back),
             "--out", str(tmp_path / "store.1.jsonl")]
     assert js.main(argv) == 0 and len(ScoreStore.load([tmp_path / "store.1.jsonl"], KEY)) == 3
     with pytest.raises(ConfigError, match="exists"):
@@ -153,7 +153,7 @@ def test_the_command_line_reads_the_pinned_corpus_and_never_overwrites(tmp_path)
     root, prompts = _cell(tmp_path)
     out = tmp_path / "judge_in.jsonl"
     render = _render(tmp_path, _refs(tmp_path, prompts))
-    argv = ["collect", "--judge-key", KEY, "--cells", str(root), "--render", str(render),
+    argv = ["collect", "--judge-key", KEY, "--store", "--cells", str(root), "--render", str(render),
             "--data-root", str(tmp_path), "--family", "qwen", "--out", str(out)]
     assert js.main(argv) == 0 and len(out.read_text().splitlines()) == 3
     with pytest.raises(ConfigError, match="exists"):
@@ -164,7 +164,16 @@ def test_a_corpus_other_than_the_pinned_one_is_refused(tmp_path):
     root, prompts = _cell(tmp_path)
     render = _render(tmp_path, _refs(tmp_path, prompts), sha="0" * 64)
     with pytest.raises(ConfigError, match="the plan pins"):
-        js.main(["collect", "--judge-key", KEY, "--cells", str(root), "--render", str(render), "--data-root",
+        js.main(["collect", "--judge-key", KEY, "--store", "--cells", str(root), "--render", str(render), "--data-root",
                  str(tmp_path), "--family", "qwen", "--out", str(tmp_path / "x.jsonl")])
     with pytest.raises(ConfigError, match="no scored corpus for"):
         js.pinned_corpora(json.loads((render / "plan.json").read_text()), ["gemma"], tmp_path)
+
+
+def test_the_store_is_always_named_even_when_empty(tmp_path):
+    root, prompts = _cell(tmp_path)
+    render = _render(tmp_path, _refs(tmp_path, prompts))
+    with pytest.raises(SystemExit) as e:
+        js.main(["collect", "--judge-key", KEY, "--cells", str(root), "--render", str(render), "--data-root",
+                 str(tmp_path), "--family", "qwen", "--out", str(tmp_path / "judge_in.jsonl")])
+    assert e.value.code == 2

@@ -559,6 +559,9 @@ def main(argv: list[str]) -> int:
     cmd("code", "scheduler")
     cmd("retire", "cells-root", "cell")
     a = ap.parse_args(argv)
+    rows = [r for r in a.rows.split(",") if r] if "rows" in vars(a) else []
+    if "rows" in vars(a) and not rows:
+        ap.error(f"--rows {a.rows!r} names no row")
     p = {k: Path(v) for k, v in vars(a).items()
          if k in ("render", "cells_root", "fleet", "hosts", "attempt", "log_dir", "engines_record", "out")}
     if a.cmd == "prepare":
@@ -601,14 +604,13 @@ def main(argv: list[str]) -> int:
         print("not ready" if rc is None else f"parity exit {rc}")
         return 0 if rc in (None, 0) else 1
     elif a.cmd == "groups":
-        print("\n".join(row_groups(p["render"], [r for r in a.rows.split(",") if r])))
+        print("\n".join(row_groups(p["render"], rows)))
     elif a.cmd == "plan":
-        run, report = cells_to_run(p["render"], [r for r in a.rows.split(",") if r], p["cells_root"], p["fleet"],
-                                   p["hosts"])
+        run, report = cells_to_run(p["render"], rows, p["cells_root"], p["fleet"], p["hosts"])
         print("\n".join(report), file=sys.stderr)
         print("\n".join(run))
     elif a.cmd in ("status", "published"):
-        problems, published = rows_status(p["render"], [r for r in a.rows.split(",") if r], p["cells_root"])
+        problems, published = rows_status(p["render"], rows, p["cells_root"])
         if a.cmd == "published":                          # the published cells, for the mirror check
             if published:
                 print("\n".join(published))

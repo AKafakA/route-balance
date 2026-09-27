@@ -31,6 +31,8 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def findings(root: Path, tag: str) -> list[str]:
+    if not Path(root).is_dir():
+        raise RuntimeError(f"{root} is not a directory")
     if not (Path(root) / ".git").exists():
         # a deployed copy of the tree (setup.sh rsyncs it to the nodes), not the repository: the tag and the history
         # live in the repository, and run_scope checks the copy's code digest

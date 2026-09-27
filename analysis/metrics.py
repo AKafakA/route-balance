@@ -231,6 +231,10 @@ def budget_exhausted(cell: CellRecord, fleet: Sequence[Instance]) -> tuple[Optio
     return n, None
 
 
+# the problems of a cell whose prompts have no scored answers (a latency-sweep run's training prompts, by design)
+NO_QUALITY = ("successful requests have a prompt absent from the scored corpora",
+              "no successful request has a judged score")
+
 def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, quality: ScoredCorpus | ScoreStore,
               prices: Mapping[str, float], slo: Optional[CellSlo], problems: Sequence[str]) -> CellSummary:
     """`problems` are the caller's execution findings (integrity_problems for a cell record); the metric
@@ -258,10 +262,9 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
                         "unavailable until they are judged (D67)")
         scores = []                        # never a mean over the scored rest
     if found["unmatched"]:
-        problems.append(f"{found['unmatched']}/{len(ok)} successful requests have a prompt absent from the scored "
-                        "corpora")
+        problems.append(f"{found['unmatched']}/{len(ok)} {NO_QUALITY[0]}")
     if ok and not found["matched"]:
-        problems.append("no successful request has a judged score")
+        problems.append(NO_QUALITY[1])
     # a model name the corpus never scores (a naming mismatch); the store's texts are checked one by one instead
     unknown = sorted({o.model for o in ok} - quality.models) if isinstance(quality, ScoredCorpus) else []
     if unknown:

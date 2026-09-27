@@ -187,7 +187,8 @@ def main(argv: list[str]) -> int:
     m = sub.add_parser("merge")
     for p in (c, m):
         p.add_argument("--judge-key", required=True)
-        p.add_argument("--store", type=Path, nargs="*", default=[], help="the store files so far")
+        p.add_argument("--store", type=Path, nargs="*", required=True,
+                       help="the store files so far (the first pass gives --store with no file)")
         p.add_argument("--out", type=Path, required=True)
     c.add_argument("--cells", type=Path, nargs="+", required=True, help="cells roots")
     c.add_argument("--render", type=Path, required=True, help="the campaign render whose plan pins the corpora")

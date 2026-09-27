@@ -47,3 +47,10 @@ def test_a_tier_without_both_bases_fails(tmp_path, lines, table):
     requests, table_path = _files(tmp_path, lines, table)
     assert slo_base.main(["--requests", str(requests), "--table", str(table_path), "--out", str(tmp_path / "b.json")]) == 1
     assert not (tmp_path / "b.json").exists()
+
+
+@pytest.mark.parametrize("field", ["held", "success", "filler"])
+def test_a_flag_that_is_not_a_boolean_fails(tmp_path, field):
+    requests, table = _files(tmp_path, [*_lines(), {**LINE, field: "false"}])
+    assert slo_base.main(["--requests", str(requests), "--table", str(table), "--out", str(tmp_path / "b.json")]) == 1
+    assert not (tmp_path / "b.json").exists()

@@ -32,6 +32,9 @@ def single_request_ttft(lines) -> tuple[dict[str, float], dict[str, int]]:
     """{tier: median ttft_s} over the measured, successful b = 1 requests of held instance-levels."""
     samples: dict[str, list[float]] = {}
     for x in lines:
+        for k in ("filler", "held", "success"):
+            if not isinstance(x[k], bool):
+                raise ConfigError(f"a b={x['b']} request of {x['tier']} has {k} {x[k]!r}, not a boolean")
         if x["b"] == 1 and not x["filler"] and x["held"] and x["success"]:
             ttft = x["ttft_s"]
             if isinstance(ttft, bool) or not isinstance(ttft, (int, float)) or not (math.isfinite(ttft) and ttft > 0):
