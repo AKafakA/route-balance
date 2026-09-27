@@ -33,10 +33,10 @@ def single_request_ttft(lines) -> tuple[dict[str, float], dict[str, int]]:
     samples: dict[str, list[float]] = {}
     for x in lines:
         if x["b"] == 1 and not x["filler"] and x["held"] and x["success"]:
-            ttft = float(x["ttft_s"])
-            if not (math.isfinite(ttft) and ttft > 0):
+            ttft = x["ttft_s"]
+            if isinstance(ttft, bool) or not isinstance(ttft, (int, float)) or not (math.isfinite(ttft) and ttft > 0):
                 raise ConfigError(f"a measured b=1 request of {x['tier']} has ttft_s {x['ttft_s']!r}")
-            samples.setdefault(x["tier"], []).append(ttft)   # default-ok: grouping into a new list
+            samples.setdefault(x["tier"], []).append(float(ttft))   # default-ok: grouping into a new list
     return {t: statistics.median(v) for t, v in sorted(samples.items())}, {t: len(v) for t, v in sorted(samples.items())}
 
 
@@ -49,7 +49,10 @@ def single_request_tpot(table: dict) -> dict[str, float]:
         at1 = [ms for b, ms in curve if b == 1]
         if len(at1) != 1:
             raise ConfigError(f"tier {tier}: the TPOT curve has no single point at b = 1")
-        out[tier] = at1[0] / 1000.0
+        ms = at1[0]
+        if isinstance(ms, bool) or not isinstance(ms, (int, float)) or not (math.isfinite(ms) and ms > 0):
+            raise ConfigError(f"tier {tier}: the TPOT curve's b = 1 point {ms!r} is not a positive number")
+        out[tier] = ms / 1000.0
     return out
 
 

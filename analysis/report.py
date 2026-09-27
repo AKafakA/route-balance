@@ -5,7 +5,8 @@ through this tool's output, which the paper \\input{}s).
         --hosts HOSTS.json --slo-base FAMILY=BASE.json [...] [--store STORE.jsonl ...]
         --rules configs/prereg_rules.json --treatment SYSTEM [...] --out DIR
     exit 0 only when the manifest is complete (every expected cell ok or accounted, nothing pending or unexpected),
-    every ok cell's gates passed and every group's parity passed over its current cells under the current gate code;
+    no ok cell is left out (its gates, its parity, its quality: a latency-sweep run's missing quality is by design)
+    and every group's parity passed over its current cells under the current gate code;
     1 otherwise (the report is written either way); 2 for a --treatment no configuration of the render has
 
 Inputs, each checked:
@@ -301,6 +302,8 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
                                                    "pending": dict(cov.pending), "unexpected": list(cov.unexpected),
                                                    "complete": cov.complete},
             "gate_failures": sorted(c for c, g in gates.items() if g is not None),
+            # a left-out cell is a failure unless it is a latency-sweep run (training prompts: no quality, by design)
+            "failures": sorted(c for c in left_out if ".sweep." not in expected[c].config_id),
             "left_out": left_out, "parity": parity, "cells": cells, "configs": [asdict(p) for p in configs],
             "frontiers": fronts,
             **readings, "not_compared": not_compared, "goodput": good, "rates": rates}
@@ -498,7 +501,7 @@ def main(argv: list[str]) -> int:
                     if d["outside_range"]:
                         print(f"  NOTE ({reading}) {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: "
                               "the value at the seed means lies outside the range over the seeds (D81)")
-    complete = cov["complete"] and not report["gate_failures"] and all(s == "passed" for s in report["parity"].values())
+    complete = cov["complete"] and not report["failures"] and all(s == "passed" for s in report["parity"].values())
     return 0 if complete else 1         # the report is written either way; 1: a cell or a group's parity is not done
 
 

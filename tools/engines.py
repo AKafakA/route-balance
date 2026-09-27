@@ -115,6 +115,12 @@ def cache_config(instance_id: str, text: str) -> dict[str, str]:
     if not line.startswith(CACHE_INFO + "{") or "}" not in line:
         raise ConfigError(f"{instance_id}: {CACHE_INFO} has no labels")
     body = line[len(CACHE_INFO) + 1:line.rindex("}")]
+    value = line[line.rindex("}") + 1:].split()
+    try:
+        if len(value) != 1 or not math.isfinite(float(value[0])):    # an info metric: one value, no timestamp
+            raise ValueError
+    except ValueError:
+        raise ConfigError(f"{instance_id}: malformed {CACHE_INFO} sample {line[:80]!r}") from None
     labels, pos = {}, 0
     while pos < len(body):
         m = _LABEL.match(body, pos)

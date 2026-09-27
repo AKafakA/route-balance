@@ -378,7 +378,12 @@ def record_problems(scope: Scope, exp: ExpectedCell, d: Path) -> list[str]:
 def _gated_valid(root: Path, exp: ExpectedCell) -> bool:
     """Published with a valid verdict: what status() reads before the record, which it then checks in full."""
     v = cell_dir(root, exp.cell_id) / "gates" / "verdict.json"
-    return v.exists() and read_json(v)["valid"] is True
+    if not v.exists():
+        return False
+    valid = read_json(v)["valid"]
+    if not isinstance(valid, bool):
+        raise ConfigError(f"{v}: 'valid' must be a boolean, got {valid!r}")
+    return valid
 
 
 def group_ready(render: Path, root: Path, group: str) -> list[str]:
