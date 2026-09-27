@@ -29,10 +29,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Literal, Mapping, NamedTuple, Optional, Sequence
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 from routebalance.schedule.score import Candidate, pick, score
-from routebalance.config import ConfigError, Router as RouterConfig, Weights, _relative_path, loads_strict
+from routebalance.config import ArtifactPath, ConfigError, Router as RouterConfig, Weights, loads_strict
 from routebalance.types import Tier
 
 ALL_INSTANCES = "__ALL__"   # passthrough's decision: every instance is a candidate
@@ -217,16 +217,21 @@ def _names_the_model(head: str, fleet_model: str) -> bool:
     return head.endswith("_bo1") and short in (base, f"{base}-it")
 
 
-def best_route_digest(repo: Path) -> str:
-    """sha256 over the upstream modules the router imports (path and sha256 of each, in a fixed order)."""
+def modules_digest(repo: Path, files: Sequence[str], who: str) -> str:
+    """sha256 over upstream modules (each file's relative path and sha256, in the given order): the pinned
+    checkout, local patches included, is exactly what runs."""
     lines = []
-    for rel in BEST_ROUTE_MODULES:
+    for rel in files:
         path = Path(repo) / rel
         try:
             lines.append(f"{rel} {hashlib.sha256(path.read_bytes()).hexdigest()}")
         except OSError as e:
-            raise ConfigError(f"best_route_upstream: cannot read upstream module {path}: {e}") from e
+            raise ConfigError(f"{who}: cannot read upstream module {path}: {e}") from e
     return hashlib.sha256("\n".join(lines).encode()).hexdigest()
+
+
+def best_route_digest(repo: Path) -> str:
+    return modules_digest(repo, BEST_ROUTE_MODULES, "best_route_upstream")
 
 
 def load_best_route_upstream(checkpoint: Path, repo: Path, *, base_model: str, base_revision: str,
@@ -329,16 +334,7 @@ UPSTREAM_MODULES = ("simple_cluster_router", "config", "embedding_cache")
 
 
 def upstream_digest(repo: Path) -> str:
-    """sha256 over the upstream modules the router imports (name and sha256 of each file, in a fixed order):
-    the pinned checkout, local patches included, is exactly what runs."""
-    lines = []
-    for name in UPSTREAM_MODULES:
-        path = Path(repo) / f"{name}.py"
-        try:
-            lines.append(f"{name}.py {hashlib.sha256(path.read_bytes()).hexdigest()}")
-        except OSError as e:
-            raise ConfigError(f"avengers_pro: cannot read upstream module {path}: {e}") from e
-    return hashlib.sha256("\n".join(lines).encode()).hexdigest()
+    return modules_digest(repo, [f"{name}.py" for name in UPSTREAM_MODULES], "avengers_pro")
 
 
 def _import_upstream(repo: Path, digest: str):
@@ -387,13 +383,14 @@ def _rankings(raw: object, models: Sequence[str]) -> dict[int, dict[str, list[st
 
 
 def load_avengers_pro(artifact_dir: Path, upstream_repo: Path, *, beta: float, top_k: int, embedder: str,
-                      embedder_revision: str, upstream_sha256: str):
+                      embedder_revision: str, upstream_sha256: str, max_tokens: int, max_workers: int):
     """Build upstream's SimpleClusterRouter from an artifact directory, as v3 did.
 
     Upstream's __init__ opens an HTTP embedding client, so the object is built with __new__ and its
-    route-time attributes are set directly. top_k and beta are routing parameters: upstream's own
-    defaults (top_k 1, beta 9.0) never apply; v3 ran top_k 4 (Qwen artifacts) and beta 5.0. The embedder
-    is loaded at the pinned Hub revision, and the upstream checkout must have the pinned digest.
+    route-time attributes are set directly. Every route-time field is the configuration's, never
+    upstream's default: top_k and beta (v3 ran top_k 4 for the Qwen artifacts and beta 5.0; upstream's
+    defaults are 1 and 9.0), and max_tokens and max_workers (upstream's 7500 and 4, which v3 also ran). The
+    embedder is loaded at the pinned Hub revision, and the upstream checkout must have the pinned digest.
     """
     paths = {n: artifact_dir / n for n in ("config.json", "kmeans.joblib", "cluster_rankings.json")}
     missing = [str(p) for p in paths.values() if not p.is_file()]
@@ -403,8 +400,8 @@ def load_avengers_pro(artifact_dir: Path, upstream_repo: Path, *, beta: float, t
     models = art.get("models") if isinstance(art, dict) else None
     if not isinstance(models, list) or not models or not all(isinstance(m, str) for m in models):
         raise ConfigError(f"avengers_pro: {paths['config.json']} needs a non-empty 'models' list")
-    for key, ours in (("top_k", top_k), ("beta", beta), ("max_router", 1),
-                      ("embedding_model", embedder), ("embedder", embedder)):
+    for key, ours in (("top_k", top_k), ("beta", beta), ("max_router", 1), ("max_tokens", max_tokens),
+                      ("max_workers", max_workers), ("embedding_model", embedder), ("embedder", embedder)):
         _check_recorded(art, key, ours)
     scr = _import_upstream(upstream_repo, upstream_sha256)
     import joblib
@@ -416,7 +413,8 @@ def load_avengers_pro(artifact_dir: Path, upstream_repo: Path, *, beta: float, t
     kwargs = {k: v for k, v in art.items() if k in fields}
     # max_router 1: the wrapper returns upstream's single best model. data_path is a training input that
     # upstream's config validation requires to exist; nothing reads it at route time.
-    kwargs.update(top_k=top_k, beta=beta, max_router=1, data_path=str(paths["config.json"]))
+    kwargs.update(top_k=top_k, beta=beta, max_router=1, max_tokens=max_tokens, max_workers=max_workers,
+                  data_path=str(paths["config.json"]))
     up = scr.SimpleClusterRouter.__new__(scr.SimpleClusterRouter)
     up.config = scr.SimpleClusterConfig(**kwargs)
     up.logger = logging.getLogger("SimpleClusterRouter")
@@ -516,15 +514,10 @@ class _NoOptions(_Options):
 
 
 class _BestRouteOptions(_Options):
-    checkpoint: str                                      # relative to the artifact root
+    checkpoint: ArtifactPath
     confidence_threshold: float = Field(ge=0, lt=1)      # 0 = pure argmax (with 4 labels, anything <= 0.25 is)
     fallback_model: Optional[str] = None                 # absent: no fallback, so a pool miss raises
     max_length: int = Field(ge=1)                        # 512 = training length = the model's positions
-
-    @field_validator("checkpoint")
-    @classmethod
-    def _checkpoint_is_relative(cls, v: str) -> str:
-        return _relative_path(v)
 
     @model_validator(mode="after")
     def _fallback_for_threshold(self):   # checked before the checkpoint is loaded (v3 order)
@@ -534,30 +527,22 @@ class _BestRouteOptions(_Options):
 
 
 class _BestRouteUpstreamOptions(_Options):
-    checkpoint: str                                   # relative to the artifact root: upstream's checkpoint-best
+    checkpoint: ArtifactPath                          # upstream's checkpoint-best
     threshold: float = Field(ge=-1, le=1)             # on the score P(as good as the reference) - P(worse)
     base_model: str                                   # the ranker's backbone, as trained
     base_revision: str = Field(pattern=r"^[0-9a-f]{40}$")
     upstream_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")   # best_route_digest() of the pinned checkout
 
-    @field_validator("checkpoint")
-    @classmethod
-    def _checkpoint_is_relative(cls, v: str) -> str:
-        return _relative_path(v)
-
 
 class _AvengersProOptions(_Options):
-    artifact_dir: str                    # relative to the artifact root
+    artifact_dir: ArtifactPath
     beta: float = Field(gt=0)            # v3: 5.0
     top_k: int = Field(ge=1)             # v3: 4 for the Qwen artifacts (recorded there), 3 for Gemma
     embedder: str                        # sentence-transformers model the artifact was clustered with
     embedder_revision: str = Field(pattern=r"^[0-9a-f]{40}$")   # its Hub commit
     upstream_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")     # upstream_digest() of the pinned checkout
-
-    @field_validator("artifact_dir")
-    @classmethod
-    def _artifact_dir_is_relative(cls, v: str) -> str:
-        return _relative_path(v)
+    max_tokens: int = Field(ge=1)        # upstream truncates a prompt to this many cl100k tokens before embedding
+    max_workers: int = Field(ge=1)       # upstream's embedding thread pool (one query per call here)
 
 
 def _options(model: type[_Options], cfg: RouterConfig) -> _Options:
@@ -614,7 +599,8 @@ def build_router(cfg: RouterConfig, *, artifact_root: Path, avengers_repo: Optio
             raise ConfigError("avengers_pro needs the upstream AvengersPro checkout")
         up = load_avengers_pro(artifact_root / ap.artifact_dir, avengers_repo, beta=ap.beta, top_k=ap.top_k,
                                embedder=ap.embedder, embedder_revision=ap.embedder_revision,
-                               upstream_sha256=ap.upstream_sha256)
+                               upstream_sha256=ap.upstream_sha256, max_tokens=ap.max_tokens,
+                               max_workers=ap.max_workers)
         return AvengersProRouter(up.route_queries_batch, executor=executor)
     if cfg.type == "rb_decoupled":
         _options(_NoOptions, cfg)

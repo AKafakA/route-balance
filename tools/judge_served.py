@@ -35,12 +35,13 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import json
 import sys
 from pathlib import Path
 from typing import Sequence
 
-from analysis.quality import parse_store_line, read_jsonl, text_sha256
+from bench.dataset import file_sha256
+from analysis.quality import parse_store_line, text_sha256
+from bench.schema import read_jsonl, write_new_jsonl
 from bench.records import CELL_SUFFIX, read_cell, records_in
 from routebalance.config import ConfigError
 from tools.campaign import load_plan
@@ -105,7 +106,7 @@ def pinned_corpora(plan: dict, families: Sequence[str], data_root: Path) -> list
             raise ConfigError(f"the plan has no scored corpus for {family!r}")
         entry = plan["scored_corpora"][family]
         path = Path(data_root) / entry["path"]
-        sha = hashlib.sha256(path.read_bytes()).hexdigest()
+        sha = file_sha256(path)
         if sha != entry["sha256"]:
             raise ConfigError(f"{path} has sha256 {sha}; the plan pins {entry['sha256']}")
         out.append(path)
@@ -179,14 +180,6 @@ def merge(judge_key: str, store: Sequence[Path], judge_input: Path, judge_output
     return new, unscored
 
 
-def _write_new(path: Path, lines: Sequence[dict]) -> None:
-    if path.exists():
-        raise ConfigError(f"{path} exists; write a new file")
-    with open(path, "w", encoding="utf-8") as f:
-        for line in lines:
-            f.write(json.dumps(line, ensure_ascii=False) + "\n")
-
-
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -206,12 +199,12 @@ def main(argv: list[str]) -> int:
     if a.cmd == "collect":
         corpora = pinned_corpora(load_plan(a.render), a.family, a.data_root)
         lines, empty, skipped = collect(a.judge_key, a.store, a.cells, corpora)
-        _write_new(a.out, lines)
+        write_new_jsonl(a.out, lines)
         print(f"{a.out}: {len(lines)} texts to judge under {a.judge_key}; {empty} empty served texts (scored 0, not "
               f"sent); {skipped} cells without a budget skipped (their quality is the lookup)")
         return 0
     new, unscored = merge(a.judge_key, a.store, a.judge_input, a.judge_output)
-    _write_new(a.out, new)
+    write_new_jsonl(a.out, new)
     print(f"{a.out}: {len(new)} scored texts added; {len(unscored)} left unscored by the judge")
     return 0 if not unscored else 1
 

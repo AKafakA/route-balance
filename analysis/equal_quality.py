@@ -122,15 +122,6 @@ def position_at(quality: float, qualities: Sequence[float], tolerance: float) ->
     return i - 1, i, (quality - qualities[i - 1]) / (qualities[i] - qualities[i - 1]), False
 
 
-def value_at(quality: float, frontier: Sequence[tuple[float, float]], tolerance: float) -> Optional[float]:
-    """The frontier's metric value at `quality` (frontier: (quality, metric) by increasing quality)."""
-    pos = position_at(quality, [q for q, _ in frontier], tolerance)
-    if pos is None:
-        return None
-    i, j, w, _ = pos
-    return frontier[i][1] + (frontier[j][1] - frontier[i][1]) * w
-
-
 @dataclass(frozen=True)
 class _Frontier:
     """The presets on the quality-latency frontier (indices, by increasing quality) and their qualities."""
@@ -222,8 +213,7 @@ def _check_paired(where: tuple[str, str], seeds: tuple[int, ...], configs: Seque
 
 
 def equal_quality(points: Iterable[CellPoint], treatment: str, rules: EqualQuality,
-                  samples: Optional[Mapping[SampleKey, RequestValues]] = None,
-                  reading: str = "one_config") -> list[EqualQualityRow]:
+                  samples: Optional[Mapping[SampleKey, RequestValues]], reading: str) -> list[EqualQualityRow]:
     """One row per baseline configuration, group and trace; the treatment is the system named `treatment`.
     `samples` holds every compared cell's per-request values, for the request bootstrap (none: no CI); `reading`
     is one of READINGS (step 3)."""

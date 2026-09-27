@@ -53,7 +53,7 @@ from pathlib import Path
 
 import aiohttp
 
-from analysis.quality import read_jsonl
+from bench.schema import read_jsonl
 from bench.dataset import prompt_order
 from bench.records import Sampling
 from routebalance.backend import BackendClient

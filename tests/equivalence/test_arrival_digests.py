@@ -1,7 +1,8 @@
 """bench.arrivals reproduces every arrival-schedule digest recorded by the v3 burst campaign."""
 import hashlib
 
-from bench.arrivals import arrival_times, constant_trace, schedule_digest
+from bench.arrivals import arrival_times, schedule_digest
+from tests.traces import constant_trace
 
 N_PROMPTS = 3534
 BURSTINESS = {"pois": 1.0, "gam025": 0.25}

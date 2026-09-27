@@ -36,6 +36,7 @@ from typing import Optional
 
 import aiohttp
 
+from bench.dataset import file_sha256
 from analysis.manifest import cell_problems
 from bench.records import CELL_SUFFIX, cell_dir, cell_path, read_cell, records_in
 from bench.records import Sampling
@@ -132,11 +133,16 @@ def prepare(render: Path, cell: str, root: Path, fleet: Path, hosts: Path) -> di
             "INSTANCES": str(len(instances))}
 
 
-async def drain(render: Path, cell: str, fleet: Path, hosts: Path, url: str) -> float:
-    """Wait for the scheduler to hold no request and every engine to be idle (bounded by the plan's drain)."""
+def cell_context(render: Path, cell: str, fleet: Path, hosts: Path):
+    """The render's scope and plan, the cell's expected entry and its group's fleet instances."""
     scope, plan = load(render)
     exp = expected(scope, cell)
-    instances = fleet_of(plan, exp.group, fleet, hosts)
+    return scope, plan, exp, fleet_of(plan, exp.group, fleet, hosts)
+
+
+async def drain(render: Path, cell: str, fleet: Path, hosts: Path, url: str) -> float:
+    """Wait for the scheduler to hold no request and every engine to be idle (bounded by the plan's drain)."""
+    scope, plan, exp, instances = cell_context(render, cell, fleet, hosts)
     bound = plan["drain"]["timeout_s"]
     start = time.monotonic()
     while (await _get(url, "/v1/stats"))["active"] != 0:
@@ -161,9 +167,7 @@ async def post_config(url: str, attempt: Path, config_digest: str, fleet_digest:
 
 async def engines_snapshot(render: Path, cell: str, fleet: Path, hosts: Path, record: Path, out: Path) -> None:
     """Every engine of the cell's fleet as it reports itself, with its deploy-record launch (tools/engines.py)."""
-    scope, plan = load(render)
-    exp = expected(scope, cell)
-    instances = fleet_of(plan, exp.group, fleet, hosts)
+    scope, plan, exp, instances = cell_context(render, cell, fleet, hosts)
     _write_json(out, await engines.engines(instances, record, direct.SCRAPE_TIMEOUT_S))
 
 
@@ -180,9 +184,7 @@ def engine_problems(d: Path) -> list[str]:
 async def warm_up(render: Path, cell: str, fleet: Path, hosts: Path, attempt: Path) -> None:
     """The warm-up, straight to the engines (never through the scheduler, whose log is the cell's evidence),
     then a drain."""
-    scope, plan = load(render)
-    exp = expected(scope, cell)
-    instances = fleet_of(plan, exp.group, fleet, hosts)
+    scope, plan, exp, instances = cell_context(render, cell, fleet, hosts)
     w, sampling = plan["warmup"], Sampling.model_validate(scope.bench.sampling.model_dump())
     async with direct.session(len(instances)) as sess:
         backend = BackendClient(sess, scope.bench.request_timeout_s)
@@ -385,7 +387,7 @@ def _runs(dirs: list[str]) -> list[list[str]]:
     out = []
     for d in dirs:
         (name,) = records_in(Path(d))
-        out.append([d, hashlib.sha256((Path(d) / name).read_bytes()).hexdigest()])
+        out.append([d, file_sha256(Path(d) / name)])
     return out
 
 

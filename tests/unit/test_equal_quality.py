@@ -3,12 +3,22 @@ metric, the tolerance, the range over the seeds, and the request bootstrap withi
 import numpy as np
 import pytest
 
-from analysis.equal_quality import equal_quality, value_at
+from analysis.equal_quality import equal_quality, position_at
 from analysis.frontier import CellPoint
 from analysis.metrics import RequestValues
 from analysis.rules import EqualQuality
 from routebalance.config import ConfigError
 from tests.unit.test_frontier import pt
+
+
+def value_at(quality, frontier, tolerance):
+    """The frontier's metric value at `quality` (frontier: (quality, metric) by increasing quality)."""
+    pos = position_at(quality, [q for q, _ in frontier], tolerance)
+    if pos is None:
+        return None
+    i, j, w, _ = pos
+    return frontier[i][1] + (frontier[j][1] - frontier[i][1]) * w
+
 
 RULES = EqualQuality(tolerance=0.03, bootstrap_resamples=500, confidence=0.9, bootstrap_seed=0)
 FRONTIER = [(0.4, 1000.0), (0.5, 2000.0)]
@@ -42,7 +52,7 @@ def _grid(seeds=(1,), shift=lambda s: 0.0):
 
 
 def test_one_seed_gives_the_interpolated_delta_without_a_ci():
-    [row] = equal_quality(_grid(), "RB", RULES)
+    [row] = equal_quality(_grid(), "RB", RULES, None, "one_config")
     mean = row.deltas[0]
     assert (row.group, row.trace_id, row.config_id, row.system, row.seeds) == ("g1", "l30", "ap-1", "AP", (1,))
     assert mean.metric == "e2e_mean_ms" and mean.treatment == pytest.approx(1250.0)
@@ -57,29 +67,29 @@ def test_one_seed_gives_the_interpolated_delta_without_a_ci():
 
 def test_a_baseline_outside_the_treatment_range_has_no_delta():
     pts = _grid()[:3] + [pt("ap-1", "AP", 1, 0.7, 2500)]
-    [row] = equal_quality(pts, "RB", RULES)
+    [row] = equal_quality(pts, "RB", RULES, None, "one_config")
     assert all(d.treatment is None and d.delta is None and d.relative is None for d in row.deltas)
 
 
 def test_presets_without_the_baselines_seeds_are_excluded():
     pts = _grid(seeds=(1, 2)) + [pt("rb-x", "RB", 1, 0.42, 10.0)]
-    [row] = equal_quality(pts, "RB", RULES)
+    [row] = equal_quality(pts, "RB", RULES, None, "one_config")
     assert row.excluded_presets == ("rb-x",) and row.deltas[0].treatment == pytest.approx(1250.0)
 
 
 def test_a_baseline_is_compared_only_with_its_own_groups_presets():
     pts = _grid() + [pt("ap-1", "AP", 1, 0.425, 2500, group="g2"), pt("rb-a", "RB", 1, 0.40, 8000, group="g2"),
                      pt("rb-b", "RB", 1, 0.50, 10000, group="g2")]
-    rows = {r.group: r.deltas[0] for r in equal_quality(pts, "RB", RULES)}
+    rows = {r.group: r.deltas[0] for r in equal_quality(pts, "RB", RULES, None, "one_config")}
     assert rows["g1"].treatment == pytest.approx(1250.0) and rows["g2"].treatment == pytest.approx(8500.0)
     with pytest.raises(ConfigError, match="no RB preset at g3/l30"):
-        equal_quality(_grid()[:3] + [pt("ap-1", "AP", 1, 0.425, 2500, group="g3")], "RB", RULES)
+        equal_quality(_grid()[:3] + [pt("ap-1", "AP", 1, 0.425, 2500, group="g3")], "RB", RULES, None, "one_config")
 
 
 def test_no_eligible_preset_is_an_error():
     pts = [pt("rb-a", "RB", 1, 0.4, 1000.0), pt("ap-1", "AP", 2, 0.4, 1000.0)]
     with pytest.raises(ConfigError, match="no RB preset"):
-        equal_quality(pts, "RB", RULES)
+        equal_quality(pts, "RB", RULES, None, "one_config")
 
 
 def test_every_metric_is_read_at_the_one_configuration_on_the_latency_frontier():
@@ -89,7 +99,7 @@ def test_every_metric_is_read_at_the_one_configuration_on_the_latency_frontier()
                      throughput_rps=20.0)
            for c, sys_, q, m, p99, cost in (("rb-a", "RB", 0.40, 1000, 5000, 1.0), ("rb-b", "RB", 0.50, 2000, 3000, 3.0),
                                             ("rb-c", "RB", 0.45, 3000, 1000, 0.1), ("ap-1", "AP", 0.425, 2500, 4000, 2.0))]
-    [row] = equal_quality(pts, "RB", RULES)
+    [row] = equal_quality(pts, "RB", RULES, None, "one_config")
     by = {d.metric: d for d in row.deltas}
     assert row.frontier_presets == ("rb-a", "rb-b") and row.weight == pytest.approx(0.25)
     assert by["e2e_p99_ms"].treatment == pytest.approx(4500.0)                    # 5000 + 0.25 * (3000 - 5000)
@@ -101,7 +111,7 @@ def test_the_range_is_over_the_one_seed_comparisons():
     # the baseline alone is slower on seed 3: seeds 1-2 give -1250 ms (-50%), seed 3 gives 1250 - 3100
     pts = _grid(seeds=(1, 2, 3))
     pts[-1] = pt("ap-1", "AP", 3, 0.425, 3100)
-    mean = equal_quality(pts, "RB", RULES)[0].deltas[0]
+    mean = equal_quality(pts, "RB", RULES, None, "one_config")[0].deltas[0]
     assert [(v.seed, v.delta) for v in mean.per_seed] == [(1, pytest.approx(-1250.0)), (2, pytest.approx(-1250.0)),
                                                           (3, pytest.approx(-1850.0))]
     assert mean.range == pytest.approx((-1850.0, -1250.0))
@@ -115,7 +125,7 @@ def test_a_value_at_the_means_outside_its_range_is_flagged():
     pts = [p for s in (1, 2) for p in (pt("rb-a", "RB", s, 0.40, 1000), pt("rb-b", "RB", s, 0.45, 1100),
                                        pt("rb-c", "RB", s, 0.50, 3000))]
     pts += [pt("ap-1", "AP", 1, 0.40, 1000), pt("ap-1", "AP", 2, 0.50, 3000)]
-    mean = equal_quality(pts, "RB", RULES)[0].deltas[0]
+    mean = equal_quality(pts, "RB", RULES, None, "one_config")[0].deltas[0]
     assert mean.range_relative == pytest.approx((0.0, 0.0)) and mean.relative == pytest.approx(1100 / 2000 - 1)
     assert mean.outside_range
 
@@ -123,7 +133,7 @@ def test_a_value_at_the_means_outside_its_range_is_flagged():
 def test_a_seed_without_an_equal_quality_point_leaves_no_range():
     pts = _grid(seeds=(1, 2))
     pts[-1] = pt("ap-1", "AP", 2, 0.9, 2500)
-    mean = equal_quality(pts, "RB", RULES)[0].deltas[0]
+    mean = equal_quality(pts, "RB", RULES, None, "one_config")[0].deltas[0]
     assert mean.per_seed[1].delta is None and mean.range is None and mean.range_relative is None
 
 
@@ -202,7 +212,7 @@ def test_cells_that_do_not_hold_the_same_requests_are_refused():
 def test_a_compared_cell_without_request_values_is_an_error():
     cells = [_cell("rb-a", "RB", 1, [0.5] * N, _latency(1)), _cell("ap-1", "AP", 1, [0.5] * N, _latency(1))]
     with pytest.raises(ConfigError, match="no per-request values for"):
-        equal_quality([c[0] for c in cells], "RB", RULES, dict([cells[0][1]]))
+        equal_quality([c[0] for c in cells], "RB", RULES, dict([cells[0][1]]), "one_config")
 
 
 def test_corpus_gaps_are_left_out_of_the_resampled_quality():
@@ -247,8 +257,8 @@ def _kinked():
 
 def test_the_per_metric_reading_reads_each_metric_on_its_own_frontier():
     # v2/v3's reading (D86): p99's frontier is rb-c, rb-b; the baseline's 0.425 is within the tolerance of rb-c's 0.45
-    [one] = equal_quality(_kinked(), "RB", RULES, reading="one_config")
-    [per] = equal_quality(_kinked(), "RB", RULES, reading="per_metric")
+    [one] = equal_quality(_kinked(), "RB", RULES, None, reading="one_config")
+    [per] = equal_quality(_kinked(), "RB", RULES, None, reading="per_metric")
     one_by, per_by = ({d.metric: d for d in r.deltas} for r in (one, per))
     assert per_by["e2e_mean_ms"].treatment == pytest.approx(1250.0)
     assert one_by["e2e_mean_ms"].treatment == pytest.approx(1250.0)
@@ -270,18 +280,18 @@ def test_the_per_metric_reading_bootstraps_each_metric_on_its_own_frontier():
 
 def test_an_unknown_reading_is_refused():
     with pytest.raises(ConfigError, match="unknown equal-quality reading"):
-        equal_quality(_grid(), "RB", RULES, reading="best_of")
+        equal_quality(_grid(), "RB", RULES, None, reading="best_of")
 
 
 
 def test_below_the_frontier_the_low_end_is_read_at_higher_quality():
     # D87: the baseline's 0.30 is below rb-a's 0.40 by more than the tolerance: rb-a is compared, marked
     pts = _grid()[:3] + [pt("ap-1", "AP", 1, 0.30, 2500)]
-    [row] = equal_quality(pts, "RB", RULES)
+    [row] = equal_quality(pts, "RB", RULES, None, "one_config")
     mean = row.deltas[0]
     assert mean.treatment == pytest.approx(1000.0) and mean.at_higher_quality and row.frontier_presets == ("rb-a", "rb-a")
     assert mean.per_seed[0].at_higher_quality
-    [inside] = equal_quality(_grid(), "RB", RULES)
+    [inside] = equal_quality(_grid(), "RB", RULES, None, "one_config")
     assert not inside.deltas[0].at_higher_quality and not inside.deltas[0].per_seed[0].at_higher_quality
 
 
@@ -293,7 +303,7 @@ def test_a_flat_metric_is_read_at_the_frontier_that_dominates_the_baseline():
                      throughput_rps=20.0)
            for c, sys_, q, m, p99 in (("rb-a", "RB", 0.40, 1000, 5000), ("rb-b", "RB", 0.50, 2000, 3000),
                                       ("ap-1", "AP", 0.425, 2500, 4000))]
-    [per] = equal_quality(pts, "RB", RULES, reading="per_metric")
+    [per] = equal_quality(pts, "RB", RULES, None, reading="per_metric")
     by = {d.metric: d for d in per.deltas}
     assert by["e2e_p99_ms"].treatment == pytest.approx(3000.0) and by["e2e_p99_ms"].at_higher_quality
     assert by["slo_miss_loose"].treatment == 0.0 and by["slo_miss_loose"].frontier_presets == ("rb-b", "rb-b")

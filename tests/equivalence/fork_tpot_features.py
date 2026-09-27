@@ -4,8 +4,8 @@ v3 fed each head 25 float32 features (V3_FEATURES, in this order) built from the
 /instance_stats body. Five were never in that body (UNSERVED) and read as 0.0, and because the two
 token-rate EMAs were missing, the three features divided by them took v3's 1.0 tok/s divide-by-zero floor.
 The scheduler cannot serve these heads (official vLLM reports none of the fork's context or backlog
-fields); tools/retrain_xgb_served.py uses this vector to score the v3 heads as they actually ran, and
-tests/equivalence checks it against v3's own build_feature_vector.
+fields); the equivalence tests use this vector to score the v3 heads as they actually ran, and check it
+against v3's own build_feature_vector.
 """
 from __future__ import annotations
 

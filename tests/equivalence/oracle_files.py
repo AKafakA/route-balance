@@ -39,9 +39,9 @@ ENCODER_REVISION = "1110a243fdf4706b3f48f1d95db1a4f5529b4d41"   # all-MiniLM-L6-
 UPSTREAM_SHA256 = "6cfaf58f525217b47c2e90361fbb3e94309f66fbbc7eadef067e01c82946493b"
 # The rebuild's delivered artifacts under --artifact-root, pinned like any other (regenerating one means
 # updating its pin here and in the config that uses it).
-SERVED_HEADS = "xgb_served"                                     # tools/retrain_xgb_served.py --v3-sweep
+SERVED_HEADS = "xgb_served"                                     # built by the removed --v3-sweep mode (998421e)
 SERVED_HEADS_MD5 = "1bfe49bb364e2c76c29fbd750a53a73f"                  # md5 of its md5s.json (the config's table_md5)
-TPOT_TABLE = "tpot_table_v3cells_d47.json"                      # tools/calibrate_tpot_curve.py, v3 cells, with the
+TPOT_TABLE = "tpot_table_v3cells_d47.json"                      # banked_cell_records.py + build_table, with the
 TPOT_TABLE_MD5 = "3500d6467dc3cae802cc783356bc4252"             # D47 running max (the pre-D47 table: 7bf3dd4a...)
 
 

@@ -7,7 +7,7 @@ import json
 import pytest
 
 from analysis.quality import ScoreStore, text_sha256
-from bench.arrivals import constant_trace
+from tests.traces import constant_trace
 from bench.dataset import load_prompts
 from bench.records import Sampling, write_cell
 from bench.runner import CellSpec, run_cell

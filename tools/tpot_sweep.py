@@ -9,11 +9,12 @@ missing (null) or non-positive targets are dropped, and counted.
 """
 from __future__ import annotations
 
-import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
+
+from routebalance.config import loads_strict
 
 KEYS = frozenset({"tier", "features", "tpot_s", "output_tokens", "success"})
 
@@ -46,7 +47,7 @@ def read_sweep(paths: Sequence[Path], feature_names: Sequence[str]) -> Sweep:
                 if not line.strip():
                     continue
                 where = f"{path}:{n}"
-                rec = json.loads(line)
+                rec = loads_strict(line)
                 if not isinstance(rec, dict) or set(rec) != KEYS:
                     raise ValueError(f"{where}: a sweep record has exactly the keys {sorted(KEYS)}")
                 feats, tier, y, out = rec["features"], rec["tier"], rec["tpot_s"], rec["output_tokens"]

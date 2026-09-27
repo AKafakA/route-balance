@@ -8,7 +8,7 @@ import pytest
 from analysis.metrics import Outcome, decode_prices, request_values, spread, summarize, summarize_cell
 from analysis.quality import ScoredCorpus, ScoreStore
 from analysis.slo import CellSlo, Limits, SloBase
-from bench.arrivals import constant_trace
+from tests.traces import constant_trace
 from bench.dataset import load_prompts
 from bench.records import Sampling
 from bench.runner import CellSpec, run_cell

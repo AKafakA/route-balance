@@ -39,9 +39,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
-from pydantic import Field, field_validator
+from pydantic import AfterValidator, Field
 
 from bench.arrivals import Trace, arrival_times, schedule_digest
 from bench.dataset import Order, order_digest, prompt_order
@@ -66,28 +66,21 @@ def _relative_path(v: str) -> str:
     return v
 
 
+DataPath = Annotated[str, AfterValidator(_relative_path)]          # relative to the data root given at run time
+
+
 class BudgetTable(Strict):
     """Per-request cost budgets (bench/dataset.py attach_budgets): one line per prompt of the dataset."""
-    path: str                            # relative to the data root given at run time
+    path: DataPath
     sha256: str = Field(pattern=_SHA256)
-
-    @field_validator("path")
-    @classmethod
-    def _relative(cls, v: str) -> str:
-        return _relative_path(v)
 
 
 class DatasetEntry(Strict):
-    path: str                            # relative to the data root given at run time
+    path: DataPath
     sha256: str = Field(pattern=_SHA256)
     rows: int = Field(ge=1)
     tokenizer_id: str = Field(min_length=1)
     budgets: Optional[BudgetTable]       # the budget sweep's datasets only (W7b); null for every other
-
-    @field_validator("path")
-    @classmethod
-    def _relative(cls, v: str) -> str:
-        return _relative_path(v)
 
 
 class ConfigEntry(Strict):

@@ -54,7 +54,6 @@ runs (D86).
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import math
 import sys
@@ -65,6 +64,7 @@ from typing import Mapping, Optional, Sequence
 
 import numpy as np
 
+from bench.dataset import file_sha256
 from analysis.equal_quality import READINGS, SampleKey, equal_quality
 from analysis.frontier import METRICS, CellPoint, ConfigPoint, by_config, cell_point, config_points, frontiers
 from analysis.manifest import Coverage, check
@@ -101,10 +101,6 @@ def _pairs(items: Sequence[str], what: str) -> dict[str, Path]:
     return out
 
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
 def stationary_rates(scope: Scope) -> dict[str, float]:
     """trace id -> rate, for the traces with one Poisson segment (the goodput curves use only these)."""
     out = {}
@@ -133,7 +129,7 @@ class Inputs:
         for name, entry in self.plan["fleets"].items():
             if name not in fleets:
                 continue
-            if _sha256(fleets[name]) != entry["fleet_sha256"]:
+            if file_sha256(fleets[name]) != entry["fleet_sha256"]:
                 raise ConfigError(f"{fleets[name]} is not the fleet {name} the plan pins")
             self.fleets[name] = load_fleet(fleets[name], hosts)
         self.corpora: dict[str, ScoredCorpus] = {}
@@ -141,7 +137,7 @@ class Inputs:
             path = Path(data_root) / entry["path"]
             if not path.is_file():
                 continue
-            if _sha256(path) != entry["sha256"]:
+            if file_sha256(path) != entry["sha256"]:
                 raise ConfigError(f"{path} is not the scored corpus the plan pins for {family}")
             self.corpora[family] = ScoredCorpus.load([path], judge_key)
         self.store = ScoreStore.load(list(stores), judge_key) if stores else None

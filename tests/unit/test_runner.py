@@ -7,7 +7,8 @@ import pytest
 
 import bench.runner as runner
 from analysis.validity import integrity_problems
-from bench.arrivals import arrival_times, constant_trace, schedule_digest
+from bench.arrivals import arrival_times, schedule_digest
+from tests.traces import constant_trace
 from bench.dataset import load_prompts, order_digest
 from bench.records import Sampling, read_cell, write_cell
 from bench.runner import CellSpec, WrongConfiguration, run_cell

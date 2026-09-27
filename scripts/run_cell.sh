@@ -25,12 +25,14 @@
 set -euo pipefail
 
 PY=${PY:?set PY to the scheduler venv python}
+PY=$(command -v "$PY") || { echo "PY=$PY is not an executable" >&2; exit 2; }   # one absolute interpreter for all steps
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
 usage() { echo "usage: $0 --render DIR --cell ID --scheduler URL --scheduler-log-dir DIR --fleet F --hosts H" \
                "--engines-record FILE --data-root DIR --cells-root DIR --mirror DEST" >&2; exit 2; }
 RENDER= CELL= URL= LOGDIR= FLEET= HOSTS= ENGINES= DATA= ROOT= MIRROR=
+RC=2                    # fail()'s exit code: a cell that could not run (never taken from the caller's environment)
 while [ $# -gt 0 ]; do
   case "$1" in
     --render) RENDER=$2 ;; --cell) CELL=$2 ;; --scheduler) URL=$2 ;; --scheduler-log-dir) LOGDIR=$2 ;;
@@ -46,7 +48,7 @@ source "$REPO/scripts/mirror.sh"
 source "$REPO/scripts/node_layout.sh"   # RB_HF_HOME: the Hub snapshots setup.sh pinned (the runner's tokenizer)
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 drv() { "$PY" -m tools.cell_driver "$@"; }
-fail() { echo "$(ts) [run_cell] $CELL: $*" >&2; exit "${RC:-2}"; }
+fail() { echo "$(ts) [run_cell] $CELL: $*" >&2; exit "$RC"; }
 
 # ---- the attempt directory, the cell's configuration and group
 PREP=$(drv prepare --render "$RENDER" --cell "$CELL" --cells-root "$ROOT" --fleet "$FLEET" --hosts "$HOSTS") \
@@ -75,9 +77,10 @@ drv before --scheduler "$URL" --attempt "$ATTEMPT" --log-dir "$LOGDIR" --config-
 drv check-scheduler --render "$RENDER" --attempt "$ATTEMPT" || fail "restart the scheduler (see above)"
 
 # ---- 6. the bench runner (writes <cell_id>.cell.json into the attempt directory); offline, from the pinned
-#         snapshots, like the scheduler (node_ctl.sh)
+#         snapshots, in a clean environment like the scheduler and the engines (node_ctl.sh)
 set +e
-HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 "$PY" -m bench.runner --scope "$RENDER/scope.json" --cell "$CELL" --scheduler-url "$URL" --data-root "$DATA" \
+env -i HOME="$HOME" PATH="$RB_PATH" LANG=C.UTF-8 HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 \
+    "$PY" -m bench.runner --scope "$RENDER/scope.json" --cell "$CELL" --scheduler-url "$URL" --data-root "$DATA" \
     --out-dir "$ATTEMPT"
 BENCH=$?
 set -e

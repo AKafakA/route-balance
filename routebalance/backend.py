@@ -1,4 +1,4 @@
-"""Client for the vLLM fork's streaming chat endpoint.
+"""Client for official vLLM's streaming chat endpoint (D24).
 
 Every system (RouteBalance and each baseline) sends requests through this one client, over one
 pooled, bounded aiohttp session owned by the server. The raw user prompt goes in a single chat

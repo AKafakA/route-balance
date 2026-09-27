@@ -12,7 +12,7 @@ A minimal, readable codebase: `CODE_TOUR.md` walks it in reading order, with eac
 | `routebalance/` | the scheduler: config, telemetry, estimators, scheduling, baselines, server |
 | `bench/` | load generator and benchmark client |
 | `analysis/` | metrics, aggregation, frontier and equal-quality comparisons |
-| `tools/` | offline jobs: calibration, index building, replay, microbenchmark; the engine deployment plan |
+| `tools/` | the campaign render and drivers, calibration, the learned heads, router training, judging, the engine deployment plan |
 | `scripts/` | node setup (`setup.sh`, one node; `setup_fleet.sh`, all nodes), engine and scheduler deployment |
 | `configs/` | fleets, engine arguments per tier, example hosts and launch files (real host names live in `local/`) |
 
@@ -45,16 +45,14 @@ snapshot. Every commit passed them there:
 | `artifacts.py` | md5-pinned reads of every artifact |
 
 `tools/calibrate_tpot_curve.py` writes the constant and curve tables; `tools/retrain_xgb_served.py`
-retrains the TPOT heads on serving-time features, from the scheduler's own latency sweep
-(`tools/tpot_sweep.py`) or from the v3 sweep, where it also scores the v3 heads with their serving-time
-zero-fill (`tools/fork_tpot_features.py`, comparisons only).
+retrains the TPOT heads on serving-time features, from the scheduler's own latency sweep (`tools/tpot_sweep.py`).
 
 ## Campaign (`configs/`, `tools/`, `scripts/`)
 
 | file | what it is |
 |---|---|
 | `configs/presets.json` | every scheduler configuration of the lease, as templates (`tools/campaign.py` documents the format) |
-| `configs/scope.json` | every lease row (W1-W11) in the plan's order, with its blocks, groups, traces and datasets |
+| `configs/scope.json` | every lease row (W1-W12) in the plan's order, with its blocks, groups, traces and datasets |
 | `configs/prereg_rules.json` | the preregistered analysis rules, including the G1 gate |
 | `tools/campaign.py` | `dry-run` lists every cell, the hours and every value still `OWNER-MUST-SET`; `render` writes the scope, the configuration files and the plan the drivers run from, in stages as lease pins and decisions arrive |
 | `tools/calibrate_driver.py` | W1: closed-loop TPOT at fixed concurrency levels, for `tools/calibrate_tpot_curve.py` |

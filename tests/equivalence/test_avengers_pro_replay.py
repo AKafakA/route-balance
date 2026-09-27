@@ -18,7 +18,8 @@ from tests.equivalence.router_oracle import BANKED_N, md5
 from tests.fleet_s2 import POOL
 
 EMBEDDER = "sentence-transformers/all-MiniLM-L6-v2"
-PINS = {"embedder_revision": ENCODER_REVISION, "upstream_sha256": UPSTREAM_SHA256}   # the campaign presets' pins
+PINS = {"embedder_revision": ENCODER_REVISION, "upstream_sha256": UPSTREAM_SHA256,   # the campaign presets' pins
+        "max_tokens": 7500, "max_workers": 4}
 KMEANS_MD5 = "ea9dc3b9f597e63fd09f4976c17f09b3"
 ARTIFACTS = {   # pw -> (banked cell, cluster_rankings.json md5)
     "0.25": ("ap_pw025", "aa4c467259b86d408c4dded03f85c44e"),

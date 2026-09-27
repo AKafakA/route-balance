@@ -8,8 +8,7 @@ tokens and expected output tokens, and the two v3 features derived from the requ
 come from tools/retrain_xgb_served.py, which builds its training vectors with feature_values() below, so
 training and serving vectors are identical by construction; target TPOT in seconds per token.
 
-The v3 heads read 25 features from the vLLM fork's /instance_stats and cannot be served from this state
-(tools/fork_tpot_features.py rebuilds their serving-time vector for comparisons with v3 only).
+The v3 heads read 25 features from the vLLM fork's /instance_stats and cannot be served from this state.
 
 Model dir: feature_names.json and <tier>.xgb, with md5s.json {file: md5} pinning every file (the config
 pins md5s.json itself). A booster file is named by the fleet tier_id it serves.

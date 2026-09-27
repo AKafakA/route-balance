@@ -1,9 +1,10 @@
 """The routers' training inputs and the AvengersPro artifacts, built fresh for both families (D68-D72).
 
-    python -m tools.router_training filter --corpus SCORED.jsonl --fleet FLEET.json --out ROWS.jsonl
-    python -m tools.router_training avengers-pro --corpus ROWS.jsonl --fleet FLEET.json --models M... \
-        --pw 0.25 0.39 0.53 0.70 0.80 --embedder-revision REV --out-root DIR
-    python -m tools.router_training best-route-data --corpus ROWS.jsonl --fleet FLEET.json --models M... --out DIR
+    python -m tools.router_training filter --corpus SCORED.jsonl --fleet FLEET.json --judge-key KEY --out ROWS.jsonl
+    python -m tools.router_training avengers-pro --corpus ROWS.jsonl --fleet FLEET.json --judge-key KEY --models M... \
+        --pw 0.25 0.39 0.53 0.70 0.80 --embedder EMBEDDER --embedder-revision REV --n-clusters 32 --out-root DIR
+    python -m tools.router_training best-route-data --corpus ROWS.jsonl --fleet FLEET.json --judge-key KEY \
+        --models M... --out DIR
 
 The corpus is a family's DeepEval-scored training split (JSONL, one prompt per line: prompt, input_len and, per
 model, response, output_length and llm_judge_scores.<judge key>). --models lists the fleet's models in ascending
@@ -36,7 +37,6 @@ validation set is 10% of the training prompts (seed 42), never test prompts (v3 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import random
 import sys
@@ -45,6 +45,8 @@ from typing import Mapping, Optional, Sequence
 
 import numpy as np
 
+from bench.dataset import file_sha256
+from bench.schema import read_jsonl, write_new_jsonl
 from routebalance.config import ConfigError, loads_strict
 
 JUDGE_KEY = "deepeval-llama3.1-8b-it_reference"
@@ -54,36 +56,15 @@ VAL_FRACTION = 0.1
 SPLIT_SEED = 42          # v3's converter shuffled with seed 42
 
 
-def read_jsonl(path: Path) -> list[dict]:
-    rows = []
-    with open(path, encoding="utf-8") as f:
-        for n, line in enumerate(f, start=1):
-            if line.strip():
-                try:
-                    rows.append(json.loads(line))
-                except json.JSONDecodeError as e:
-                    raise ConfigError(f"{path}:{n}: not JSON ({e})") from e
-    return rows
-
-
-def write_new(path: Path, rows: Sequence[dict]) -> None:
-    if path.exists():
-        raise ConfigError(f"{path} exists; write a new file")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "x", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
-
-
 def fleet_prices(fleet_path: Path) -> dict[str, tuple[float, float]]:
     """model -> (input price, output price) per token, from a fleet file's tiers; a model on several tiers must
     carry one price."""
     fleet = loads_strict(Path(fleet_path).read_text())
     out: dict[str, tuple[float, float]] = {}
     for tier_id, t in fleet["tiers"].items():
-        price = (float(t["cost_in"]), float(t["cost_out"]))
-        if not all(p > 0 for p in price):
-            raise ConfigError(f"{fleet_path}: tier {tier_id} needs positive prices")
+        price = (t["cost_in"], t["cost_out"])
+        if not all(isinstance(p, (int, float)) and not isinstance(p, bool) and p > 0 for p in price):
+            raise ConfigError(f"{fleet_path}: tier {tier_id} needs positive numeric prices, got {price}")
         if t["model"] in out and out[t["model"]] != price:
             raise ConfigError(f"{fleet_path}: model {t['model']} has two prices")
         out[t["model"]] = price
@@ -104,8 +85,9 @@ def score_of(row: dict, model: str, judge_key: str) -> Optional[float]:
 
 
 def row_id(row: dict, i: int) -> str:
-    rid = row.get("request_id")
-    return f"row-{i}" if rid is None else str(rid)
+    if row.get("request_id") is None:
+        raise ConfigError(f"corpus row {i} has no request_id")
+    return str(row["request_id"])
 
 
 def response_of(row: dict, model: str, i: int) -> str:
@@ -203,7 +185,7 @@ def build_avengers_pro(a: argparse.Namespace) -> None:
     check_models(a.models, prices)
     if not a.pw or not all(0.0 <= p <= 1.0 for p in a.pw) or len(set(a.pw)) != len(a.pw):
         raise ConfigError(f"--pw needs distinct weights in [0, 1], got {a.pw}")
-    rows = read_jsonl(a.corpus)
+    rows = [rec for _, rec in read_jsonl(a.corpus)]
     kept, dropped = keep_scored(rows, a.models, a.judge_key)
     if dropped:
         raise ConfigError(f"{len(dropped)} rows lack a score (run filter first), e.g. {dropped[:3]}")
@@ -216,7 +198,7 @@ def build_avengers_pro(a: argparse.Namespace) -> None:
     km, labels = embed_and_cluster([r["prompt"] for r in kept], a.embedder, a.embedder_revision, a.n_clusters)
     import joblib
 
-    corpus_sha = hashlib.sha256(Path(a.corpus).read_bytes()).hexdigest()
+    corpus_sha = file_sha256(a.corpus)
     for pw, d in dirs.items():
         d.mkdir(parents=True)
         joblib.dump(km, d / "kmeans.joblib")
@@ -264,7 +246,7 @@ def split(rows: Sequence[dict], fraction: float, seed: int) -> tuple[list[dict],
 def build_best_route_data(a: argparse.Namespace) -> None:
     prices = fleet_prices(a.fleet)
     check_models(a.models, prices)
-    rows = read_jsonl(a.corpus)
+    rows = [rec for _, rec in read_jsonl(a.corpus)]
     kept, dropped = keep_scored(rows, a.models, a.judge_key)
     if dropped:
         raise ConfigError(f"{len(dropped)} rows lack a score (run filter first), e.g. {dropped[:3]}")
@@ -272,8 +254,9 @@ def build_best_route_data(a: argparse.Namespace) -> None:
     examples = [best_route_example(r, i, order, a.models[-1], a.judge_key) for i, r in enumerate(kept)]
     train, val = split(examples, VAL_FRACTION, SPLIT_SEED)
     out = Path(a.out)
-    write_new(out / "train.jsonl", train)
-    write_new(out / "val.jsonl", val)
+    out.mkdir(parents=True, exist_ok=True)                 # the tool creates its output directory, as before
+    write_new_jsonl(out / "train.jsonl", train)
+    write_new_jsonl(out / "val.jsonl", val)
     labels = {"label_models": order, "judge_key": a.judge_key, "train": len(train), "val": len(val),
               "rule": "label = the first best candidate; candidates ordered by mean per-token price"}
     (out / "labels.json").write_text(json.dumps(labels, indent=2))
@@ -289,23 +272,24 @@ def main(argv: list[str]) -> int:
     for p in (f, av, br):
         p.add_argument("--corpus", type=Path, required=True)
         p.add_argument("--fleet", type=Path, required=True)
-        p.add_argument("--judge-key", default=JUDGE_KEY)
+        p.add_argument("--judge-key", required=True, help=f"the scores' key ({JUDGE_KEY})")
     f.add_argument("--out", type=Path, required=True)
     for p in (av, br):
         p.add_argument("--models", nargs="+", required=True, help="the fleet's models, ascending size")
     av.add_argument("--family", required=True)
     av.add_argument("--pw", type=float, nargs="+", required=True)
-    av.add_argument("--embedder", default="sentence-transformers/all-MiniLM-L6-v2")
+    av.add_argument("--embedder", required=True, help="sentence-transformers/all-MiniLM-L6-v2, the KNN encoder")
     av.add_argument("--embedder-revision", required=True)
-    av.add_argument("--n-clusters", type=int, default=N_CLUSTERS)
+    av.add_argument("--n-clusters", type=int, required=True, help=f"k-means clusters ({N_CLUSTERS}, as v3)")
     av.add_argument("--out-root", type=Path, required=True)
     br.add_argument("--out", type=Path, required=True)
     a = ap.parse_args(argv)
     if a.cmd == "filter":
         prices = fleet_prices(a.fleet)
-        rows = read_jsonl(a.corpus)
+        rows = [rec for _, rec in read_jsonl(a.corpus)]
         kept, dropped = keep_scored(rows, sorted(prices), a.judge_key)
-        write_new(a.out, kept)
+        a.out.parent.mkdir(parents=True, exist_ok=True)
+        write_new_jsonl(a.out, kept)
         print(f"{a.out}: kept {len(kept)} of {len(rows)} prompts; dropped {len(dropped)}: {dropped}")
     elif a.cmd == "avengers-pro":
         build_avengers_pro(a)

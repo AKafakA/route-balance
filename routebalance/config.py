@@ -15,9 +15,10 @@ import math
 import re
 import socket
 from pathlib import Path
-from typing import Any, Literal, Mapping, Optional, Union
+from typing import Annotated, Any, Literal, Mapping, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator, model_validator
+from pydantic import (AfterValidator, BaseModel, ConfigDict, Field, ValidationError, field_serializer, field_validator,
+                      model_validator)
 
 from routebalance.hw import UnknownHardware, gpu_of
 from routebalance.types import Instance, Tier
@@ -46,6 +47,9 @@ def _relative_path(v: str) -> str:
     if not v or v != v.strip() or v.startswith("/") or ".." in v.split("/"):
         raise ValueError(f"{v!r} must be a relative path inside the artifact root")
     return v
+
+
+ArtifactPath = Annotated[str, AfterValidator(_relative_path)]      # relative to the artifact root
 
 
 # ---------------------------------------------------------------- fleet
@@ -112,7 +116,7 @@ def loads_strict(text: str) -> Any:
         raise ConfigError(f"invalid JSON: {e}") from e
 
 
-def _read_json(path: Path) -> Any:
+def read_json(path: Path) -> Any:
     try:
         text = Path(path).read_bytes().decode("utf-8")
     except (OSError, UnicodeDecodeError) as e:
@@ -123,7 +127,7 @@ def _read_json(path: Path) -> Any:
         raise ConfigError(f"{path}: {e}") from e
 
 
-def _parse(model: type[BaseModel], data: Any, what: str):
+def parse(model: type[BaseModel], data: Any, what: str):
     try:
         return model.model_validate(data)
     except ValidationError as e:
@@ -132,11 +136,11 @@ def _parse(model: type[BaseModel], data: Any, what: str):
 
 def load_fleet(fleet_path: Path, hosts_path: Path) -> list[Instance]:
     """Instances in fleet-file order (order is behaviour: dispatchers break ties by it)."""
-    fleet = _parse(_FleetSpec, _read_json(fleet_path), f"fleet {fleet_path}")
-    raw_hosts = _read_json(hosts_path)
+    fleet = parse(_FleetSpec, read_json(fleet_path), f"fleet {fleet_path}")
+    raw_hosts = read_json(hosts_path)
     if not isinstance(raw_hosts, dict):
         raise ConfigError(f"hosts file {hosts_path} must map node -> {{address, hw}}")
-    hosts = {n: _parse(_HostSpec, h, f"host {n!r}") for n, h in raw_hosts.items()}
+    hosts = {n: parse(_HostSpec, h, f"host {n!r}") for n, h in raw_hosts.items()}
 
     bad_ids = [tid for tid in fleet.tiers if not _ID_RE.fullmatch(tid)]
     if bad_ids:
@@ -232,13 +236,8 @@ class Latency(_Strict):
     source: Literal["profiled_curve", "constant", "xgboost"]
     envelope: Literal["batch_aware", "queue_aware", "own_length"]
     normalization: Literal["fixed_ref", "max_divide"]
-    table: str  # calibration table (curve or constants) or XGBoost dir, relative to the artifact root
+    table: ArtifactPath  # calibration table (curve or constants) or XGBoost dir
     table_md5: str = Field(pattern=r"^[0-9a-f]{32}$")   # of the table file, or of the XGBoost dir's md5s.json
-
-    @field_validator("table")
-    @classmethod
-    def _table_is_relative(cls, v: str) -> str:
-        return _relative_path(v)
 
     @model_validator(mode="after")
     def _supported_pair(self):
@@ -249,17 +248,12 @@ class Latency(_Strict):
 
 
 class Estimator(_Strict):
-    index_dir: str
+    index_dir: ArtifactPath
     index_md5: str = Field(pattern=r"^[0-9a-f]{32}$")
     encoder_revision: str = Field(pattern=r"^[0-9a-f]{40}$")   # Hub commit of the index's sentence encoder
     k: int = Field(ge=1, le=1000)
     score_type: Literal["deepeval"]
     prior: Literal["knn", "per_model_mean"]
-
-    @field_validator("index_dir")
-    @classmethod
-    def _index_dir_is_relative(cls, v: str) -> str:
-        return _relative_path(v)
 
 
 class Budget(_Strict):
@@ -312,11 +306,8 @@ class Dispatch(_Strict):
     seed: int = Field(ge=0, lt=2**32)
     # lowest_latency only (required there, rejected elsewhere): latency samples kept per instance
     latency_window: Optional[int] = Field(default=None, ge=1)
-    # the load-reading dispatchers only (required there, rejected elsewhere; D84): what they count per instance.
-    # "engine": the engine's own running + waiting gauges (the main grid, from the pollers' 50 ms cache as llm-d's
-    # endpoint picker reads them; the probes, fetched per request as v3 did); "in_flight": the requests this
-    # scheduler sent it and has not seen complete, as Envoy's least-request and NGINX's least_conn count at the
-    # proxy (only the appendix row W12)
+    # the load-reading dispatchers only (required there, rejected elsewhere): "engine" or "in_flight", as
+    # baselines/dispatch.py describes (D84)
     count: Optional[Literal["in_flight", "engine"]] = Field(default=None)
 
     @model_validator(mode="after")
@@ -343,13 +334,8 @@ class SchedulerConfig(_Strict):
     # RouteBalance; a pipeline system records max_tokens (None) or, for the D38 sweep, own_length
     pending_decode: Optional[Literal["own_length", "lpt_key"]]
     dead_reckoning: bool
-    # how load is read (D53, D55, owner 09-25): RouteBalance fetches every instance per batch ("per_round"), with
-    # dead reckoning, its own mechanism. The pipeline baselines never use dead reckoning (the D38 latency sweep, a
-    # pipeline configuration with random dispatch, logs its features on a dead-reckoned view): their load-reading
-    # dispatchers read the engines' own gauges (Dispatch.count "engine") from the background pollers' cache
-    # ("poll", as llm-d's endpoint picker scrapes /metrics every 50 ms; the main grid) or fetched for each
-    # request ("per_request", as v3's baselines did); the appendix row W12 counts in-flight requests (D84).
-    # RouteBalance on the pollers' cache ("poll") is the D54 control
+    # how load is read (D53, D55, D84; telemetry.py describes the three ways): RouteBalance per round, with dead
+    # reckoning; the pipeline systems from the pollers' cache or per request
     telemetry_read: Literal["per_round", "per_request", "poll"]
     latency: Latency
     estimator: Estimator
@@ -402,11 +388,11 @@ class SchedulerConfig(_Strict):
 def parse_scheduler(data: Any) -> SchedulerConfig:
     """Validate one complete scheduler document. Used at startup and for every POST /v1/config
     (parse the body with loads_strict first). The result replaces the old configuration whole."""
-    return _parse(SchedulerConfig, data, "scheduler config")
+    return parse(SchedulerConfig, data, "scheduler config")
 
 
 def load_scheduler(path: Path) -> SchedulerConfig:
-    return parse_scheduler(_read_json(path))
+    return parse_scheduler(read_json(path))
 
 
 def _canonical(obj: Any) -> Any:

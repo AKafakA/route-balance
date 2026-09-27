@@ -19,8 +19,8 @@ import statistics
 import sys
 from pathlib import Path
 
-from analysis.quality import read_jsonl
-from routebalance.config import ConfigError
+from bench.schema import read_jsonl
+from routebalance.config import ConfigError, loads_strict
 
 
 def md5(path: Path) -> str:
@@ -51,7 +51,7 @@ def single_request_tpot(table: dict) -> dict[str, float]:
 
 def slo_base(requests: Path, table_path: Path) -> dict:
     ttft, n = single_request_ttft(rec for _, rec in read_jsonl(requests))
-    tpot = single_request_tpot(json.loads(Path(table_path).read_text()))
+    tpot = single_request_tpot(loads_strict(Path(table_path).read_text()))
     if set(ttft) != set(tpot):
         raise ConfigError(f"tiers with a b = 1 TTFT {sorted(ttft)} differ from the table's {sorted(tpot)}")
     return {"unit": "s", "ttft_s": ttft, "tpot_s": tpot,

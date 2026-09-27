@@ -66,7 +66,7 @@ def test_a_filler_is_sent_at_most_once_and_running_out_is_reported():
 
 def test_without_fillers_the_tail_drains_below_the_level():
     backend = FakeBackend(delay=lambda req: 0.02)
-    run = asyncio.run(direct.closed_loop(backend, INST, prompts(5), 4, SAMPLING, request_prefix="t"))
+    run = asyncio.run(direct.closed_loop(backend, INST, prompts(5), 4, SAMPLING, request_prefix="t", fillers=()))
     assert len(run.measured) == 5 and run.fillers == [] and min(backend.at_finish.values()) < 4
     assert not run.fillers_ran_out                                    # no fillers were asked for
 

@@ -23,7 +23,8 @@ import math
 from pathlib import Path
 from typing import Literal, Optional, Sequence
 
-from routebalance.config import ConfigError, loads_strict
+from bench.schema import read_jsonl
+from routebalance.config import ConfigError
 
 Outcome = Literal["matched", "corpus_gap", "unmatched", "unscored"]
 
@@ -33,21 +34,6 @@ def _score(value: object, where: str) -> float:
             or not 0.0 <= value <= 1.0:
         raise ConfigError(f"{where}: score {value!r} is not a number in [0, 1]")
     return float(value)
-
-
-def read_jsonl(path: Path):
-    """(line number, record) for every line; the final newline is optional."""
-    try:
-        lines = Path(path).read_bytes().decode("utf-8").split("\n")   # not splitlines(): U+2028 may sit in a string
-    except (OSError, UnicodeDecodeError) as e:
-        raise ConfigError(f"cannot read {path}: {e}") from e
-    if lines and lines[-1] == "":
-        lines.pop()                                        # the final newline
-    for lineno, line in enumerate(lines, start=1):
-        try:
-            yield lineno, loads_strict(line)
-        except ConfigError as e:
-            raise ConfigError(f"{path}:{lineno}: {e}") from e
 
 
 class ScoredCorpus:

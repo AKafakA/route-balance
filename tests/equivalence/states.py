@@ -8,7 +8,7 @@ import random
 from types import SimpleNamespace
 
 from tests.equivalence.oracle_files import LATENCY_TEST
-from tools.fork_tpot_features import FORK_FIELDS
+from tests.equivalence.fork_tpot_features import FORK_FIELDS
 
 STATE_FIELDS = ("num_running", "num_waiting", "kv_cache_utilization", "max_num_seqs", "pending_decode_tokens")
 

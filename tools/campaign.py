@@ -54,7 +54,6 @@ it a repeat is an error); "planned" gives the dry run the size of an axis that i
 from __future__ import annotations
 
 import argparse
-import hashlib
 import itertools
 import json
 import math
@@ -66,9 +65,9 @@ from typing import Annotated, Any, Literal, Mapping, Optional, Sequence, Union
 
 from pydantic import Field
 
-from analysis.rules import PLACEHOLDER
+from analysis.rules import PLACEHOLDER, placeholders
 from bench.arrivals import Trace
-from bench.dataset import Order
+from bench.dataset import Order, file_sha256
 from bench.scope import BenchParams, DatasetEntry, Scope, cell_id, expected_cells
 from bench.schema import Strict, parse, read_json
 from routebalance.baselines.routers import validate_options
@@ -91,17 +90,6 @@ _NAME = re.compile(r"[A-Za-z0-9._-]+")
 _SCHEDULER_KEYS = frozenset({"mode", "weights", "rounds", "lpt", "pending_decode", "dead_reckoning", "telemetry_read",
                              "latency", "estimator", "budget", "telemetry", "pipeline"})
 _WEIGHT_KEYS = ("w_quality", "w_latency", "w_cost")
-
-
-def placeholders(data: Any, path: str = "") -> list[str]:
-    """Where OWNER-MUST-SET values sit in a JSON value."""
-    if data == PLACEHOLDER:
-        return [path if path else "<root>"]
-    if isinstance(data, dict):
-        return [p for k, v in data.items() for p in placeholders(v, f"{path}.{k}" if path else k)]
-    if isinstance(data, list):
-        return [p for i, v in enumerate(data) for p in placeholders(v, f"{path}[{i}]")]
-    return []
 
 
 def substitute(text: str, variables: Mapping[str, str], where: str) -> str:
@@ -972,10 +960,6 @@ def dry_run_text(summary: dict) -> str:
 
 # ---------------------------------------------------------------- command line
 
-def _sha256(path: Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
 def _fleet_args(values: Sequence[str], hosts: Optional[Path]) -> dict[str, tuple[str, str]]:
     out = {}
     for v in values:
@@ -984,7 +968,7 @@ def _fleet_args(values: Sequence[str], hosts: Optional[Path]) -> dict[str, tuple
             raise ConfigError(f"--fleet takes NAME=FILE, got {v!r}")
         if hosts is None:
             raise ConfigError("--fleet needs --hosts: the fleet digest includes the lease addresses")
-        out[name] = (_sha256(Path(path)), fleet_digest(load_fleet(Path(path), hosts)))
+        out[name] = (file_sha256(Path(path)), fleet_digest(load_fleet(Path(path), hosts)))
     return out
 
 
@@ -1020,8 +1004,8 @@ def main(argv: list[str]) -> int:
     result = render(presets, scope, pins=pins, decisions=decisions, fleets=fleets)
     if a.previous is not None:
         check_previous(result, a.previous)
-    inputs = {"presets_sha256": _sha256(a.presets), "scope_sha256": _sha256(a.scope), "pins": pins,
-              "decisions": decisions, "hosts_sha256": None if a.hosts is None else _sha256(a.hosts),
+    inputs = {"presets_sha256": file_sha256(a.presets), "scope_sha256": file_sha256(a.scope), "pins": pins,
+              "decisions": decisions, "hosts_sha256": None if a.hosts is None else file_sha256(a.hosts),
               "fleets": {n: {"sha256": s, "fleet_digest": fd} for n, (s, fd) in fleets.items()},
               "previous": None if a.previous is None else str(a.previous)}
     write_render(result, a.out, inputs)

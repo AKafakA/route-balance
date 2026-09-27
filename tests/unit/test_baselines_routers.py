@@ -252,7 +252,7 @@ def test_build_best_route_validates_before_loading(kwargs, match):
 
 
 AP = {"artifact_dir": "ap", "beta": 5.0, "top_k": 4, "embedder": "m", "embedder_revision": "a" * 40,
-      "upstream_sha256": "b" * 64}
+      "upstream_sha256": "b" * 64, "max_tokens": 7500, "max_workers": 4}
 
 
 @pytest.mark.parametrize("kwargs,match", [
@@ -426,3 +426,11 @@ def test_each_head_must_name_its_fleet_model(head, model, ok):
     """A labels file that maps a head to another model (e.g. 3B and 7B swapped) fails the load, never routes."""
     assert _names_the_model(head, model) is ok
 
+
+
+
+@pytest.mark.parametrize("missing", ["max_tokens", "max_workers"])
+def test_avengers_pro_route_time_settings_are_required(missing):
+    # upstream's route-time defaults never apply silently: the configuration states them (no fallback values)
+    with pytest.raises(ConfigError):
+        validate_options(Router(type="avengers_pro", kwargs={k: v for k, v in AP.items() if k != missing}))

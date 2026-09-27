@@ -6,7 +6,7 @@ Every baseline (a router that picks a model, then a dispatcher that picks an ins
 server, on the same telemetry and the same dispatch path. That sharing is what makes the comparison fair
 by construction.
 
-The core is `routebalance/` (about 3,600 lines). This tour follows the order a request takes through it.
+The core is `routebalance/`. This tour follows the order a request takes through it.
 For each file it lists what to check: the invariants the rest of the system relies on. "v3" is the
 previous implementation this code was ported from and tested against (tests/equivalence/).
 
@@ -16,7 +16,7 @@ previous implementation this code was ported from and tested against (tests/equi
 
 ---
 
-## 1. Configuration and types: `config.py` (414), `types.py` (33), `hw.py` (32)
+## 1. Configuration and types: `config.py`, `types.py`, `hw.py`
 
 - `load_fleet`: the fleet (tiers: model, GPU, prices, `max_num_seqs`; instances) comes from
   `configs/fleet_*.json`; addresses come from an untracked hosts file.
@@ -32,7 +32,7 @@ previous implementation this code was ported from and tested against (tests/equi
 
 Check: every experiment parameter is a required field. Nothing is read from the environment.
 
-## 2. Load: `telemetry.py` (328)
+## 2. Load: `telemetry.py`
 
 - Three ways to read load, set by the config's `telemetry_read` (D53, D54, D55):
   - `per_round`, RouteBalance's own: `fetch_round()` scrapes every instance's Prometheus `/metrics`
@@ -58,7 +58,7 @@ Check: every experiment parameter is a required field. Nothing is read from the 
 Check: every `record_dispatch` is closed exactly once, by `record_completion` or `record_failure`.
 `server.py` guarantees this on every path.
 
-## 3. Engines: `backend.py` (257)
+## 3. Engines: `backend.py`
 
 - One streaming request to official vLLM 0.18.1 `/v1/chat/completions`. The raw prompt goes in as a single
   user message, so vLLM applies the chat template exactly once.
@@ -70,17 +70,17 @@ Check: every `record_dispatch` is closed exactly once, by `record_completion` or
 
 ## 4. Predictions: `estimate/`
 
-- `prompt.py` (26): the single chat unwrap. The estimator and every router see the user's text.
-- `knn.py` (178): per-model quality and expected length from the prompt's k nearest neighbours. This is a
+- `prompt.py`: the single chat unwrap. The estimator and every router see the user's text.
+- `knn.py`: per-model quality and expected length from the prompt's k nearest neighbours. This is a
   bitwise port of v3 `estimate_batch`. `prior="per_model_mean"` gives the prompt-blind ablation. The index
   is md5-pinned and the encoder revision is pinned.
-- `latency.py` (245): the latency that enters the objective = a TPOT source × an envelope.
+- `latency.py`: the latency that enters the objective = a TPOT source × an envelope.
   - Sources: `constant` (per tier), `profiled_curve` (TPOT as a function of the running batch, from the lease's
     own calibration), or `xgboost`.
   - Envelopes: `own_length` (queue-blind), `queue_aware` (v3's learned arm), or `batch_aware` (TPOT at batch
     b+1 × length, plus a waiting term when the instance is full).
   - Supported pairs are listed in `config.LATENCY_PAIRS`.
-- `features.py` (22) + `xgboost_tpot.py` (119): the learned heads read only what the scheduler knows at
+- `features.py` + `xgboost_tpot.py`: the learned heads read only what the scheduler knows at
   serving time. Training rows are built by the same `feature_values`, from the lease-night sweep the
   server logs.
 
@@ -88,16 +88,16 @@ Check: the constant and curve sources never import xgboost, and `predict_calls` 
 
 ## 5. RouteBalance: `schedule/`
 
-- `rounds.py` (104): v3's round collection. A round closes when it is full or at its timeout.
+- `rounds.py`: v3's round collection. A round closes when it is full or at its timeout.
   - Adaptive limits are 4/50, 16/100 or 32/200 ms, by the share of engines with waiting requests.
   - A cancelled collection keeps its requests for the next round.
   - It avoids `asyncio.wait_for`, because on 3.10 that can swallow a cancel.
-- `score.py` (87): the objective `w_q·Q + w_c·C + w_l·L`, summed in v3's order, so scores are bitwise v3's.
+- `score.py`: the objective `w_q·Q + w_c·C + w_l·L`, summed in v3's order, so scores are bitwise v3's.
   - Q is min-max over the candidates.
   - C = 1 − cost/max, with a decode-only cost.
   - L uses `max_divide` (v3) or `fixed_ref`: the request's best unloaded latency over this one.
   - Ties go to the shorter queue, then the least recently assigned instance, then fleet order.
-- `assign.py` (148): one round (Algorithm 1).
+- `assign.py`: one round (Algorithm 1).
   - LPT order by the configured statistic.
   - Every instance is a candidate.
   - Each request is scored on the instances' current state.
@@ -105,23 +105,24 @@ Check: the constant and curve sources never import xgboost, and `predict_calls` 
     later requests in the round see earlier ones.
   - The optional budget admission filter lives here too: v3's, as its budget sweep ran it (expected cost within
     the budget, else the cheapest by worst-case cost).
-- `budget.py` (52): v3's max_tokens clamp, shared by every system, and the cost arithmetic.
+- `budget.py`: v3's max_tokens clamp, shared by every system, and the cost arithmetic.
 
 Check: `tests/equivalence/test_rb_decision_replay.py` re-scores every banked v3 decision (λ6 and λ30, 8
 presets). The rebuild picks v3's model on all of them.
 
 ## 6. Baselines: `baselines/`
 
-- `routers.py` (453) picks a model:
+- `routers.py` picks a model:
   - `passthrough`, which gives every instance to the dispatcher;
-  - BEST-Route, a DeBERTa classifier with an optional confidence floor;
+  - BEST-Route as its authors ship it: upstream's DeBERTa ranker and routing rule, loaded from a pinned
+    checkout (D79); v3's 4-way classifier is the wired fallback, run only on an explicit switch;
   - AvengersPro, the upstream cluster router at a pinned commit, its embedder at a pinned revision;
   - `rb_decoupled`, which uses RouteBalance's own predictors and objective on idle-instance latency, so the
     model is fixed before load is visible.
   - A router's model call runs once per request, one request at a time, on its own lane off the event loop,
     as shipped routers run theirs (RouteLLM, NVIDIA's LLM Router). Requests queue at the router; that wait is part
     of their routing time.
-- `dispatch.py` (214) picks an instance among the router's candidates:
+- `dispatch.py` picks an instance among the router's candidates:
   - round robin;
   - least outstanding: the shortest running + waiting queue on the engines' own counts (v3's shortest queue, the
     main grid); counting in-flight requests, as NGINX's `least_conn` does, in the appendix row W12 (D84);
@@ -130,7 +131,7 @@ presets). The rebuild picks v3's model on all of them.
   - random;
   - LiteLLM's `lowest_latency` (a 10-sample mean; a timeout counts 1000 s).
   - Ties go to the least recently assigned instance, as stock balancers rotate among ties.
-- `pipeline.py` (95): router, then candidates, then loads from the shared view, then dispatcher. The
+- `pipeline.py`: router, then candidates, then loads from the shared view, then dispatcher. The
   dispatch is recorded with no await in between (its in-flight count and decode tokens are tracked for every
   system), so on the engines' gauges concurrent selections see each other only through the least-recently-assigned
   tie-break, and an in-flight count (W12) includes every earlier selection.
@@ -138,7 +139,7 @@ presets). The rebuild picks v3's model on all of them.
 Check: replays match v3 and the banked cells for BEST-Route and AvengersPro on 3,534/3,534 prompts per
 setting. Dispatchers match v3 on a 20,000-event trace.
 
-## 7. The server: `server.py` (717), `decision_log.py` (72)
+## 7. The server: `server.py`, `decision_log.py`
 
 - One aiohttp app for every system:
   - `POST /v1/completions` (the contract is in `bench/client.py`);
@@ -189,12 +190,12 @@ cancellation before and after a round places a request, and duplicate request id
     metric, the range over the seeds, and a request bootstrap within the paired seeds), the SLO (TTFT and TPOT
     within k times the tier's single-request values, after SOLA), its attainment and goodput.
   - Re-aggregating the banked v3 cells reproduces v3's tables bit-exactly.
-- `tools/` (about 3,000 lines):
+- `tools/`:
   - `campaign.py`: renders the lease campaign (presets × scope) into per-cell configurations.
   - `cell_driver.py`: one cell's steps.
   - `engine_plan.py`: fleet × hosts × engine args → one vLLM launch per instance.
   - W1 calibration; the TPOT tables and the XGBoost retrain; the budget sweep's served-text judge loop.
-- `scripts/` (about 1,900 lines of shell):
+- `scripts/` (shell):
   - `setup.sh`: one node, per role; resumable across the V100 driver reboot; ends with a self-check.
   - `deploy.sh` and the stop scripts.
   - `run_cell.sh`: drain, apply, preflight, warm up, read the engines (`tools/engines.py`), run, read them

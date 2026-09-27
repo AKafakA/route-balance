@@ -10,7 +10,6 @@ HW = {                    # hardware type -> (GPU class, GPUs per node)
     "c4130": ("v100", 4),
     "d8545": ("a100", 4),
 }
-HW_GPU = {hw: gpu for hw, (gpu, _) in HW.items()}
 
 
 class UnknownHardware(ValueError):

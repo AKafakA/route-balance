@@ -1,5 +1,5 @@
 """tools/retrain_xgb_served.py on a synthetic scheduler sweep: heads on every serving feature, loadable by the
-scheduler, and refusals for a feature that never varies and for v3-only options."""
+scheduler, and refusals for a feature that never varies."""
 import hashlib
 import json
 import random
@@ -70,9 +70,3 @@ def test_a_sweep_with_no_usable_record_is_refused(tmp_path):
 def test_a_tier_below_the_v3_minimum_is_refused(tmp_path):
     with pytest.raises(SystemExit, match="fewer than 50"):
         main(["--sweep", str(_sweep(tmp_path / "sweep.jsonl", n=80)), "--threads", "2", "--out", str(tmp_path / "h")])
-
-
-def test_v3_options_do_not_go_with_the_scheduler_sweep(tmp_path):
-    with pytest.raises(SystemExit, match="go with --v3-sweep"):
-        main(["--sweep", str(_sweep(tmp_path / "sweep.jsonl")), "--v3-dir", str(tmp_path), "--threads", "2",
-              "--out", str(tmp_path / "heads")])

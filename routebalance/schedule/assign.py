@@ -68,11 +68,9 @@ class Admission:
     candidate is admitted when its expected cost is within the request's budget, the expected cost being the
     prompt at the tier's input price plus the model's expected length, capped at max_tokens, at its output
     price. When none is admitted, only the cheapest candidates by worst-case cost (the prompt plus max_tokens)
-    remain, v3's fallback for a budget rejection. (v3 checked every candidate with one length, the last model's,
-    through a leaked loop variable; here each model's own. It kept the first cheapest instance in its list;
-    here every instance at that cost, which v3's rule does not tell apart. v3 replaced an expected length that
-    truncates to 0 with 100; here 0 stays 0, no fallback value. v3's relaxation lowered only its latency
-    thresholds, which a budget cell does not have.)"""
+    remain, v3's fallback for a budget rejection. Each model's own expected length is used, every cheapest
+    instance is kept, and an expected length that truncates to 0 stays 0 (v3 used 100; its other differences
+    are logged in D66 and D73)."""
 
 
 @dataclass(frozen=True)

@@ -42,10 +42,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Union
 
-from pydantic import (BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, ValidationError,
-                      field_validator)
+from pydantic import Field, StrictBool, StrictFloat, StrictInt, StrictStr, field_validator
 
-from routebalance.config import ConfigError, load_fleet, loads_strict
+from bench.schema import Strict, parse, read_json
+from routebalance.config import ConfigError, load_fleet
 from routebalance.hw import gpu_of, gpus_per_node
 from routebalance.types import Instance
 
@@ -57,16 +57,12 @@ _TOKEN = re.compile(r"[A-Za-z0-9._/:=,@+-]+")      # argv tokens travel space-se
 Value = Union[StrictBool, StrictInt, StrictFloat, StrictStr]
 
 
-class _Strict(BaseModel):
-    model_config = ConfigDict(extra="forbid", frozen=True, strict=True, allow_inf_nan=False)
-
-
-class _TierArgs(_Strict):
+class _TierArgs(Strict):
     revision: str = Field(pattern=r"^[0-9a-f]{40}$")
     args: dict[str, Value]
 
 
-class _EngineArgs(_Strict):
+class _EngineArgs(Strict):
     vllm: str = Field(pattern=r"^\d+\.\d+\.\d+$")
     tiers: dict[str, _TierArgs] = Field(min_length=1)
     gpus: dict[str, list[int]] = Field(min_length=1)
@@ -75,7 +71,7 @@ class _EngineArgs(_Strict):
 _SPEC = r"^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*@[0-9a-f]{40}$"   # == setup.sh's SPEC_RE
 
 
-class _Hub(_Strict):
+class _Hub(Strict):
     models: list[str] = Field(min_length=1)       # full snapshots (sentence encoders)
     tokenizers: list[str]                         # tokenizer files only (the benchmark's reference tokenizer)
 
@@ -88,7 +84,7 @@ class _Hub(_Strict):
         return v
 
 
-class _Launch(_Strict):
+class _Launch(Strict):
     host: str = Field(min_length=1)
     port: int = Field(gt=0, lt=65536)
     torch_threads: int = Field(ge=1)
@@ -107,24 +103,6 @@ class EngineLaunch:
     @property
     def gpu_class(self) -> str:
         return gpu_of(self.hw)
-
-
-def _parse(model: type[BaseModel], data, what: str):
-    try:
-        return model.model_validate(data)
-    except ValidationError as e:
-        raise ConfigError(f"invalid {what}: {e}") from e
-
-
-def _read(path: Path):
-    try:
-        text = Path(path).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as e:
-        raise ConfigError(f"cannot read {path}: {e}") from e
-    try:
-        return loads_strict(text)
-    except ConfigError as e:
-        raise ConfigError(f"{path}: {e}") from e
 
 
 def _render_value(flag: str, v) -> list[str]:
@@ -152,8 +130,8 @@ def _tier_argv(tier_id: str, spec: _TierArgs) -> list[str]:
 def plan(fleet_path: Path, hosts_path: Path, engine_args_path: Path) -> list[EngineLaunch]:
     """Every instance's launch, in fleet order."""
     fleet = load_fleet(fleet_path, hosts_path)
-    hosts = _read(hosts_path)                  # load_fleet validated it; only the hardware type is needed here
-    ea = _parse(_EngineArgs, _read(engine_args_path), f"engine args {engine_args_path}")
+    hosts = read_json(hosts_path)                  # load_fleet validated it; only the hardware type is needed here
+    ea = parse(_EngineArgs, read_json(engine_args_path), f"engine args {engine_args_path}")
     tiers = {i.tier.tier_id for i in fleet}
     if set(ea.tiers) != tiers:
         raise ConfigError(f"{engine_args_path}: tiers {sorted(ea.tiers)} != the fleet's {sorted(tiers)}")
@@ -189,12 +167,12 @@ def plan(fleet_path: Path, hosts_path: Path, engine_args_path: Path) -> list[Eng
 
 
 def load_launch(path: Path) -> _Launch:
-    raw = _read(path)
+    raw = read_json(path)
     if isinstance(raw, dict):
         unset = sorted(k for k, v in raw.items() if v == "OWNER-MUST-SET")
         if unset:
             raise ConfigError(f"{path}: {unset} are OWNER-MUST-SET; the owner sets them (D44), nobody else")
-    return _parse(_Launch, raw, f"scheduler launch file {path}")
+    return parse(_Launch, raw, f"scheduler launch file {path}")
 
 
 def main(argv: list[str]) -> int:
@@ -217,7 +195,7 @@ def main(argv: list[str]) -> int:
     a = p.parse_args(argv)
     try:
         if a.cmd == "hub":
-            hub = _parse(_Hub, _read(a.file), f"scheduler hub file {a.file}")
+            hub = parse(_Hub, read_json(a.file), f"scheduler hub file {a.file}")
             for spec in hub.models:
                 print("--model", spec, sep="\t")
             for spec in hub.tokenizers:
@@ -229,7 +207,7 @@ def main(argv: list[str]) -> int:
             return 0
         if a.cmd == "nodes":
             fleet = load_fleet(a.fleet, a.hosts)
-            hosts = _read(a.hosts)
+            hosts = read_json(a.hosts)
             seen: dict[str, None] = {}
             for i in fleet:
                 if i.node not in seen:

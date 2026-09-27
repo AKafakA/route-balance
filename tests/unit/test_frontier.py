@@ -4,7 +4,7 @@ import pytest
 from analysis.frontier import CellPoint, by_config, cell_point, config_points, frontiers, pareto
 from analysis.manifest import Coverage
 from analysis.metrics import CellSummary, Spread
-from bench.arrivals import constant_trace
+from tests.traces import constant_trace
 from bench.scope import ConfigEntry, DatasetEntry, ExpectedCell
 from routebalance.config import ConfigError
 

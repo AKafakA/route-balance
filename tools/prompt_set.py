@@ -12,13 +12,12 @@ Usage: python -m tools.prompt_set --corpus TRAIN.jsonl [--exclude EVAL.jsonl ...
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
 
-from analysis.quality import read_jsonl
-from bench.dataset import read_rows
+from bench.schema import read_jsonl
+from bench.dataset import file_sha256, read_rows
 from routebalance.config import ConfigError
 
 
@@ -52,7 +51,7 @@ def main(argv: list[str]) -> int:
     a.out.write_text(text, encoding="utf-8")
     if [r for r in read_rows(a.out)] != rows:
         raise ConfigError(f"{a.out} does not read back as written")
-    print(f"{a.out}: {len(rows)} prompts, sha256 {hashlib.sha256(a.out.read_bytes()).hexdigest()}")
+    print(f"{a.out}: {len(rows)} prompts, sha256 {file_sha256(a.out)}")
     return 0
 
 

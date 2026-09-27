@@ -6,7 +6,8 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from bench.arrivals import FROZEN_CLOCK_S, arrival_times, constant_trace, schedule_digest, step_trace
+from bench.arrivals import FROZEN_CLOCK_S, arrival_times, schedule_digest
+from tests.traces import constant_trace, step_trace
 
 _ONE_ROUNDING = 4e-16   # the rescale t * ((n/rate) / t_last) can miss n/rate by one rounding, as in v3
 

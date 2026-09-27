@@ -1,9 +1,9 @@
 """T4: learned TPOT.
 
-v3 side: tools/fork_tpot_features.py rebuilds the vector the v3 heads were served with, bit for bit
+v3 side: tests/equivalence/fork_tpot_features.py rebuilds the vector the v3 heads were served with, bit for bit
 against v3's build_feature_vector, on a synthetic grid of fork /instance_stats bodies (idle, all zeros,
 full, queued, p95 = 0) and 5,000 recorded states restricted to the fork's fields, each crossed with prompt
-tokens {0, 1, 88, 4000} and output tokens {1, 97, 1023}. The retrain tool scores the v3 heads with it.
+tokens {0, 1, 88, 4000} and output tokens {1, 97, 1023}.
 
 Serving side: the retrained heads load from their manifest, read only serving-time features, and are
 called as v3 called its heads (per tier, that tier's candidates stacked in fleet order, one call, the
@@ -22,8 +22,10 @@ from routebalance.estimate.xgboost_tpot import FEATURES, TPOT_FLOOR_S, XGBoostTP
 from tests.equivalence.oracle_files import (SERVED_HEADS, SERVED_HEADS_MD5, V3_TIERS, V3_TPOT_MD5, tpot_dir,
                                             v3_module)
 from tests.equivalence.states import fork_body, instance_state, recorded, synthetic
-from tools.fork_tpot_features import V3_FEATURES, v3_serving_vector
-from tools.retrain_xgb_served import V3_SWEEP_FEATURES
+from tests.equivalence.fork_tpot_features import V3_FEATURES, v3_serving_vector
+# the pinned xgb_served heads, trained on the v3 sweep (the former --v3-sweep mode of tools/retrain_xgb_served.py):
+# the four features that sweep did not fix at 1024
+V3_SWEEP_FEATURES = ("num_running", "num_waiting", "kv_cache_utilization", "num_prompt_tokens")
 
 PROMPTS = (0, 1, 88, 4000)
 OUTPUTS = (1, 97, 1023)

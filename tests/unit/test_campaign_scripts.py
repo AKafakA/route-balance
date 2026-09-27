@@ -7,8 +7,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 
 
-def _run(script, *args, env_py=True):
-    env = {**os.environ}
+def _run(script, *args, env_py=True, extra_env=None):
+    env = {**os.environ, **(extra_env or {})}
     if env_py:
         env["PY"] = sys.executable
     else:
@@ -73,16 +73,23 @@ def test_an_unknown_render_stops_before_anything_is_sent(tmp_path):
             "--data-root", str(tmp_path), "--cells-root", str(tmp_path / "cells"), "--mirror", str(tmp_path / "mirror")]
     r = _run("run_cell.sh", *args)
     assert r.returncode == 2 and "prepare refused" in r.stderr
+    exported = _run("run_cell.sh", *args, extra_env={"RC": "0"})     # an RC in the caller's shell changes nothing
+    assert exported.returncode == 2 and "prepare refused" in exported.stderr
     without = [a for a in args if a not in ("--engines-record", "e")]            # the deploy record is required
     assert "usage" in _run("run_cell.sh", *without).stderr
     assert not (tmp_path / "cells").exists() and not (tmp_path / "mirror").exists()
 
 
 def test_the_runner_reads_its_tokenizer_offline_from_the_pinned_snapshots():
-    """The benchmark's tokenizer is the one setup.sh pinned under RB_HF_HOME, never a fresh download of main."""
+    """The benchmark's tokenizer is the one setup.sh pinned under RB_HF_HOME, never a fresh download of main, and
+    the runner starts in a clean environment (nothing inherited from the caller, like the scheduler)."""
     text = (REPO / "scripts" / "run_cell.sh").read_text()
-    (line,) = [ln for ln in text.splitlines() if "-m bench.runner" in ln]
-    assert line.startswith('HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 "$PY" -m bench.runner')
+    lines = text.splitlines()
+    (i,) = [k for k, ln in enumerate(lines) if "-m bench.runner" in ln]
+    assert lines[i - 1].strip() == ('env -i HOME="$HOME" PATH="$RB_PATH" LANG=C.UTF-8 HF_HOME="$RB_HF_HOME" '
+                                    'HF_HUB_OFFLINE=1 \\')
+    assert lines[i].strip().startswith('"$PY" -m bench.runner')
+    assert "\nRC=2 " in text and 'exit "$RC"' in text and "${RC:-" not in text   # fail()'s code is never inherited
     assert 'source "$REPO/scripts/node_layout.sh"' in text
     assert "RB_HF_HOME=$MYDATA/hf" in (REPO / "scripts" / "node_layout.sh").read_text()
 

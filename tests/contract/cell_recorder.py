@@ -26,7 +26,7 @@ import aiohttp
 from aiohttp import web
 
 import routebalance.server as server
-from bench.arrivals import constant_trace
+from tests.traces import constant_trace
 from bench.client import HttpSchedulerClient
 from bench.dataset import load_prompts
 from bench.records import Sampling, write_cell

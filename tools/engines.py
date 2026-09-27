@@ -27,6 +27,7 @@ from typing import Sequence
 
 import aiohttp
 
+from bench.dataset import file_sha256
 from routebalance.config import ConfigError
 from routebalance.types import Instance
 from tools import direct
@@ -161,5 +162,5 @@ async def engines(fleet: Sequence[Instance], record_path: Path, timeout_s: float
     record = deploy_record(record_path)
     async with direct.session(2 * len(fleet)) as session:
         got = await asyncio.gather(*(engine(session, inst, record, timeout_s) for inst in fleet))
-    return {"record_sha256": hashlib.sha256(Path(record_path).read_bytes()).hexdigest(),
+    return {"record_sha256": file_sha256(record_path),
             "instances": {inst.instance_id: e for inst, e in zip(fleet, got, strict=True)}}

@@ -8,7 +8,8 @@ import json
 import pytest
 
 from tests.equivalence.oracle_files import TPOT_TABLE, TPOT_TABLE_MD5, md5_of
-from tools.calibrate_tpot_curve import build_table, v3_cell_records, v3_method
+from tests.equivalence.banked_cell_records import v3_cell_records, v3_method
+from tools.calibrate_tpot_curve import build_table
 
 
 def _cells(oracle):

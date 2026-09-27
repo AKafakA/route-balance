@@ -16,7 +16,6 @@ last measured request finishes reports it, and its level did not hold.
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -25,7 +24,7 @@ from typing import Callable, Optional, Sequence
 import aiohttp
 
 from bench.client import check_fd_limit
-from bench.dataset import read_rows
+from bench.dataset import file_sha256, read_rows
 from bench.records import Sampling
 from routebalance.backend import BackendClient, GenerationRequest, GenerationResult
 from routebalance.config import ConfigError, fleet_digest, load_fleet
@@ -40,7 +39,7 @@ def lease_fleet(plan: dict, name: str, fleet_path: Path, hosts_path: Path) -> li
     """The fleet file a plan's row names, refused unless it is byte for byte the rendered one and resolves to the
     rendered fleet digest under these hosts."""
     entry = plan["fleets"][name]
-    sha = hashlib.sha256(Path(fleet_path).read_bytes()).hexdigest()
+    sha = file_sha256(fleet_path)
     if entry["fleet_sha256"] is None or sha != entry["fleet_sha256"]:
         raise ConfigError(f"{fleet_path} (sha256 {sha}) is not the {name} fleet the plan was rendered with "
                           f"({entry['fleet_sha256']})")
@@ -55,7 +54,7 @@ def lease_prompts(plan: dict, name: str, data_root: Path) -> list["Prompt"]:
     """The plan's dataset, in file order, refused unless its bytes and row count are the rendered ones."""
     entry = plan["datasets"][name]
     path = Path(data_root) / entry["path"]
-    sha = hashlib.sha256(path.read_bytes()).hexdigest()
+    sha = file_sha256(path)
     if sha != entry["sha256"]:
         raise ConfigError(f"{path} has sha256 {sha}, the plan expects {entry['sha256']}")
     rows = read_rows(path)
@@ -142,7 +141,7 @@ class LoopResult:
 
 
 async def closed_loop(backend: BackendClient, inst: Instance, measured: Sequence[Prompt], concurrency: int,
-                      sampling: Sampling, *, request_prefix: str, fillers: Sequence[Prompt] = ()) -> LoopResult:
+                      sampling: Sampling, *, request_prefix: str, fillers: Sequence[Prompt]) -> LoopResult:
     """See the module docstring."""
     if concurrency < 1:
         raise ConfigError("concurrency must be at least 1")

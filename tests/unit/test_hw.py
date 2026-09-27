@@ -1,7 +1,9 @@
 """The hardware map is the only source of GPU classes; unknown hardware is an error."""
 import pytest
 
-from routebalance.hw import HW_GPU, UnknownHardware, gpu_of
+from routebalance.hw import HW, UnknownHardware, gpu_of
+
+HW_GPU = {hw: gpu for hw, (gpu, _) in HW.items()}
 
 
 def test_known_hardware():

@@ -31,8 +31,8 @@ from typing import Any, Literal, Optional, Protocol
 
 from pydantic import Field
 
-from bench.schema import Strict
-from routebalance.config import ConfigError, loads_strict
+from bench.schema import Strict, read_jsonl
+from routebalance.config import ConfigError
 
 Order = Literal["fixed", "per_seed"]
 
@@ -63,17 +63,7 @@ def read_rows(path: Path) -> list[tuple[str, str]]:
     """(id, prompt) for every line, in file order. Every line is a JSON object with a string id and a
     non-empty string prompt; ids and prompts are unique (quality is looked up by prompt text)."""
     rows: list[tuple[str, str]] = []
-    try:
-        lines = Path(path).read_bytes().decode("utf-8").split("\n")
-    except (OSError, UnicodeDecodeError) as e:
-        raise ConfigError(f"cannot read {path}: {e}") from e
-    if lines and lines[-1] == "":
-        lines.pop()                      # the final newline
-    for lineno, line in enumerate(lines, start=1):
-        try:
-            rec = loads_strict(line)
-        except ConfigError as e:
-            raise ConfigError(f"{path}:{lineno}: {e}") from e
+    for lineno, rec in read_jsonl(path):
         if not isinstance(rec, dict):
             raise ConfigError(f"{path}:{lineno}: not a JSON object")
         pid, text = rec.get("id"), rec.get("prompt")
@@ -139,15 +129,7 @@ def attach_budgets(prompts: PromptSet, budgets: Path, dataset: Path) -> PromptSe
     the dataset's ids, in its order, or a budget that is not a positive finite number, is refused."""
     ids = [rid for rid, _ in read_rows(dataset)]
     table: list[tuple[str, float]] = []
-    try:
-        lines = Path(budgets).read_bytes().decode("utf-8").splitlines()
-    except (OSError, UnicodeDecodeError) as e:
-        raise ConfigError(f"cannot read {budgets}: {e}") from e
-    for lineno, line in enumerate(lines, start=1):
-        try:
-            rec = loads_strict(line)
-        except ConfigError as e:
-            raise ConfigError(f"{budgets}:{lineno}: {e}") from e
+    for lineno, rec in read_jsonl(budgets):
         cost = rec.get("budget_cost") if isinstance(rec, dict) else None
         if not isinstance(rec, dict) or not isinstance(rec.get("id"), str) or isinstance(cost, bool) \
                 or not isinstance(cost, (int, float)) or not math.isfinite(cost) or cost <= 0:

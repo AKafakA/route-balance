@@ -109,11 +109,12 @@ def test_the_commands_write_new_files_only(tmp_path, monkeypatch):
     rows = [_row(i, {m: (i % 3) / 2 for m in QWEN}) for i in range(12)] + [_row(12, {m: None for m in QWEN})]
     corpus = _jsonl(tmp_path / "scored.jsonl", rows)
     out = tmp_path / "rows.jsonl"
-    argv = ["filter", "--corpus", str(corpus), "--fleet", "configs/fleet_qwen.json", "--out", str(out)]
+    key = ["--judge-key", "deepeval-llama3.1-8b-it_reference"]
+    argv = ["filter", "--corpus", str(corpus), "--fleet", "configs/fleet_qwen.json", *key, "--out", str(out)]
     assert rt.main(argv) == 0 and len(out.read_text().splitlines()) == 12
     with pytest.raises(ConfigError, match="exists"):
         rt.main(argv)
-    br = ["best-route-data", "--corpus", str(out), "--fleet", "configs/fleet_qwen.json", "--models", *QWEN,
+    br = ["best-route-data", "--corpus", str(out), "--fleet", "configs/fleet_qwen.json", *key, "--models", *QWEN,
           "--out", str(tmp_path / "br")]
     assert rt.main(br) == 0
     labels = json.loads((tmp_path / "br" / "labels.json").read_text())
@@ -123,8 +124,8 @@ def test_the_commands_write_new_files_only(tmp_path, monkeypatch):
 
     fake_kmeans = {"stands in for": "the fitted k-means"}      # picklable, like the real one
     monkeypatch.setattr(rt, "embed_and_cluster", lambda prompts, e, r, k: (fake_kmeans, np.arange(len(prompts)) % k))
-    av = ["avengers-pro", "--corpus", str(out), "--fleet", "configs/fleet_qwen.json", "--models", *QWEN,
-          "--family", "qwen", "--pw", "0.25", "0.80", "--embedder-revision", "r", "--n-clusters", "4",
+    av = ["avengers-pro", "--corpus", str(out), "--fleet", "configs/fleet_qwen.json", *key, "--models", *QWEN,
+          "--family", "qwen", "--pw", "0.25", "0.80", "--embedder", "e", "--embedder-revision", "r", "--n-clusters", "4",
           "--out-root", str(tmp_path / "ap")]
     pytest.importorskip("joblib")
     assert rt.main(av) == 0
@@ -136,3 +137,13 @@ def test_the_commands_write_new_files_only(tmp_path, monkeypatch):
     assert (d / "kmeans.joblib").is_file() and (tmp_path / "ap" / "avengers_pro_qwen_pw0.80").is_dir()
     with pytest.raises(ConfigError, match="exist"):
         rt.main(av)
+
+
+
+def test_a_row_without_an_id_or_a_string_price_is_refused(tmp_path):
+    with pytest.raises(ConfigError, match="no request_id"):
+        rt.row_id({"prompt": "p"}, 3)
+    fleet = tmp_path / "fleet.json"
+    fleet.write_text(json.dumps({"tiers": {"t": {"model": "m", "cost_in": "1e-7", "cost_out": 2e-7}}}))
+    with pytest.raises(ConfigError, match="numeric prices"):
+        rt.fleet_prices(fleet)

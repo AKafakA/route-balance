@@ -83,18 +83,19 @@ class Rules(Strict):
     g1: G1Rule
 
 
-def _placeholders(data: Any, path: str = "") -> list[str]:
+def placeholders(data: Any, path: str = "") -> list[str]:
+    """Where OWNER-MUST-SET values sit in a JSON value."""
     if data == PLACEHOLDER:
         return [path if path else "<root>"]
     if isinstance(data, dict):
-        return [p for k, v in data.items() for p in _placeholders(v, f"{path}.{k}" if path else k)]
+        return [p for k, v in data.items() for p in placeholders(v, f"{path}.{k}" if path else k)]
     if isinstance(data, list):
-        return [p for i, v in enumerate(data) for p in _placeholders(v, f"{path}[{i}]")]
+        return [p for i, v in enumerate(data) for p in placeholders(v, f"{path}[{i}]")]
     return []
 
 
 def parse_rules(data: Any) -> Rules:
-    unset = _placeholders(data)
+    unset = placeholders(data)
     if unset:
         raise ConfigError(f"preregistered values not set yet (the owner must fill them): {unset}")
     return parse(Rules, data, "rules")
