@@ -29,6 +29,12 @@ dependencies = [
   "tiktoken==0.13.0",
   "loguru==0.7.3",
   "openai==2.52.0",
+  # baselines: upstream BEST-Route (microsoft/best-route-llm, D79) runs on LLM-Blender, pinned at the commit its
+  # ranker was trained with, and the three packages LLM-Blender imports at run time (the versions verified 09-26)
+  "llm-blender @ git+https://github.com/yuchenlin/LLM-Blender.git@33204d2712944b6b17996f7c079e74cd963ccc7c",
+  "accelerate==1.15.0",
+  "dataclasses-json==0.6.7",
+  "protobuf==7.36.2",
   "uvloop==0.22.1",
   "pydantic==2.13.4",
   "pydantic_core==2.46.4",

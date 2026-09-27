@@ -49,15 +49,15 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from routebalance.backend import BackendClient, BackendUnreachable, GenerationRequest, GenerationResult
 from routebalance.baselines.dispatch import Dispatcher, build_dispatcher
 from routebalance.baselines.pipeline import fleet_models, select_instance
-from routebalance.baselines.routers import (DecoupledInputs, Estimate as DecoupledEstimate, Router, RouterRequest,
-                                            build_router, router_executor, router_lane)
+from routebalance.baselines.routers import (BEST_ROUTE_MODULES, DecoupledInputs, Estimate as DecoupledEstimate, Router,
+                                            RouterRequest, build_router, router_executor, router_lane)
 from routebalance.config import (ConfigError, SchedulerConfig, config_digest, fleet_digest, load_fleet, load_scheduler,
                                  loads_strict, parse_scheduler)
 from routebalance.decision_log import JsonlLog, LagProbe
 from routebalance.estimate.artifacts import md5_tree
 from routebalance.estimate.features import feature_values
 from routebalance.schedule import budget
-from routebalance.schedule.assign import Admission, RoundRequest, schedule_round
+from routebalance.schedule.assign import Admission, Decision, RoundRequest, schedule_round
 from routebalance.schedule.rounds import RoundCollector
 from routebalance.telemetry import DispatchToken, InstanceStats, TelemetryView, fetch_metrics
 from routebalance.types import Instance, Tier
@@ -73,7 +73,7 @@ THREAD_ENV = ("OMP_NUM_THREADS", "OMP_DYNAMIC", "OMP_PROC_BIND", "OMP_PLACES", "
               "MKL_DYNAMIC", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS",
               "RAYON_NUM_THREADS", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES")
 # The router option that names the artifact directory a router loads by path (its files are md5-recorded).
-ROUTER_ARTIFACT_OPTION = {"best_route": "checkpoint", "avengers_pro": "artifact_dir"}
+ROUTER_ARTIFACT_OPTION = {"best_route": "checkpoint", "best_route_upstream": "checkpoint", "avengers_pro": "artifact_dir"}
 
 
 class Busy(RuntimeError):
@@ -137,7 +137,8 @@ def idle_state(tier: Tier) -> InstanceStats:
 
 
 def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_root: Path,
-                    avengers_repo: Optional[Path], router_lane: Executor) -> Components:
+                    avengers_repo: Optional[Path], router_lane: Executor,
+                    best_route_repo: Optional[Path] = None) -> Components:
     """Loads models and tables (seconds): call it off the event loop. A pipeline router makes its model calls on
     router_lane (one request at a time, as shipped routers do); RouteBalance's own calls use the shared pool."""
     from routebalance.estimate.knn import INDEX_FILE, load_knn
@@ -158,8 +159,15 @@ def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_roo
                 raise ConfigError("rb_decoupled scores idle instances; the xgboost source needs the request's "
                                   "prompt length, which the router interface does not carry")
             decoupled = _decoupled_inputs(cfg, fleet, c.estimator, c.latency)
+        priced: dict[str, tuple[float, float]] = {}   # (input, output) per token, by model: one pair per model
+        for i in fleet:
+            pair = (i.tier.cost_in, i.tier.cost_out)
+            if priced.setdefault(i.model, pair) != pair:   # default-ok: the first instance of the model sets it
+                raise ConfigError(f"model {i.model} has two prices in the fleet ({priced[i.model]} and {pair})")
+        prices = {m: (cin + cout) / 2 for m, (cin, cout) in priced.items()}   # the routers' cheapest-first order
         c.router = build_router(cfg.pipeline.router, artifact_root=artifact_root, avengers_repo=avengers_repo,
-                                executor=router_lane, decoupled=decoupled)
+                                executor=router_lane, decoupled=decoupled, best_route_repo=best_route_repo,
+                                prices=prices)
         c.dispatcher = build_dispatcher(cfg.pipeline.dispatch)
         options = cfg.pipeline.router.options()
         option = ROUTER_ARTIFACT_OPTION.get(cfg.pipeline.router.type)
@@ -167,6 +175,10 @@ def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_roo
             c.artifacts |= md5_tree(artifact_root, str(options[option]))
         if cfg.pipeline.router.type == "avengers_pro":      # its embedder is loaded by name at a pinned revision
             c.artifacts |= model_files("avengers_pro", str(options["embedder"]), str(options["embedder_revision"]))
+        if cfg.pipeline.router.type == "best_route_upstream":   # upstream's modules and its ranker's backbone
+            c.artifacts |= {f"best_route_upstream@{rel}": hashlib.md5((best_route_repo / rel).read_bytes()).hexdigest()
+                            for rel in BEST_ROUTE_MODULES}
+            c.artifacts |= model_files("best_route_upstream", str(options["base_model"]), str(options["base_revision"]))
     return c
 
 
@@ -257,6 +269,20 @@ def _decoupled_inputs(cfg: SchedulerConfig, fleet: list[Instance], estimator, la
 
 # ---------------------------------------------------------------- RouteBalance: rounds
 
+@dataclass
+class _Round:
+    """One scheduling round as its dispatches see it: its number, size and limits, its stage times, and the
+    waiting futures by request object. schedule_ms of a request runs from the load read to its own decision."""
+    number: int
+    size: int
+    limits: tuple
+    closed: float
+    estimated: float
+    fetched: float
+    waiting: dict
+    dispatched: int = 0   # default-ok: counts the round's dispatches as they happen
+
+
 class RouteBalance:
     def __init__(self, cfg: SchedulerConfig, fleet: list[Instance], view: TelemetryView, comps: Components,
                  executor: Executor):
@@ -264,6 +290,7 @@ class RouteBalance:
         self.collector: RoundCollector = RoundCollector(cfg.rounds)
         self.last_assigned: dict[str, float] = {}      # for this configuration's lifetime (the LRU tie-break)
         self.rounds = 0
+        self._dispatch_error: Optional[BaseException] = None
 
     def submit(self, c: Completion) -> asyncio.Future:
         fut = asyncio.get_running_loop().create_future()
@@ -291,38 +318,57 @@ class RouteBalance:
                             for (c, _, _), e in zip(batch, ests, strict=True)]
                 cfg = self._cfg
                 admission = Admission() if cfg.budget.admission_filter else None
-                decisions = await loop.run_in_executor(self._executor, functools.partial(
+                self.rounds += 1                  # numbered before any dispatch; a round that fails leaves a gap
+                rnd = _Round(self.rounds, len(batch), limits, closed, estimated, fetched,
+                             {id(r): (fut, arrived) for r, (_, fut, arrived) in zip(requests, batch, strict=True)})
+
+                def decided(d: Decision, rnd: _Round = rnd) -> None:
+                    """On the pool's thread, right after each decision: dispatch it on the loop now (D78, v3's
+                    per-pick dispatch), while the rest of the round is still being scored."""
+                    n_feature = longest(d.request.estimates)   # may raise: this request is then not dispatched
+                    loop.call_soon_threadsafe(self._dispatch, rnd, d, n_feature, time.perf_counter())
+
+                await loop.run_in_executor(self._executor, functools.partial(
                     schedule_round, requests, self._fleet, loads, self._c.latency, weights=cfg.weights,
                     normalization=cfg.latency.normalization, lpt=cfg.lpt, pending_decode=cfg.pending_decode,
-                    last_assigned=self.last_assigned, clock=time.monotonic, admission=admission))
-                scheduled = time.perf_counter()
-                feature_tokens = [longest(d.request.estimates) for d in decisions]   # may raise: before any dispatch
-            except Exception as e:     # the round fails loudly: every request in it gets the error
+                    last_assigned=self.last_assigned, clock=time.monotonic, admission=admission,
+                    on_decision=decided))
+            except Exception as e:     # the round fails loudly: every request not yet dispatched gets the error
                 for _, fut, _ in batch:
                     if not fut.done():
                         fut.set_exception(e)
-                continue
-            self.rounds += 1
-            waiting = {id(r): (fut, arrived) for r, (_, fut, arrived) in zip(requests, batch, strict=True)}
-            for pos, (d, n_feature) in enumerate(zip(decisions, feature_tokens, strict=True)):
-                fut, arrived = waiting[id(d.request)]          # by object: duplicate request ids cannot collide
-                token = self._view.record_dispatch(d.instance.instance_id, d.decode_tokens)
-                best = next(s for s in d.scored if s.candidate.instance_id == d.instance.instance_id)
-                evidence = {"round": self.rounds, "round_size": len(batch), "round_pos": pos,
-                            "round_max_batch": limits[0], "round_timeout_ms": limits[1],
-                            "decode_tokens": d.decode_tokens, "lpt_key": d.lpt_key, "feature_tokens": n_feature,
-                            "lengths": {m: e.length for m, e in d.request.estimates.items()},
-                            "admitted_all": d.admitted_all, "score": best.score,
-                            "candidates": [{"inst": s.candidate.instance_id, "score": s.score,
-                                            "q": s.quality_term, "c": s.cost_term, "l": s.latency_term,
-                                            "lat_s": s.candidate.latency_s} for s in d.scored]}
-                ms = 1000.0
-                timings = {"round_wait_ms": (closed - arrived) * ms, "estimator_ms": (estimated - closed) * ms,
-                           "stats_fetch_ms": (fetched - estimated) * ms, "schedule_ms": (scheduled - fetched) * ms}
-                if not fut.done():
-                    fut.set_result(Assignment(d.instance, token, d.state, evidence, timings))
-                else:                  # the client went away while the round was scheduled
-                    self._view.record_failure(token)
+            # the dispatch callbacks were queued before the round's result, so they have all run by now
+            if self._dispatch_error is not None:
+                raise self._dispatch_error
+
+    def _dispatch(self, rnd: "_Round", d: Decision, n_feature: int, decided: float) -> None:
+        """On the loop: record the dispatch in the view and hand the request its instance. A failure here fails
+        the request and then the round loop (run() re-raises it), as the dispatch loop did before D78."""
+        fut, arrived = rnd.waiting[id(d.request)]          # by object: duplicate request ids cannot collide
+        try:
+            pos = rnd.dispatched
+            rnd.dispatched += 1
+            token = self._view.record_dispatch(d.instance.instance_id, d.decode_tokens)
+            best = next(s for s in d.scored if s.candidate.instance_id == d.instance.instance_id)
+            evidence = {"round": rnd.number, "round_size": rnd.size, "round_pos": pos,
+                        "round_max_batch": rnd.limits[0], "round_timeout_ms": rnd.limits[1],
+                        "decode_tokens": d.decode_tokens, "lpt_key": d.lpt_key, "feature_tokens": n_feature,
+                        "lengths": {m: e.length for m, e in d.request.estimates.items()},
+                        "admitted_all": d.admitted_all, "score": best.score,
+                        "candidates": [{"inst": s.candidate.instance_id, "score": s.score,
+                                        "q": s.quality_term, "c": s.cost_term, "l": s.latency_term,
+                                        "lat_s": s.candidate.latency_s} for s in d.scored]}
+            ms = 1000.0
+            timings = {"round_wait_ms": (rnd.closed - arrived) * ms, "estimator_ms": (rnd.estimated - rnd.closed) * ms,
+                       "stats_fetch_ms": (rnd.fetched - rnd.estimated) * ms, "schedule_ms": (decided - rnd.fetched) * ms}
+            if not fut.done():
+                fut.set_result(Assignment(d.instance, token, d.state, evidence, timings))
+            else:              # the client went away while the round was scheduled
+                self._view.record_failure(token)
+        except Exception as e:
+            self._dispatch_error = e
+            if not fut.done():
+                fut.set_exception(e)
 
     def fail_pending(self, exc: BaseException) -> None:
         """The round loop is gone: every request still waiting for a round gets the error."""
@@ -336,13 +382,13 @@ class RouteBalance:
 class Service:
     def __init__(self, fleet: list[Instance], *, artifact_root: Path, avengers_repo: Optional[Path],
                  request_timeout_s: float, max_connections: int, torch_threads: int, log_dir: Path,
-                 factory: Callable[..., Components] = load_components):
+                 factory: Callable[..., Components] = load_components, best_route_repo: Optional[Path] = None):
         if not fleet:
             raise ConfigError("empty fleet")
         self.fleet = fleet
         self.fleet_digest = fleet_digest(fleet)
         self._models = fleet_models(fleet)
-        self._artifacts, self._avengers = artifact_root, avengers_repo
+        self._artifacts, self._avengers, self._best_route = artifact_root, avengers_repo, best_route_repo
         self._timeout_s, self._max_conn, self._torch_threads = request_timeout_s, max_connections, torch_threads
         # the code this process runs, hashed at start (a later edit of the files does not change what runs)
         self._code = self._code_digests()
@@ -413,7 +459,7 @@ class Service:
             loop = asyncio.get_running_loop()
             comps = await loop.run_in_executor(self.executor, functools.partial(
                 self._factory, cfg, self.fleet, artifact_root=self._artifacts, avengers_repo=self._avengers,
-                router_lane=self.router_lane))
+                router_lane=self.router_lane, best_route_repo=self._best_route))
             t = cfg.telemetry
             view = TelemetryView(self.fleet, lambda i: fetch_metrics(self._telemetry_session, i, t.timeout_s),
                                  poll_ms=t.poll_ms, max_age_ms=t.max_age_ms, dead_reckoning=cfg.dead_reckoning)
@@ -487,7 +533,7 @@ class Service:
         o = sel.overhead
         return Assignment(sel.instance, sel.token, sel.load.stats,
                           {"reason": sel.reason, "router_score": sel.score, "decode_tokens": decode[sel.model],
-                           "feature_tokens": feature_tokens, **lengths},
+                           "feature_tokens": feature_tokens, "in_flight": sel.load.in_flight, **lengths},
                           {"router_ms": o.router_ms, "telemetry_ms": o.telemetry_ms, "dispatch_ms": o.dispatch_ms})
 
     async def _serve(self, c: Completion, a: Assignment) -> dict:
@@ -701,6 +747,7 @@ def main(argv=None) -> None:
     p.add_argument("--config", type=Path, required=True, help="the scheduler configuration served at start")
     p.add_argument("--artifacts", type=Path, required=True)
     p.add_argument("--avengers-repo", type=Path, default=None, help="upstream AvengersPro checkout (its router)")
+    p.add_argument("--best-route-repo", type=Path, default=None, help="upstream best-route-llm checkout (its ranker)")
     p.add_argument("--host", required=True)
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--request-timeout-s", type=float, required=True)
@@ -720,7 +767,7 @@ def main(argv=None) -> None:
     async def serve():
         service = Service(fleet, artifact_root=a.artifacts, avengers_repo=a.avengers_repo,
                           request_timeout_s=a.request_timeout_s, max_connections=a.max_connections,
-                          torch_threads=a.torch_threads, log_dir=a.log_dir)
+                          torch_threads=a.torch_threads, log_dir=a.log_dir, best_route_repo=a.best_route_repo)
         await service.start(cfg)
         runner = web.AppRunner(build_app(service), access_log=None)
         await runner.setup()
