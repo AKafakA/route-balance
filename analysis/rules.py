@@ -4,7 +4,8 @@
   equal_quality   tolerance: a treatment preset is "at equal quality" with a baseline when their mean
                   qualities differ by at most this (absolute score units); interpolation along the
                   treatment's frontier may also reach this far past its end points
-                  bootstrap_resamples, confidence, bootstrap_seed: the percentile bootstrap over seeds
+                  bootstrap_resamples, confidence, bootstrap_seed: the percentile bootstrap over requests
+                  within the paired seeds (analysis/equal_quality.py, D80)
   slo             D57, after SOLA (analysis/slo.py): the multiplier k of each level, by served model, on the
                   served tier's single-request TTFT and TPOT (tight, loose); attainment_levels, the attainment
                   shares at which goodput is read (the largest rate that keeps them)

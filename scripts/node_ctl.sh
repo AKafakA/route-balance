@@ -192,6 +192,7 @@ cmd_sched_start() {
   mountpoint -q "$MYDATA" || fail "$MYDATA is not mounted"
   venv_complete "$SCHED_VENV"
   [ -f "$AP_DIR/simple_cluster_router.py" ] || fail "no AvengersPro checkout at $AP_DIR (setup.sh --role scheduler)"
+  [ -f "$BR_DIR/hybrid_llm/pair_ranker/ranker.py" ] || fail "no best-route-llm checkout at $BR_DIR (setup.sh --role scheduler)"
   # relative paths are relative to the login directory (where ssh starts), for the checks and the scheduler alike
   case "$art" in /*) ;; *) art="$HOME/$art" ;; esac
   case "$logdir" in /*) ;; *) logdir="$HOME/$logdir" ;; esac
@@ -214,7 +215,7 @@ cmd_sched_start() {
   rm -f "$pidf"                        # a stale record (that process is gone), replaced by the new one below
   log="$RB_LOGS/scheduler.$(date -u +%Y%m%dT%H%M%SZ).log"
   local argv=(--fleet "$run/fleet.json" --hosts "$run/hosts.json" --config "$run/scheduler.json"
-              --artifacts "$art" --avengers-repo "$AP_DIR" --host "$host" --port "$port"
+              --artifacts "$art" --avengers-repo "$AP_DIR" --best-route-repo "$BR_DIR" --host "$host" --port "$port"
               --request-timeout-s "$timeout" --max-connections "$conns" --torch-threads "$threads" --log-dir "$logdir")
   printf '%s\n' "CUDA_VISIBLE_DEVICES= $SCHED_VENV/bin/python -u -m routebalance.server ${argv[*]}" > "$run/scheduler.cmd"
   # the soft open-file limit is raised to the hard limit: the engine streams are bounded by --max-connections

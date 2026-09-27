@@ -3,7 +3,7 @@
 #
 #   setup_fleet.sh --fleet F --hosts H --engine-args E --scheduler-node N --hf-token-file LOCAL_PATH
 #                  --tree REMOTE_DIR --log-dir LOCAL_DIR [--hub configs/scheduler_hub.json] [--ssh-user U]
-#                  [--data-disks FILE]
+#                  [--data-disks FILE] [--with-tests]
 #
 # --data-disks: {"<node>": "/dev/<disk>"} for nodes whose scratch disk is not the node type's default (some d7525
 # have no NVMe disk); setup.sh gets --data-disk for those nodes, and refuses the others' missing default.
@@ -14,6 +14,7 @@
 # (REBOOT REQUIRED) reboots the node, waits for it (up to 30 min) and runs the same command again, once.
 # The scheduler node then also runs `setup.sh --role scheduler` with the --hub specs. One log per node
 # under LOG_DIR. Finally every engine node's venv freeze must be identical (one engine stack, D24).
+# --with-tests: the scheduler node's setup.sh also builds the test venv (setup.sh --with-tests).
 # Exits 1 if any node failed.
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,7 +23,9 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 set -euo pipefail
 
 FLEET="" HOSTS="" EA="" SCHED="" TOKEN="" TREE="" LOGDIR="" HUB="$RB_REPO/configs/scheduler_hub.json" DISKS=""
+TEST_ARGS=()
 while [ $# -gt 0 ]; do
+  if [ "$1" = --with-tests ]; then TEST_ARGS=(--with-tests); shift; continue; fi
   [ $# -ge 2 ] || die "$1 needs a value"
   case "$1" in
     --fleet) FLEET="$2" ;; --hosts) HOSTS="$2" ;; --engine-args) EA="$2" ;; --scheduler-node) SCHED="$2" ;;
@@ -97,7 +100,7 @@ setup_node() {   # setup_node <node> <addr>
   [ "$rc" -eq 0 ] || { say "$node: engine setup failed (exit $rc)" >> "$log"; return 1; }
   if [ "$node" = "$SCHED" ]; then
     run_setup "$addr" "$log" --role scheduler --hf-token-file "$REMOTE_TOKEN" "${hub_args[@]}" ${disk_args[@]+"${disk_args[@]}"} \
-      || { say "$node: scheduler setup failed" >> "$log"; return 1; }
+      ${TEST_ARGS[@]+"${TEST_ARGS[@]}"} || { say "$node: scheduler setup failed" >> "$log"; return 1; }
   fi
   say "$node: ready" >> "$log"
 }
