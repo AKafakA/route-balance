@@ -325,10 +325,6 @@ class Cell:
         return rec
 
     @cached_property
-    def config_document(self) -> Any:
-        return self._json("config.json")
-
-    @cached_property
     def decisions(self) -> list[dict]:
         path = self._file("decisions.jsonl")
         try:
