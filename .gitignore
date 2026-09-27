@@ -1,0 +1,18 @@
+# environments and caches
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# machine-local files: real host names, keys, run outputs (never tracked)
+/local/
+/results/
+*.log
+
+# large artifacts live outside git (paths are given by config)
+/data/
+/models/
+
+# agent worktrees and tool state (never tracked)
+/.claude/
