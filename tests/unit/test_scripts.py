@@ -264,3 +264,5 @@ def test_setup_never_reads_an_unread_mig_mode_as_off(tmp_path, modes, rc, messag
     smi.chmod(0o755)
     r = bash(f"source scripts/setup.sh && PATH={tmp_path}:$PATH && GPU_COUNT=2 && mig_enabled")
     assert r.returncode == rc and message in r.stderr
+    if not message:                                                # MIG off or on is read, never a failed setup
+        assert "SETUP FAILED" not in r.stderr

@@ -244,7 +244,7 @@ def parity_state(cells_root: Path, group: str, runs: Mapping[str, str]) -> str:
     if last["rc"] != 0:
         return "failed"
     covered = {Path(c).name: sha for c, sha in last["cells"]}
-    return "passed" if all(covered.get(c) == sha for c, sha in runs.items()) else "not run"
+    return "passed" if covered == dict(runs) else "not run"    # as the driver: exactly the current runs
 
 
 def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:

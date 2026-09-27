@@ -297,3 +297,14 @@ def test_only_a_sweep_runs_missing_quality_is_exempt():
     assert not rp.only_missing_quality("qwen.rb.uniform", none)
     assert not rp.only_missing_quality("qwen.rb.sweep.x", [*none, "2/3534 requests failed"])
     assert not rp.only_missing_quality("qwen.rb.sweep.x", [])
+
+
+def test_a_parity_record_over_a_cell_no_longer_current_counts_as_not_run(env):
+    """As the driver (rows_status): the record must cover exactly the group's current runs."""
+    for f in (env["cells"] / "_groups").rglob("parity.*.json"):
+        rec = json.loads(f.read_text())
+        f.write_text(json.dumps(dict(rec, cells=[*rec["cells"], ["/node/cells/retired__l1__s1", "0" * 64]])))
+    out = env["tmp"] / "report"
+    assert rp.main(_argv(env, out)) == 1
+    report = json.loads((out / "report.json").read_text())
+    assert not report["left_out"] and set(report["parity"].values()) == {"not run"}
