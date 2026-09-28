@@ -110,8 +110,8 @@ def test_the_tracked_files_dry_run_every_row():
     assert list(rows) == ["W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
                           "W8-cal", "W8", "W9", "W11", "W12", "W13", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 44, "W1b": 24, "G1b": 4, "W2": 130, "W2b": 20, "W4": 90, "W3": 100, "W5": 30, "W7": 36,
-                     "W7b": 9, "W8": 156, "W9": 260, "W11": 12, "W12": 10, "W13": 7}   # W8: the Qwen grid's baselines (D70);
+    assert cells == {"G1": 66, "W1b": 24, "G1b": 4, "W2": 156, "W2b": 20, "W4": 90, "W3": 112, "W5": 30, "W7": 36,
+                     "W7b": 9, "W8": 156, "W9": 312, "W11": 12, "W12": 12, "W13": 7}   # W8: the Qwen grid's baselines (D70);
     #                                                                              W12: the in-flight dispatchers (D84);
     #                                                                              W13: leave one source out (D93)
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
@@ -242,7 +242,7 @@ def test_the_tracked_files_render_with_every_lease_input():
     by_block = {}
     for c in cells:
         by_block[c.block] = by_block.get(c.block, 0) + 1
-    assert by_block["G1"] == 44 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 54
+    assert by_block["G1"] == 66 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 54
     assert (by_block["W4-latency"], by_block["W4-learned"], by_block["W4-const-batch"]) == (24, 6, 6)
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():

@@ -61,5 +61,12 @@
   "decision": "D114",
   "owner": "(the 2 evaluation pairs unscored stay as gaps in the lookup) we need to filter them out as well",
   "gpu_cost": "none extra: every Qwen run sends 3532 prompts instead of 3534; the time-varying pattern's last stretch is 292 requests"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "7b4f498b4e7f7a5cf21ba94408bd91124c1ac2b199d9b8cc9ef796a43e61557f",
+  "decision": "D116",
+  "owner": "what if 12 18 24 30 36 and 42 with 6 rates?; that seems good, and for the thesis check, we need to rerun with rate 42 as well for all?; All 22 thesis checker",
+  "gpu_cost": "main grid, frontier, fill and in-flight rows: 6 req/s replaced by 36 and 42 (+100 runs, about 7.5 h less in total); thesis check +22 runs at 42 req/s (about 75 min, after the sweep)"
  }
 ]
