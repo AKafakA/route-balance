@@ -13,8 +13,8 @@ from tests.contract.test_server import free_port
 from tools import calibrate_driver, direct
 from tools.calibrate_driver import calibrate, records
 
-SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 8)
-LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 8)
+SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 8, ())
+LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 8, ())
 SAMPLING = {"temperature": 0.0, "repetition_penalty": 1.0, "frequency_penalty": 1.2, "max_tokens": 64}
 
 

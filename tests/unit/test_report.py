@@ -35,7 +35,7 @@ def env(tmp_path):
     (render / "scope.json").write_text(json.dumps(scope_raw))
     fleet = tmp_path / "fleet.json"
     fleet.write_text(json.dumps({"tiers": {"t-small": {"model": "m-small", "gpu": "a30", "cost_in": 1e-7,
-                                                       "cost_out": 2e-7, "max_num_seqs": 256}},
+                                                       "cost_out": 2e-7, "max_num_seqs": 256, "stop_token_ids": []}},
                                  "instances": [{"instance_id": "m-small_0", "tier": "t-small", "node": "n0",
                                                 "port": 8000}]}))
     hosts = tmp_path / "hosts.json"

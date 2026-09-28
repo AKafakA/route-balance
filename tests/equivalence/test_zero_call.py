@@ -16,7 +16,7 @@ from types import SimpleNamespace
 from routebalance.estimate.latency import ConstantTPOT, LatencyModel, ProfiledCurveTPOT, load_table
 from routebalance.types import Instance, Tier
 doc = load_table(Path(sys.argv[1]), sys.argv[2])
-fleet = [Instance(f"i{n}", Tier(t, "m-" + t, "a30", 1e-7, 1e-7, 8), "n", "h", 8000 + n)
+fleet = [Instance(f"i{n}", Tier(t, "m-" + t, "a30", 1e-7, 1e-7, 8, ()), "n", "h", 8000 + n)
          for n, t in enumerate(sorted(doc["constant"]))]
 lengths = {i.model: 50.0 + n for n, i in enumerate(fleet)}
 for model in (LatencyModel(ConstantTPOT(doc["constant"]), "own_length"),
@@ -46,7 +46,7 @@ def test_static_arms_never_touch_xgboost(artifacts):
 def test_learned_arm_counts_one_call_per_tier_per_request(artifacts):
     d = artifacts / SERVED_HEADS
     src = XGBoostTPOT.from_manifest(d, SERVED_HEADS_MD5, V3_TIERS)
-    fleet = [Instance(f"i{n}", Tier(V3_TIERS[n % 4], "m", "a30", 1e-7, 1e-7, 8), "n", "h", 8000 + n) for n in range(13)]
+    fleet = [Instance(f"i{n}", Tier(V3_TIERS[n % 4], "m", "a30", 1e-7, 1e-7, 8, ()), "n", "h", 8000 + n) for n in range(13)]
     state = SimpleNamespace(num_running=3, num_waiting=1, kv_cache_utilization=0.3, max_num_seqs=8,
                             pending_decode_tokens=400)
     for r in range(250):

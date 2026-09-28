@@ -22,8 +22,8 @@ from routebalance.server import Assignment, Completion, Components, Service, bui
 from routebalance.types import Instance, Tier
 from tests.contract.fake_vllm import FakeState, make_app
 
-SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 8)
-LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 8)
+SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 8, ())
+LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 8, ())
 
 RB = {
     "mode": "routebalance", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},

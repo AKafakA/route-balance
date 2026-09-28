@@ -46,8 +46,10 @@ GROUPS = {
     "w4-dr": ("w4-ref", {"w4-ref": [], "w4-nodr": ["telemetry.dead_reckoning"]}),
 }
 N_REQUESTS, RATE = 16, 400.0          # bursts that fill RouteBalance's rounds
-TIERS = {"small_a30": {"model": "S", "gpu": "a30", "cost_in": 1e-7, "cost_out": 1e-7, "max_num_seqs": 8},
-         "large_a100": {"model": "L", "gpu": "a100", "cost_in": 4e-7, "cost_out": 4e-7, "max_num_seqs": 8}}
+TIERS = {"small_a30": {"model": "S", "gpu": "a30", "cost_in": 1e-7, "cost_out": 1e-7, "max_num_seqs": 8,
+                       "stop_token_ids": []},
+         "large_a100": {"model": "L", "gpu": "a100", "cost_in": 4e-7, "cost_out": 4e-7, "max_num_seqs": 8,
+                        "stop_token_ids": []}}
 # (instance, tier, node, hardware type, loopback address): one address per hardware type, as load_fleet requires
 INSTANCES = [("S_0", "small_a30", "n0", "d7525", "127.0.0.1"), ("S_1", "small_a30", "n1", "d7525", "127.0.0.1"),
              ("L_2", "large_a100", "n2", "d8545", "127.0.0.2")]

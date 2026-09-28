@@ -10,7 +10,7 @@ from routebalance.telemetry import InstanceStateUnavailable, TelemetryView, fetc
 from routebalance.types import Instance, Tier
 from tests.contract.fake_vllm import FakeState, make_app
 
-TIER = Tier("t", "M", "a30", 1e-7, 1e-7, 256)
+TIER = Tier("t", "M", "a30", 1e-7, 1e-7, 256, ())
 
 
 def _free_port() -> int:
