@@ -26,5 +26,12 @@
   "decision": "D102, D106",
   "owner": "it seems a bug for me to be honest; i woould prefrer the full re-collection as clean fixing and 4 hours seems afforadable; let us do it; (asked with the corrected numbers) Full re-collection as planned; rebuild is fine; ok. great, then we need the new data for sure",
   "gpu_cost": "the Qwen answers re-collected on the 13 Qwen engines (26 min) and judged on 22 lease judges (45 min); the thesis check and every later Qwen row run on the new corpus (no extra runs)"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "0d7bee35dc08c1bc6b4c0a96d6ccf18f18d8dea9a984d971ce0bde5f45e6df12",
+  "decision": "D108",
+  "owner": "how we process the degeration issions before? filter out or keep?; (asked: v3 dropped a prompt when any model's answer hit the 1,024-token limit, was repetitive or was under 3 tokens) Filter both",
+  "gpu_cost": "none extra: every Qwen run sends 3410 prompts instead of 3534 (3.5% shorter); the time-varying pattern's last stretch at 30 req/s is 170 requests instead of 294"
  }
 ]
