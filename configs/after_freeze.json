@@ -40,5 +40,12 @@
   "decision": "D109",
   "owner": "it let me feel a little concern as such data clean on evaluation data could be part of data cherrry picking; to keep the consistency, we have to keep both consistent; ok, then take both",
   "gpu_cost": "none extra: every Qwen run sends the 3534 prompts again (D108's 3410 withdrawn, about 3.6% longer per run)"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "265a899a4b4e95573330a3fe695fae57505db21e0aa1102da55e1fa01559309d",
+  "decision": "D111",
+  "owner": "(asked: the notes text still says the send-lag bound is 100 ms; the value is 500 ms) Fix the text (Recommended)",
+  "gpu_cost": "none: a notes text only; no value changes"
  }
 ]
