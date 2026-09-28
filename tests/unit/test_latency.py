@@ -14,8 +14,8 @@ from routebalance.estimate.latency import (ConstantTPOT, LatencyError, LatencyMo
                                            load_latency_model, own_length, queue_aware)
 from routebalance.types import Instance, Tier
 
-A30_3B = Tier("qwen2.5-3b_a30", "Qwen/Qwen2.5-3B", "a30", 6e-08, 6e-08, 256)
-V100_14B = Tier("qwen2.5-14b_v100", "Qwen/Qwen2.5-14B", "v100", 2e-07, 2e-07, 256)
+A30_3B = Tier("qwen2.5-3b_a30", "Qwen/Qwen2.5-3B", "a30", 6e-08, 6e-08, 256, ())
+V100_14B = Tier("qwen2.5-14b_v100", "Qwen/Qwen2.5-14B", "v100", 2e-07, 2e-07, 256, ())
 INSTANCES = [Instance("i3", A30_3B, "n1", "h1", 8000), Instance("i14", V100_14B, "n2", "h2", 8000)]
 LENGTHS = {"Qwen/Qwen2.5-3B": 120.7, "Qwen/Qwen2.5-14B": 80.2, "Qwen/Qwen2.5-72B": 300.9}
 CURVES = {"qwen2.5-3b_a30": [[1, 10.0], [3, 12.0], [9, 18.0]], "qwen2.5-14b_v100": [[1, 16.0]]}

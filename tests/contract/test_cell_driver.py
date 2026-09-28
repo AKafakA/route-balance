@@ -15,7 +15,7 @@ from tools import cell_driver as cd
 from tests.gates.cellfix import FIXTURES
 
 FLEET = {"tiers": {"qwen2.5-3b_a30": {"model": "Qwen/Qwen2.5-3B", "gpu": "a30", "cost_in": 6e-8, "cost_out": 6e-8,
-                                      "max_num_seqs": 256}},
+                                      "max_num_seqs": 256, "stop_token_ids": []}},
          "instances": [{"instance_id": "q3b_0", "tier": "qwen2.5-3b_a30", "node": "n1", "port": 8001}]}
 HOSTS = {"n1": {"address": "127.0.0.1", "hw": "d7525"}}
 CELL = "g1.qwen.ap.pw070.lor__l12__s1"

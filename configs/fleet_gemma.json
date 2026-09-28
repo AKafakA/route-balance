@@ -1,9 +1,9 @@
 {
   "tiers": {
-    "gemma-3-1b_a30": {"model": "google/gemma-3-1b-it", "gpu": "a30", "cost_in": 1e-07, "cost_out": 1e-07, "max_num_seqs": 256},
-    "gemma-3-4b_a30": {"model": "google/gemma-3-4b-it", "gpu": "a30", "cost_in": 4e-08, "cost_out": 8e-08, "max_num_seqs": 256},
-    "gemma-3-12b_a100": {"model": "google/gemma-3-12b-it", "gpu": "a100", "cost_in": 5e-08, "cost_out": 1.5e-07, "max_num_seqs": 256},
-    "gemma-3-27b_a100": {"model": "google/gemma-3-27b-it", "gpu": "a100", "cost_in": 8e-08, "cost_out": 1.6e-07, "max_num_seqs": 256}
+    "gemma-3-1b_a30": {"model": "google/gemma-3-1b-it", "gpu": "a30", "cost_in": 1e-07, "cost_out": 1e-07, "max_num_seqs": 256, "stop_token_ids": []},
+    "gemma-3-4b_a30": {"model": "google/gemma-3-4b-it", "gpu": "a30", "cost_in": 4e-08, "cost_out": 8e-08, "max_num_seqs": 256, "stop_token_ids": []},
+    "gemma-3-12b_a100": {"model": "google/gemma-3-12b-it", "gpu": "a100", "cost_in": 5e-08, "cost_out": 1.5e-07, "max_num_seqs": 256, "stop_token_ids": []},
+    "gemma-3-27b_a100": {"model": "google/gemma-3-27b-it", "gpu": "a100", "cost_in": 8e-08, "cost_out": 1.6e-07, "max_num_seqs": 256, "stop_token_ids": []}
   },
   "instances": [
     {"instance_id": "Gemma-3-1B_0", "tier": "gemma-3-1b_a30", "node": "a30-0", "port": 8000},

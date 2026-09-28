@@ -9,10 +9,10 @@ from routebalance.telemetry import InstanceStats, Load
 from routebalance.types import Instance, Tier
 
 TIERS = {
-    "14B": Tier("qwen2.5-14b_v100", "Qwen/Qwen2.5-14B", "v100", 2e-7, 2e-7, 256),
-    "3B": Tier("qwen2.5-3b_a30", "Qwen/Qwen2.5-3B", "a30", 6e-8, 6e-8, 256),
-    "72B": Tier("qwen2.5-72b_a100", "Qwen/Qwen2.5-72B", "a100", 9e-7, 9e-7, 256),
-    "7B": Tier("qwen2.5-7b_a30", "Qwen/Qwen2.5-7B", "a30", 1e-7, 1e-7, 256),
+    "14B": Tier("qwen2.5-14b_v100", "Qwen/Qwen2.5-14B", "v100", 2e-7, 2e-7, 256, ()),
+    "3B": Tier("qwen2.5-3b_a30", "Qwen/Qwen2.5-3B", "a30", 6e-8, 6e-8, 256, ()),
+    "72B": Tier("qwen2.5-72b_a100", "Qwen/Qwen2.5-72B", "a100", 9e-7, 9e-7, 256, ()),
+    "7B": Tier("qwen2.5-7b_a30", "Qwen/Qwen2.5-7B", "a30", 1e-7, 1e-7, 256, ()),
 }
 COUNTS = {"14B": 3, "3B": 3, "72B": 2, "7B": 5}
 FLEET = [Instance(f"Qwen-2.5-{size}_{k}", TIERS[size], f"node-{size}-{k}", f"h-{size.lower()}-{k}", 8000)

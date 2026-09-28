@@ -7,8 +7,8 @@ from analysis.slo import CellSlo, Goodput, SloBase, goodput, goodputs
 from routebalance.config import ConfigError
 from routebalance.types import Instance, Tier
 
-SMALL = Tier("s_a30", "S", "a30", 1e-7, 1e-7, 8)
-LARGE = Tier("l_a100", "L", "a100", 4e-7, 4e-7, 8)
+SMALL = Tier("s_a30", "S", "a30", 1e-7, 1e-7, 8, ())
+LARGE = Tier("l_a100", "L", "a100", 4e-7, 4e-7, 8, ())
 FLEET = [Instance("S_0", SMALL, "n0", "h0", 8000), Instance("L_1", LARGE, "n1", "h1", 8001)]
 K = {"tight": {"S": 8.0, "L": 4.0}, "loose": {"S": 12.0, "L": 8.0}}          # values exact in binary
 

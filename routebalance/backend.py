@@ -69,6 +69,7 @@ def _chat_payload(inst: Instance, req: GenerationRequest) -> dict:
         "repetition_penalty": req.repetition_penalty,
         "frequency_penalty": req.frequency_penalty,
         "max_completion_tokens": req.max_tokens,
+        "stop_token_ids": list(inst.tier.stop_token_ids),      # the tier's end-of-turn stops (D102)
         "stream": True,
         # continuous usage stats: every chunk carries the cumulative completion_tokens, because vLLM may merge
         # several tokens into one content delta when the engine runs ahead of the API server

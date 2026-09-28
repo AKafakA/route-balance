@@ -5,7 +5,7 @@ import pytest
 from routebalance.schedule.budget import affordable_tokens, clamp, request_cost
 from routebalance.types import Tier
 
-T = Tier("t", "M", "a30", 1e-7, 2e-7, 256)
+T = Tier("t", "M", "a30", 1e-7, 2e-7, 256, ())
 
 
 def test_clamp_is_the_v3_formula():

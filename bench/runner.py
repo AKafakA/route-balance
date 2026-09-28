@@ -6,6 +6,9 @@ One run of one cell:
   2. for request i, sleep until t0 + arrival_i (monotonic clock), then start it as its own task, so a slow
      reply never delays a later send;
   3. wait for every reply, then read the identity again (a configuration change during the cell shows);
+     the cyclic garbage collector is off from the first send to the last reply, and the last request is started
+     before the wait over every request is built (D103: a full collection there had delayed the last send by up
+     to 204 ms); a cell's records are acyclic and bounded, freed by reference counting;
   4. return one CellRecord (bench/records.py).
 The runner sends no warm-up or ready-check requests (v3 sent six through the scheduler, into its decision
 log and counters); warming the fleet is the driver's job. A failure is recorded with its error and never
@@ -22,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import gc
 import sys
 import time
 import uuid
@@ -62,16 +66,23 @@ async def run_cell(spec: CellSpec, prompts: PromptSet, client: SchedulerClient, 
         raise WrongConfiguration(f"cell {spec.cell_id}: the scheduler runs configuration "
                                  f"{identity_start.config_digest}, the scope expects {spec.expected_config_digest}")
     started_unix = time.time()
-    t0 = time.perf_counter()
-    tasks = []
-    for i, (prompt, arrival) in enumerate(zip(prompts.prompts, arrivals, strict=True)):
-        delay = t0 + arrival - time.perf_counter()
-        if delay > 0:
-            await asyncio.sleep(delay)
-        request_id = f"{spec.cell_id}.{run_id}.{i}"
-        tasks.append(asyncio.create_task(_send(client, t0, i, request_id, prompt, arrival, spec.sampling)))
-    requests = await asyncio.gather(*tasks)
-    duration_s = time.perf_counter() - t0
+    was_enabled = gc.isenabled()
+    gc.disable()
+    try:
+        t0 = time.perf_counter()
+        tasks = []
+        for i, (prompt, arrival) in enumerate(zip(prompts.prompts, arrivals, strict=True)):
+            delay = t0 + arrival - time.perf_counter()
+            if delay > 0:
+                await asyncio.sleep(delay)
+            request_id = f"{spec.cell_id}.{run_id}.{i}"
+            tasks.append(asyncio.create_task(_send(client, t0, i, request_id, prompt, arrival, spec.sampling)))
+        await asyncio.sleep(0)                  # the last request starts before the wait below is built
+        requests = await asyncio.gather(*tasks)
+        duration_s = time.perf_counter() - t0
+    finally:
+        if was_enabled:
+            gc.enable()
     ended_unix = time.time()
     identity_end, identity_end_error = await _identity_after(client)
     return CellRecord(

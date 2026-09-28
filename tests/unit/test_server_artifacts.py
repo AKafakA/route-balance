@@ -18,7 +18,7 @@ from routebalance.decision_log import JsonlLog
 from routebalance.estimate.artifacts import ArtifactError, md5_tree
 from routebalance.types import Instance, Tier
 
-SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 8)
+SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 8, ())
 FLEET = [Instance("S_0", SMALL, "n0", "127.0.0.1", 9000)]
 ENCODER = "sentence-transformers/all-MiniLM-L6-v2"
 
@@ -128,7 +128,7 @@ def test_upstream_best_route_records_its_checkpoint_modules_and_backbone(tmp_pat
 def test_a_model_priced_twice_differently_is_refused(tmp_path, fake_knn):
     """The routers' cheapest-first order needs one price per model (tools/router_training refuses it too)."""
     for cin, cout in ((1e-7, 5e-7), (0.5e-7, 1.5e-7)):      # the second has the same mean as S's (1e-7, 1e-7)
-        other = Tier("small_a100", "S", "a100", cin, cout, 8)
+        other = Tier("small_a100", "S", "a100", cin, cout, 8, ())
         fleet = FLEET + [Instance("S_1", other, "n1", "127.0.0.1", 9001)]
         with ThreadPoolExecutor(1) as ex, pytest.raises(ConfigError, match="two prices"):
             server.load_components(parse_scheduler(pipeline({"type": "passthrough", "kwargs": {}})), fleet,

@@ -120,14 +120,14 @@ def test_duration_must_be_positive():
 
 
 def test_prices_come_from_the_fleet_tiers():
-    tiers = [Tier("s_a30", "small", "a30", 1e-7, 2e-7, 256), Tier("l_a100", "large", "a100", 3e-7, 4e-7, 256),
-             Tier("s_v100", "small", "v100", 1e-7, 2e-7, 256)]
+    tiers = [Tier("s_a30", "small", "a30", 1e-7, 2e-7, 256, ()), Tier("l_a100", "large", "a100", 3e-7, 4e-7, 256, ()),
+             Tier("s_v100", "small", "v100", 1e-7, 2e-7, 256, ())]
     assert decode_prices(tiers) == {"small": 2e-7, "large": 4e-7}
     with pytest.raises(ConfigError, match="two output prices"):
-        decode_prices(tiers + [Tier("l_a30", "large", "a30", 3e-7, 5e-7, 256)])
+        decode_prices(tiers + [Tier("l_a30", "large", "a30", 3e-7, 5e-7, 256, ())])
 
 
-FLEET = [Instance("m-small_0", Tier("m-small_a30", "m-small", "a30", 1e-7, 2e-7, 256), "node1", "h1", 8000)]
+FLEET = [Instance("m-small_0", Tier("m-small_a30", "m-small", "a30", 1e-7, 2e-7, 256, ()), "node1", "h1", 8000)]
 # the fake scheduler replies with TTFT 1 ms and 4 ms on the engine; each request's e2e adds the client's own time
 CELL_SLO = CellSlo.of({"tight": {"m-small": 10.0}, "loose": {"m-small": 15.0}},
                       SloBase(unit="s", ttft_s={"m-small_a30": 1.0}, tpot_s={"m-small_a30": 1.0}, provenance={}), FLEET)
@@ -203,7 +203,7 @@ def test_a_cell_served_outside_the_slos_fleet_is_flagged_not_crashed(tmp_path):
 
 def test_another_fleet_cannot_price_a_cell(tmp_path):
     rec, corpus = _record(tmp_path)
-    other = [Instance("m-small_0", Tier("m-small_a30", "m-small", "a30", 1e-7, 9e-7, 256), "node1", "h1", 8000)]
+    other = [Instance("m-small_0", Tier("m-small_a30", "m-small", "a30", 1e-7, 9e-7, 256, ()), "node1", "h1", 8000)]
     assert summarize_cell(rec, corpus, FLEET, CELL_SLO).valid
     assert summarize_cell(rec, corpus, other, CELL_SLO).problems == (
         "the fleet given to the analysis is not the fleet the cell ran on",)

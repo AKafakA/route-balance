@@ -12,5 +12,12 @@
   "decision": "D93",
   "owner": "we can keep it as the optional experiments, if time allowed before Friday, as potential boost against the held-out cold study experiments, but no need to be put into the paper if time limited, and also, we need the measure from the real online experiments but just replace with the partial knn index; shape: 7 folds, lambda 12, seed 1; order: last, after W11",
   "gpu_cost": "W13: 7 cells, ~40 min at lambda 12, seed 1; good-to-have, the last experiment row (after W12); off the must path"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "f83d74438999672b454f327b1d283483daace16453eda0bdca13b2254d9ec738",
+  "decision": "D103",
+  "owner": "scheduler changes is fine, and it seems postivitive if pass the runtime checker, and 100ms just increase to 500ms",
+  "gpu_cost": "none: the bound on how late the client may start a request after its scheduled arrival (bench.max_send_lag_ms, 100 -> 500 ms) applies from the thesis-check rerun on; the before-the-fix runs it invalidated (their last request, 178-204 ms late) are reference only"
  }
 ]

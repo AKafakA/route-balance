@@ -247,3 +247,43 @@ def test_every_request_states_its_budget_null_or_the_prompts():
     s = Sampling(**SAMPLING)
     assert json.loads(request_body("r", p, s))["budget_cost"] is None
     assert json.loads(request_body("r", p.model_copy(update={"budget_cost": 2e-5}), s))["budget_cost"] == 2e-5
+
+
+def test_the_collector_is_off_while_sending_and_back_on_after(tmp_path):
+    """D103: no cyclic garbage collection between the first send and the last reply (a full collection had delayed
+    the last send by up to 204 ms); the collector's state is restored afterwards, also when the cell fails."""
+    import gc
+
+    class Recording(FakeScheduler):
+        async def complete(self, body):
+            self.gc_during.append(gc.isenabled())
+            return await super().complete(body)
+
+    fake = Recording()
+    fake.gc_during = []
+    assert gc.isenabled()
+    _run(_spec(), _prompts(tmp_path), fake)
+    assert fake.gc_during and not any(fake.gc_during) and gc.isenabled()
+    failing = Recording(raise_on=lambda i: True)
+    failing.gc_during = []
+    _run(_spec(), _prompts(tmp_path), failing)
+    assert gc.isenabled()
+
+
+def test_the_last_request_starts_before_the_final_wait(tmp_path, monkeypatch):
+    """D103: the last request's task runs before asyncio.gather over every request is built."""
+    order = []
+    real_gather = runner.asyncio.gather
+
+    def gather(*aws, **kw):
+        order.append("gather")
+        return real_gather(*aws, **kw)
+
+    class Recording(FakeScheduler):
+        async def complete(self, body):
+            order.append(json.loads(body)["request_id"].rsplit(".", 1)[1])
+            return await super().complete(body)
+
+    monkeypatch.setattr(runner.asyncio, "gather", gather)
+    _run(_spec(), _prompts(tmp_path), Recording())
+    assert order.index("11") < order.index("gather")

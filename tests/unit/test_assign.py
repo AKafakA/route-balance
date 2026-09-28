@@ -7,8 +7,8 @@ from routebalance.schedule.assign import Admission, RoundRequest, _decode_tokens
 from routebalance.telemetry import InstanceStats, Load
 from routebalance.types import Instance, Tier
 
-SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 4)
-LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 4)
+SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 4, ())
+LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 4, ())
 FLEET = [Instance("s0", SMALL, "n1", "h1", 8000), Instance("s1", SMALL, "n2", "h2", 8000),
          Instance("l0", LARGE, "n3", "h3", 8000)]
 W = Weights(w_quality=0.5, w_latency=0.3, w_cost=0.2)
@@ -128,7 +128,7 @@ def test_when_nothing_fits_only_the_cheapest_by_worst_case_cost_remain():
 def test_the_fallback_is_the_worst_case_cost_not_the_expected_one():
     """In: A costs 1e-6 per input token and 1e-8 per output token, B the reverse. With a 1-token expectation B is
     cheaper (prompt 50: A 5.0e-5, B 1.5e-6), at max_tokens 1024 A is (A 6.0e-5, B 1.0e-3): the worst case decides."""
-    a, b = Tier("a_a30", "A", "a30", 1e-6, 1e-8, 4), Tier("b_a30", "B", "a30", 1e-8, 1e-6, 4)
+    a, b = Tier("a_a30", "A", "a30", 1e-6, 1e-8, 4, ()), Tier("b_a30", "B", "a30", 1e-8, 1e-6, 4, ())
     fleet = [Instance("a0", a, "n1", "h1", 8000), Instance("b0", b, "n2", "h2", 8000)]
     r = RoundRequest("x", 50, {"A": Est(0.5, 1.0), "B": Est(0.9, 1.0)}, 1e-7, 1024)
     loads = {i.instance_id: Load(InstanceStats(0, 0, 0.0, 0, 4, 0), 5.0, 0, 0) for i in fleet}

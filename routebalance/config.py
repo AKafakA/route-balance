@@ -61,6 +61,10 @@ class _TierSpec(_Strict):
     cost_in: float = Field(ge=0)
     cost_out: float = Field(gt=0)
     max_num_seqs: int = Field(ge=1, le=4096)   # passed to vLLM as --max-num-seqs; the telemetry view reads it here
+    # token ids every request to this tier also stops at (vLLM's stop_token_ids), besides the model's own
+    # end-of-sequence tokens: the Qwen2.5 base models stop only at <|endoftext|>, so under the chat template an answer
+    # could end its turn (<|im_end|>) and run on into a further turn (D102); [] where the model's own tokens suffice
+    stop_token_ids: list[Annotated[int, Field(ge=0)]]
 
 
 class _InstanceSpec(_Strict):
@@ -157,7 +161,8 @@ def load_fleet(fleet_path: Path, hosts_path: Path) -> list[Instance]:
         if seen is not None and seen != h.hw:
             raise ConfigError(f"address {h.address!r} is listed with two hardware types")
         hw_by_address[h.address] = h.hw
-    tiers = {tid: Tier(tid, t.model, t.gpu, t.cost_in, t.cost_out, t.max_num_seqs) for tid, t in fleet.tiers.items()}
+    tiers = {tid: Tier(tid, t.model, t.gpu, t.cost_in, t.cost_out, t.max_num_seqs, tuple(t.stop_token_ids))
+             for tid, t in fleet.tiers.items()}
     out: list[Instance] = []
     seen_ids: set[str] = set()
     seen_endpoints: set[tuple[str, int]] = set()
@@ -418,4 +423,4 @@ def config_digest(cfg: SchedulerConfig) -> str:
 def fleet_digest(instances: list[Instance]) -> str:
     """Identity of the deployment in order (order is behaviour), including tiers and prices."""
     return _digest([[i.instance_id, i.tier.tier_id, i.tier.model, i.tier.gpu, i.tier.cost_in, i.tier.cost_out,
-                     i.tier.max_num_seqs, i.node, i.address, i.port] for i in instances])
+                     i.tier.max_num_seqs, list(i.tier.stop_token_ids), i.node, i.address, i.port] for i in instances])

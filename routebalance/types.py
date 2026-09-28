@@ -13,6 +13,7 @@ class Tier:
     cost_in: float
     cost_out: float
     max_num_seqs: int      # vLLM's --max-num-seqs for this tier (the engine's concurrent-sequence limit)
+    stop_token_ids: tuple[int, ...]   # every request to this tier also stops at these token ids (D102)
 
 
 @dataclass(frozen=True)

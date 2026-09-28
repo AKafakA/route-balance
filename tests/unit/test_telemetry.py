@@ -7,7 +7,7 @@ import pytest
 from routebalance.telemetry import AUTO_EXTEND_TOKENS, InstanceStateUnavailable, TelemetryView, parse_metrics
 from routebalance.types import Instance, Tier
 
-TIER = Tier("t", "M", "a30", 1e-7, 1e-7, 256)
+TIER = Tier("t", "M", "a30", 1e-7, 1e-7, 256, ())
 A = Instance("a", TIER, "n0", "h0", 8000)
 B = Instance("b", TIER, "n1", "h1", 8000)
 

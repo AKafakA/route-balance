@@ -1,0 +1,109 @@
+{
+ "vllm": "0.18.1",
+ "tiers": {
+  "llama-3.1-8b-it_a30": {
+   "revision": "0e9e39f249a16976918f6564b8830bc894c89659",
+   "args": {
+    "--dtype": "float16",
+    "--tensor-parallel-size": 1,
+    "--gpu-memory-utilization": 0.85,
+    "--max-model-len": 8192,
+    "--no-enable-prefix-caching": true
+   }
+  },
+  "llama-3.1-8b-it_a100": {
+   "revision": "0e9e39f249a16976918f6564b8830bc894c89659",
+   "args": {
+    "--dtype": "float16",
+    "--tensor-parallel-size": 1,
+    "--gpu-memory-utilization": 0.85,
+    "--max-model-len": 8192,
+    "--no-enable-prefix-caching": true
+   }
+  },
+  "llama-3.1-8b-it_v100": {
+   "revision": "0e9e39f249a16976918f6564b8830bc894c89659",
+   "args": {
+    "--dtype": "float16",
+    "--tensor-parallel-size": 2,
+    "--gpu-memory-utilization": 0.85,
+    "--max-model-len": 8192,
+    "--no-enable-prefix-caching": true
+   }
+  }
+ },
+ "gpus": {
+  "Judge_0": [
+   0
+  ],
+  "Judge_1": [
+   0
+  ],
+  "Judge_2": [
+   0
+  ],
+  "Judge_3": [
+   0
+  ],
+  "Judge_4": [
+   0
+  ],
+  "Judge_5": [
+   0
+  ],
+  "Judge_6": [
+   0
+  ],
+  "Judge_7": [
+   0
+  ],
+  "Judge_8": [
+   0
+  ],
+  "Judge_9": [
+   1
+  ],
+  "Judge_10": [
+   2
+  ],
+  "Judge_11": [
+   3
+  ],
+  "Judge_12": [
+   0
+  ],
+  "Judge_13": [
+   1
+  ],
+  "Judge_14": [
+   2
+  ],
+  "Judge_15": [
+   3
+  ],
+  "Judge_16": [
+   0,
+   1
+  ],
+  "Judge_17": [
+   2,
+   3
+  ],
+  "Judge_18": [
+   0,
+   1
+  ],
+  "Judge_19": [
+   2,
+   3
+  ],
+  "Judge_20": [
+   0,
+   1
+  ],
+  "Judge_21": [
+   2,
+   3
+  ]
+ }
+}

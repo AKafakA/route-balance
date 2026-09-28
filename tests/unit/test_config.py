@@ -10,9 +10,9 @@ from routebalance.config import ConfigError, config_digest, load_fleet, parse_sc
 FLEET = {
     "tiers": {
         "qwen2.5-3b_a30": {"model": "Qwen/Qwen2.5-3B", "gpu": "a30", "cost_in": 6e-08, "cost_out": 6e-08,
-                           "max_num_seqs": 256},
+                           "max_num_seqs": 256, "stop_token_ids": []},
         "qwen2.5-14b_v100": {"model": "Qwen/Qwen2.5-14B", "gpu": "v100", "cost_in": 2e-07, "cost_out": 2e-07,
-                             "max_num_seqs": 256},
+                             "max_num_seqs": 256, "stop_token_ids": []},
     },
     "instances": [
         {"instance_id": "Qwen-2.5-14B_0", "tier": "qwen2.5-14b_v100", "node": "node1", "port": 8000},
@@ -456,6 +456,24 @@ def test_max_num_seqs_is_a_bounded_integer(tmp_path, value):
     fleet["tiers"]["qwen2.5-3b_a30"]["max_num_seqs"] = value
     with pytest.raises(ConfigError):
         load_fleet(*_write(tmp_path, fleet))
+
+
+@pytest.mark.parametrize("value", [None, [-1], ["151645"], 151645])
+def test_stop_token_ids_are_required_non_negative_ints(tmp_path, value):
+    fleet = copy.deepcopy(FLEET)
+    if value is None:
+        del fleet["tiers"]["qwen2.5-3b_a30"]["stop_token_ids"]
+    else:
+        fleet["tiers"]["qwen2.5-3b_a30"]["stop_token_ids"] = value
+    with pytest.raises(ConfigError):
+        load_fleet(*_write(tmp_path, fleet))
+
+
+def test_fleet_digest_covers_the_stop_tokens(tmp_path):
+    base = fleet_digest(load_fleet(*_write(tmp_path, FLEET)))
+    other = copy.deepcopy(FLEET)
+    other["tiers"]["qwen2.5-3b_a30"]["stop_token_ids"] = [151645]
+    assert fleet_digest(load_fleet(*_write(tmp_path, other))) != base
 
 
 def test_fleet_digest_covers_max_num_seqs(tmp_path):
