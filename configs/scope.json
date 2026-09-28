@@ -51,7 +51,7 @@
                     "budgets": {"path": "budget_table_cal_30.jsonl", "sha256": "b702f5d3488d49355f0a6962c570e60af04c17acb6e4b41d7ad4f5dac9dbb2ed"}}
  },
  "scored_corpora": {
-  "qwen": {"path": "test_qwen_scored_20260928.jsonl", "sha256": "7cb56cdac238c22977ea3498daf42dcadda6ef6e1553301e41e307e10fade5a5"},
+  "qwen": {"path": "test_qwen_scored_20260928_v2.jsonl", "sha256": "b20014daeb787c2f80253477b9f2d2dd87a24f154bcd07f7f902f0888fa87a29"},
   "gemma": {"path": "gemma3_merged_test.jsonl", "sha256": "411904dbb6dac19540b56e07d76ed35a819fd0cbecf1d846aa60be0d3c47ce20"}
  },
  "traces": {

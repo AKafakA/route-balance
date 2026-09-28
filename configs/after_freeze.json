@@ -47,5 +47,12 @@
   "decision": "D111",
   "owner": "(asked: the notes text still says the send-lag bound is 100 ms; the value is 500 ms) Fix the text (Recommended)",
   "gpu_cost": "none: a notes text only; no value changes"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "801fe088e0cddf987aa01b2757f1d6619777ec1f6810e8aada4138f036390250",
+  "decision": "D113",
+  "owner": "uniform judge input seems more clean; the worst case is we filter out all these problematic pairs?; ok, remove them",
+  "gpu_cost": "none extra on the lease: 2 evaluation pairs unscored (no prompt dropped); every Qwen estimator retrained off the lease"
  }
 ]
