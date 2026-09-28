@@ -193,10 +193,20 @@ def test_a_config_swap_is_refused_while_serving_and_applied_when_idle(tmp_path):
     assert applied[0] == 200 and applied[1]["config_digest"] != before["config_digest"]
 
 
-def test_each_applied_configuration_is_frozen_out_of_the_collector(tmp_path):
+def test_each_applied_configuration_is_frozen_out_of_the_collector(tmp_path, monkeypatch):
     """D103: the loaded configuration is collected once and frozen when it is applied, so a collection during a
     cell scans only the requests' objects; the next apply unfreezes first, so the old configuration can be freed."""
     import gc
+    import types
+    from routebalance import server
+    calls = []
+
+    def record(name):
+        def call(*args):
+            calls.append(name)
+            return getattr(gc, name)(*args)
+        return call
+    monkeypatch.setattr(server, "gc", types.SimpleNamespace(**{n: record(n) for n in ("unfreeze", "collect", "freeze")}))
     engines = [(SMALL, FakeState()), (SMALL, FakeState()), (LARGE, FakeState())]
 
     async def scenario():
@@ -210,6 +220,8 @@ def test_each_applied_configuration_is_frozen_out_of_the_collector(tmp_path):
     finally:
         gc.unfreeze()
     assert first > 0 and applied[0] == 200 and second > 0
+    # each apply: unfreeze before the new configuration is built, one collection and a freeze after the swap
+    assert calls == ["unfreeze", "collect", "freeze"] * 2
 
 
 def test_an_invalid_config_is_rejected_and_the_old_one_stays_live(tmp_path):
