@@ -65,10 +65,11 @@ class LagProbe:
 
     async def run(self) -> None:
         while True:
-            t0 = time.perf_counter()
+            due = time.perf_counter() + self.PERIOD_S
             await asyncio.sleep(self.PERIOD_S)
-            if t0 >= self._since:          # a sleep begun before the last reset timed the previous configuration's apply
-                self._samples.append(max(0.0, (time.perf_counter() - t0 - self.PERIOD_S) * 1000.0))
+            # lateness counted from the last reset at the earliest: a sleep begun before it keeps only its part after it
+            # (the collection in Service.apply, between cells, belongs to no configuration's serving)
+            self._samples.append(max(0.0, (time.perf_counter() - max(due, self._since)) * 1000.0))
 
     def reset(self) -> None:
         self._samples = []

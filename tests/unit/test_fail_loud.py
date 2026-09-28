@@ -27,20 +27,18 @@ def test_the_loop_lag_summary_keeps_an_early_stall():
     assert probe.summary()["max_ms"] == 100.0 and probe.summary()["samples"] == 50_001
 
 
-def _probe_around(block_before_reset: bool) -> dict:
-    """The loop blocked 200 ms while the probe sleeps, the reset in the same step (as Service.apply: collect, freeze,
-    reset) or 30 ms after it; the summary 100 ms later."""
+def _probe_around(before_ms: float, after_ms: float, yield_between: bool) -> dict:
+    """The loop blocked before_ms while the probe sleeps, then the reset (as Service.apply: collect, freeze, reset, no
+    await between), then blocked after_ms, with or without a turn of the loop between; the summary 100 ms later."""
     async def go() -> dict:
         probe = LagProbe()
         task = asyncio.create_task(probe.run())
         await asyncio.sleep(0.05)
-        if block_before_reset:
-            time.sleep(0.2)
-            probe.reset()
-        else:
-            probe.reset()
+        time.sleep(before_ms / 1000)
+        probe.reset()
+        if yield_between:
             await asyncio.sleep(0.03)
-            time.sleep(0.2)
+        time.sleep(after_ms / 1000)
         await asyncio.sleep(0.1)
         task.cancel()
         return probe.summary()
@@ -48,9 +46,14 @@ def _probe_around(block_before_reset: bool) -> dict:
 
 
 def test_a_stall_before_the_reset_is_not_the_next_configurations():
-    s = _probe_around(block_before_reset=True)
+    s = _probe_around(200, 0, yield_between=False)
     assert s["samples"] > 0 and s["max_ms"] < 100
 
 
-def test_a_stall_after_the_reset_is_kept():
-    assert _probe_around(block_before_reset=False)["max_ms"] >= 150
+def test_a_stall_right_after_the_reset_is_kept_by_the_sample_begun_before_it():
+    s = _probe_around(200, 200, yield_between=False)
+    assert 150 <= s["max_ms"] < 350          # the part after the reset only
+
+
+def test_a_later_stall_after_the_reset_is_kept():
+    assert _probe_around(0, 200, yield_between=True)["max_ms"] >= 150
