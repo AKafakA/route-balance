@@ -134,10 +134,10 @@ def test_the_time_varying_load_is_v2s():
     burstiness 0.3 at 18 req/s, each over the whole evaluation set."""
     square, gamma = SCOPE_JSON["traces"]["square30-6"], SCOPE_JSON["traces"]["gamma-b03"]
     phases = [(g["n_requests"], g["rate"]) for g in square["segments"]]
-    assert phases == [(900, 30.0), (180, 6.0)] * 3 + [(170, 30.0)] and square["burstiness"] == 1.0
+    assert phases == [(900, 30.0), (180, 6.0)] * 3 + [(294, 30.0)] and square["burstiness"] == 1.0
     assert all(n / r == 30.0 for n, r in phases[:-1])
-    assert gamma == {"burstiness": 0.3, "segments": [{"n_requests": 3410, "rate": 18.0}]}
-    assert sum(n for n, _ in phases) == SCOPE_JSON["datasets"]["eval_qwen"]["rows"] == 3410
+    assert gamma == {"burstiness": 0.3, "segments": [{"n_requests": 3534, "rate": 18.0}]}
+    assert sum(n for n, _ in phases) == SCOPE_JSON["datasets"]["eval_qwen"]["rows"] == 3534
 
 
 def test_every_fleet_family_has_its_scored_corpus(tmp_path):
