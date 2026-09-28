@@ -193,6 +193,25 @@ def test_a_config_swap_is_refused_while_serving_and_applied_when_idle(tmp_path):
     assert applied[0] == 200 and applied[1]["config_digest"] != before["config_digest"]
 
 
+def test_each_applied_configuration_is_frozen_out_of_the_collector(tmp_path):
+    """D103: the loaded configuration is collected once and frozen when it is applied, so a collection during a
+    cell scans only the requests' objects; the next apply unfreezes first, so the old configuration can be freed."""
+    import gc
+    engines = [(SMALL, FakeState()), (SMALL, FakeState()), (LARGE, FakeState())]
+
+    async def scenario():
+        async with Harness(tmp_path, engines) as h:
+            await h.start(pipeline_cfg())
+            first = gc.get_freeze_count()
+            applied = await h.post("/v1/config", pipeline_cfg("least_outstanding"))
+            return first, applied, gc.get_freeze_count()
+    try:
+        first, applied, second = asyncio.run(scenario())
+    finally:
+        gc.unfreeze()
+    assert first > 0 and applied[0] == 200 and second > 0
+
+
 def test_an_invalid_config_is_rejected_and_the_old_one_stays_live(tmp_path):
     async def scenario():
         async with Harness(tmp_path, fleet_states()) as h:

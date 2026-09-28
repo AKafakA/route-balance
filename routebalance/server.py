@@ -30,6 +30,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import functools
+import gc
 import hashlib
 import importlib.metadata
 import logging
@@ -456,6 +457,7 @@ class Service:
             raise Busy(f"{self._active} request(s) in service; apply configs between cells")
         self._swapping = True
         try:
+            gc.unfreeze()                     # the previous configuration's objects can be collected again
             loop = asyncio.get_running_loop()
             comps = await loop.run_in_executor(self.executor, functools.partial(
                 self._factory, cfg, self.fleet, artifact_root=self._artifacts, avengers_repo=self._avengers,
@@ -476,6 +478,11 @@ class Service:
                 await self.view.stop()
             self.view, self._comps, self.cfg = view, comps, cfg
             self.digest = config_digest(cfg)
+            # D103: the models and indexes just loaded, and the server's state, are long-lived; a full collection over
+            # them paused the event loop 170-470 ms once per run. Collected once here (between cells, idle) and
+            # frozen, a collection during a run scans only the requests' own objects
+            gc.collect()
+            gc.freeze()
             self.lag.reset()                  # the probe's evidence is per configuration (per cell)
             self.latency_log = None
             if cfg.mode == "pipeline" and cfg.pending_decode == "own_length":
