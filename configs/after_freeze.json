@@ -33,5 +33,12 @@
   "decision": "D108",
   "owner": "how we process the degeration issions before? filter out or keep?; (asked: v3 dropped a prompt when any model's answer hit the 1,024-token limit, was repetitive or was under 3 tokens) Filter both",
   "gpu_cost": "none extra: every Qwen run sends 3410 prompts instead of 3534 (3.5% shorter); the time-varying pattern's last stretch at 30 req/s is 170 requests instead of 294"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "6543a7dd8759c8eeaa9a10c5cb278d8ee8a2e0780db882a6a0ab0bdc9788198c",
+  "decision": "D109",
+  "owner": "it let me feel a little concern as such data clean on evaluation data could be part of data cherrry picking; to keep the consistency, we have to keep both consistent; ok, then take both",
+  "gpu_cost": "none extra: every Qwen run sends the 3534 prompts again (D108's 3410 withdrawn, about 3.6% longer per run)"
  }
 ]
