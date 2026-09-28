@@ -1,0 +1,162 @@
+{
+ "tiers": {
+  "llama-3.1-8b-it_a30": {
+   "model": "meta-llama/Llama-3.1-8B-Instruct",
+   "gpu": "a30",
+   "cost_in": 1e-09,
+   "cost_out": 1e-09,
+   "max_num_seqs": 256,
+   "stop_token_ids": []
+  },
+  "llama-3.1-8b-it_a100": {
+   "model": "meta-llama/Llama-3.1-8B-Instruct",
+   "gpu": "a100",
+   "cost_in": 1e-09,
+   "cost_out": 1e-09,
+   "max_num_seqs": 256,
+   "stop_token_ids": []
+  },
+  "llama-3.1-8b-it_v100": {
+   "model": "meta-llama/Llama-3.1-8B-Instruct",
+   "gpu": "v100",
+   "cost_in": 1e-09,
+   "cost_out": 1e-09,
+   "max_num_seqs": 256,
+   "stop_token_ids": []
+  }
+ },
+ "instances": [
+  {
+   "instance_id": "Judge_0",
+   "tier": "llama-3.1-8b-it_a30",
+   "node": "a30-0",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_1",
+   "tier": "llama-3.1-8b-it_a30",
+   "node": "a30-1",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_2",
+   "tier": "llama-3.1-8b-it_a30",
+   "node": "a30-2",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_3",
+   "tier": "llama-3.1-8b-it_a30",
+   "node": "a30-3",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_4",
+   "tier": "llama-3.1-8b-it_a30",
+   "node": "a30-4",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_5",
+   "tier": "llama-3.1-8b-it_a30",
+   "node": "a30-5",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_6",
+   "tier": "llama-3.1-8b-it_a30",
+   "node": "a30-6",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_7",
+   "tier": "llama-3.1-8b-it_a30",
+   "node": "a30-7",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_8",
+   "tier": "llama-3.1-8b-it_a100",
+   "node": "a100-0",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_9",
+   "tier": "llama-3.1-8b-it_a100",
+   "node": "a100-0",
+   "port": 8101
+  },
+  {
+   "instance_id": "Judge_10",
+   "tier": "llama-3.1-8b-it_a100",
+   "node": "a100-0",
+   "port": 8102
+  },
+  {
+   "instance_id": "Judge_11",
+   "tier": "llama-3.1-8b-it_a100",
+   "node": "a100-0",
+   "port": 8103
+  },
+  {
+   "instance_id": "Judge_12",
+   "tier": "llama-3.1-8b-it_a100",
+   "node": "a100-1",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_13",
+   "tier": "llama-3.1-8b-it_a100",
+   "node": "a100-1",
+   "port": 8101
+  },
+  {
+   "instance_id": "Judge_14",
+   "tier": "llama-3.1-8b-it_a100",
+   "node": "a100-1",
+   "port": 8102
+  },
+  {
+   "instance_id": "Judge_15",
+   "tier": "llama-3.1-8b-it_a100",
+   "node": "a100-1",
+   "port": 8103
+  },
+  {
+   "instance_id": "Judge_16",
+   "tier": "llama-3.1-8b-it_v100",
+   "node": "v100-0",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_17",
+   "tier": "llama-3.1-8b-it_v100",
+   "node": "v100-0",
+   "port": 8101
+  },
+  {
+   "instance_id": "Judge_18",
+   "tier": "llama-3.1-8b-it_v100",
+   "node": "v100-1",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_19",
+   "tier": "llama-3.1-8b-it_v100",
+   "node": "v100-1",
+   "port": 8101
+  },
+  {
+   "instance_id": "Judge_20",
+   "tier": "llama-3.1-8b-it_v100",
+   "node": "v100-2",
+   "port": 8100
+  },
+  {
+   "instance_id": "Judge_21",
+   "tier": "llama-3.1-8b-it_v100",
+   "node": "v100-2",
+   "port": 8101
+  }
+ ]
+}
