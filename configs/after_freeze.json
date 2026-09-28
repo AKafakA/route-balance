@@ -54,5 +54,12 @@
   "decision": "D113",
   "owner": "uniform judge input seems more clean; the worst case is we filter out all these problematic pairs?; ok, remove them",
   "gpu_cost": "none extra on the lease: 2 evaluation pairs unscored (no prompt dropped); every Qwen estimator retrained off the lease"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "431f9c4f4b095331030741443178a2501b66cd78970872ced1f163000ac6e488",
+  "decision": "D114",
+  "owner": "(the 2 evaluation pairs unscored stay as gaps in the lookup) we need to filter them out as well",
+  "gpu_cost": "none extra: every Qwen run sends 3532 prompts instead of 3534; the time-varying pattern's last stretch is 292 requests"
  }
 ]
