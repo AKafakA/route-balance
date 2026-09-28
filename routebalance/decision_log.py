@@ -61,15 +61,18 @@ class LagProbe:
 
     def __init__(self):
         self._samples: list[float] = []
+        self._since = time.perf_counter()
 
     async def run(self) -> None:
         while True:
             t0 = time.perf_counter()
             await asyncio.sleep(self.PERIOD_S)
-            self._samples.append(max(0.0, (time.perf_counter() - t0 - self.PERIOD_S) * 1000.0))
+            if t0 >= self._since:          # a sleep begun before the last reset timed the previous configuration's apply
+                self._samples.append(max(0.0, (time.perf_counter() - t0 - self.PERIOD_S) * 1000.0))
 
     def reset(self) -> None:
         self._samples = []
+        self._since = time.perf_counter()
 
     def summary(self) -> dict:
         s = sorted(self._samples)          # every sample since the configuration was applied (reset)
