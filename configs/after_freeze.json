@@ -19,5 +19,12 @@
   "decision": "D103",
   "owner": "scheduler changes is fine, and it seems postivitive if pass the runtime checker, and 100ms just increase to 500ms",
   "gpu_cost": "none: the bound on how late the client may start a request after its scheduled arrival (bench.max_send_lag_ms, 100 -> 500 ms) applies from the thesis-check rerun on; the before-the-fix runs it invalidated (their last request, 178-204 ms late) are reference only"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "6543a7dd8759c8eeaa9a10c5cb278d8ee8a2e0780db882a6a0ab0bdc9788198c",
+  "decision": "D102, D106",
+  "owner": "it seems a bug for me to be honest; i woould prefrer the full re-collection as clean fixing and 4 hours seems afforadable; let us do it; (asked with the corrected numbers) Full re-collection as planned; rebuild is fine; ok. great, then we need the new data for sure",
+  "gpu_cost": "the Qwen answers re-collected on the 13 Qwen engines (26 min) and judged on 22 lease judges (45 min); the thesis check and every later Qwen row run on the new corpus (no extra runs)"
  }
 ]
