@@ -104,7 +104,7 @@ def test_best_route_replay(v3, banked, checkpoint):
 def test_best_route_built_from_config_replays_the_banked_cell(v3, banked):
     prompts, cells = banked
     cfg = Router(type="best_route", kwargs={"checkpoint": "best_route_4way_qwen", "confidence_threshold": 0.5,
-                                            "fallback_model": FALLBACK, "max_length": 512})
+                                            "fallback_model": FALLBACK, "max_length": 512}, concurrency=1)
     router = build_router(cfg, artifact_root=v3.artifacts, avengers_repo=None, executor=router_executor(),
                           decoupled=None)
     sample = prompts[::18]
@@ -118,5 +118,5 @@ def test_threshold_without_fallback_fails_at_construction_in_both(v3, checkpoint
         v3mod("best_route_4way").BestRoute4WayRouter(checkpoint_path=str(checkpoint), confidence_threshold=0.5)
     with pytest.raises(ConfigError):
         build_router(Router(type="best_route", kwargs={"checkpoint": "best_route_4way_qwen", "confidence_threshold": 0.5,
-                                                       "max_length": 512}),
+                                                       "max_length": 512}, concurrency=1),
                      artifact_root=v3.artifacts, avengers_repo=None, executor=router_executor(), decoupled=None)

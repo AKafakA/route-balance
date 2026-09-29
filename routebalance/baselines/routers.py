@@ -47,15 +47,16 @@ def router_executor() -> ThreadPoolExecutor:
     return ThreadPoolExecutor(max_workers=ROUTER_THREADS, thread_name_prefix="router")
 
 
-# The baselines' routers call their model once per request, one request at a time, as the shipped routers do
-# (RouteLLM's server calls router.route() synchronously in its request handler; NVIDIA's LLM Router sends each
-# prompt to one Triton instance with no dynamic batching). The lane is off the event loop, like NVIDIA's separate
-# router server, so a queue forms at the router while streaming and telemetry keep running (owner 09-25).
-ROUTER_LANE_THREADS = 1
-
-
-def router_lane() -> ThreadPoolExecutor:
-    return ThreadPoolExecutor(max_workers=ROUTER_LANE_THREADS, thread_name_prefix="router-lane")
+# The baselines' routers call their model once per request, on a lane off the event loop (like NVIDIA's separate
+# router server), so a queue forms at the router while streaming and telemetry keep running. How many calls run at
+# once is the configuration's router concurrency (config.Router.concurrency):
+#   1   as shipped: one request at a time (RouteLLM's server calls router.route() synchronously in its request
+#       handler; NVIDIA's LLM Router sends each prompt to one Triton instance with no dynamic batching; owner 09-25)
+#   32  the main setting since D135: as many calls at once as RouteBalance's largest round
+#       (schedule/rounds.py ADAPTIVE_LIMITS; owner 09-29 "i mean the max batch size"), also v2's concurrent-scoring
+#       variant (asyncio's default pool, 32 threads on the 96-CPU scheduler node)
+def router_lane(threads: int) -> ThreadPoolExecutor:
+    return ThreadPoolExecutor(max_workers=threads, thread_name_prefix="router-lane")
 
 
 @dataclass(frozen=True)

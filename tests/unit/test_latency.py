@@ -246,7 +246,7 @@ def _table(tmp_path, doc):
 
 def _cfg(source, envelope, md5, prefill=None):
     doc = {
-        "mode": "routebalance", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
+        "mode": "routebalance", "normalize_over": "request", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
         "rounds": {"adaptive": True}, "lpt": "max", "pending_decode": "own_length", "dead_reckoning": True,
         "telemetry_read": "per_round",
         "latency": {"source": source, "envelope": envelope, "normalization": "fixed_ref", "table": "tpot.json",

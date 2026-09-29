@@ -24,6 +24,7 @@
   "timeout_s": 2.0
  },
  "mode": "pipeline",
+ "normalize_over": null,
  "weights": null,
  "rounds": {
   "adaptive": true

@@ -101,6 +101,7 @@ class SystemKeys(Strict):
     estimator: dict[str, Any]
     router: Optional[dict[str, Any]]
     dispatch: Optional[dict[str, Any]]
+    normalize_over: Optional[Literal["request", "round"]] = None   # D137 (records before it carry none)
 
     @model_validator(mode="after")
     def _read_follows_mode(self):
@@ -125,6 +126,9 @@ class Loaded(Strict):
     dispatcher: Optional[str]
     round_loop: bool
     telemetry_pollers: bool                 # read from the live view: running exactly when telemetry_read is poll
+    # the lane the pipeline router's calls ran on, as built (None: no router calls a model); records made before
+    # D135 carry it under launch instead
+    router_lane_threads: Optional[int] = None
 
 
 class Code(Strict):
@@ -157,7 +161,7 @@ class Launch(Strict):
     max_connections: int
     request_timeout_s: float
     router_threads: int
-    router_lane_threads: int
+    router_lane_threads: Optional[int] = None   # before D135 (one lane per process); since, under loaded, per configuration
     engine_session: SessionSettings
     telemetry_session: SessionSettings
     event_loop: str

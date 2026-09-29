@@ -109,7 +109,8 @@ def _column(a: object, n: int, what: str, low: float, high: float) -> np.ndarray
 
 
 class KnnEstimator:
-    """estimate_batch is safe to call from worker threads; calls run one at a time."""
+    """estimate_batch is safe to call from worker threads, and concurrent calls run in parallel (D135: RB-decoupled's
+    lane); RouteBalance calls it once per round."""
 
     def __init__(self, index: KnnIndex, encoder: Encoder, *, k: int, prior: Prior):
         if index.k != k:
@@ -134,11 +135,14 @@ class KnnEstimator:
     def search(self, prompts: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
         """Neighbour indices (n, k) int64 and distances 1 - similarity (n, k) float64, in rank order."""
         texts = [unwrap_chat_prompt(p) for p in prompts]
-        with self._lock:     # the encoder is not guaranteed thread-safe
+        with self._lock:     # the counter only: RB-decoupled calls in parallel on its lane (D135)
             self.batch_calls += 1
-            emb = self._encoder.encode(texts, normalize_embeddings=True, batch_size=max(len(texts), _MIN_ENCODE_BATCH))
-            queries = np.ascontiguousarray(np.asarray(emb, dtype=np.float32)).reshape(len(texts), -1)
-            sims, idx = self._faiss.search(queries, self.k)
+        # concurrent calls run in parallel: sentence-transformers' encode with fixed settings after the load-time call
+        # (32 AvengersPro calls at once on the same MiniLM routed exactly as one at a time, D135's check) and a flat
+        # FAISS index's search, which only reads
+        emb = self._encoder.encode(texts, normalize_embeddings=True, batch_size=max(len(texts), _MIN_ENCODE_BATCH))
+        queries = np.ascontiguousarray(np.asarray(emb, dtype=np.float32)).reshape(len(texts), -1)
+        sims, idx = self._faiss.search(queries, self.k)
         return idx.astype(np.int64), (1.0 - sims).astype(np.float64)   # float32 subtraction, then widened, as v3
 
     def estimate_batch(self, prompts: Sequence[str], budget_tokens: int) -> list[dict[str, Estimate]]:

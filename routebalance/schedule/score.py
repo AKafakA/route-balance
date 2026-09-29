@@ -43,6 +43,17 @@ class Candidate:
 
 
 @dataclass(frozen=True)
+class Scales:
+    """In-batch normalization (D137): the round's quality range and cost maximum over every request x fleet instance
+    (when the round opens, before any budget filter: v3's tracked context), and
+    the largest load-aware latency of every candidate the round has scored so far (this request's included)."""
+    q_min: float
+    q_max: float
+    c_max: float
+    l_max: float
+
+
+@dataclass(frozen=True)
 class Scored:
     candidate: Candidate
     score: float
@@ -62,17 +73,25 @@ def _check(c: Candidate, normalization: Normalization) -> None:
 
 
 def score(cands: Sequence[Candidate], *, w_quality: float, w_cost: float, w_latency: float,
-          normalization: Normalization) -> list[Scored]:
+          normalization: Normalization, scales: Optional[Scales] = None) -> list[Scored]:
+    """scales None: each term over this request's own candidates (v3); given: over the round (D137). fixed_ref's
+    latency term is a ratio to the request's own unloaded reference either way."""
     if not cands:
         raise ValueError("no candidates to score")
     if normalization not in ("fixed_ref", "max_divide"):
         raise ValueError(f"unknown normalization {normalization!r}")
     for c in cands:
         _check(c, normalization)
-    q_min = min(c.quality for c in cands)
-    q_max = max(c.quality for c in cands)
-    c_max = max(c.cost for c in cands)
-    l_max = max(c.latency_s for c in cands)
+    if scales is None:
+        q_min = min(c.quality for c in cands)
+        q_max = max(c.quality for c in cands)
+        c_max = max(c.cost for c in cands)
+        l_max = max(c.latency_s for c in cands)
+    else:
+        if not (scales.q_min <= min(c.quality for c in cands) and max(c.quality for c in cands) <= scales.q_max
+                and max(c.cost for c in cands) <= scales.c_max and max(c.latency_s for c in cands) <= scales.l_max):
+            raise ValueError(f"the round's scales {scales} do not cover this request's candidates")
+        q_min, q_max, c_max, l_max = scales.q_min, scales.q_max, scales.c_max, scales.l_max
     ref = min(c.unloaded_latency_s for c in cands) if normalization == "fixed_ref" else None
     out = []
     for c in cands:

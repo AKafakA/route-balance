@@ -4,6 +4,7 @@ Engines are fake vLLM servers (fake_vllm.py); model components are small stand-i
 Service factory (the real ones load artifacts; their equivalence is tested elsewhere).
 """
 import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import copy
 import json
 import socket
@@ -16,7 +17,7 @@ from aiohttp import web
 from bench.records import Reply
 from routebalance.baselines.dispatch import build_dispatcher
 from routebalance.baselines.routers import PassthroughRouter
-from routebalance.config import parse_scheduler
+from routebalance.config import ConfigError, parse_scheduler
 from routebalance.estimate.latency import ConstantTPOT, LatencyModel
 from routebalance.server import Assignment, Completion, Components, Service, build_app, idle_state
 from routebalance.types import Instance, Tier
@@ -26,7 +27,7 @@ SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 8, ())
 LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 8, ())
 
 RB = {
-    "mode": "routebalance", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
+    "mode": "routebalance", "normalize_over": "request", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
     "rounds": {"adaptive": False, "max_batch": 4, "timeout_ms": 20.0}, "lpt": "max", "pending_decode": "own_length",
     "dead_reckoning": True, "telemetry_read": "per_round",
     "latency": {"source": "constant", "envelope": "own_length", "normalization": "max_divide",
@@ -45,7 +46,8 @@ def pipeline_cfg(dispatch="round_robin", count=None):
     if count is None and dispatch in ("least_outstanding", "po2"):
         count = "engine"
     d = copy.deepcopy(RB)
-    d.update(mode="pipeline", weights=None, pending_decode=None, telemetry_read="poll", dead_reckoning=False,
+    d.update(mode="pipeline", normalize_over=None,
+             weights=None, pending_decode=None, telemetry_read="poll", dead_reckoning=False,
              pipeline={"router": {"type": "passthrough", "kwargs": {}},
                        "dispatch": {"type": dispatch, "seed": 1, "count": count}})
     return d
@@ -520,23 +522,39 @@ def test_the_engine_and_telemetry_sessions_use_vllm_benchs_connector(tmp_path):
     assert all(s == 200 for s, _ in out) and before["engine"] == 0 and after == {"engine": 0, "telemetry": 0}
 
 
-def test_a_pipeline_router_is_built_on_the_one_at_a_time_lane(tmp_path):
-    """The routers' model calls run on the lane (one request at a time), never on RouteBalance's shared pool."""
-    seen = {}
+def test_a_pipeline_router_is_built_on_a_lane_of_its_configured_concurrency(tmp_path):
+    """D135: the routers' model calls run on a lane (never on RouteBalance's shared pool) with as many threads as the
+    configuration's router concurrency; a swap replaces the lane; passthrough calls no model and gets none."""
+    seen = []
 
     def recording(cfg, fleet, *, artifact_root, avengers_repo, router_lane, best_route_repo=None):
-        seen["lane"] = router_lane
+        seen.append(router_lane)
         return factory(cfg, fleet, artifact_root=artifact_root, avengers_repo=avengers_repo, router_lane=router_lane)
 
+    def routed(concurrency):
+        d = pipeline_cfg()
+        d["pipeline"]["router"] = {"type": "avengers_pro", "kwargs": {}, "concurrency": concurrency}
+        return d
+
     async def scenario():
+        out = []
         async with Harness(tmp_path, fleet_states()) as h:
             h.service._factory = recording
-            await h.start(pipeline_cfg())
-            manifest = (await h.get("/v1/manifest"))[1]
-            return h.service, manifest
-    service, manifest = asyncio.run(scenario())
-    assert seen["lane"] is service.router_lane and seen["lane"] is not service.executor
-    assert service.router_lane._max_workers == 1 and manifest["launch"]["router_lane_threads"] == 1
+            await h.start(routed(32))
+            out.append((h.service.router_lane, (await h.get("/v1/manifest"))[1]))
+            for cfg in (routed(1), pipeline_cfg()):
+                status, _ = await h.post("/v1/config", cfg)
+                assert status == 200
+                out.append((h.service.router_lane, (await h.get("/v1/manifest"))[1]))
+            return h.service, out
+    service, out = asyncio.run(scenario())
+    (lane32, m32), (lane1, m1), (none, m0) = out
+    assert seen == [lane32, lane1, None] and lane32 is not service.executor
+    assert lane32._max_workers == 32 and m32["loaded"]["router_lane_threads"] == 32
+    assert lane1._max_workers == 1 and m1["loaded"]["router_lane_threads"] == 1
+    assert lane32._shutdown                           # the swap shut the previous configuration's lane down
+    assert none is None and m0["loaded"]["router_lane_threads"] is None
+    assert all("router_lane_threads" not in m["launch"] for m in (m32, m1, m0))
 
 
 class GatedLatency:
@@ -608,3 +626,39 @@ def test_a_failed_log_writer_is_recorded_and_requests_are_still_served(tmp_path)
     first, second, stats = asyncio.run(scenario())
     assert first[0] == 200 and second[0] == 200
     assert stats["failure"] is None and "No space left" in stats["evidence_failure"]
+
+
+def test_a_failed_apply_drops_its_new_lane_and_keeps_the_old_one(tmp_path, monkeypatch):
+    """D135 (local review): until the swap, a failure leaves the old configuration live; the lane built for the new
+    one is shut down, and the old lane keeps serving."""
+    import routebalance.server as server_mod
+    made = []
+
+    def recording_lane(threads):
+        made.append(ThreadPoolExecutor(max_workers=threads, thread_name_prefix="router-lane"))
+        return made[-1]
+    monkeypatch.setattr(server_mod, "router_lane", recording_lane)
+
+    def failing(cfg, fleet, *, artifact_root, avengers_repo, router_lane, best_route_repo=None):
+        if router_lane is not None and router_lane._max_workers == 1:
+            raise ConfigError("the new configuration's artifacts are missing")
+        return factory(cfg, fleet, artifact_root=artifact_root, avengers_repo=avengers_repo, router_lane=router_lane)
+
+    def routed(concurrency):
+        d = pipeline_cfg()
+        d["pipeline"]["router"] = {"type": "avengers_pro", "kwargs": {}, "concurrency": concurrency}
+        return d
+
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            h.service._factory = failing
+            await h.start(routed(32))
+            _, before = await h.get("/v1/config")
+            status, _ = await h.post("/v1/config", routed(1))
+            _, after = await h.get("/v1/config")
+            usable = h.service.router_lane.submit(lambda: "ran").result(timeout=5)   # the old lane still works
+            return h.service, status, before, after, usable
+    service, status, before, after, usable = asyncio.run(scenario())
+    old, new = made
+    assert status != 200 and new._shutdown and service.router_lane is old and old._max_workers == 32
+    assert usable == "ran" and after == before                   # the old configuration stayed live

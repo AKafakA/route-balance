@@ -28,11 +28,12 @@ from typing import Callable, Literal, Mapping, MutableMapping, Optional, Protoco
 
 from routebalance.config import Weights
 from routebalance.schedule import budget
-from routebalance.schedule.score import Candidate, Normalization, Scored, pick, score
+from routebalance.schedule.score import Candidate, Normalization, Scales, Scored, pick, score
 from routebalance.telemetry import InstanceStats, Load
 from routebalance.types import Instance
 
 PendingDecode = Literal["own_length", "lpt_key"]
+NormalizeOver = Literal["request", "round"]   # D137: config.SchedulerConfig.normalize_over
 NEVER = 0.0   # the last-assigned time of an instance that has not won a request yet (v3), before any clock value
 
 
@@ -82,6 +83,7 @@ class Decision:
     lpt_key: float                      # the request's LPT key under the configured statistic
     scored: tuple[Scored, ...]          # every scored candidate (the decision log's evidence)
     admitted_all: bool                  # False only if a budget filter ran and rejected every candidate
+    scales: Optional[Scales] = None     # the round's scales when normalizing over the round (D137), else None
 
 
 Lpt = Literal["max", "min", "mean", "off"]
@@ -119,7 +121,7 @@ def _worst_case(inst: Instance, req: RoundRequest) -> float:
 
 def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instance], loads: Mapping[str, Load],
                    latency: LatencyModel, *, weights: Weights, normalization: Normalization,
-                   lpt: Lpt, pending_decode: PendingDecode,
+                   normalize_over: NormalizeOver, lpt: Lpt, pending_decode: PendingDecode,
                    last_assigned: MutableMapping[str, float], clock: Callable[[], float],
                    admission: Optional[Admission],
                    on_decision: Optional[Callable[[Decision], None]]) -> list[Decision]:
@@ -127,6 +129,8 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
         raise ValueError("no instances")
     if lpt not in ("max", "min", "mean", "off") or pending_decode not in ("own_length", "lpt_key"):
         raise ValueError(f"unknown lpt {lpt!r} or pending_decode {pending_decode!r}")
+    if normalize_over not in ("request", "round"):
+        raise ValueError(f"unknown normalize_over {normalize_over!r}")
     fleet_models = {inst.model for inst in instances}
     for req in requests:
         absent = fleet_models - set(req.estimates)
@@ -135,6 +139,15 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
     order = sorted(requests, key=lambda r: lpt_key(r, lpt), reverse=True) if lpt != "off" else list(requests)
     states = {inst.instance_id: loads[inst.instance_id].stats for inst in instances}
     decisions = []
+    if not requests:
+        return decisions
+    round_q = round_c = None
+    if normalize_over == "round":     # D137: the round's quality range and cost maximum, every request x instance
+        qs = [req.estimates[inst.model].quality for req in requests for inst in instances]
+        round_q = (min(qs), max(qs))
+        round_c = max(req.num_prompt_tokens * inst.tier.cost_in + req.estimates[inst.model].length * inst.tier.cost_out
+                      for req in requests for inst in instances)
+    l_run = 0.0                       # the largest load-aware latency scored so far in this round
     for req in order:
         lengths = {m: e.length for m, e in req.estimates.items()}
         now = [states[inst.instance_id] for inst in instances]
@@ -155,8 +168,12 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
                 cheapest = min(_worst_case(inst, req) for inst in instances)
                 kept = [c for c, inst in zip(cands, instances, strict=True) if _worst_case(inst, req) == cheapest]
             cands = kept
+        scales = None
+        if normalize_over == "round":
+            l_run = max(l_run, max(c.latency_s for c in cands))
+            scales = Scales(round_q[0], round_q[1], round_c, l_run)
         scored = score(cands, w_quality=weights.w_quality, w_cost=weights.w_cost, w_latency=weights.w_latency,
-                       normalization=normalization)
+                       normalization=normalization, scales=scales)
         best = pick(scored).candidate
         last_assigned[best.instance_id] = clock()
         inst = next(i for i in instances if i.instance_id == best.instance_id)
@@ -165,7 +182,7 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
         st = states[inst.instance_id]
         states[inst.instance_id] = replace(st, num_waiting=st.num_waiting + 1,
                                            pending_decode_tokens=st.pending_decode_tokens + tokens)
-        decisions.append(Decision(req, inst, tokens, st, key, tuple(scored), admitted_all))
+        decisions.append(Decision(req, inst, tokens, st, key, tuple(scored), admitted_all, scales))
         if on_decision is not None:
             on_decision(decisions[-1])
     return decisions

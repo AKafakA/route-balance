@@ -50,7 +50,7 @@ def test_scores_equal_upstreams_own_inference_and_route_by_its_rule(oracle, arti
     closest = min(abs(x - t) for w in want_all for x in w[:-1] for t in THRESHOLDS)
     assert closest > MARGIN, f"a reference score lies within {closest} of a threshold: regenerate the reference"
     order = price_order(expected, {t["model"]: (t["cost_in"] + t["cost_out"]) / 2 for t in fleet})
-    lane = router_lane()
+    lane = router_lane(1)
     for t in THRESHOLDS:
         router = BestRouteUpstreamRouter(scores, candidates, order, threshold=t, executor=lane)
 

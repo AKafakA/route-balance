@@ -106,7 +106,7 @@ def test_avengers_pro_replay(v3, v3_ap, memos, pw):
 def test_avengers_pro_built_from_config(v3):
     rows = v3.banked("ap_pw07")[::25]
     cfg = Router(type="avengers_pro", kwargs={"artifact_dir": "avengers_4model/avengers_pro_qwen_pw0.7", "beta": 5.0,
-                                              "top_k": 4, "embedder": EMBEDDER, **PINS})
+                                              "top_k": 4, "embedder": EMBEDDER, **PINS}, concurrency=1)
     router = build_router(cfg, artifact_root=v3.artifacts, avengers_repo=v3.upstream,
                           executor=router_executor(), decoupled=None)
     got = decide_all(router, [r["prompt"] for r in rows], lambda p: RouterRequest(unwrap_chat_prompt(p), ""))

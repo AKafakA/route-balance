@@ -1,10 +1,10 @@
 {
  "loop_lag": {
   "samples": 10,
-  "p50_ms": 1.99822336435318,
-  "p99_ms": 3.55359073728323,
-  "p999_ms": 3.55359073728323,
-  "max_ms": 3.55359073728323
+  "p50_ms": 1.8572332337498665,
+  "p99_ms": 6.3631609082221985,
+  "p999_ms": 6.3631609082221985,
+  "max_ms": 6.3631609082221985
  },
  "telemetry_read": "per_round",
  "telemetry_age_ms": null,
@@ -18,7 +18,7 @@
   "telemetry": 0
  },
  "logged": {
-  "decisions": 176,
+  "decisions": 192,
   "decisions_buffered": 0,
   "latency": null
  }

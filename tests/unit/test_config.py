@@ -23,6 +23,7 @@ HOSTS = {"node1": {"address": "h1", "hw": "c4130"}, "node2": {"address": "h2", "
 
 RB = {
     "mode": "routebalance",
+    "normalize_over": "round",
     "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
     "rounds": {"adaptive": True},
     "lpt": "max",
@@ -47,13 +48,15 @@ def _pipeline(router="best_route", dispatch="least_outstanding", count=None):
     """A pipeline system; a load-reading dispatcher reads the engines' gauges (the main grid, D84) unless told otherwise."""
     d = copy.deepcopy(RB)
     d["mode"] = "pipeline"
+    d["normalize_over"] = None             # RouteBalance's round only (D137)
     d["weights"] = None
     d["pending_decode"] = None
     d["telemetry_read"] = "poll"
     d["dead_reckoning"] = False            # RouteBalance's mechanism only (owner 09-25)
     if count is None and dispatch in LOAD_READING:
         count = "engine"
-    d["pipeline"] = {"router": {"type": router, "kwargs": {}}, "dispatch": {"type": dispatch, "seed": 1, "count": count}}
+    d["pipeline"] = {"router": {"type": router, "kwargs": {}} | ({} if router == "passthrough" else {"concurrency": 1}),
+                     "dispatch": {"type": dispatch, "seed": 1, "count": count}}
     return d
 
 
@@ -551,3 +554,14 @@ def test_a_malformed_or_shared_service_address_is_refused(tmp_path):
         inst["port"] = 8000                                   # two nodes, one private endpoint
     with pytest.raises(ConfigError, match="already used"):
         load_fleet(*_write(tmp_path, fleet=fleet, hosts=hosts))
+
+
+def test_a_router_that_calls_a_model_needs_a_concurrency_and_passthrough_takes_none():
+    """D135: the router lane's size is part of the configuration (1 as shipped, 32 the main setting)."""
+    from routebalance.config import Router
+    assert Router(type="avengers_pro", kwargs={}, concurrency=32).concurrency == 32
+    assert Router(type="passthrough", kwargs={}).concurrency is None
+    for bad in ({"type": "best_route_upstream", "kwargs": {}}, {"type": "passthrough", "kwargs": {}, "concurrency": 1},
+                {"type": "rb_decoupled", "kwargs": {}, "concurrency": 0}):
+        with pytest.raises(ValidationError):
+            Router(**bad)

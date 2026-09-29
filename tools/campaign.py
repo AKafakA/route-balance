@@ -88,7 +88,7 @@ Owner = Literal["OWNER-MUST-SET"]
 _VAR = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 _NAME = re.compile(r"[A-Za-z0-9._-]+")
 _SCHEDULER_KEYS = frozenset({"mode", "weights", "rounds", "lpt", "pending_decode", "dead_reckoning", "telemetry_read",
-                             "latency", "estimator", "budget", "telemetry", "pipeline"})
+                             "normalize_over", "latency", "estimator", "budget", "telemetry", "pipeline"})
 _WEIGHT_KEYS = ("w_quality", "w_latency", "w_cost")
 
 

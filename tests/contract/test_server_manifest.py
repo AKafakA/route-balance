@@ -45,14 +45,15 @@ def test_the_manifest_reports_what_this_process_executes(tmp_path):
     assert [f["instance_id"] for f in man["fleet"]] == [i.instance_id for i in fleet]
     assert man["fleet"][2] == {"instance_id": "L_2", "tier": "large_a100", "model": "L", "gpu": "a100",
                                "cost_in": 4e-7, "cost_out": 4e-7, "max_num_seqs": 8, "node": "n2"}   # no host or port
-    assert man["system"] == {k: RB[k] for k in ("mode", "weights", "rounds", "lpt", "pending_decode", "latency",
+    assert man["system"] == {k: RB[k] for k in ("mode", "normalize_over", "weights", "rounds", "lpt", "pending_decode",
+                                                "latency",
                                                 "estimator")} | {"router": None, "dispatch": None,
                                                                  "telemetry_read": "per_round"}   # D53
     assert man["budget"] == RB["budget"]
     assert man["telemetry"] == RB["telemetry"] | {"dead_reckoning": True}
     assert man["loaded"] == {"estimator": "StubEstimator", "latency_source": "constant",
                              "latency_envelope": "own_length", "router": None, "dispatcher": None, "round_loop": True,
-                             "telemetry_pollers": False}
+                             "telemetry_pollers": False, "router_lane_threads": None}   # no router, no lane (D135)
     assert man["artifacts"] == {}                  # the test factory loads no files
     digest = shell_tree_digest(PACKAGE_DIR)
     assert man["code"] == {"routebalance": digest, "routebalance_now": digest, "avengers_pro": None,
@@ -64,7 +65,8 @@ def test_the_manifest_reports_what_this_process_executes(tmp_path):
     assert launch["engine_session"] == {"limit": 0, "limit_per_host": 0, "force_close": False}
     assert launch["telemetry_session"] == {"limit": 0, "limit_per_host": 0, "force_close": False}
     assert (launch["torch_threads"], launch["max_connections"], launch["request_timeout_s"],
-            launch["router_threads"], launch["router_lane_threads"]) == (1, 64, 5.0, 4, 1)
+            launch["router_threads"]) == (1, 64, 5.0, 4)
+    assert "router_lane_threads" not in launch       # D135: per configuration, under loaded
     assert launch["event_loop"].startswith("asyncio.") or launch["event_loop"].startswith("uvloop")
     assert launch["cpus"]["count"] >= launch["cpus"]["affinity"] >= 1
     assert set(launch["env"]) >= {"OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "RAYON_NUM_THREADS"}
@@ -84,7 +86,7 @@ def test_the_manifest_follows_a_config_swap(tmp_path):
                                            "count": "engine"}
     assert after["loaded"] == {"estimator": None, "latency_source": None, "latency_envelope": None,
                                "router": "PassthroughRouter", "dispatcher": "LeastOutstanding", "round_loop": False,
-                               "telemetry_pollers": True}
+                               "telemetry_pollers": True, "router_lane_threads": None}   # passthrough calls no model
     assert all(after[k] == before[k] for k in ("fleet_digest", "fleet", "budget", "code", "versions"))
     # dead reckoning is RouteBalance's own; the pipeline system reads the engines' counts (owner 09-25)
     assert before["telemetry"]["dead_reckoning"] is True and after["telemetry"]["dead_reckoning"] is False

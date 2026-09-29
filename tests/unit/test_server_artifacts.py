@@ -23,7 +23,7 @@ FLEET = [Instance("S_0", SMALL, "n0", "127.0.0.1", 9000)]
 ENCODER = "sentence-transformers/all-MiniLM-L6-v2"
 
 BASE = {
-    "mode": "routebalance", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
+    "mode": "routebalance", "normalize_over": "request", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
     "rounds": {"adaptive": True}, "lpt": "max", "pending_decode": "own_length", "dead_reckoning": True,
     "telemetry_read": "per_round",
     "latency": {"source": "constant", "envelope": "own_length", "normalization": "max_divide",
@@ -65,8 +65,10 @@ def load(cfg: dict, root):
 
 
 def pipeline(router: dict, **kw) -> dict:
+    router = router if router["type"] == "passthrough" else {"concurrency": 1} | router   # D135
     cfg = copy.deepcopy(BASE)
-    cfg.update(mode="pipeline", weights=None, pending_decode=None, dead_reckoning=False, telemetry_read="poll",
+    cfg.update(mode="pipeline", normalize_over=None,
+               weights=None, pending_decode=None, dead_reckoning=False, telemetry_read="poll",
                pipeline={"router": router, "dispatch": {"type": "least_outstanding", "seed": 1, "count": "in_flight"}}, **kw)
     return cfg
 

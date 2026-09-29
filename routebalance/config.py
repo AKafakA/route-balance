@@ -288,6 +288,15 @@ class Router(_Strict):
     type: Literal["avengers_pro", "best_route", "best_route_upstream", "passthrough", "rb_decoupled"]
     # flat, finite scalars; stored as sorted (key, value) pairs so the frozen config is truly immutable and hashable
     kwargs: tuple[tuple[str, Scalar], ...]
+    # how many of the router's model calls run at once (baselines/routers.py router_lane: 1 as shipped, 32 the main
+    # setting, D135); required by every router that calls a model, taken by no other (passthrough calls none)
+    concurrency: Optional[int] = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def _concurrency_where_a_model_is_called(self):
+        if (self.type == "passthrough") == (self.concurrency is not None):
+            raise ValueError("concurrency is required by every router that calls a model and taken by passthrough")
+        return self
 
     @field_validator("kwargs", mode="before")
     @classmethod
@@ -349,6 +358,11 @@ class SchedulerConfig(_Strict):
     # how load is read (D53, D55, D84; telemetry.py describes the three ways): RouteBalance per round, with dead
     # reckoning; the pipeline systems from the pollers' cache or per request
     telemetry_read: Literal["per_round", "per_request", "poll"]
+    # D137 (owner 09-29): what RouteBalance's score normalizes over. "round": quality and cost by the round's range
+    # over every request x instance (known when the round opens), latency (max_divide) by the round's running
+    # maximum; "request": each request's own candidates (v3's scoring). Required in routebalance mode, taken by no
+    # pipeline system (they score one request at a time)
+    normalize_over: Optional[Literal["request", "round"]] = None
     latency: Latency
     estimator: Estimator
     budget: Budget
@@ -369,6 +383,8 @@ class SchedulerConfig(_Strict):
             raise ValueError("weights given but this configuration never scores with them")
         if self.mode == "routebalance" and self.pending_decode is None:
             raise ValueError("pending_decode is required in routebalance mode")
+        if (self.mode == "routebalance") != (self.normalize_over is not None):
+            raise ValueError("normalize_over is required in routebalance mode and taken by no pipeline system")
         if self.mode != "routebalance" and self.pending_decode not in (None, "own_length"):
             raise ValueError("a pipeline system records max_tokens as pending decode, or with pending_decode "
                              "own_length (the D38 latency sweep only) the estimator's length; lpt_key is RB-only")
