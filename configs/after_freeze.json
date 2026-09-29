@@ -75,5 +75,12 @@
   "decision": "D118",
   "owner": "yes, we better to have it but make sure making little effectness against the real latency prediction and ranking results, sinces as you mentioned, it suppose to be 1 to 2% e2e latency effectness as expected. we need to have the probing cells with gate to verify it. the target of adding this term is making our equation with less hole, but the real results should be similar; we suppose not add extra probing overhead for the rb only just for the 1 to 2 % prediction latency diff?",
   "gpu_cost": "none added: the prefill table enters every latency part (the RouteBalance variants and RB-decoupled read it; the pipeline baselines never load it); the thesis check already reruns for the prompt price (D117); no probe runs: the check is the offline replay of the logged decisions"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "00ff3826d16ad1843199fe84fbd4b1d99c1584e070c9048f339a10784586bffe",
+  "decision": "D119",
+  "owner": "that is the problem, we need tp add the new sweeps up tp 42 or may even higher 48 chained after current sweeping to fill the gaps?; [extra sweep] 42 to 60 req/s; [static table] Keep, check at 42; [learned check at 42] Add 42 (6 runs)",
+  "gpu_cost": "the extra sweep W1c: 6 runs at 42-60 req/s, ~1 h 10 min, chained after W1b; the learned-variant check G1b +2 runs at 42 req/s (~5 min); the static table unchanged (no fleet time)"
  }
 ]

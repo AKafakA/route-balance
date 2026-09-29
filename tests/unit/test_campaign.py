@@ -107,10 +107,10 @@ def full_render(**over):
 def test_the_tracked_files_dry_run_every_row():
     summary = campaign.dry_run(campaign.load_presets(campaign.PRESETS), campaign.load_scope_file(campaign.SCOPE))
     rows = {r["id"]: r for r in summary["rows"]}
-    assert list(rows) == ["W1", "G1", "W1b", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
+    assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
                           "W8-cal", "W8", "W9", "W11", "W12", "W13", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 66, "W1b": 24, "G1b": 4, "W2": 156, "W2b": 20, "W4": 90, "W3": 112, "W5": 30, "W7": 36,
+    assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "W2": 156, "W2b": 20, "W4": 90, "W3": 112, "W5": 30, "W7": 36,
                      "W7b": 9, "W8": 156, "W9": 312, "W11": 12, "W12": 12, "W13": 7}   # W8: the Qwen grid's baselines (D70);
     #                                                                              W12: the in-flight dispatchers (D84);
     #                                                                              W13: leave one source out (D93)
@@ -125,8 +125,10 @@ def test_the_tracked_files_dry_run_every_row():
 
 
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
-    sweep = sum(s["n_requests"] for s in SCOPE_JSON["traces"]["sweep6-36"]["segments"])
-    assert sweep == SCOPE_JSON["datasets"]["train_qwen"]["rows"] == 14919
+    for trace in ("sweep6-36", "sweep42-60"):                  # W1b and its 42-60 req/s extension W1c (D119)
+        sweep = sum(s["n_requests"] for s in SCOPE_JSON["traces"][trace]["segments"])
+        assert sweep == SCOPE_JSON["datasets"]["train_qwen"]["rows"] == 14919, trace
+    assert [s["rate"] for s in SCOPE_JSON["traces"]["sweep42-60"]["segments"]] == [42.0, 48.0, 54.0, 60.0]
 
 
 def test_the_time_varying_load_is_v2s():

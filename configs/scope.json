@@ -1,6 +1,6 @@
 {
  "notes": {
-  "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W1 -> G1 -> W1b -> G1b -> W2 -> W2b -> W4 -> W3 -> W5 -> W6 -> W7 -> W7b -> W8 -> W9 -> W11 -> W12 -> W13 -> W10. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
+  "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W1 -> G1 -> W1b -> W1c -> G1b -> W2 -> W2b -> W4 -> W3 -> W5 -> W6 -> W7 -> W7b -> W8 -> W9 -> W11 -> W12 -> W13 -> W10. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
   "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). Owner 09-25: the client's connection bound (8192) is set far above any in-flight count and a cell in which any request waited for a connection is invalid (rerun with a larger bound); the request timeout (900 s, above the server's 600 s) and the send-lag bound (500 ms since D103; 100 ms before) are failure bounds.",
   "server": "D44: the scheduler launch values, identical for every system (owner 09-25): 8 torch threads per model call on the one shared 4-thread pool; the engine and telemetry connection bound 4096, far above any in-flight count (a cell in which any request waited for a connection is invalid: rerun with a larger bound); the request timeout 600 s, a failure bound. The baselines' routers call their model one request at a time on a separate lane, as shipped routers do.",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
@@ -9,7 +9,7 @@
   "traces": "Each Qwen cell sends the whole evaluation set (3532 prompts: v3's 3534 without the 2 whose re-collected answer has no score under the uniform judge input, D114), each Gemma cell its 1979 (v3). W5 uses v2's two patterns (owner 09-25): square30-6, 900 requests at 30 req/s then 180 at 6 req/s (30 s each), three times, then the last 292 at 30 req/s; gamma-b03, gamma gaps with burstiness 0.3 at 18 req/s. The W1b sweep sends every training prompt once a run.",
   "owner": "g1_weights: the two G1 presets; decoupled_weights: the four RB-decoupled presets of W2 and W8 (both from rb_weights).",
   "decisions": "Made during the lease into a decisions file (tools/campaign.py render --decisions): rb_default and decoupled_arm after G1b (rb_default: 'rb', 'rb-static' or 'rb-learned', the RouteBalance latency arm of W2, W4, W8 and W9); the rest after W2's lambda-12/30 panels. W3's planned sizes (16 near-frontier, 6 headline configurations) reproduce the plan's ~100 cells; W5 and W7 plan 5 and 6 systems.",
-  "groups": "Main comparison groups declare the system-defining manifest paths (system.*) for every cell, and telemetry.dead_reckoning (RouteBalance dead-reckons; every pipeline system reads the engines' own counts, owner 09-25, except W12's in-flight dispatchers, D84); qwen-sweep has a single configuration and declares nothing. qwen-ablation (W4, W11) is self-contained and paired: its reference is rb_default's variant at the headline preset over lambda 12/30 x seeds 1-3 (listed again under the abl alias; D78), and each variant declares only what its template ablates (configs/presets.json): the nine mechanism ablations are of rb_default's variant, and the six latency variants (the curve, static, learned, static prior, curve + max-divide, constant + batch) declare every latency path, since any of them may be the reference.",
+  "groups": "Main comparison groups declare the system-defining manifest paths (system.*) for every cell, and telemetry.dead_reckoning (RouteBalance dead-reckons; every pipeline system reads the engines' own counts, owner 09-25, except W12's in-flight dispatchers, D84); qwen-sweep has a single configuration and declares nothing; so does qwen-sweep2 (W1c, the sweep's 42-60 req/s extension, D119), its own group because it runs on the tree after D118 (a different code digest; the sweep path is unchanged). qwen-ablation (W4, W11) is self-contained and paired: its reference is rb_default's variant at the headline preset over lambda 12/30 x seeds 1-3 (listed again under the abl alias; D78), and each variant declares only what its template ablates (configs/presets.json): the nine mechanism ablations are of rb_default's variant, and the six latency variants (the curve, static, learned, static prior, curve + max-divide, constant + batch) declare every latency path, since any of them may be the reference.",
   "fill": "W9 blocks are fill blocks: cells an earlier block lists (W3's seeds 2-3) are not run twice. A fill block renders only after every earlier block of its group that could list one of its cells, so W9 waits for the W3 decisions and no cell ever moves between blocks from one render to the next.",
   "decoupled": "RB-decoupled follows the decoupled_arm decision ('{darm}-dec'): the same predictors as rb_default, except that with the learned heads it uses the measured curve at an idle instance (it scores idle instances before load is visible). The Gemma rows (no learned heads) use decoupled_arm for RouteBalance too. G1 pairs RB-new with rb-dec.",
   "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it. None is held now: W6 (the AvengersPro top-2 spillover router) is dropped and W7b's budgets are sent by the benchmark client (owner 09-25). W4's arm 3 is dropped and W4's D45 control runs (owner 09-25). W11 needs the lpt key min/mean of S5b.",
@@ -75,7 +75,11 @@
                                                 {"n_requests": 2487, "rate": 18.0},
                                                 {"n_requests": 2486, "rate": 24.0},
                                                 {"n_requests": 2486, "rate": 30.0},
-                                                {"n_requests": 2486, "rate": 36.0}]}
+                                                {"n_requests": 2486, "rate": 36.0}]},
+  "sweep42-60": {"burstiness": 1.0, "segments": [{"n_requests": 3730, "rate": 42.0},
+                                                 {"n_requests": 3730, "rate": 48.0},
+                                                 {"n_requests": 3730, "rate": 54.0},
+                                                 {"n_requests": 3729, "rate": 60.0}]}
  },
  "fleets": {
   "qwen_std": {"family": "qwen", "about": "13 instances: 3x Qwen2.5-14B/V100, 2x 72B/A100, 3x 3B/A30 + 5x 7B/A30"},
@@ -87,6 +91,7 @@
   "qwen": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
   "qwen-ablation": {"fleet": "qwen_std", "reference": "abl.qwen.{rb_default}.{headline}", "intended_differences": null},
   "qwen-sweep": {"fleet": "qwen_std", "reference": null, "intended_differences": []},
+  "qwen-sweep2": {"fleet": "qwen_std", "reference": null, "intended_differences": []},
   "qwen-topo53": {"fleet": "qwen_topo53", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
   "qwen-budget-75": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "budget.*", "telemetry.dead_reckoning"]},
   "qwen-budget-45": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "budget.*", "telemetry.dead_reckoning"]},
@@ -133,13 +138,21 @@
      "traces": ["sweep6-36"], "seeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24], "prompt_order": "per_seed", "fill": false, "alias": null,
      "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
+  {"id": "W1c", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D119: the sweep extended to 42-60 req/s (owner 09-29), W1b's configuration and prompts, so the learned heads' training covers the per-instance loads RouteBalance reaches at the main grid's top rate (at 36 req/s random dispatch put at most 19 in flight on a 14B instance; RouteBalance put 16-27 there at 30 req/s)",
+   "plan": "6 runs of all 14,919 training prompts (3,730 at 42, 48 and 54 req/s and 3,729 at 60; ~5 min sending, ~11 min each), ~1 h 10 min, ~89.5k requests; chained after W1b (owner 09-29)",
+   "blocks": [
+    {"name": "W1c", "group": "qwen-sweep2", "dataset": "train_qwen", "axes": {}, "configs": ["qwen.sweep.random"],
+     "traces": ["sweep42-60"], "seeds": [25, 26, 27, 28, 29, 30], "prompt_order": "per_seed", "fill": false, "alias": null,
+     "planned": {}, "enabled": true, "why": null, "hold": null}
+   ]},
   {"id": "G1b", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "day-2 morning: RouteBalance with the learned TPOT heads (trained on the W1b sweep) on the G1 presets at lambda 12 and 30, compared with G1's measured-curve and static cells; rb_default is chosen from the three (owner 09-25)",
-   "plan": "4 cells, ~25 min",
+   "about": "day-2: RouteBalance with the learned TPOT heads (trained on the W1b and W1c sweeps) on the G1 presets at lambda 12, 30 and 42 (42 since D119, as G1), compared with G1's measured-curve and static cells; rb_default is chosen from the three by the pre-registered rule at 30 (owner 09-25)",
+   "plan": "6 cells, ~35 min",
    "blocks": [
     {"name": "G1b", "group": "g1", "dataset": "eval_qwen", "axes": {"w": "$owner:g1_weights"},
      "configs": ["qwen.rb-learned.{w}"],
-     "traces": ["l12", "l30"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "g1",
+     "traces": ["l12", "l30", "l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "g1",
      "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W2", "kind": "cells", "prio": "must", "enabled": true, "why": null,
