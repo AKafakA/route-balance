@@ -96,5 +96,12 @@
   "decision": "D121",
   "owner": "why we have 2 seeds 2 and 3? should we merge them after the must rows in total?; ok, it looks good; and then start the writing and leaving the repeation only to be run at Thursday and Friday for all main experiments?; yes, move it and merged into the ablation of LPT, so for now, we had the LPT-key variances and disable both",
   "gpu_cost": "none added: the same runs regrouped (seed 1 of every main row first: W4 34 with the 4 LPT-key cells, W5 10, W7 12, W8 52; then seeds 2-3: W8r 104, W7r 24, W9 312 with W3 merged in, W4r 68, W5r 20); W3 and W11 disabled (their cells are in W9 and W4/W4r); the seed picks w3_near_frontier and w3_headline are no longer needed"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "a5471e802ed7d6c7fba9b984bd3842dc8a868b2bee55771d646ac70df361af7e",
+  "decision": "D123",
+  "owner": "ok, so, we need to fix and rerun the rate 42 all experiments to compare if it works?; ok, go for me",
+  "gpu_cost": "G1c: 10 runs at 42 req/s (~30 min) after G1b, on the fixed code: RouteBalance's round-based variants (curve, static, learned; per-round and cache reads) for both G1 presets; the pipeline systems have no rounds and are not rerun; the main grid then starts ~30 min later"
  }
 ]
