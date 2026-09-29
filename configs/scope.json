@@ -167,12 +167,16 @@
      "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "G1c", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "D123: the check of the round-size fix at 42 req/s (an adaptive round also takes the scheduler's backlog, up to 32): RouteBalance's round-based variants (the measured curve, static and learned; per-round load reads and the pollers' cache) on the G1 presets, on the fixed code, against the same runs of G1 and G1b before the fix; the pipeline systems have no rounds and are not rerun",
-   "plan": "10 cells, ~30 min, after G1b",
+   "about": "D123: the check of the round-size fix at 42 req/s (an adaptive round also takes the scheduler's backlog, up to 32): RouteBalance's round-based variants (the measured curve, static and learned; per-round load reads and the pollers' cache) on the G1 presets, on the fixed code, against the same runs of G1 and G1b before the fix; the pipeline systems have no rounds and are not rerun. D127: the per-round variants at 30 req/s too (14-33% of their requests had queued behind a full round before the fix; the cache-read variants 2%, and at 12 req/s at most 1.5%)",
+   "plan": "16 cells: 10 at 42 req/s after G1b (~30 min); since D127 the 6 per-round cells at 30 req/s (~16 min)",
    "blocks": [
     {"name": "G1c", "group": "g1-fix", "dataset": "eval_qwen", "axes": {"w": "$owner:g1_weights"},
      "configs": ["qwen.rb.{w}", "qwen.rb-poll.{w}", "qwen.rb-static.{w}", "qwen.rb-static-poll.{w}", "qwen.rb-learned.{w}"],
      "traces": ["l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "fix",
+     "planned": {}, "enabled": true, "why": null, "hold": null},
+    {"name": "G1c-l30", "group": "g1-fix", "dataset": "eval_qwen", "axes": {"w": "$owner:g1_weights"},
+     "configs": ["qwen.rb.{w}", "qwen.rb-static.{w}", "qwen.rb-learned.{w}"],
+     "traces": ["l30"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "fix",
      "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W2", "kind": "cells", "prio": "must", "enabled": true, "why": null,
