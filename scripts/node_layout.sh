@@ -19,5 +19,9 @@ RB_DOWNLOADS=$RB_ROOT/downloads       # the CUDA local-repo installer
 CUDA_DIR=/usr/local/cuda-12.8
 DRIVER_VERSION=570.86.10
 VLLM_VERSION=0.18.1                   # == the pyproject `serve` extra and every engine args file (tests check)
+# vLLM's VLLM_HTTP_TIMEOUT_KEEP_ALIVE for every engine (stock 5 s): above the clients' 60 s keep-alive (vLLM bench's stock
+# connector), as v3 set its scheduler's server (600 s, "Was 5 — caused localhost RST race vs bench keepalive=60s");
+# owner 09-29, D138
+ENGINE_KEEP_ALIVE_S=600
 # the environment every engine and the scheduler start with (env -i: nothing inherited from login files)
 RB_PATH=$CUDA_DIR/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
