@@ -2,7 +2,8 @@
 
 Everything is compared within one comparison group (bench/scope.py: one dataset, prompt order and fleet) and
 one trace; cells of different groups are never pooled. A configuration's point is the mean over its seeds of
-each per-seed cell metric (quality, mean and p99 end-to-end latency, decode cost, the SLO miss shares at the
+each per-seed cell metric (quality, mean and p99 end-to-end latency, decode cost and total cost (D117), the SLO
+miss shares at the
 tight and loose levels (1 - attainment, analysis/slo.py), throughput);
 `seeds` says which seeds. Only cells that are ok in the manifest and valid in their summary enter.
 A configuration is on its system's frontier for a metric when no other configuration of the same system,
@@ -20,7 +21,8 @@ from analysis.metrics import CellSummary
 from bench.scope import ExpectedCell
 from routebalance.config import ConfigError
 
-METRICS = ("e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k", "slo_miss_tight", "slo_miss_loose")   # lower is better
+METRICS = ("e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k", "cost_total_per_1k", "slo_miss_tight",
+           "slo_miss_loose")   # lower is better; D117: total cost (prompt + output) beside v2/v3's decode cost
 _AVERAGED = ("quality", *METRICS, "throughput_rps")
 Key = tuple[str, str, str]
 
@@ -39,6 +41,7 @@ class CellPoint:
     e2e_mean_ms: float
     e2e_p99_ms: float
     cost_decode_per_1k: float
+    cost_total_per_1k: float
     slo_miss_tight: float
     slo_miss_loose: float
     throughput_rps: float
@@ -57,6 +60,7 @@ class ConfigPoint:
     e2e_mean_ms: float
     e2e_p99_ms: float
     cost_decode_per_1k: float
+    cost_total_per_1k: float
     slo_miss_tight: float
     slo_miss_loose: float
     throughput_rps: float
@@ -73,9 +77,12 @@ def cell_point(exp: ExpectedCell, s: CellSummary, coverage: Coverage) -> CellPoi
         raise ConfigError(f"cell {s.cell_id} is invalid and cannot enter a comparison: {list(s.problems)}")
     if s.slo_attainment_tight is None or s.slo_attainment_loose is None:
         raise ConfigError(f"cell {s.cell_id} was summarised without its SLO")
+    if s.cost_total_per_1k is None:
+        raise ConfigError(f"cell {s.cell_id} was summarised without input prices (D117)")
     return CellPoint(group=exp.group, config_id=exp.config_id, system=exp.config.system, knob=exp.config.knob,
                      dispatch=exp.config.dispatch, trace_id=exp.trace_id, seed=exp.seed, quality=s.quality,
                      e2e_mean_ms=s.e2e_ms.mean, e2e_p99_ms=s.e2e_ms.p99, cost_decode_per_1k=s.cost_decode_per_1k,
+                     cost_total_per_1k=s.cost_total_per_1k,
                      slo_miss_tight=1.0 - s.slo_attainment_tight, slo_miss_loose=1.0 - s.slo_attainment_loose,
                      throughput_rps=s.throughput_rps)
 

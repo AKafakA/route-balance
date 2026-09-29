@@ -68,5 +68,12 @@
   "decision": "D116",
   "owner": "what if 12 18 24 30 36 and 42 with 6 rates?; that seems good, and for the thesis check, we need to rerun with rate 42 as well for all?; All 22 thesis checker",
   "gpu_cost": "main grid, frontier, fill and in-flight rows: 6 req/s replaced by 36 and 42 (+100 runs, about 7.5 h less in total); thesis check +22 runs at 42 req/s (about 75 min, after the sweep)"
+ },
+ {
+  "file": "configs/presets.json",
+  "sha256": "7b9b51f9f9d286c1046a136759944d7ae809c2fa2ef2d230e17589e106c9d4b8",
+  "decision": "D118",
+  "owner": "yes, we better to have it but make sure making little effectness against the real latency prediction and ranking results, sinces as you mentioned, it suppose to be 1 to 2% e2e latency effectness as expected. we need to have the probing cells with gate to verify it. the target of adding this term is making our equation with less hole, but the real results should be similar; we suppose not add extra probing overhead for the rb only just for the 1 to 2 % prediction latency diff?",
+  "gpu_cost": "none added: the prefill table enters every latency part (the RouteBalance variants and RB-decoupled read it; the pipeline baselines never load it); the thesis check already reruns for the prompt price (D117); no probe runs: the check is the offline replay of the logged decisions"
  }
 ]

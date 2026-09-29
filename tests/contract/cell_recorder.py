@@ -56,6 +56,9 @@ INSTANCES = [("S_0", "small_a30", "n0", "d7525", "127.0.0.1"), ("S_1", "small_a3
 TABLE = {"unit": "ms_per_token", "constant": {"small_a30": 10.0, "large_a100": 40.0},
          "curve": {"small_a30": [[1, 10.0], [8, 30.0]], "large_a100": [[1, 40.0], [8, 90.0]]},
          "provenance": {"source": "tests.contract.cell_recorder"}}
+PREFILL = {"unit": "ms", "prefill": {"small_a30": {"intercept_ms": 5.0, "per_token_ms": 0.05, "n": 64, "r2": 0.9},
+                                     "large_a100": {"intercept_ms": 20.0, "per_token_ms": 0.1, "n": 64, "r2": 0.9}},
+           "provenance": {"source": "tests.contract.cell_recorder"}}
 ENCODER = "sentence-transformers/all-MiniLM-L6-v2"
 
 
@@ -96,19 +99,20 @@ def install_stand_ins(setitem, setattr_) -> None:
     setattr_(server, "model_files", fake_model_files)
 
 
-def configs(table_md5: str) -> dict[str, dict]:
+def configs(table_md5: str, prefill_md5: str) -> dict[str, dict]:
     base = {
         "dead_reckoning": True,
         "latency": {"source": "constant", "envelope": "own_length", "normalization": "max_divide",
-                    "table": "calib/tpot.json", "table_md5": table_md5},
+                    "table": "calib/tpot.json", "table_md5": table_md5, "prefill": None},
         "estimator": {"index_dir": "knn/x", "index_md5": "0" * 32, "encoder_revision": "a" * 40, "k": 50,
                       "score_type": "deepeval", "prior": "knn"},
         "budget": {"admission_filter": False},
         "telemetry": {"poll_ms": 20.0, "max_age_ms": 2000.0, "timeout_s": 2.0},
     }
     weights = {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2}
-    curve = {"source": "profiled_curve", "envelope": "batch_aware", "normalization": "fixed_ref",
-             "table": "calib/tpot.json", "table_md5": table_md5}
+    curve = {"source": "profiled_curve", "envelope": "batch_aware", "normalization": "fixed_ref",     # with prefill (D118)
+             "table": "calib/tpot.json", "table_md5": table_md5,
+             "prefill": {"table": "calib/prefill.json", "table_md5": prefill_md5}}
 
     def rb(**kw):
         return base | {"mode": "routebalance", "weights": weights, "telemetry_read": "per_round", "pipeline": None} | kw
@@ -160,9 +164,10 @@ class LiveFleet:
     async def __aenter__(self) -> "LiveFleet":
         w = self.work
         (w / "artifacts/calib").mkdir(parents=True)
-        table = json.dumps(TABLE).encode()
+        table, prefill = json.dumps(TABLE).encode(), json.dumps(PREFILL).encode()
         (w / "artifacts/calib/tpot.json").write_bytes(table)
-        self.configs = configs(hashlib.md5(table).hexdigest())
+        (w / "artifacts/calib/prefill.json").write_bytes(prefill)
+        self.configs = configs(hashlib.md5(table).hexdigest(), hashlib.md5(prefill).hexdigest())
         ports = {iid: free_port(address) for iid, _, _, _, address in INSTANCES}
         self.fleet_path, self.hosts_path = w / "fleet.json", w / "hosts.json"
         self.fleet_path.write_text(json.dumps({"tiers": TIERS, "instances": [

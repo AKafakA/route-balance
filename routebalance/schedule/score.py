@@ -5,7 +5,8 @@ For request r and candidate instance i (serving model m on GPU g), all three ter
     score_i = w_q * Q_i + w_c * C_i + w_l * L_i
 
     Q_i = (q_i - min_j q_j) / (max_j q_j - min_j q_j + eps)    predicted quality, min-max over the candidates
-    C_i = 1 - c_i / (max_j c_j + eps)                          predicted decode cost (expected length x output price)
+    C_i = 1 - c_i / (max_j c_j + eps)                          predicted cost: prompt tokens x input price
+                                                               + expected length x output price (D117)
     L_i = 1 - l_i / (max_j l_j + eps)                          "max_divide" (the v3 normalization), or
     L_i = min_j l0_j / l_i                                     "fixed_ref": against the request's best UNLOADED latency
 
@@ -34,7 +35,7 @@ class Candidate:
     instance_id: str
     model: str
     quality: float                        # predicted quality of this request's answer on the model
-    cost: float                           # predicted decode cost, dollars
+    cost: float                           # predicted cost, dollars: prompt at the input price + expected output (D117)
     latency_s: float                      # load-aware latency estimate
     unloaded_latency_s: Optional[float]   # the same estimate on an idle instance; fixed_ref only
     queue_depth: int                      # running + waiting (tie-break)

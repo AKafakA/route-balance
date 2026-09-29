@@ -12,7 +12,8 @@ from routebalance.config import ConfigError
 def pt(config, system, seed, q, mean, trace="l30", miss=0.0, knob=None, group="g1"):
     return CellPoint(group=group, config_id=config, system=system, knob=config if knob is None else knob, dispatch="lor",
                      trace_id=trace, seed=seed, quality=q, e2e_mean_ms=mean, e2e_p99_ms=3 * mean,
-                     cost_decode_per_1k=mean / 1000, slo_miss_tight=miss, slo_miss_loose=miss / 2,
+                     cost_decode_per_1k=mean / 1000, cost_total_per_1k=mean / 500,
+                     slo_miss_tight=miss, slo_miss_loose=miss / 2,
                      throughput_rps=20.0)
 
 
@@ -74,7 +75,8 @@ def _summary(problems):
     return CellSummary(cell_id="a__l30__s1", n_requests=10, n_ok=10, n_failed=0, quality=0.4, matched=10,
                        corpus_gap=0, unscored=0, budget_exhausted=None, unmatched=0, n_zero=1, coverage=1.0,
                        quality_zeros_excluded=0.44,
-                       cost_decode_per_1k=0.02, throughput_rps=9.0, e2e_ms=Spread(100.0, 90.0, 300.0),
+                       cost_decode_per_1k=0.02, cost_total_per_1k=0.03, throughput_rps=9.0,
+                       e2e_ms=Spread(100.0, 90.0, 300.0),
                        slo_attainment_tight=0.75, slo_attainment_loose=0.875, overhead_ms={}, off_instance_ms=None,
                        prompt_token_mismatches=0, problems=problems)
 
@@ -94,3 +96,6 @@ def test_cell_points_come_only_from_cells_ok_in_the_manifest_and_valid():
         cell_point(_expected(), _summary(()), _coverage(()))
     with pytest.raises(ConfigError, match="cannot be compared"):
         cell_point(_expected(), _summary(()), _coverage(("a__l30__s1",), {"g1": "cells ran on 2 different fleets"}))
+    no_total = _summary(()).__class__(**{**_summary(()).__dict__, "cost_total_per_1k": None})
+    with pytest.raises(ConfigError, match="without input prices"):
+        cell_point(_expected(), no_total, _coverage(("a__l30__s1",)))

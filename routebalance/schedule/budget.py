@@ -12,7 +12,8 @@ A request may carry budget_cost, in dollars; 0 means no budget. Two rules use it
       cost_out <= budget_cost; when none is, the cheapest candidates by worst-case cost (max_tokens) remain.
 
 The reported cost of a finished request includes its prompt: prompt_tokens * cost_in + output_tokens *
-cost_out. The scheduling objective's cost term is decode-only. The two are different quantities.
+cost_out. The scheduling objective's cost term counts the prompt the same way, with the expected length in
+place of the output tokens (D117).
 """
 from __future__ import annotations
 

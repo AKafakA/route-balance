@@ -13,11 +13,12 @@ from routebalance.baselines.routers import (ALL_INSTANCES, BEST_ROUTE_MODULES, A
                                             _names_the_model, _rankings, best_route_digest, build_router,
                                             load_best_route_upstream, price_order, upstream_digest, validate_options)
 from routebalance.config import ConfigError, Router, Weights
+from routebalance.types import Tier
 from tests.fleet_s2 import POOL, TIERS
 
 EX = ThreadPoolExecutor(max_workers=2, thread_name_prefix="router")
 LABELS = {0: "Qwen/Qwen2.5-3B", 1: "Qwen/Qwen2.5-7B", 2: "Qwen/Qwen2.5-14B", 3: "Qwen/Qwen2.5-72B"}
-REQ = RouterRequest("what is 2+2?", "r1")
+REQ = RouterRequest("what is 2+2?", "r1", 12)
 
 
 def run(coro):
@@ -153,13 +154,14 @@ W = Weights(w_quality=0.5, w_latency=0.3, w_cost=0.2)
 
 
 def decoupled(estimates, latency_per_token, normalization="fixed_ref", weights=W):
-    seen = {}
+    seen = {"prompt_tokens": set()}
 
     def estimate(prompts):
         seen["thread"], seen["prompts"] = threading.current_thread().name, list(prompts)
         return [estimates]
 
-    def unloaded(tier, n):
+    def unloaded(tier, n, prompt_tokens):
+        seen["prompt_tokens"].add(prompt_tokens)
         return latency_per_token[tier.model] * n
     inputs = DecoupledInputs(TIER_LIST, weights, normalization, estimate, unloaded)
     return RBDecoupledRouter(inputs, executor=EX), seen
@@ -170,9 +172,9 @@ EST = {"Qwen/Qwen2.5-14B": Estimate(0.70, 100.0), "Qwen/Qwen2.5-3B": Estimate(0.
 TPOT = {"Qwen/Qwen2.5-14B": 0.02, "Qwen/Qwen2.5-3B": 0.01, "Qwen/Qwen2.5-72B": 0.04, "Qwen/Qwen2.5-7B": 0.015}
 
 
-def reference(est, tpot, w, normalization, tiers=TIER_LIST):
+def reference(est, tpot, w, normalization, tiers=TIER_LIST, prompt_tokens=12):
     q = [est[t.model].quality for t in tiers]
-    c = [est[t.model].expected_len * t.cost_out for t in tiers]
+    c = [prompt_tokens * t.cost_in + est[t.model].expected_len * t.cost_out for t in tiers]      # D117
     lat = [tpot[t.model] * est[t.model].expected_len for t in tiers]
     out = {}
     for t, qi, ci, li in zip(tiers, q, c, lat, strict=True):
@@ -188,11 +190,26 @@ def reference(est, tpot, w, normalization, tiers=TIER_LIST):
                                      Weights(w_quality=0.1, w_latency=0.8, w_cost=0.1)])
 def test_decoupled_is_the_argmax_of_the_objective_with_unloaded_latency(normalization, weights):
     router, seen = decoupled(EST, TPOT, normalization, weights)
-    d = choose(router, req=RouterRequest("hello", "r"))
-    ref = reference(EST, TPOT, weights, normalization)
+    d = choose(router, req=RouterRequest("hello", "r", 400))
+    ref = reference(EST, TPOT, weights, normalization, prompt_tokens=400)
     best = max(ref, key=ref.get)
     assert d.model == best and d.score == pytest.approx(ref[best], abs=1e-12)
     assert seen["thread"].startswith("router") and seen["prompts"] == ["hello"]
+    assert seen["prompt_tokens"] == {400}          # D118: every idle latency gets the request's prompt count
+
+
+def test_decoupled_prices_the_prompt_and_refuses_a_request_without_its_count():
+    """D117: RB-decoupled's cost is RouteBalance's: the prompt at the input price + the expected output."""
+    same = {m: Estimate(0.5, 10.0) for m in EST}
+    cheap_in = Tier("in_a30", "Qwen/Qwen2.5-3B", "a30", 1e-9, 5e-7, 4, ())
+    cheap_out = Tier("out_a30", "Qwen/Qwen2.5-7B", "a30", 5e-7, 1e-9, 4, ())
+    router = RBDecoupledRouter(DecoupledInputs([cheap_out, cheap_in], Weights(w_quality=0.0, w_latency=0.0, w_cost=1.0),
+                                               "fixed_ref", lambda ps: [same], lambda t, n, p: 0.01 * n), executor=EX)
+    pool = ["Qwen/Qwen2.5-3B", "Qwen/Qwen2.5-7B"]
+    assert choose(router, pool, RouterRequest("q", "r", 1)).model == "Qwen/Qwen2.5-7B"       # short prompt: output rules
+    assert choose(router, pool, RouterRequest("q", "r", 1000)).model == "Qwen/Qwen2.5-3B"    # long prompt: input rules
+    with pytest.raises(ValueError, match="no prompt token count"):
+        choose(router, pool, RouterRequest("q", "r"))
 
 
 def test_decoupled_ties_go_to_the_first_tier_in_fleet_order():
@@ -200,7 +217,7 @@ def test_decoupled_ties_go_to_the_first_tier_in_fleet_order():
     flat = {m: 0.01 for m in TPOT}
     tiers = [TIERS["7B"], TIERS["3B"]]
     router = RBDecoupledRouter(DecoupledInputs(tiers, Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0), "fixed_ref",
-                                               lambda ps: [same], lambda t, n: flat[t.model] * n), executor=EX)
+                                               lambda ps: [same], lambda t, n, p: flat[t.model] * n), executor=EX)
     assert choose(router).model == "Qwen/Qwen2.5-7B"
 
 
@@ -300,7 +317,7 @@ def test_router_options_validate_without_loading():
 def test_build_rb_decoupled_needs_its_inputs():
     with pytest.raises(ConfigError, match="estimator"):
         build("rb_decoupled", {})
-    inputs = DecoupledInputs(TIER_LIST, W, "max_divide", lambda ps: [EST], lambda t, n: TPOT[t.model] * n)
+    inputs = DecoupledInputs(TIER_LIST, W, "max_divide", lambda ps: [EST], lambda t, n, p: TPOT[t.model] * n)
     assert isinstance(build("rb_decoupled", {}, decoupled=inputs), RBDecoupledRouter)
     with pytest.raises(ConfigError):
         build("rb_decoupled", {"k": 1}, decoupled=inputs)

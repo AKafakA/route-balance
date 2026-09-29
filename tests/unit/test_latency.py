@@ -10,8 +10,8 @@ import pytest
 
 from routebalance.config import parse_scheduler
 from routebalance.estimate.artifacts import ArtifactError
-from routebalance.estimate.latency import (ConstantTPOT, LatencyError, LatencyModel, ProfiledCurveTPOT, batch_aware,
-                                           load_latency_model, own_length, queue_aware)
+from routebalance.estimate.latency import (ConstantTPOT, LatencyError, LatencyModel, Prefill, ProfiledCurveTPOT,
+                                           batch_aware, load_latency_model, own_length, queue_aware)
 from routebalance.types import Instance, Tier
 
 A30_3B = Tier("qwen2.5-3b_a30", "Qwen/Qwen2.5-3B", "a30", 6e-08, 6e-08, 256, ())
@@ -144,38 +144,38 @@ class RecordingSource:
 
 def test_model_feeds_the_largest_expected_length_as_the_shared_request_feature():
     src = RecordingSource()
-    model = LatencyModel(src, "queue_aware")
+    model = LatencyModel(src, "queue_aware", None)
     out = model.latencies(INSTANCES, [IDLE, IDLE], LENGTHS, 88)
     assert src.calls == [(["qwen2.5-3b_a30", "qwen2.5-14b_v100"], 88, 300)]    # max over every model, as v3
     assert out == [120 * 0.01, 80 * 0.01]
 
 
 def test_model_own_length_uses_each_candidates_float_length():
-    model = LatencyModel(ConstantTPOT({"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}), "own_length")
+    model = LatencyModel(ConstantTPOT({"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}), "own_length", None)
     assert model.latencies(INSTANCES, [IDLE, IDLE], LENGTHS, 88) == [10.7 / 1000.0 * 120.7, 16.5 / 1000.0 * 80.2]
 
 
 def test_model_batch_aware_reads_each_tiers_curve():
-    model = LatencyModel(ProfiledCurveTPOT(CURVES), "batch_aware")
+    model = LatencyModel(ProfiledCurveTPOT(CURVES), "batch_aware", None)
     out = model.latencies(INSTANCES, [State(2, 0, 256, 0), State(0, 0, 256, 0)], LENGTHS, 88)
     assert out == [pytest.approx(0.012 * 120.7), 0.016 * 80.2]
 
 
 def test_model_batch_aware_on_a_constant_is_a_flat_curve():
-    model = LatencyModel(ConstantTPOT({"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}), "batch_aware")
+    model = LatencyModel(ConstantTPOT({"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}), "batch_aware", None)
     idle, full = State(2, 0, 256, 0), State(8, 3, 8, 800)
     assert model.latencies(INSTANCES, [idle, full], LENGTHS, 88) == [10.7 / 1000.0 * 120.7,
                                                                       16.5 / 1000.0 * (80.2 + 800 / 8)]
 
 
 def test_model_raises_on_a_model_without_a_length_estimate():
-    model = LatencyModel(ConstantTPOT({"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}), "own_length")
+    model = LatencyModel(ConstantTPOT({"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}), "own_length", None)
     with pytest.raises(LatencyError, match="no length estimate"):
         model.latencies(INSTANCES, [IDLE, IDLE], {"Qwen/Qwen2.5-3B": 10.0}, 88)
 
 
 def test_model_raises_when_states_do_not_line_up():
-    model = LatencyModel(ConstantTPOT({"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}), "own_length")
+    model = LatencyModel(ConstantTPOT({"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}), "own_length", None)
     with pytest.raises(LatencyError, match="states"):
         model.latencies(INSTANCES, [IDLE], LENGTHS, 88)
 
@@ -184,7 +184,56 @@ def test_model_raises_when_states_do_not_line_up():
                                              (ProfiledCurveTPOT({"t": [[1, 10.0]]}), "own_length")])
 def test_model_rejects_pairs_that_are_not_an_arm(source, envelope):
     with pytest.raises(LatencyError):
-        LatencyModel(source, envelope)
+        LatencyModel(source, envelope, None)
+
+
+# ---------------------------------------------------------------- prefill (D118)
+
+LINES = {"qwen2.5-3b_a30": {"intercept_ms": 18.0, "per_token_ms": 0.053, "n": 128, "r2": 0.93},
+         "qwen2.5-14b_v100": {"intercept_ms": 29.7, "per_token_ms": 0.1329, "n": 128, "r2": 0.93}}
+
+
+def _prefill_s(tier, prompt_tokens):
+    line = LINES[tier]
+    return line["intercept_ms"] / 1000.0 + line["per_token_ms"] / 1000.0 * prompt_tokens
+
+
+FLAT = {"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}
+
+
+@pytest.mark.parametrize("source,envelope", [(ConstantTPOT(FLAT), "own_length"), (ConstantTPOT(FLAT), "queue_aware"),
+                                             (ConstantTPOT(FLAT), "batch_aware"),
+                                             (ProfiledCurveTPOT(CURVES), "batch_aware")])
+def test_prefill_adds_each_tiers_line_to_every_envelope(source, envelope):
+    states = [State(2, 0, 256, 0), State(8, 3, 8, 800)]
+    off = LatencyModel(source, envelope, None).latencies(INSTANCES, states, LENGTHS, 400)
+    on = LatencyModel(source, envelope, Prefill(LINES)).latencies(INSTANCES, states, LENGTHS, 400)
+    assert on == [x + _prefill_s(i.tier.tier_id, 400) for x, i in zip(off, INSTANCES, strict=True)]
+    idle = LatencyModel(source, envelope, Prefill(LINES)).latencies(INSTANCES, [IDLE, IDLE], LENGTHS, 400)
+    assert all(i <= x for i, x in zip(idle, on, strict=True))   # the same addend when idle: fixed_ref stays <= 1
+
+
+def test_prefill_needs_the_prompts_token_count():
+    model = LatencyModel(ConstantTPOT({"qwen2.5-3b_a30": 10.7, "qwen2.5-14b_v100": 16.5}), "own_length", Prefill(LINES))
+    for bad in (0, -1, True, 12.0):
+        with pytest.raises(LatencyError, match="token count"):
+            model.latencies(INSTANCES, [IDLE, IDLE], LENGTHS, bad)
+
+
+@pytest.mark.parametrize("lines", [{}, {"t": {"intercept_ms": 1.0, "per_token_ms": 0.1, "n": 1}},
+                                   {"t": {"intercept_ms": 1.0, "per_token_ms": 0.1, "n": 1, "r2": 1.0, "x": 0}},
+                                   {"t": {"intercept_ms": 0.0, "per_token_ms": 0.1, "n": 1, "r2": 1.0}},
+                                   {"t": {"intercept_ms": 1.0, "per_token_ms": -0.1, "n": 1, "r2": 1.0}},
+                                   {"t": {"intercept_ms": True, "per_token_ms": 0.1, "n": 1, "r2": 1.0}},
+                                   {"t": {"intercept_ms": float("inf"), "per_token_ms": 0.1, "n": 1, "r2": 1.0}}])
+def test_prefill_rejects_bad_lines(lines):
+    with pytest.raises(LatencyError):
+        Prefill(lines)
+
+
+def test_prefill_unknown_tier_raises():
+    with pytest.raises(LatencyError, match="no prefill line"):
+        Prefill(LINES).seconds("qwen2.5-72b_a100", 10)
 
 
 # ---------------------------------------------------------------- loading from config
@@ -195,13 +244,13 @@ def _table(tmp_path, doc):
     return hashlib.md5(raw).hexdigest()
 
 
-def _cfg(source, envelope, md5):
+def _cfg(source, envelope, md5, prefill=None):
     doc = {
         "mode": "routebalance", "weights": {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2},
         "rounds": {"adaptive": True}, "lpt": "max", "pending_decode": "own_length", "dead_reckoning": True,
         "telemetry_read": "per_round",
         "latency": {"source": source, "envelope": envelope, "normalization": "fixed_ref", "table": "tpot.json",
-                    "table_md5": md5},
+                    "table_md5": md5, "prefill": prefill},
         "estimator": {"index_dir": "knn", "index_md5": "0" * 32, "encoder_revision": "a" * 40, "k": 50,
                       "score_type": "deepeval", "prior": "knn"},
         "budget": {"admission_filter": False},
@@ -241,6 +290,44 @@ def test_load_rejects_malformed_tables(tmp_path, mutate):
     mutate(doc)
     with pytest.raises(LatencyError):
         load_latency_model(_cfg("profiled_curve", "batch_aware", _table(tmp_path, doc)), tmp_path, TIERS)
+
+
+PREFILL_TABLE = {"unit": "ms", "prefill": LINES, "provenance": {"requests_sha256": "0" * 64}}
+
+
+def _prefill_table(tmp_path, doc):
+    raw = json.dumps(doc).encode()
+    (tmp_path / "prefill.json").write_bytes(raw)
+    return {"table": "prefill.json", "table_md5": hashlib.md5(raw).hexdigest()}
+
+
+def test_load_with_prefill_from_config(tmp_path):
+    cfg = _cfg("constant", "queue_aware", _table(tmp_path, TABLE), _prefill_table(tmp_path, PREFILL_TABLE))
+    on = load_latency_model(cfg, tmp_path, TIERS).latencies(INSTANCES, [IDLE, IDLE], LENGTHS, 88)
+    off = load_latency_model(_cfg("constant", "queue_aware", _table(tmp_path, TABLE)), tmp_path, TIERS)
+    base = off.latencies(INSTANCES, [IDLE, IDLE], LENGTHS, 88)
+    assert on == [x + _prefill_s(i.tier.tier_id, 88) for x, i in zip(base, INSTANCES, strict=True)]
+
+
+def test_load_rejects_an_unpinned_or_incomplete_prefill_table(tmp_path):
+    wide = json.loads(json.dumps(TABLE))
+    wide["constant"]["qwen2.5-72b_a100"] = 30.0                  # the TPOT table covers the extra tier
+    md5 = _table(tmp_path, wide)
+    pinned = _prefill_table(tmp_path, PREFILL_TABLE)
+    with pytest.raises(ArtifactError, match="does not match"):
+        load_latency_model(_cfg("constant", "own_length", md5, pinned | {"table_md5": "0" * 32}), tmp_path, TIERS)
+    with pytest.raises(LatencyError, match="no prefill line for fleet tiers"):
+        load_latency_model(_cfg("constant", "own_length", md5, pinned), tmp_path, TIERS | {"qwen2.5-72b_a100"})
+
+
+@pytest.mark.parametrize("mutate", [lambda d: d.update(unit="s"), lambda d: d.pop("provenance"),
+                                    lambda d: d.update(extra=1), lambda d: d.update(prefill=[])])
+def test_load_rejects_malformed_prefill_tables(tmp_path, mutate):
+    doc = json.loads(json.dumps(PREFILL_TABLE))
+    mutate(doc)
+    cfg = _cfg("constant", "own_length", _table(tmp_path, TABLE), _prefill_table(tmp_path, doc))
+    with pytest.raises(LatencyError):
+        load_latency_model(cfg, tmp_path, TIERS)
 
 
 # ---------------------------------------------------------------- zero-call gate

@@ -86,7 +86,8 @@ from routebalance.types import Instance
 from tools.campaign import load_plan
 
 SLO_LEVELS = ("tight", "loose")
-MACRO_METRICS = {"e2e_mean_ms": "Mean", "e2e_p99_ms": "Tail", "cost_decode_per_1k": "Cost"}
+MACRO_METRICS = {"e2e_mean_ms": "Mean", "e2e_p99_ms": "Tail", "cost_total_per_1k": "Cost",
+                 "cost_decode_per_1k": "DecodeCost"}   # D117: Cost is prompt + output; DecodeCost as v2/v3
 TABLE_METRICS = {**MACRO_METRICS, "slo_miss_tight": "SLO tight (pp)", "slo_miss_loose": "SLO loose (pp)"}
 ATTAINMENT = ("slo_miss_tight", "slo_miss_loose")        # shown as the change of attainment, in points
 APPENDIX_SYSTEMS = frozenset({"dispatcher-inflight"})  # D84: compared in the appendix only (equal_appendix.*)
@@ -180,7 +181,8 @@ def check_values(cell_id: str, s: CellSummary, v: RequestValues) -> None:
     """The per-request values reproduce the cell's summary: the bootstrap resamples what the comparison uses."""
     got = {k: float(x[0]) for k, x in v.at(np.arange(len(v.index))[None, :]).items()}
     want = {"quality": s.quality, "e2e_mean_ms": s.e2e_ms.mean, "e2e_p99_ms": s.e2e_ms.p99,
-            "cost_decode_per_1k": s.cost_decode_per_1k, "slo_miss_tight": 1.0 - s.slo_attainment_tight,
+            "cost_decode_per_1k": s.cost_decode_per_1k, "cost_total_per_1k": s.cost_total_per_1k,
+            "slo_miss_tight": 1.0 - s.slo_attainment_tight,
             "slo_miss_loose": 1.0 - s.slo_attainment_loose}
     bad = {k: (got[k], w) for k, w in want.items() if not math.isclose(got[k], w, rel_tol=1e-9, abs_tol=1e-12)}
     if bad:
@@ -328,12 +330,14 @@ def _pct(x: Optional[float]) -> str:
 
 
 def systems_table(configs: Sequence[ConfigPoint]) -> str:
-    rows = [r"\begin{tabular}{llllrrrrrrr}", r"\toprule",
-            r"System & Knob & Dispatch & Config & Quality & Mean (ms) & P99 (ms) & \$/1k & SLO tight & SLO loose & "
+    rows = [r"\begin{tabular}{llllrrrrrrrr}", r"\toprule",
+            r"System & Knob & Dispatch & Config & Quality & Mean (ms) & P99 (ms) & \$/1k & \$/1k decode & SLO tight & "
+            r"SLO loose & "
             r"req/s \\", r"\midrule"]
     for p in sorted(configs, key=lambda p: (p.system, p.knob, p.dispatch, p.config_id)):
         rows.append(f"{_tex(p.system)} & {_tex(p.knob)} & {_tex(p.dispatch)} & {_tex(p.config_id)} & "
-                    f"{p.quality:.4f} & {p.e2e_mean_ms:.0f} & {p.e2e_p99_ms:.0f} & {p.cost_decode_per_1k:.4f} & "
+                    f"{p.quality:.4f} & {p.e2e_mean_ms:.0f} & {p.e2e_p99_ms:.0f} & {p.cost_total_per_1k:.4f} & "
+                    f"{p.cost_decode_per_1k:.4f} & "
                     f"{_pct(1 - p.slo_miss_tight)} & {_pct(1 - p.slo_miss_loose)} & {p.throughput_rps:.2f} \\\\")
     rows += [r"\bottomrule", r"\end{tabular}"]
     return "\n".join(rows) + "\n"

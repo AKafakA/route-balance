@@ -60,8 +60,8 @@ def test_one_seed_gives_the_interpolated_delta_without_a_ci():
     assert mean.ci is None and mean.undefined_resamples == 0 and mean.range is None
     assert row.frontier_presets == ("rb-a", "rb-b") and row.weight == pytest.approx(0.25)
     assert row.matched_presets == ("rb-a", "rb-c") and row.excluded_presets == ()
-    assert [d.metric for d in row.deltas] == ["e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k", "slo_miss_tight",
-                                             "slo_miss_loose"]
+    assert [d.metric for d in row.deltas] == ["e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k", "cost_total_per_1k",
+                                             "slo_miss_tight", "slo_miss_loose"]
     assert row.deltas[2].delta == pytest.approx(-1.25)
 
 
@@ -95,7 +95,8 @@ def test_no_eligible_preset_is_an_error():
 def test_every_metric_is_read_at_the_one_configuration_on_the_latency_frontier():
     # rb-c is off the latency frontier but has the best p99: the p99 is still read between rb-a and rb-b (D80)
     pts = [CellPoint(group="g1", config_id=c, system=sys_, knob=c, dispatch="lor", trace_id="l30", seed=1, quality=q,
-                     e2e_mean_ms=m, e2e_p99_ms=p99, cost_decode_per_1k=cost, slo_miss_tight=0.1, slo_miss_loose=0.05,
+                     e2e_mean_ms=m, e2e_p99_ms=p99, cost_decode_per_1k=cost, cost_total_per_1k=cost,
+                     slo_miss_tight=0.1, slo_miss_loose=0.05,
                      throughput_rps=20.0)
            for c, sys_, q, m, p99, cost in (("rb-a", "RB", 0.40, 1000, 5000, 1.0), ("rb-b", "RB", 0.50, 2000, 3000, 3.0),
                                             ("rb-c", "RB", 0.45, 3000, 1000, 0.1), ("ap-1", "AP", 0.425, 2500, 4000, 2.0))]
@@ -149,7 +150,8 @@ def _cell(config, system, seed, scores, e2e_s, cost=None, prompts=None):
     met = np.ones(len(e2e_s))
     v = RequestValues(index=tuple(range(len(e2e_s))),
                       prompt_ids=tuple(prompts or (f"p{seed}-{i}" for i in range(len(e2e_s)))),
-                      score=scores, e2e_s=e2e_s, cost=cost, met_tight=met, met_loose=met)
+                      score=scores, e2e_s=e2e_s, cost=cost, met_tight=met, met_loose=met,
+                      cost_total=cost * 1.5)                               # D117: prompt + output, never nan here
     point = {k: float(x[0]) for k, x in v.at(np.arange(len(e2e_s))[None, :]).items()}
     return (CellPoint(group="g1", config_id=config, system=system, knob=config, dispatch="lor", trace_id="l30",
                       seed=seed, throughput_rps=20.0, **point), (("g1", "l30", config, seed), v))
@@ -249,7 +251,8 @@ def test_a_quality_that_is_not_a_number_is_refused():
 def _kinked():
     """rb-c is off the latency frontier but has the best p99 and cost: the readings differ exactly there."""
     return [CellPoint(group="g1", config_id=c, system=sys_, knob=c, dispatch="lor", trace_id="l30", seed=1, quality=q,
-                      e2e_mean_ms=m, e2e_p99_ms=p99, cost_decode_per_1k=cost, slo_miss_tight=0.1, slo_miss_loose=0.05,
+                      e2e_mean_ms=m, e2e_p99_ms=p99, cost_decode_per_1k=cost, cost_total_per_1k=cost,
+                     slo_miss_tight=0.1, slo_miss_loose=0.05,
                       throughput_rps=20.0)
             for c, sys_, q, m, p99, cost in (("rb-a", "RB", 0.40, 1000, 5000, 1.0), ("rb-b", "RB", 0.50, 2000, 3000, 3.0),
                                              ("rb-c", "RB", 0.45, 3000, 1000, 0.1), ("ap-1", "AP", 0.425, 2500, 4000, 2.0))]
@@ -299,7 +302,8 @@ def test_a_flat_metric_is_read_at_the_frontier_that_dominates_the_baseline():
     # the local reviewer's case: equal SLO misses and cost for every preset keep only rb-b on those frontiers;
     # per_metric then reads rb-b (quality 0.50) for the baseline at 0.425, at higher quality
     pts = [CellPoint(group="g1", config_id=c, system=sys_, knob=c, dispatch="lor", trace_id="l30", seed=1, quality=q,
-                     e2e_mean_ms=m, e2e_p99_ms=p99, cost_decode_per_1k=1.0, slo_miss_tight=0.0, slo_miss_loose=0.0,
+                     e2e_mean_ms=m, e2e_p99_ms=p99, cost_decode_per_1k=1.0, cost_total_per_1k=1.0,
+                     slo_miss_tight=0.0, slo_miss_loose=0.0,
                      throughput_rps=20.0)
            for c, sys_, q, m, p99 in (("rb-a", "RB", 0.40, 1000, 5000), ("rb-b", "RB", 0.50, 2000, 3000),
                                       ("ap-1", "AP", 0.425, 2500, 4000))]

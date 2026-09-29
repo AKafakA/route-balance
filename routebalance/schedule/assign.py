@@ -142,7 +142,9 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
         base = (latency.latencies(instances, [_idle(s) for s in now], lengths, req.num_prompt_tokens)
                 if normalization == "fixed_ref" else [None] * len(instances))
         cands = [Candidate(inst.instance_id, inst.model, req.estimates[inst.model].quality,
-                           lengths[inst.model] * inst.tier.cost_out, lt, l0, s.num_running + s.num_waiting,
+                           # D117: the prompt at the input price + the expected output at the output price
+                           req.num_prompt_tokens * inst.tier.cost_in + lengths[inst.model] * inst.tier.cost_out,
+                           lt, l0, s.num_running + s.num_waiting,
                            last_assigned[inst.instance_id] if inst.instance_id in last_assigned else NEVER)
                  for inst, s, lt, l0 in zip(instances, now, lat, base, strict=True)]
         admitted_all = True

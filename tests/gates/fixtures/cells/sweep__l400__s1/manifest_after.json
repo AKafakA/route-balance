@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "2b87d84872b59b5b0b23b467e7d5f9e559af960e1046e47b9d0f9ab404c6cdf8",
- "fleet_digest": "14eea81ed30ba994d4734f92949310b222dae98db94a522e9da3019eeb638126",
+ "config_digest": "143022cf4f58ce04a93f5f0accd281f931970f400af898b67201152bdd40cb7f",
+ "fleet_digest": "1c220c1673881e3e832f9f6af06fe40b21c473bfab341ef762a98057865ff23b",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -50,7 +50,8 @@
    "envelope": "own_length",
    "normalization": "max_divide",
    "table": "calib/tpot.json",
-   "table_md5": "3004488055fdb43f53da93726b9e2130"
+   "table_md5": "3004488055fdb43f53da93726b9e2130",
+   "prefill": null
   },
   "estimator": {
    "index_dir": "knn/x",
@@ -94,9 +95,9 @@
   "estimator@hf:sentence-transformers/all-MiniLM-L6-v2/model.safetensors": "f34e46da929d438c0ccffa365f614203"
  },
  "code": {
-  "routebalance": "ac1a1b94f8901e1d625d50ec1ca61d14f6fb4c51a67f6729ca38a62ba718895e",
+  "routebalance": "05bbee537aae5b69c8c02753888ace2a517607f83b517d8269e666a3c7df6705",
   "avengers_pro": null,
-  "routebalance_now": "ac1a1b94f8901e1d625d50ec1ca61d14f6fb4c51a67f6729ca38a62ba718895e",
+  "routebalance_now": "05bbee537aae5b69c8c02753888ace2a517607f83b517d8269e666a3c7df6705",
   "avengers_pro_now": null
  },
  "threadpools": {

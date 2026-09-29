@@ -30,7 +30,7 @@ RB = {
     "rounds": {"adaptive": False, "max_batch": 4, "timeout_ms": 20.0}, "lpt": "max", "pending_decode": "own_length",
     "dead_reckoning": True, "telemetry_read": "per_round",
     "latency": {"source": "constant", "envelope": "own_length", "normalization": "max_divide",
-                "table": "calib/t.json", "table_md5": "0" * 32},
+                "table": "calib/t.json", "table_md5": "0" * 32, "prefill": None},
     "estimator": {"index_dir": "knn/x", "index_md5": "0" * 32, "encoder_revision": "0" * 40, "k": 50,
                   "score_type": "deepeval", "prior": "knn"},
     "budget": {"admission_filter": False},
@@ -69,7 +69,7 @@ def factory(cfg, fleet, *, artifact_root, avengers_repo, router_lane, best_route
     if cfg.mode == "routebalance" or cfg.pending_decode == "own_length":
         c.estimator = StubEstimator()
     if cfg.mode == "routebalance":
-        c.latency = LatencyModel(ConstantTPOT({"small_a30": 10.0, "large_a100": 40.0}), "own_length")
+        c.latency = LatencyModel(ConstantTPOT({"small_a30": 10.0, "large_a100": 40.0}), "own_length", None)
     if cfg.pipeline is not None:
         c.router, c.dispatcher = PassthroughRouter(), build_dispatcher(cfg.pipeline.dispatch)
     return c

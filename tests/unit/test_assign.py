@@ -104,6 +104,32 @@ def test_a_missing_model_estimate_raises():
         run_round([bad])
 
 
+def test_the_cost_term_prices_the_prompt_and_the_expected_output():
+    """D117: each candidate's cost is the prompt at the input price + the expected length at the output price."""
+    d = run_round([req("a")])[0]                           # prompt 50 tokens; S 100 tokens expected, L 80
+    cost = {s.candidate.instance_id: s.candidate.cost for s in d.scored}
+    assert cost == pytest.approx({"s0": 50 * 1e-7 + 100 * 1e-7, "s1": 50 * 1e-7 + 100 * 1e-7, "l0": 50 * 4e-7 + 80 * 4e-7})
+
+
+def test_a_long_prompt_moves_the_cost_choice_to_the_cheaper_input_price():
+    cheap_in = Tier("in_a30", "A", "a30", 1e-9, 5e-7, 4, ())
+    cheap_out = Tier("out_a30", "B", "a30", 5e-7, 1e-9, 4, ())
+    fleet = [Instance("a0", cheap_in, "n1", "h1", 8000), Instance("b0", cheap_out, "n2", "h2", 8000)]
+    loads = {i.instance_id: Load(InstanceStats(0, 0, 0.0, 0, 4, 0), 5.0, 0, 0) for i in fleet}
+
+    class Flat:
+        def latencies(self, instances, states, lengths, num_prompt_tokens):
+            return [1.0 for _ in instances]
+
+    def pick(prompt_tokens):
+        r = RoundRequest("r", prompt_tokens, {"A": Est(0.5, 10.0), "B": Est(0.5, 10.0)}, 0.0, 1024)
+        (d,) = schedule_round([r], fleet, loads, Flat(), weights=Weights(w_quality=0.0, w_latency=0.0, w_cost=1.0),
+                              normalization="max_divide", lpt="max", pending_decode="own_length", last_assigned={},
+                              clock=lambda: 1.0, admission=None, on_decision=None)
+        return d.instance.model
+    assert pick(1) == "B" and pick(1000) == "A"
+
+
 def test_admission_keeps_the_candidates_whose_expected_cost_fits_the_budget():
     """v3's budget filter: prompt at the input price + expected length (capped at max_tokens) at the output price."""
     w = Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0)
