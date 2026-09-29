@@ -89,5 +89,12 @@
   "decision": "D120",
   "owner": "b [run the extra sweep only up to the highest rate that holds]; adding 42 and 38 and 40",
   "gpu_cost": "the extra sweep W1c at 38, 40 and 42 req/s: 6 runs, ~1 h 12 min, after the thesis rerun; the 42-60 req/s runs (one published invalid, one stopped) retired; no other change"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "6d2c18f3bcb76b18fdb68f39454844edf8b698c823b2b4a1cbe3109694beb15d",
+  "decision": "D121",
+  "owner": "why we have 2 seeds 2 and 3? should we merge them after the must rows in total?; ok, it looks good; and then start the writing and leaving the repeation only to be run at Thursday and Friday for all main experiments?; yes, move it and merged into the ablation of LPT, so for now, we had the LPT-key variances and disable both",
+  "gpu_cost": "none added: the same runs regrouped (seed 1 of every main row first: W4 34 with the 4 LPT-key cells, W5 10, W7 12, W8 52; then seeds 2-3: W8r 104, W7r 24, W9 312 with W3 merged in, W4r 68, W5r 20); W3 and W11 disabled (their cells are in W9 and W4/W4r); the seed picks w3_near_frontier and w3_headline are no longer needed"
  }
 ]

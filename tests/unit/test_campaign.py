@@ -43,6 +43,7 @@ DECISIONS = {"rb_default": "rb", "decoupled_arm": "rb", "headline": "q50l30c20",
              "w3_near_frontier": ["qwen.rb.q50l30c20", "qwen.ap.pw070.lor"],
              "w3_headline": ["qwen.rb.q50l30c20"], "w5_systems": ["qwen.rb.q50l30c20", "qwen.disp.lor"],
              "w7_systems": ["qwen.rb.q50l30c20", "qwen.rb-dec.uniform"]}
+W3_DECISIONS = {k: DECISIONS[k] for k in ("w3_near_frontier", "w3_headline")}   # W3 is disabled since D121
 HELD: set[str] = set()     # blocks that must run but cannot yet (none since 09-25): always pending
 FLEETS = {"qwen_std": ("a" * 64, "1" * 64), "qwen_topo53": ("b" * 64, "2" * 64), "gemma": ("c" * 64, "3" * 64)}
 
@@ -85,9 +86,11 @@ def filled(presets=True, scope=True, leave=(), unset=(), unset_scope=()):
             _set(s, path, v)
     for path in unset_scope:
         _set(s, path, "OWNER-MUST-SET")
-    if "min" not in LPT_KEYS:          # W11 needs the lpt key min / mean (S5b); this tree predates it
-        (w11,) = [r for r in s["rows"] if r["id"] == "W11"]
-        w11.update(enabled=False, why="this tree's configuration has no lpt min / mean")
+    if "min" not in LPT_KEYS:          # the LPT-key blocks need the lpt key min / mean (S5b); this tree predates it
+        for r in s["rows"]:
+            for b in r.get("blocks", []):
+                if b["name"] in ("W4-lpt-key", "W4r-lpt-key"):
+                    b.update(enabled=False, why="this tree's configuration has no lpt min / mean")
     return parse(PresetsFile, p, "presets"), parse(ScopeFile, s, "scope")
 
 
@@ -107,18 +110,18 @@ def full_render(**over):
 def test_the_tracked_files_dry_run_every_row():
     summary = campaign.dry_run(campaign.load_presets(campaign.PRESETS), campaign.load_scope_file(campaign.SCOPE))
     rows = {r["id"]: r for r in summary["rows"]}
-    assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W7b",
-                          "W8-cal", "W8", "W9", "W11", "W12", "W13", "W10"]
+    assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W8-cal", "W8",
+                          "W8r", "W7r", "W9", "W4r", "W5r", "W7b", "W11", "W12", "W13", "W10"]   # D121: seed 1 first
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "W2": 156, "W2b": 20, "W4": 90, "W3": 112, "W5": 30, "W7": 36,
-                     "W7b": 9, "W8": 156, "W9": 312, "W11": 12, "W12": 12, "W13": 7}   # W8: the Qwen grid's baselines (D70);
-    #                                                                              W12: the in-flight dispatchers (D84);
-    #                                                                              W13: leave one source out (D93)
+    assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "W2": 156, "W2b": 20, "W4": 34, "W5": 10, "W7": 12,
+                     "W8": 52, "W8r": 104, "W7r": 24, "W9": 312, "W4r": 68, "W5r": 20, "W7b": 9, "W12": 12, "W13": 7}
+    # W8: the Qwen grid's baselines (D70); W12: the in-flight dispatchers (D84); W13: leave one source out (D93);
+    # D121: seed 1 of every main row first (W4 with the LPT-key variants, W5, W7, W8), their seeds 2-3 after (W8r, W7r,
+    # W4r, W5r) with the full grid's (W9, W3 merged in); W3 and W11 disabled
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
     assert held == HELD
-    assert summary["decisions_needed"] == ["decoupled_arm", "headline", "rb_default", "w3_headline", "w3_near_frontier",
-                                           "w5_systems",
-                                           "w7_systems"]
+    assert summary["decisions_needed"] == ["decoupled_arm", "headline", "rb_default", "w5_systems",
+                                           "w7_systems"]                  # D121: no seed picks
     assert summary["owner_unset"] == []                                    # every owner value is set (09-25)
     assert {"tpot-table.qwen", "prefill-table.qwen", "xgb-heads.qwen"} <= set(summary["pins_needed"])
     assert "W4" in campaign.dry_run_text(summary)
@@ -246,8 +249,9 @@ def test_the_tracked_files_render_with_every_lease_input():
     by_block = {}
     for c in cells:
         by_block[c.block] = by_block.get(c.block, 0) + 1
-    assert by_block["G1"] == 66 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 54
-    assert (by_block["W4-latency"], by_block["W4-learned"], by_block["W4-const-batch"]) == (24, 6, 6)
+    assert by_block["G1"] == 66 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 18   # seed 1 (D121)
+    assert (by_block["W4-latency"], by_block["W4-learned"], by_block["W4-const-batch"]) == (8, 2, 2)
+    assert (by_block["W4r-mechanisms"], by_block["W4-lpt-key"], by_block["W4r-lpt-key"]) == (36, 4, 8)
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():
         assert campaign.config_digest(parse_scheduler(doc)) == scope.configs[cid].config_digest
@@ -312,17 +316,33 @@ def test_every_main_groups_configurations_differ_only_as_declared():
     assert checked >= 80 and {"qwen-budget-75", "g1", "qwen", "gemma"} <= set(by_group)
 
 
+def _with_w3(scope_file) -> dict:
+    """The scope with W3 enabled again (disabled since D121): the tracked scope's one fill overlap, W9 over W3."""
+    raw = scope_file.model_dump(mode="json")
+    for r in raw["rows"]:
+        if r["id"] == "W3":
+            r.update(enabled=True, why=None)
+            for b in r["blocks"]:
+                b.update(enabled=True, why=None)
+    return raw
+
+
 def test_fill_blocks_do_not_repeat_cells_and_plain_blocks_refuse_to():
     scope = parse(Scope, full_render().scope, "rendered")
     cells = {c.cell_id: c for c in expected_cells(scope)}
+    assert cells["qwen.rb.q50l30c20__l12__s2"].block == "W9-l12"               # D121: W3 merged into W9
+    presets, scope_file = filled()
+    raw = _with_w3(scope_file)
+    w3 = campaign.render(presets, parse(ScopeFile, raw, "scope"), pins=pins(presets),
+                         decisions={**DECISIONS, **W3_DECISIONS}, fleets=FLEETS)
+    cells = {c.cell_id: c for c in expected_cells(parse(Scope, w3.scope, "rendered"))}
     assert cells["qwen.rb.q50l30c20__l12__s2"].block == "W3-near-frontier"     # W9 lists it too, as fill
     assert cells["qwen.rb.q20l20c60__l12__s2"].block == "W9-l12"
-    presets, scope_file = filled()
-    raw = scope_file.model_dump(mode="json")
     (w9,) = [r for r in raw["rows"] if r["id"] == "W9"]
     w9["blocks"][1]["fill"] = False
     with pytest.raises(campaign.ConfigError, match="listed by an earlier block"):
-        campaign.render(presets, parse(ScopeFile, raw, "scope"), pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
+        campaign.render(presets, parse(ScopeFile, raw, "scope"), pins=pins(presets),
+                        decisions={**DECISIONS, **W3_DECISIONS}, fleets=FLEETS)
 
 
 # ---------------------------------------------------------------- staging: nothing missing is invented
@@ -404,10 +424,13 @@ def test_rb_decoupled_follows_the_default_arm():
 def test_a_fill_block_waits_for_the_earlier_blocks_that_could_list_its_cells(tmp_path):
     presets, scope = filled()
     p = pins(presets)
+    tracked = campaign.render(presets, scope, pins=p, decisions={"rb_default": "rb"}, fleets=FLEETS)
+    assert "waits for W3" not in tracked.pending["W9/W9-l12"]           # D121: W3 disabled, W9 waits for no pick
+    scope = parse(ScopeFile, _with_w3(scope), "scope")
     first = campaign.render(presets, scope, pins=p, decisions={"rb_default": "rb"}, fleets=FLEETS)
     assert "waits for W3/W3-near-frontier" in first.pending["W9/W9-l12"]
     campaign.write_render(first, tmp_path / "r1", {})
-    later = campaign.render(presets, scope, pins=p, decisions=DECISIONS, fleets=FLEETS)
+    later = campaign.render(presets, scope, pins=p, decisions={**DECISIONS, **W3_DECISIONS}, fleets=FLEETS)
     campaign.check_previous(later, tmp_path / "r1")                     # nothing moved between blocks
 
 
@@ -441,7 +464,7 @@ def test_a_later_stage_keeps_every_earlier_configuration_and_cell(tmp_path):
                               decisions=DECISIONS, fleets=FLEETS)
     with pytest.raises(campaign.ConfigError, match="changed since"):
         campaign.check_previous(changed, tmp_path / "r1")
-    moved = campaign.render(presets, scope, pins=p, decisions={**DECISIONS, "w3_near_frontier": ["qwen.ap.pw070.lor"]},
+    moved = campaign.render(presets, scope, pins=p, decisions={**DECISIONS, "w5_systems": ["qwen.disp.lor"]},
                             fleets=FLEETS)
     with pytest.raises(campaign.ConfigError, match="changed block|no longer in the scope"):
         campaign.check_previous(moved, tmp_path / "r1")
@@ -507,29 +530,30 @@ def test_references_resolve_or_fail_loudly():
 def test_a_held_block_keeps_the_campaign_incomplete(tmp_path):
     presets, scope = filled()
     rows = [r.model_copy(update={"blocks": [b.model_copy(update={"hold": "waits for its support"})
-                                            for b in r.blocks]}) if r.id == "W11" else r for r in scope.rows]
+                                            for b in r.blocks]}) if r.id == "W13" else r for r in scope.rows]
     held = campaign.render(presets, scope.model_copy(update={"rows": rows}), pins=pins(presets), decisions=DECISIONS,
                            fleets=FLEETS)
-    assert held.pending["W11/W11"] == "held: waits for its support"
-    assert "W11/W11" in parse(Scope, held.scope, "rendered").pending   # analysis.manifest never reports COMPLETE
+    assert held.pending["W13/W13"] == "held: waits for its support"
+    assert "W13/W13" in parse(Scope, held.scope, "rendered").pending   # analysis.manifest never reports COMPLETE
     result = full_render()
     scope = parse(Scope, result.scope, "rendered")
     assert result.pending == {} and sum(c.block.startswith("W7b-") for c in expected_cells(scope)) == 9
     assert "W6/W6" not in result.pending and not any(c.block == "W6" for c in expected_cells(scope))   # dropped
     assert "W4/W4-arm3" not in result.pending and not any(c.block == "W4-arm3" for c in expected_cells(scope))
-    assert sum(c.block == "W4-const-batch" for c in expected_cells(scope)) == 6        # the D45 control runs
+    assert sum(c.block in ("W4-const-batch", "W4r-const-batch") for c in expected_cells(scope)) == 6   # the D45 control
 
 
 @pytest.mark.parametrize("arm", ["rb", "rb-static", "rb-learned"])
 def test_the_ablations_take_apart_the_decided_variant(arm):
     """D78: W4's reference is rb_default's variant and its nine mechanism ablations are of that variant; the six
-    latency variants all run, one of them the reference; 90 cells whichever variant is decided."""
+    latency variants all run, one of them the reference; 102 cells whichever variant is decided (90, and the 12 LPT-key
+    cells since D121), seed 1 in W4 and seeds 2-3 in W4r."""
     presets, scope = filled()
     distinct = {n: {"path": p["path"], "md5": hashlib.md5(n.encode()).hexdigest()} for n, p in pins(presets).items()}
     result = campaign.render(presets, scope, pins=distinct, decisions={**DECISIONS, "rb_default": arm}, fleets=FLEETS)
     rendered = parse(Scope, result.scope, "rendered")
-    w4 = [c for c in expected_cells(rendered) if c.block.startswith("W4-")]
-    assert len(w4) == 90 and rendered.groups["qwen-ablation"].reference == f"abl.qwen.{arm}.q50l30c20"
+    w4 = [c for c in expected_cells(rendered) if c.block.startswith(("W4-", "W4r-"))]
+    assert len(w4) == 102 and rendered.groups["qwen-ablation"].reference == f"abl.qwen.{arm}.q50l30c20"
     lat = {"rb": "latency.curve", "rb-static": "latency.static", "rb-learned": "latency.xgb"}[arm]
     want = campaign.Resolver(presets, distinct).resolve(f"$part:{lat}", "test", campaign.Needs(), {"family": "qwen"})
     mechanisms = [c for c in w4 if c.block == "W4-mechanisms"]
