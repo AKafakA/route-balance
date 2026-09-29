@@ -113,7 +113,7 @@ def test_the_tracked_files_dry_run_every_row():
     assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W8-cal", "W8",
                           "W8r", "W7r", "W9", "W4r", "W5r", "W7b", "W11", "W12", "W13", "W10"]   # D121: seed 1 first
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 10, "W2": 156, "W2b": 20, "W4": 51, "W5": 27, "W7": 18,
+    assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2b": 20, "W4": 51, "W5": 27, "W7": 18,
                      "W8": 78, "W8r": 156, "W7r": 36, "W9": 312, "W4r": 102, "W5r": 54, "W7b": 9, "W12": 12, "W13": 7}
     # W8: the Qwen grid's baselines (D70); W12: the in-flight dispatchers (D84); W13: leave one source out (D93);
     # D121: seed 1 of every main row first (W4 with the LPT-key variants, W5, W7, W8), their seeds 2-3 after (W8r, W7r,
@@ -398,7 +398,8 @@ def test_owner_values_are_never_invented():
     presets, scope = filled()                                     # one owner list unset: only its blocks wait
     scope = scope.model_copy(update={"owner": {**scope.owner, "g1_weights": [PLACEHOLDER, PLACEHOLDER]}})
     result = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
-    assert set(result.pending) == {"G1/G1", "G1b/G1b", "G1c/G1c"} | HELD and "owner.g1_weights[0]" in result.pending["G1/G1"]
+    assert set(result.pending) == {"G1/G1", "G1b/G1b", "G1c/G1c", "G1c/G1c-l30"} | HELD
+    assert "owner.g1_weights[0]" in result.pending["G1/G1"]
 
 
 def test_the_first_render_before_w1_gives_the_direct_rows(tmp_path):

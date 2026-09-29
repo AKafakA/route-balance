@@ -110,5 +110,12 @@
   "decision": "D125",
   "owner": "we just the need ablation of burst studies with the vllm-bench burst sweep, check the astrolable/Block paper, about it. we can do the similar thing there; all others change to be 3 rate (all the same) with seed 3, will adding how many times?; ok, it is fine. update the decisions and plans to follow this, and update the testing scripts aslo accordingly",
   "gpu_cost": "+6.6 h of runs in total at the measured run times (+198 runs): the ablations W4/W4r at 12, 30 and 42 (+51 runs, +1.8 h), the topology W7/W7r at 12, 30 and 42 in place of 12 and 24 (+18, +0.5 h), Gemma W8/W8r at 12, 30 and 42 in place of 12 and 24 (+78, +1.6 h), and the burst sweep W5/W5r (gamma alpha 0.25, 0.5, 2.0 at 12, 30, 42 req/s, 3 systems, 3 seeds: 81 runs, +2.7 h over the time-varying row it replaces); seed 1 +2.2 h, seeds 2-3 +4.4 h; the lease buffer stays ~3 days"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "6026e1d84ca121e3a61886c164906e41b1107dadaaadb5484c233a3e0808451b",
+  "decision": "D127",
+  "owner": "it we can have it under the appendix and use the static as default, and also, we need to rerun the affected cells by the round-fix in the thesis checker?",
+  "gpu_cost": "G1c-l30: 6 runs at 30 req/s (~16 min), the per-round RouteBalance variants (curve, static, learned) on both G1 presets on the fixed code; nothing else changes"
  }
 ]
