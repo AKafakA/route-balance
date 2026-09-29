@@ -38,6 +38,41 @@ def test_adaptive_collector_starts_idle_and_adapts():
     assert (c.max_batch, c.timeout_ms) == (16, 100.0)
 
 
+@pytest.mark.parametrize("waiting,taken,limit", [(2, 2, 4), (4, 4, 4), (9, 9, 9), (40, 32, 32)])
+def test_an_adaptive_round_takes_the_schedulers_backlog_up_to_the_largest_size(waiting, taken, limit):
+    """D123: at the idle limits (4 / 50 ms) a round takes every request already waiting, up to 32, at once."""
+    async def scenario():
+        c = RoundCollector(Rounds(adaptive=True))
+        for i in range(waiting):
+            c.submit(i)
+        t0 = time.monotonic()
+        batch = await c.next_round()
+        return batch, time.monotonic() - t0, c.limits, c.backlog, c.pending()
+    batch, elapsed, limits, backlog, left = asyncio.run(scenario())
+    assert batch == list(range(taken)) and limits == (limit, 50.0) and backlog == waiting and left == waiting - taken
+    if waiting >= limit:
+        assert elapsed < 0.05                  # a round that the backlog fills closes without waiting
+
+
+def test_a_round_opened_by_an_arrival_keeps_the_ratios_limits():
+    async def scenario():
+        c = RoundCollector(Rounds(adaptive=True))
+        loop = asyncio.get_running_loop()
+        loop.call_later(0.01, c.submit, "a")
+        batch = await c.next_round()
+        return batch, c.limits, c.backlog
+    assert asyncio.run(scenario()) == (["a"], (4, 50.0), 0)
+
+
+def test_a_fixed_round_ignores_the_backlog():
+    async def scenario():
+        c = RoundCollector(Rounds(adaptive=False, max_batch=4, timeout_ms=1000.0))
+        for i in range(9):
+            c.submit(i)
+        return await c.next_round(), c.limits, c.backlog
+    assert asyncio.run(scenario()) == ([0, 1, 2, 3], (4, 1000.0), 9)
+
+
 def test_fixed_collector_never_adapts():
     c = RoundCollector(Rounds(adaptive=False, max_batch=1, timeout_ms=5.0))
     c.adapt({"a": load(engine_waiting=1)})

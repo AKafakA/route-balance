@@ -25,6 +25,9 @@ def test_every_recorded_cell_passes(name):
 
 def test_the_adaptive_limits_are_the_schedulers():
     assert ADAPTIVE_LIMITS == {(size, timeout) for _, size, timeout in ROUNDS_LIMITS}
+    from gates.arm import BACKLOG_CAP
+    from routebalance.schedule.rounds import BACKLOG_CAP as ROUNDS_CAP
+    assert BACKLOG_CAP == ROUNDS_CAP                                # D123
 
 
 def lines(fn):
@@ -126,7 +129,10 @@ MUST_FAIL = [
     (RB_MAXDIV, round_one(lambda ms: [m.__setitem__("round_timeout_ms", 99.0) for m in ms]),
      "fixed round limits are not the configured ones"),
     (RB_FIXEDREF, round_one(lambda ms: [m.__setitem__("round_max_batch", 8) for m in ms]),
-     "not an adaptive limit pair"),
+     "not an adaptive pair widened to the round's backlog"),
+    (RB_FIXEDREF, round_one(lambda ms: [m.__setitem__("round_backlog", 20) for m in ms]),        # D123: 20 waiting,
+     "not an adaptive pair widened to the round's backlog"),                                   # max_batch not 20
+    (RB_FIXEDREF, round_one(lambda ms: [m.pop("round_backlog") for m in ms]), "decision line is malformed"),
     (RB_MAXDIV, round_one(lambda ms: ms[1].__setitem__("round_pos", ms[0]["round_pos"])), "distinct positions"),
     (RB_MAXDIV, round_one(two_rounds_sizes), "disagree on its size or limits"),
     (RB_MAXDIV, round_one(swap_first_two_positions), "lpt max: a round's decisions are not in non-increasing"),

@@ -29,7 +29,8 @@ RouteBalance (mode routebalance)
   - max_divide: every latency term is 1 - latency / (max latency + EPS), bitwise, so the slowest is ~0.
   - Rounds: the lines of a round agree on its size and limits. There are at most `size` of them, and their
     positions are distinct and below the size. The size is at most the round's max_batch. Fixed rounds use the
-    configured limits; adaptive rounds use one of the adaptive limit pairs.
+    configured limits; an adaptive round's window is one of the adaptive pairs' and its max_batch is that pair's
+    size, or the requests already waiting when it opened (round_backlog) up to the largest size (D123).
   - LPT: every line's lpt_key is the configured statistic (max, min or mean; off writes the max) of the
     request's expected lengths over every model the estimator returned (the line's lengths). Unless lpt is
     off, within a round in position order the lpt_keys do not increase.
@@ -60,6 +61,7 @@ from routebalance.schedule.score import EPS
 # The adaptive round limits (max_batch, timeout_ms) of the paper, written out here so that a changed constant
 # in schedule/rounds.py fails this gate (tests/gates checks the two agree today).
 ADAPTIVE_LIMITS = frozenset({(4, 50.0), (16, 100.0), (32, 200.0)})
+BACKLOG_CAP = 32            # D123: an adaptive round takes the scheduler's backlog up to the largest adaptive size
 REASON_PREFIX = {"passthrough": "passthrough:", "best_route": "best_route_4way:", "avengers_pro": "avengers_pro:",
                  "rb_decoupled": "rb_decoupled:", "best_route_upstream": "best_route_upstream:"}
 # The router's reason names a model, or (rb_decoupled) the tier whose model it returned: the dispatcher then
@@ -241,7 +243,7 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
             key = _lpt_key(p, rid, line, cfg.lpt, lengths)
             if line["instance_id"] in model_of:
                 _decode(p, rid, line, cfg, model_of[line["instance_id"]], lengths, key)
-            for key in ("round", "round_size", "round_pos", "round_max_batch"):
+            for key in ("round", "round_size", "round_pos", "round_max_batch", "round_backlog"):
                 if not isinstance(_get(line, key), int) or isinstance(line[key], bool):
                     raise _Malformed(f"{key} {line[key]!r} is not an integer")
             if not _num(_get(line, "round_timeout_ms")):
@@ -290,11 +292,11 @@ def _latency_terms(p: Problems, rid: str, cands: list[dict], normalization: str)
 
 def _round(p: Problems, cfg: SchedulerConfig, r: int, members: list[dict]) -> None:
     sizes = {m["round_size"] for m in members}
-    limits = {(m["round_max_batch"], m["round_timeout_ms"]) for m in members}
+    limits = {(m["round_max_batch"], m["round_timeout_ms"], m["round_backlog"]) for m in members}
     if len(sizes) != 1 or len(limits) != 1:
         p.add("a round's lines disagree on its size or limits", f"round {r}: sizes {sorted(sizes)}, limits {sorted(limits)}")
         return
-    (size,), ((max_batch, timeout_ms),) = sizes, limits
+    (size,), ((max_batch, timeout_ms, backlog),) = sizes, limits
     positions = [m["round_pos"] for m in members]
     if len(members) > size or len(set(positions)) != len(positions) or not all(0 <= x < size for x in positions):
         p.add("a round's positions are not distinct positions below its size",
@@ -302,8 +304,10 @@ def _round(p: Problems, cfg: SchedulerConfig, r: int, members: list[dict]) -> No
     if not 1 <= size <= max_batch:
         p.add("a round holds more requests than its max_batch", f"round {r}: {size} > {max_batch}")
     if cfg.rounds.adaptive:
-        if (max_batch, timeout_ms) not in ADAPTIVE_LIMITS:
-            p.add("adaptive round limits are not an adaptive limit pair", f"round {r}: {(max_batch, timeout_ms)}")
+        pair = [s for s, t in ADAPTIVE_LIMITS if t == timeout_ms]
+        if len(pair) != 1 or backlog < 0 or max_batch != max(pair[0], min(backlog, BACKLOG_CAP)):
+            p.add("adaptive round limits are not an adaptive pair widened to the round's backlog",
+                  f"round {r}: {(max_batch, timeout_ms)}, backlog {backlog}")
     elif (max_batch, timeout_ms) != (cfg.rounds.max_batch, cfg.rounds.timeout_ms):
         p.add("fixed round limits are not the configured ones",
               f"round {r}: {(max_batch, timeout_ms)} != {(cfg.rounds.max_batch, cfg.rounds.timeout_ms)}")
