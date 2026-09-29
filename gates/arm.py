@@ -26,7 +26,10 @@ RouteBalance (mode routebalance)
   - Every score is w_quality*q + w_cost*c + w_latency*l, bitwise, which checks the weights actually used.
   - fixed_ref: every latency term lies in (0, 1], and term * latency gives the same reference for every
     candidate.
-  - max_divide: every latency term is 1 - latency / (max latency + EPS), bitwise, so the slowest is ~0.
+  - max_divide: every latency term is 1 - latency / (max latency + EPS), bitwise, so the slowest is ~0; normalizing
+    over the round (D137), the max is the round's running maximum logged with the line (scales.l_max), which covers
+    the line's latencies and runs over the round in decision order, and the round's lines share one quality range
+    and cost maximum. The scales are logged exactly when the configuration normalizes over the round.
   - Rounds: the lines of a round agree on its size and limits. There are at most `size` of them, and their
     positions are distinct and below the size. The size is at most the round's max_batch. Fixed rounds use the
     configured limits; an adaptive round's window is one of the adaptive pairs' and its max_batch is that pair's
@@ -105,6 +108,10 @@ def arm_problems(cell: Cell, cfg: SchedulerConfig) -> tuple[list[str], str]:
               f"{rec.identity_start.config_digest} != {digest} (the given config)")
     if man.config_digest != digest:
         p.add("manifest_before.json is for another configuration", f"{man.config_digest} != {digest}")
+    want = None if cfg.pipeline is None else cfg.pipeline.router.concurrency
+    if man.loaded.router_lane_threads != want:
+        p.add("the router's calls ran on another number of threads than the configuration's concurrency",
+              f"{man.loaded.router_lane_threads} != {want}")
     lines = cell.decisions
     _coverage(p, cell, [r.request_id for r in rec.requests], lines)
     before, after = cell.stats("before").connection_waits, cell.stats("after").connection_waits
@@ -211,6 +218,7 @@ def _admission(line: dict, fleet: list[FleetEntry], lengths: dict) -> tuple[list
 
 def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], lines: list[dict], max_tokens: int) -> None:
     ids = [f.instance_id for f in fleet]
+    by_id = {f.instance_id: f for f in fleet}
     model_of = {f.instance_id: f.model for f in fleet}
     models = set(model_of.values())
     w = cfg.weights
@@ -238,8 +246,15 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
                     p.add("the candidates are not v3's budget filter's (admitted, else the cheapest by worst-case "
                           "cost)", f"{rid}: {insts} (admitted_all {admitted_all}) != {want} ({fits})")
             _scores(p, rid, line, cands, w)
-            _latency_terms(p, rid, cands, cfg.latency.normalization)
+            scales = _get(line, "scales")
+            if (cfg.normalize_over == "round") != (scales is not None):
+                p.add("the round's scales are logged exactly when the score normalizes over the round (D137)",
+                      f"{rid}: normalize_over {cfg.normalize_over}, scales {scales}")
+            if scales is not None and not _valid_scales(scales):
+                raise _Malformed(f"scales {scales!r} are not four finite numbers q_min <= q_max, c_max, l_max > 0")
+            _latency_terms(p, rid, cands, cfg.latency.normalization, scales)
             lengths = _lengths(line, models)
+            _cost_terms(p, rid, line, cands, by_id, lengths, scales)
             key = _lpt_key(p, rid, line, cfg.lpt, lengths)
             if line["instance_id"] in model_of:
                 _decode(p, rid, line, cfg, model_of[line["instance_id"]], lengths, key)
@@ -253,6 +268,28 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
             p.add("a RouteBalance decision line is malformed", f"{rid}: {e}")
     for r, members in sorted(rounds.items()):
         _round(p, cfg, r, members)
+        complete = len(members) == members[0]["round_size"]
+        if cfg.normalize_over == "round" and complete and all(_valid_scales(m["scales"]) for m in members):
+            # D137: the cost maximum is over every request of the round x every fleet instance (before any filter)
+            c_max = max(_cost(m, f, _lengths(m, models)) for m in members for f in fleet)
+            if any(m["scales"]["c_max"] != c_max for m in members):
+                p.add("a round's cost maximum is not the maximum over its requests x the fleet", f"round {r}")
+
+
+def _cost(line: dict, f: FleetEntry, lengths: dict) -> float:
+    """A candidate's predicted cost as the scheduler computes it (schedule/assign.py, D117)."""
+    return line["request"]["prompt_tokens"] * f.cost_in + lengths[f.model] * f.cost_out
+
+
+def _cost_terms(p: Problems, rid: str, line: dict, cands: list[dict], by_id: dict, lengths: dict, scales) -> None:
+    """Every cost term is 1 - cost / (cost maximum + EPS), bitwise: the maximum over this request's candidates, or
+    over the round (scales.c_max) when normalizing over the round (D137)."""
+    costs = [_cost(line, by_id[c["inst"]], lengths) for c in cands]
+    c_ref = max(costs) if scales is None else scales["c_max"]
+    if scales is not None and not c_ref >= max(costs):
+        p.add("the round's cost maximum is below this request's costs", f"{rid}: {c_ref}")
+    if any(c["c"] != 1.0 - x / (c_ref + EPS) for c, x in zip(cands, costs, strict=True)):
+        p.add("a cost term is not 1 - cost / (cost maximum + EPS)", rid)
 
 
 def _scores(p: Problems, rid: str, line: dict, cands: list[dict], w) -> None:
@@ -271,7 +308,15 @@ def _scores(p: Problems, rid: str, line: dict, cands: list[dict], w) -> None:
         p.add("the chosen instance does not have the highest score", f"{rid}: {chosen[0]['score']} < {top}")
 
 
-def _latency_terms(p: Problems, rid: str, cands: list[dict], normalization: str) -> None:
+def _valid_scales(scales) -> bool:
+    return (isinstance(scales, dict) and set(scales) == {"q_min", "q_max", "c_max", "l_max"}
+            and all(_num(scales[k]) for k in scales) and scales["q_min"] <= scales["q_max"]
+            and scales["c_max"] >= 0 and scales["l_max"] > 0)
+
+
+def _latency_terms(p: Problems, rid: str, cands: list[dict], normalization: str, scales) -> None:
+    """scales: the round's (normalize_over round, D137): max_divide divides by the round's running maximum, which
+    covers this request's latencies; None: by this request's own maximum, so its slowest term is ~0."""
     lats, terms = [c["lat_s"] for c in cands], [c["l"] for c in cands]
     if not all(x > 0 for x in lats):
         raise _Malformed(f"latencies {lats} are not all positive")
@@ -282,11 +327,13 @@ def _latency_terms(p: Problems, rid: str, cands: list[dict], normalization: str)
         if max(refs) - min(refs) > REF_RTOL * max(refs):
             p.add("fixed_ref: the latency terms do not share one reference latency", f"{rid}: {refs}")
         return
-    lmax = max(lats)
+    lmax = max(lats) if scales is None else scales["l_max"]
+    if scales is not None and not lmax >= max(lats):
+        p.add("max_divide: the round's running latency maximum is below this request's latencies", f"{rid}: {lmax}")
     if any(t != 1.0 - x / (lmax + EPS) for t, x in zip(terms, lats, strict=True)):
         p.add("max_divide: a latency term is not 1 - latency / (max latency + EPS)", f"{rid}: {terms}")
-    slowest = terms[lats.index(lmax)]
-    if not 0 <= slowest <= SLOWEST_TERM_MAX:
+    slowest = terms[lats.index(max(lats))]
+    if scales is None and not 0 <= slowest <= SLOWEST_TERM_MAX:
         p.add("max_divide: the slowest candidate's latency term is not ~0", f"{rid}: {slowest}")
 
 
@@ -297,6 +344,16 @@ def _round(p: Problems, cfg: SchedulerConfig, r: int, members: list[dict]) -> No
         p.add("a round's lines disagree on its size or limits", f"round {r}: sizes {sorted(sizes)}, limits {sorted(limits)}")
         return
     (size,), ((max_batch, timeout_ms, backlog),) = sizes, limits
+    if cfg.normalize_over == "round" and all(_valid_scales(m.get("scales")) for m in members):   # else malformed
+        # D137: one quality range and cost maximum per round; the latency maximum runs over the round in decision
+        # order, each request's candidates included
+        if len({(m["scales"]["q_min"], m["scales"]["q_max"], m["scales"]["c_max"]) for m in members}) != 1:
+            p.add("a round's lines disagree on its quality range or cost maximum", f"round {r}")
+        l_run = 0.0
+        for m in sorted(members, key=lambda m: m["round_pos"]):
+            l_run = max(l_run, max(c["lat_s"] for c in m["candidates"]))
+            if m["scales"]["l_max"] != l_run:
+                p.add("a line's latency maximum is not the round's running maximum", f"round {r}: {m['request_id']}")
     positions = [m["round_pos"] for m in members]
     if len(members) > size or len(set(positions)) != len(positions) or not all(0 <= x < size for x in positions):
         p.add("a round's positions are not distinct positions below its size",

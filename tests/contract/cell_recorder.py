@@ -41,8 +41,8 @@ from tools.engines import engines
 # per-request probe arm (D55, dead reckoning off); w4-dr an ablation group (dead reckoning off vs its reference).
 GROUPS = {
     "g1": (None, {cid: ["system.*", "telemetry.dead_reckoning"]
-                  for cid in ("rb-maxdiv", "rb-fixedref", "rb-min", "rb-mean", "rb-off", "rb-poll", "lor", "lor-probe",
-                              "decoupled", "sweep")}),
+                  for cid in ("rb-maxdiv", "rb-round", "rb-fixedref", "rb-min", "rb-mean", "rb-off", "rb-poll", "lor",
+                              "lor-probe", "decoupled", "sweep")}),
     "w4-dr": ("w4-ref", {"w4-ref": [], "w4-nodr": ["telemetry.dead_reckoning"]}),
 }
 N_REQUESTS, RATE = 16, 400.0          # bursts that fill RouteBalance's rounds
@@ -115,18 +115,23 @@ def configs(table_md5: str, prefill_md5: str) -> dict[str, dict]:
              "prefill": {"table": "calib/prefill.json", "table_md5": prefill_md5}}
 
     def rb(**kw):
-        return base | {"mode": "routebalance", "weights": weights, "telemetry_read": "per_round", "pipeline": None} | kw
+        return base | {"mode": "routebalance", "normalize_over": "round", "weights": weights, "telemetry_read": "per_round",
+                       "pipeline": None} | kw
 
     def pipe(router, dispatch, **kw):
-        return base | {"mode": "pipeline", "weights": None, "rounds": {"adaptive": True}, "lpt": "max",
+        return base | {"mode": "pipeline", "normalize_over": None, "weights": None, "rounds": {"adaptive": True},
+                       "lpt": "max",
                        "pending_decode": None, "telemetry_read": "poll", "dead_reckoning": False,
                        "pipeline": {"router": router, "dispatch": dispatch}} | kw
     passthrough = {"type": "passthrough", "kwargs": {}}
     maxdiv = rb(rounds={"adaptive": False, "max_batch": 4, "timeout_ms": 30.0}, lpt="max",
                 pending_decode="own_length",               # cost and latency heavy: both tiers win requests
-                weights={"w_quality": 0.2, "w_latency": 0.4, "w_cost": 0.4})
+                weights={"w_quality": 0.2, "w_latency": 0.4, "w_cost": 0.4},
+                normalize_over="request")                  # v3's per-request scale (D137: "round" is the main one)
     return {
         "rb-maxdiv": maxdiv,
+        "rb-round": maxdiv | {"normalize_over": "round", "lpt": "off", "pending_decode": "lpt_key"},   # D137: the
+        #           round's scales; arrival order, so a later request can raise the running latency maximum
         "w4-ref": maxdiv,
         "w4-nodr": maxdiv | {"dead_reckoning": False},
         "rb-fixedref": rb(rounds={"adaptive": True}, lpt="max", pending_decode="lpt_key", latency=curve),
@@ -134,14 +139,14 @@ def configs(table_md5: str, prefill_md5: str) -> dict[str, dict]:
                      pending_decode="lpt_key"),               # the LPT-key ablation (D41); decode = the key
         "rb-mean": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="mean",
                       pending_decode="own_length", latency=curve),
-        "rb-off": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="off",
+        "rb-off": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="off", normalize_over="request",
                      pending_decode="lpt_key"),               # arrival order; lpt_key and decode = the max
         "rb-poll": maxdiv | {"telemetry_read": "poll"},       # D54: RouteBalance on the pollers' cache
         "lor": pipe(passthrough, {"type": "least_outstanding", "seed": 1, "count": "engine"}),   # the main grid (D84)
         "lor-probe": pipe(passthrough, {"type": "least_outstanding", "seed": 1, "count": "engine"},
                           telemetry_read="per_request",
                           dead_reckoning=False),           # D55: v3's per-request probe on the engine's counts
-        "decoupled": pipe({"type": "rb_decoupled", "kwargs": {}}, {"type": "round_robin", "seed": 1},
+        "decoupled": pipe({"type": "rb_decoupled", "kwargs": {}, "concurrency": 32}, {"type": "round_robin", "seed": 1},
                           weights=weights, latency=curve),
         "sweep": pipe(passthrough, {"type": "random", "seed": 7}, pending_decode="own_length",
                        dead_reckoning=True),   # the sweep logs RouteBalance's view (its random dispatch reads no load)

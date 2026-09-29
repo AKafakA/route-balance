@@ -131,5 +131,19 @@
   "decision": "D134",
   "owner": "remove 1 2 3 4 6 gates, keep the gate 5 to make sure any request failed as invalid and rerun, 8 back the torch default, 9 back to vllm bench (and also, check if other unexpected vllm bench changes made by you?), 10 could be keep if serving behavior not courrupted",
   "gpu_cost": "telemetry max_age_ms removed (the stale-load refusal is gone; each decision logs its snapshot's age, D133); no run added"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "cea3ab827465c33dc03e8b3581286af359d4e702600e29d4801255a5c70e97ec",
+  "decision": "D135",
+  "owner": "so, maybe use the 32 threadpool as the main results, and frame the rb batch approaches as compareable to the same threadpool concurrent scoring on model routing on the overhead; i mean the max batch size; since request-per-requst will be weaker baseline, that means we will only leave it into the main, and for the others, pick the better baseline setting; Main grid seed 1 only",
+  "gpu_cost": "row W2s: the 78 as-shipped runs (router concurrency 1) at seed 1, ~5 h right after W2; W2 keeps its 156 runs, now with the 32-call setting"
+ },
+ {
+  "file": "configs/presets.json",
+  "sha256": "54615233df5dff077b2d270d0996d280f28a55dd3ccee88c70c957260add15cb",
+  "decision": "D135, D137",
+  "owner": "i mean the max batch size (the router concurrency 32, RouteBalance's largest round; 1 as shipped); the in-batch normalization: if the in-batch could change and shift the model calls as expected direction of thesis, or making light differences -> pick it; Adopt",
+  "gpu_cost": "no run added: the router concurrency and RouteBalance's normalize_over change configurations only (W2s is counted in scope.json's entry)"
  }
 ]

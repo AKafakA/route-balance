@@ -243,10 +243,15 @@ def test_decoupled_raises_on_missing_or_bad_estimates():
 
 # ---------------------------------------------------------------- construction from config
 
+def router(rtype, kwargs):
+    """A router config; every router that calls a model takes a concurrency (D135), passthrough none."""
+    return Router(type=rtype, kwargs=kwargs, concurrency=None if rtype == "passthrough" else 1)
+
+
 def build(rtype, kwargs, **over):
     args = dict(artifact_root=Path("/nonexistent"), avengers_repo=None, executor=EX,
                 decoupled=None) | over
-    return build_router(Router(type=rtype, kwargs=kwargs), **args)
+    return build_router(router(rtype, kwargs), **args)
 
 
 def test_build_passthrough_takes_no_kwargs():
@@ -306,12 +311,12 @@ def test_the_upstream_checkout_must_be_the_pinned_one(tmp_path):
 
 
 def test_router_options_validate_without_loading():
-    validate_options(Router(type="avengers_pro", kwargs=AP))
-    validate_options(Router(type="passthrough", kwargs={}))
+    validate_options(router("avengers_pro", AP))
+    validate_options(router("passthrough", {}))
     with pytest.raises(ConfigError, match="embedder_revision"):
-        validate_options(Router(type="avengers_pro", kwargs={**AP, "embedder_revision": "x"}))
+        validate_options(router("avengers_pro", {**AP, "embedder_revision": "x"}))
     with pytest.raises(ConfigError, match="max_length"):
-        validate_options(Router(type="best_route", kwargs={"checkpoint": "br", "confidence_threshold": 0.0}))
+        validate_options(router("best_route", {"checkpoint": "br", "confidence_threshold": 0.0}))
 
 
 def test_build_rb_decoupled_needs_its_inputs():
@@ -325,29 +330,34 @@ def test_build_rb_decoupled_needs_its_inputs():
 
 # ---------------------------------------------------------------- the router lane (owner 09-25)
 
-def test_the_router_lane_runs_a_baselines_model_calls_one_at_a_time():
-    """As shipped routers do (RouteLLM, NVIDIA's LLM Router): concurrent requests queue at the router."""
-    from routebalance.baselines.routers import ROUTER_LANE_THREADS, router_lane
-    state = {"now": 0, "peak": 0}
-    lock = threading.Lock()
+def test_the_router_lane_runs_as_many_model_calls_at_once_as_its_concurrency():
+    """D135: concurrency 1 is the shipped pattern (RouteLLM, NVIDIA's LLM Router: requests queue at the router, one call
+    at a time); 32, the main setting, lets a burst's calls overlap (up to RouteBalance's largest round)."""
+    from routebalance.baselines.routers import router_lane
+    for threads, want_peak in ((1, 1), (32, 6)):
+        state = {"now": 0, "peak": 0}
+        lock = threading.Lock()
 
-    def slow(prompt):
-        with lock:
-            state["now"] += 1
-            state["peak"] = max(state["peak"], state["now"])
-        time.sleep(0.02)
-        with lock:
-            state["now"] -= 1
-        return 1, 0.9
+        def slow(prompt, state=state, lock=lock):
+            with lock:
+                state["now"] += 1
+                state["peak"] = max(state["peak"], state["now"])
+            time.sleep(0.05)
+            with lock:
+                state["now"] -= 1
+            return 1, 0.9
 
-    router = BestRouteRouter(slow, LABELS, threshold=0.0, fallback="Qwen/Qwen2.5-3B", executor=router_lane())
+        lane = router_lane(threads)
+        router = BestRouteRouter(slow, LABELS, threshold=0.0, fallback="Qwen/Qwen2.5-3B", executor=lane)
 
-    async def burst():
-        t0 = time.perf_counter()
-        await asyncio.gather(*(router.choose_model(RouterRequest(f"q{i}", f"r{i}"), POOL) for i in range(6)))
-        return time.perf_counter() - t0
-    elapsed = asyncio.run(burst())
-    assert ROUTER_LANE_THREADS == 1 and state["peak"] == 1 and elapsed >= 6 * 0.02
+        async def burst(router=router):
+            t0 = time.perf_counter()
+            await asyncio.gather(*(router.choose_model(RouterRequest(f"q{i}", f"r{i}"), POOL) for i in range(6)))
+            return time.perf_counter() - t0
+        elapsed = asyncio.run(burst())
+        lane.shutdown()
+        assert lane._max_workers == threads and state["peak"] == want_peak
+        assert elapsed >= 6 * 0.05 if threads == 1 else elapsed < 6 * 0.05
 
 
 # ---------------------------------------------------------------- BEST-Route as its authors ship it (D79)
@@ -451,4 +461,4 @@ def test_each_head_must_name_its_fleet_model(head, model, ok):
 def test_avengers_pro_route_time_settings_are_required(missing):
     # upstream's route-time defaults never apply silently: the configuration states them (no fallback values)
     with pytest.raises(ConfigError):
-        validate_options(Router(type="avengers_pro", kwargs={k: v for k, v in AP.items() if k != missing}))
+        validate_options(router("avengers_pro", {k: v for k, v in AP.items() if k != missing}))

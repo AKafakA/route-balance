@@ -41,7 +41,7 @@ def req(rid, s_len=100.0, l_len=80.0, qs=0.5, ql=0.9, budget=0.0, max_tokens=102
 
 
 def run_round(requests, loads=None, latency=None, **kw):
-    args = dict(weights=W, normalization="max_divide", lpt="max", pending_decode="own_length",
+    args = dict(weights=W, normalization="max_divide", normalize_over="request", lpt="max", pending_decode="own_length",
                 last_assigned={}, clock=lambda: 1.0, admission=None, on_decision=None) | kw
     return schedule_round(requests, FLEET, loads or idle_loads(), latency or QueueLatency(), **args)
 
@@ -124,7 +124,8 @@ def test_a_long_prompt_moves_the_cost_choice_to_the_cheaper_input_price():
     def pick(prompt_tokens):
         r = RoundRequest("r", prompt_tokens, {"A": Est(0.5, 10.0), "B": Est(0.5, 10.0)}, 0.0, 1024)
         (d,) = schedule_round([r], fleet, loads, Flat(), weights=Weights(w_quality=0.0, w_latency=0.0, w_cost=1.0),
-                              normalization="max_divide", lpt="max", pending_decode="own_length", last_assigned={},
+                              normalization="max_divide", normalize_over="request", lpt="max", pending_decode="own_length",
+                              last_assigned={},
                               clock=lambda: 1.0, admission=None, on_decision=None)
         return d.instance.model
     assert pick(1) == "B" and pick(1000) == "A"
@@ -159,7 +160,8 @@ def test_the_fallback_is_the_worst_case_cost_not_the_expected_one():
     r = RoundRequest("x", 50, {"A": Est(0.5, 1.0), "B": Est(0.9, 1.0)}, 1e-7, 1024)
     loads = {i.instance_id: Load(InstanceStats(0, 0, 0.0, 0, 4, 0), 5.0, 0, 0) for i in fleet}
     d = schedule_round([r], fleet, loads, QueueLatency(), weights=Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0),
-                       normalization="max_divide", lpt="max", pending_decode="own_length", last_assigned={},
+                       normalization="max_divide", normalize_over="request", lpt="max", pending_decode="own_length",
+                              last_assigned={},
                        clock=lambda: 1.0, admission=Admission(), on_decision=None)[0]
     assert not d.admitted_all and d.instance.instance_id == "a0" and len(d.scored) == 1
 
@@ -201,3 +203,59 @@ def test_lpt_off_keeps_arrival_order_and_records_the_max_as_v3():
     ds = run_round(rs, lpt="off", pending_decode="lpt_key")
     assert [d.request.request_id for d in ds] == ["a", "c"] and [d.lpt_key for d in ds] == [20.0, 100.0]
     assert [d.decode_tokens for d in ds] == [20, 100]
+
+
+def test_normalizing_over_the_round_uses_the_rounds_ranges_and_the_running_latency_maximum():
+    """D137: quality and cost are scaled by the round's range over every request x instance, latency (max_divide) by
+    the largest latency the round has scored so far; each decision logs its scales."""
+    from routebalance.schedule.score import EPS
+    r1, r2 = req("a", s_len=100.0, l_len=80.0, qs=0.5, ql=0.9), req("b", s_len=40.0, l_len=30.0, qs=0.3, ql=0.6)
+    ds = run_round([r1, r2], normalize_over="round")
+    qs = [0.5, 0.9, 0.3, 0.6]
+    costs = [r.num_prompt_tokens * i.tier.cost_in + r.estimates[i.model].length * i.tier.cost_out
+             for r in (r1, r2) for i in FLEET]
+    l_run = 0.0
+    for d in ds:
+        l_run = max(l_run, max(s.candidate.latency_s for s in d.scored))
+        assert (d.scales.q_min, d.scales.q_max, d.scales.c_max, d.scales.l_max) == (min(qs), max(qs), max(costs), l_run)
+        for s in d.scored:
+            c = s.candidate
+            assert s.quality_term == (c.quality - min(qs)) / (max(qs) - min(qs) + EPS)
+            assert s.cost_term == 1.0 - c.cost / (max(costs) + EPS)
+            assert s.latency_term == 1.0 - c.latency_s / (l_run + EPS)
+    assert all(d.scales is None for d in run_round([r1, r2], normalize_over="request"))
+
+
+def test_round_scales_that_do_not_cover_a_candidate_are_refused():
+    from routebalance.schedule.score import Candidate, Scales, score
+    c = Candidate("i", "m", 0.5, 1.0, 2.0, None, 0, 0.0)
+    for bad in (Scales(0.6, 0.9, 1.0, 2.0), Scales(0.0, 0.9, 0.5, 2.0), Scales(0.0, 0.9, 1.0, 1.0)):
+        with pytest.raises(ValueError):
+            score([c], w_quality=0.5, w_cost=0.2, w_latency=0.3, normalization="max_divide", scales=bad)
+
+
+def test_an_empty_round_decides_nothing_under_either_normalization():
+    assert run_round([], normalize_over="round") == [] and run_round([], normalize_over="request") == []
+
+
+def test_the_running_latency_maximum_grows_with_the_round():
+    """D137: in arrival order (lpt off) a later, longer request raises the maximum its own terms divide by; the
+    earlier request's terms keep the smaller one."""
+    short, long_ = req("a", s_len=10.0, l_len=10.0), req("b", s_len=400.0, l_len=400.0)
+    d1, d2 = run_round([short, long_], normalize_over="round", lpt="off", pending_decode="lpt_key")
+    assert d1.request.request_id == "a" and d2.scales.l_max > d1.scales.l_max
+    assert d1.scales.l_max == max(s.candidate.latency_s for s in d1.scored)
+    assert d2.scales.l_max == max(d1.scales.l_max, max(s.candidate.latency_s for s in d2.scored))
+
+
+def test_under_the_budget_filter_the_round_scales_cover_every_instance():
+    """D137 (v3's tracked context): the round's quality range and cost maximum are taken over every request x fleet
+    instance when the round opens, before the budget filter keeps a subset of a request's candidates."""
+    expensive = req("x", s_len=100.0, l_len=100.0, qs=0.2, ql=0.95, budget=1e-12)   # nothing fits: the cheapest remain
+    ds = run_round([expensive, req("y")], normalize_over="round", admission=Admission())
+    qs = [0.2, 0.95, 0.5, 0.9]
+    costs = [r.num_prompt_tokens * i.tier.cost_in + r.estimates[i.model].length * i.tier.cost_out
+             for r in (expensive, req("y")) for i in FLEET]
+    d = next(d for d in ds if d.request.request_id == "x")
+    assert len(d.scored) < len(FLEET)                                   # the filter kept a subset
+    assert (d.scales.q_min, d.scales.q_max, d.scales.c_max) == (min(qs), max(qs), max(costs))

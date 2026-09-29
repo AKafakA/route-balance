@@ -8,7 +8,7 @@ from gates.cell import open_cell
 from routebalance.config import load_scheduler
 from routebalance.schedule.rounds import ADAPTIVE_LIMITS as ROUNDS_LIMITS
 from tests.gates.cellfix import (CELLS, DECOUPLED, FIXTURES, LOR, RB_FIXEDREF, RB_MAXDIV, RB_MEAN, RB_MIN, RB_OFF,
-                                 SWEEP, copy_cell, edit_json, edit_lines, record)
+                                 RB_ROUND, SWEEP, copy_cell, edit_json, edit_lines, edit_manifests, record)
 
 TIER = {"S_0": "small_a30", "S_1": "small_a30", "L_2": "large_a100"}
 
@@ -86,6 +86,30 @@ def swap_first_two_positions(members):
 def other_tier_in_reason(line):
     other = "small_a30" if line["tier"] == "large_a100" else "large_a100"
     line["reason"] = line["reason"].replace(f"tier={line['tier']}", f"tier={other}")
+
+
+def final_l_max_everywhere(ls):
+    """Every line of a round given the round's final latency maximum (a scheduler that fixed it once per round)."""
+    final = {}
+    for ln in ls:
+        final[ln["round"]] = max(final.get(ln["round"], 0.0), ln["scales"]["l_max"])
+    for ln in ls:
+        ln["scales"]["l_max"] = final[ln["round"]]
+
+
+def double_c_max_consistently(ls):
+    """Every line's cost maximum doubled, with its cost terms and scores rebuilt on it: consistent in itself, but not
+    the maximum over the round's requests x the fleet."""
+    from routebalance.schedule.score import EPS
+    price, model = {"S_0": 1e-7, "S_1": 1e-7, "L_2": 4e-7}, {"S_0": "S", "S_1": "S", "L_2": "L"}
+    w = {"w_quality": 0.2, "w_latency": 0.4, "w_cost": 0.4}          # rb-round's weights (the recorder's maxdiv)
+    for ln in ls:
+        ln["scales"]["c_max"] *= 2
+        for c in ln["candidates"]:
+            cost = ln["request"]["prompt_tokens"] * price[c["inst"]] + ln["lengths"][model[c["inst"]]] * price[c["inst"]]
+            c["c"] = 1.0 - cost / (ln["scales"]["c_max"] + EPS)
+            c["score"] = w["w_quality"] * c["q"] + w["w_cost"] * c["c"] + w["w_latency"] * c["l"]
+        ln["score"] = next(c["score"] for c in ln["candidates"] if c["inst"] == ln["instance_id"])
 
 
 def two_rounds_sizes(members):
@@ -174,6 +198,32 @@ MUST_FAIL = [
     (SWEEP, first(lambda ln: ln.__setitem__("decode_tokens", ln["feature_tokens"] + 1)),
      "decode_tokens do not follow pending_decode own_length"),
     (SWEEP, first(lambda ln: ln.pop("lengths")), "decision line is malformed"),
+    # D135: the router lane ran with the configuration's concurrency
+    (DECOUPLED, lambda c: edit_manifests(c, lambda m: m["loaded"].__setitem__("router_lane_threads", 1)),
+     "ran on another number of threads than the configuration's concurrency"),
+    (RB_MAXDIV, lambda c: edit_manifests(c, lambda m: m["loaded"].__setitem__("router_lane_threads", 32)),
+     "ran on another number of threads than the configuration's concurrency"),
+    # D137: the round's scales
+    (RB_ROUND, first(set_("scales", None)), "scales are logged exactly when the score normalizes over the round"),
+    (RB_MAXDIV, first(set_("scales", {"q_min": 0.0, "q_max": 1.0, "c_max": 1.0, "l_max": 9.0})),
+     "scales are logged exactly when the score normalizes over the round"),
+    (RB_ROUND, first(lambda ln: ln["scales"].__setitem__("l_max", ln["scales"]["l_max"] * 2)),
+     "max_divide: a latency term is not 1 - latency"),
+    (RB_ROUND, first(lambda ln: ln["scales"].__setitem__("l_max", ln["scales"]["l_max"] * 2)),
+     "not the round's running maximum"),
+    (RB_ROUND, first(lambda ln: ln["scales"].__setitem__("l_max", min(c["lat_s"] for c in ln["candidates"]) / 2)),
+     "running latency maximum is below this request's latencies"),
+    (RB_ROUND, round_one(lambda ms: ms[1]["scales"].__setitem__("c_max", ms[1]["scales"]["c_max"] * 2)),
+     "disagree on its quality range or cost maximum"),
+    (RB_ROUND, lines(final_l_max_everywhere), "not the round's running maximum"),   # the recorded rounds grow
+    (RB_ROUND, first(lambda ln: ln["candidates"][0].__setitem__("c", ln["candidates"][0]["c"] + 1e-12)),
+     "a cost term is not 1 - cost / (cost maximum + EPS)"),
+    (RB_MAXDIV, first(lambda ln: ln["candidates"][0].__setitem__("c", ln["candidates"][0]["c"] + 1e-12)),
+     "a cost term is not 1 - cost / (cost maximum + EPS)"),
+    (RB_ROUND, first(lambda ln: ln["scales"].__setitem__("c_max", 0.0)), "the round's cost maximum is below"),
+    (RB_ROUND, lines(double_c_max_consistently), "cost maximum is not the maximum over its requests x the fleet"),
+    (RB_ROUND, first(set_("scales", [])), "decision line is malformed"),
+    (RB_ROUND, first(lambda ln: ln["scales"].pop("l_max")), "decision line is malformed"),
 ]
 
 
@@ -234,10 +284,10 @@ def test_an_unreadable_cell_fails(tmp_path, capsys, breakage):
 
 
 def _admitted(tmp_path, keep, admitted_all=True, budget="fits_s"):
-    """rb-maxdiv's cell as if the budget filter had admitted only `keep` on its first line. That line's latency
-    terms and scores are recomputed over the admitted candidates; the quality and cost terms are left as recorded,
-    since arm does not check their normalization. The line is then valid except for the rule under test. The cell
-    is re-stamped with the filter-on configuration's digest."""
+    """rb-maxdiv's cell as if the budget filter had admitted only `keep` on its first line. That line's cost and
+    latency terms and scores are recomputed over the admitted candidates (the request's own maxima: rb-maxdiv
+    normalizes per request); the quality terms are left as recorded, since arm cannot see the qualities. The line is
+    then valid except for the rule under test. The cell is re-stamped with the filter-on configuration's digest."""
     from routebalance.config import config_digest, parse_scheduler
     from routebalance.schedule.score import EPS
     cell = copy_cell(tmp_path, RB_MAXDIV)
@@ -255,14 +305,20 @@ def _admitted(tmp_path, keep, admitted_all=True, budget="fits_s"):
         for ln in ls:
             ln["budget"] = {"max_tokens": 64, "affordable_tokens": 900, "exhausted": False}
             ln["config_digest"] = digest
-            ln["request"] = {"prompt_tokens": 10, "max_tokens": 64, "budget_cost": 1.0}     # admits every instance
+            ln["request"] = {"prompt_tokens": ln["request"]["prompt_tokens"], "max_tokens": 64,
+                             "budget_cost": 1.0}                                          # admits every instance
         ln0 = ls[0]
-        s_cost = 10 * 1e-7 + min(int(ln0["lengths"]["S"]), 64) * 1e-7                     # S: 1e-7 in and out
+        p_tok = ln0["request"]["prompt_tokens"]
+        s_cost = p_tok * 1e-7 + min(int(ln0["lengths"]["S"]), 64) * 1e-7                  # S: 1e-7 in and out
         ln0["request"]["budget_cost"] = s_cost if budget == "fits_s" else s_cost / 10    # L costs 4x S per token
         by_inst = {c["inst"]: c for c in ln0["candidates"]}
         cands = [by_inst[i] for i in keep]
-        lmax = max(c["lat_s"] for c in cands)
+        price = {"S_0": 1e-7, "S_1": 1e-7, "L_2": 4e-7}
+        cost = {c["inst"]: p_tok * price[c["inst"]] + ln0["lengths"]["S" if c["inst"] != "L_2" else "L"] * price[c["inst"]]
+                for c in cands}
+        lmax, cmax = max(c["lat_s"] for c in cands), max(cost.values())
         for c in cands:
+            c["c"] = 1.0 - cost[c["inst"]] / (cmax + EPS)
             c["l"] = 1.0 - c["lat_s"] / (lmax + EPS)
             c["score"] = w["w_quality"] * c["q"] + w["w_cost"] * c["c"] + w["w_latency"] * c["l"]
         ln0["candidates"], ln0["admitted_all"] = cands, admitted_all

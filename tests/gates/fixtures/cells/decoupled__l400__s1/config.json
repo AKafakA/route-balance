@@ -27,6 +27,7 @@
   "timeout_s": 2.0
  },
  "mode": "pipeline",
+ "normalize_over": null,
  "weights": {
   "w_quality": 0.5,
   "w_latency": 0.3,
@@ -41,7 +42,8 @@
  "pipeline": {
   "router": {
    "type": "rb_decoupled",
-   "kwargs": {}
+   "kwargs": {},
+   "concurrency": 32
   },
   "dispatch": {
    "type": "round_robin",

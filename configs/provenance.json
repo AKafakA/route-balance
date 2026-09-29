@@ -457,7 +457,16 @@
     "presets.parts.ap.router.kwargs.embedder_revision": "$part:encoder_revision",
     "presets.parts.ap.router.kwargs.upstream_sha256": "6cfaf58f525217b47c2e90361fbb3e94309f66fbbc7eadef067e01c82946493b",
     "presets.parts.ap.router.kwargs.max_tokens": 7500,
-    "presets.parts.ap.router.kwargs.max_workers": 4
+    "presets.parts.ap.router.kwargs.max_workers": 4,
+    "presets.parts.ap.router.shipped.type": "avengers_pro",
+    "presets.parts.ap.router.shipped.kwargs.artifact_dir": "$pin:ap.{family}.{pw}:path",
+    "presets.parts.ap.router.shipped.kwargs.beta": 9.0,
+    "presets.parts.ap.router.shipped.kwargs.top_k": 1,
+    "presets.parts.ap.router.shipped.kwargs.embedder": "sentence-transformers/all-MiniLM-L6-v2",
+    "presets.parts.ap.router.shipped.kwargs.embedder_revision": "$part:encoder_revision",
+    "presets.parts.ap.router.shipped.kwargs.upstream_sha256": "6cfaf58f525217b47c2e90361fbb3e94309f66fbbc7eadef067e01c82946493b",
+    "presets.parts.ap.router.shipped.kwargs.max_tokens": 7500,
+    "presets.parts.ap.router.shipped.kwargs.max_workers": 4
    }
   },
   {
@@ -481,7 +490,51 @@
     "presets.parts.br.router.v3.kwargs.checkpoint": "$pin:br-v3.{family}:path",
     "presets.parts.br.router.v3.kwargs.confidence_threshold": "$part:br.threshold.{t}",
     "presets.parts.br.router.v3.kwargs.fallback_model": "$part:br.fallback.{family}",
-    "presets.parts.br.router.v3.kwargs.max_length": 512
+    "presets.parts.br.router.v3.kwargs.max_length": 512,
+    "presets.parts.br.router.shipped.type": "best_route_upstream",
+    "presets.parts.br.router.shipped.kwargs.checkpoint": "$pin:br.{family}:path",
+    "presets.parts.br.router.shipped.kwargs.threshold": "$part:br.threshold.{t}",
+    "presets.parts.br.router.shipped.kwargs.base_model": "microsoft/deberta-v3-small",
+    "presets.parts.br.router.shipped.kwargs.base_revision": "a36c739020e01763fe789b4b85e2df55d6180012",
+    "presets.parts.br.router.shipped.kwargs.upstream_sha256": "85279e1f6080d87db95dcbded46d7713fcf2728b82339c3b6a30ef3b56579005"
+   }
+  },
+  {
+   "path": "presets.parts.*.router.concurrency",
+   "source": "owner",
+   "ref": "D135 (owner 09-29): \"maybe use the 32 threadpool as the main results\"; \"i mean the max batch size\": RouteBalance's largest round (routebalance/schedule/rounds.py ADAPTIVE_LIMITS), also v2's concurrent-scoring variant (asyncio's default pool, 32 threads on the 96-CPU scheduler node)",
+   "values": {
+    "presets.parts.ap.router.concurrency": 32,
+    "presets.parts.br.router.concurrency": 32,
+    "presets.parts.br.router.v3.concurrency": 32,
+    "presets.parts.rb-dec.router.concurrency": 32
+   }
+  },
+  {
+   "path": "presets.parts.*.router.shipped.concurrency",
+   "source": "owner",
+   "ref": "D60 (owner 09-25): the baselines' routers as shipped, one request at a time; D135 (owner 09-29): kept for the main grid's seed 1 only (W2s)",
+   "values": {
+    "presets.parts.ap.router.shipped.concurrency": 1,
+    "presets.parts.br.router.shipped.concurrency": 1,
+    "presets.parts.rb-dec.router.shipped.concurrency": 1
+   }
+  },
+  {
+   "path": "presets.parts.rb-dec.*",
+   "source": "owner",
+   "ref": "D18: RB-decoupled, RouteBalance's own estimator as a per-request router (no router options)",
+   "values": {
+    "presets.parts.rb-dec.router.type": "rb_decoupled",
+    "presets.parts.rb-dec.router.shipped.type": "rb_decoupled"
+   }
+  },
+  {
+   "path": "presets.parts.rb.normalize_over",
+   "source": "owner",
+   "ref": "D137 (owner 09-29): the in-batch normalization, adopted by the owner's replay rule (\"if the in-batch could change and shift the model calls as expected direction of thesis, or making light differences -> pick it\"; answer \"Adopt\"); v3's tracked round context (quality/cost range, running latency range) made the score's scale",
+   "values": {
+    "presets.parts.rb.normalize_over": "round"
    }
   }
  ],
@@ -513,13 +566,6 @@
    "source": "stock",
    "ref": "LiteLLM lowest_latency: a timed-out request counts as 1000 s (D25)",
    "value": "1000.0"
-  },
-  {
-   "module": "routebalance.baselines.routers",
-   "name": "ROUTER_LANE_THREADS",
-   "source": "owner",
-   "ref": "D60: the baselines' routers call their model one request at a time, as shipped routers do",
-   "value": "1"
   },
   {
    "module": "routebalance.baselines.routers",

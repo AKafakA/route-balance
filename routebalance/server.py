@@ -138,10 +138,11 @@ def idle_state(tier: Tier) -> InstanceStats:
 
 
 def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_root: Path,
-                    avengers_repo: Optional[Path], router_lane: Executor,
+                    avengers_repo: Optional[Path], router_lane: Optional[Executor],
                     best_route_repo: Optional[Path] = None) -> Components:
     """Loads models and tables (seconds): call it off the event loop. A pipeline router makes its model calls on
-    router_lane (one request at a time, as shipped routers do); RouteBalance's own calls use the shared pool."""
+    router_lane, sized by the configuration's router concurrency (baselines/routers.py router_lane: 1 as shipped,
+    32 the main setting, D135); RouteBalance's own calls use the shared pool."""
     from routebalance.estimate.knn import INDEX_FILE, load_knn
     from routebalance.estimate.latency import load_latency_model
     need_est, need_lat = needs(cfg)
@@ -340,7 +341,8 @@ class RouteBalance:
 
                 await loop.run_in_executor(self._executor, functools.partial(
                     schedule_round, requests, self._fleet, loads, self._c.latency, weights=cfg.weights,
-                    normalization=cfg.latency.normalization, lpt=cfg.lpt, pending_decode=cfg.pending_decode,
+                    normalization=cfg.latency.normalization, normalize_over=cfg.normalize_over, lpt=cfg.lpt,
+                    pending_decode=cfg.pending_decode,
                     last_assigned=self.last_assigned, clock=time.monotonic, admission=admission,
                     on_decision=decided))
             except Exception as e:     # the round fails loudly: every request not yet dispatched gets the error
@@ -369,7 +371,8 @@ class RouteBalance:
                         "admitted_all": d.admitted_all, "score": best.score,
                         "candidates": [{"inst": s.candidate.instance_id, "score": s.score,
                                         "q": s.quality_term, "c": s.cost_term, "l": s.latency_term,
-                                        "lat_s": s.candidate.latency_s} for s in d.scored]}
+                                        "lat_s": s.candidate.latency_s} for s in d.scored],
+                        "scales": None if d.scales is None else asdict(d.scales)}    # D137: the round's scales
             ms = 1000.0
             timings = {"round_wait_ms": (rnd.closed - arrived) * ms, "estimator_ms": (rnd.estimated - rnd.closed) * ms,
                        "stats_fetch_ms": (rnd.fetched - rnd.estimated) * ms, "schedule_ms": (decided - rnd.fetched) * ms}
@@ -407,7 +410,7 @@ class Service:
         self._versions = library_versions()
         self._factory = factory
         self.executor = router_executor()
-        self.router_lane = router_lane()
+        self.router_lane: Optional[Executor] = None   # built per configuration (apply): its router's concurrency
         self._log_dir = log_dir
         self.decisions = JsonlLog(log_dir / "decisions.jsonl", FLUSH_S)
         self.latency_log: Optional[JsonlLog] = None      # the D38 sweep configurations only
@@ -477,23 +480,33 @@ class Service:
         try:
             gc.unfreeze()                     # the previous configuration's objects can be collected again
             loop = asyncio.get_running_loop()
-            comps = await loop.run_in_executor(self.executor, functools.partial(
-                self._factory, cfg, self.fleet, artifact_root=self._artifacts, avengers_repo=self._avengers,
-                router_lane=self.router_lane, best_route_repo=self._best_route))
-            t = cfg.telemetry
-            view = TelemetryView(self.fleet, lambda i: fetch_metrics(self._telemetry_session, i, t.timeout_s),
-                                 poll_ms=t.poll_ms, dead_reckoning=cfg.dead_reckoning)
-            # every instance answers once, or this raises and the old config stays live
-            if cfg.telemetry_read == "poll":  # the pollers' cache (D19)
-                await view.start()
-            else:                             # fetched per round (D53) or per request (D55): no pollers
-                await view.fetch_round()
+            threads = None if cfg.pipeline is None else cfg.pipeline.router.concurrency
+            lane = None if threads is None else router_lane(threads)
+            try:                              # until the swap, a failure leaves the old config live: drop the new lane
+                comps = await loop.run_in_executor(self.executor, functools.partial(
+                    self._factory, cfg, self.fleet, artifact_root=self._artifacts, avengers_repo=self._avengers,
+                    router_lane=lane, best_route_repo=self._best_route))
+                t = cfg.telemetry
+                view = TelemetryView(self.fleet, lambda i: fetch_metrics(self._telemetry_session, i, t.timeout_s),
+                                     poll_ms=t.poll_ms, dead_reckoning=cfg.dead_reckoning)
+                # every instance answers once, or this raises and the old config stays live
+                if cfg.telemetry_read == "poll":  # the pollers' cache (D19)
+                    await view.start()
+                else:                             # fetched per round (D53) or per request (D55): no pollers
+                    await view.fetch_round()
+            except BaseException:
+                if lane is not None:
+                    lane.shutdown(wait=False, cancel_futures=True)
+                raise
             if self._mode_task is not None:
                 self._mode_task.cancel()
                 await asyncio.gather(self._mode_task, return_exceptions=True)
                 self._mode_task = None
             if self.view is not None:
                 await self.view.stop()
+            if self.router_lane is not None:   # idle (apply refuses while busy): the old configuration's lane
+                self.router_lane.shutdown(wait=False, cancel_futures=True)
+            self.router_lane = lane
             self.view, self._comps, self.cfg = view, comps, cfg
             self.digest = config_digest(cfg)
             # D103: the models and indexes just loaded, and the server's state, are long-lived; a full collection over
@@ -648,6 +661,7 @@ class Service:
         if self._swapping or self.cfg is None:
             raise Busy("a configuration is being applied")
         cfg, view, comps, rb = self.cfg, self.view, self._comps, self._rb       # one consistent snapshot
+        lane = self.router_lane                                                  # with it (Codex review, D135)
         pollers = view.polling
         loop = asyncio.get_running_loop()
         torch = sys.modules.get("torch")      # imported by main() before serving; measured on a pool thread
@@ -668,7 +682,7 @@ class Service:
                        "cost_in": i.tier.cost_in, "cost_out": i.tier.cost_out, "max_num_seqs": i.tier.max_num_seqs,
                        "node": i.node} for i in self.fleet],
             "system": {"mode": cfg.mode, "telemetry_read": cfg.telemetry_read, "weights": dump(cfg.weights),
-                       "rounds": dump(cfg.rounds), "lpt": cfg.lpt,
+                       "rounds": dump(cfg.rounds), "lpt": cfg.lpt, "normalize_over": cfg.normalize_over,
                        "pending_decode": cfg.pending_decode, "latency": dump(cfg.latency),
                        "estimator": dump(cfg.estimator), "router": None if pipe is None else dump(pipe.router),
                        "dispatch": None if pipe is None else dump(pipe.dispatch)},
@@ -678,7 +692,8 @@ class Service:
             "loaded": {"estimator": _name(comps.estimator), "latency_source": None if lat is None else lat.source.kind,
                        "latency_envelope": None if lat is None else lat.envelope, "router": _name(comps.router),
                        "dispatcher": _name(comps.dispatcher), "round_loop": rb is not None,
-                       "telemetry_pollers": pollers},
+                       "telemetry_pollers": pollers,
+                       "router_lane_threads": None if lane is None else lane._max_workers},
             "artifacts": dict(comps.artifacts),
             "code": {**self._code, **{f"{k}_now": v for k, v in code_now.items()}},
             "threadpools": pools,
@@ -686,7 +701,6 @@ class Service:
             "launch": {"torch_threads": self._torch_threads, "torch_threads_effective": threads,
                        "max_connections": self._max_conn, "request_timeout_s": self._timeout_s,
                        "router_threads": self.executor._max_workers,
-                       "router_lane_threads": self.router_lane._max_workers,
                        "engine_session": _session_settings(self._session),
                        "telemetry_session": _session_settings(self._telemetry_session),
                        "event_loop": f"{type(loop).__module__}.{type(loop).__qualname__}",
@@ -710,7 +724,8 @@ class Service:
         await self._session.close()
         await self._telemetry_session.close()
         self.executor.shutdown(wait=False, cancel_futures=True)
-        self.router_lane.shutdown(wait=False, cancel_futures=True)
+        if self.router_lane is not None:
+            self.router_lane.shutdown(wait=False, cancel_futures=True)
 
 
 class ServeError(RuntimeError):

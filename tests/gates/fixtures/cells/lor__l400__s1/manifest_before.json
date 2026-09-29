@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "30a9c81d91734cff9f6aa1ae48dda526d46f9396142b74f76493291160c57b56",
- "fleet_digest": "39a614b89c6629a36ca6fadf9e832f2d8421c5d02f0897734e54f16d681cee11",
+ "config_digest": "a794f835d4755d161146c49fc98cdf576d465e9d4fa5eec4b7a331cbdeaec6a8",
+ "fleet_digest": "21bcac1800259147ae4e8399a8a5d456d3d6b5dab539f22a531ee30e118e6d7f",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -44,6 +44,7 @@
    "timeout_ms": null
   },
   "lpt": "max",
+  "normalize_over": null,
   "pending_decode": null,
   "latency": {
    "source": "constant",
@@ -63,7 +64,8 @@
   },
   "router": {
    "type": "passthrough",
-   "kwargs": {}
+   "kwargs": {},
+   "concurrency": null
   },
   "dispatch": {
    "type": "least_outstanding",
@@ -87,13 +89,14 @@
   "router": "PassthroughRouter",
   "dispatcher": "LeastOutstanding",
   "round_loop": false,
-  "telemetry_pollers": true
+  "telemetry_pollers": true,
+  "router_lane_threads": null
  },
  "artifacts": {},
  "code": {
-  "routebalance": "774dceb126dd6a37df979eae148af49739aabece1398ef24fa2ef45cc63923a6",
+  "routebalance": "511e90dccd29c848e10b507fa099ae9864ca13a1928f37b151664575f9cf6a42",
   "avengers_pro": null,
-  "routebalance_now": "774dceb126dd6a37df979eae148af49739aabece1398ef24fa2ef45cc63923a6",
+  "routebalance_now": "511e90dccd29c848e10b507fa099ae9864ca13a1928f37b151664575f9cf6a42",
   "avengers_pro_now": null
  },
  "threadpools": {
@@ -152,7 +155,6 @@
   "max_connections": 64,
   "request_timeout_s": 5.0,
   "router_threads": 4,
-  "router_lane_threads": 1,
   "engine_session": {
    "limit": 0,
    "limit_per_host": 0,

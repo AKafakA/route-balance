@@ -179,7 +179,7 @@
      "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W2", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "main grid, seed 1, lambda 30 and 12 first: RB presets, RB-decoupled, AvengersPro pw x LOR, BEST-Route 4 thresholds x LOR, dispatcher-only RR / Po2 / LOR / random / lowest_latency; baseline blocks run while G1 is scored (D36)",
+   "about": "main grid, seed 1, lambda 30 and 12 first: RB presets, RB-decoupled, AvengersPro pw x LOR, BEST-Route 4 thresholds x LOR, dispatcher-only RR / Po2 / LOR / random / lowest_latency; baseline blocks run while G1 is scored (D36). The per-request routers (AvengersPro, BEST-Route, RB-decoupled) run up to 32 calls at once, RouteBalance's largest round (D135, owner 09-29: the main setting); their as-shipped copies (one call at a time) are W2s",
    "plan": "~170 cells, 17-21 h",
    "blocks": [
     {"name": "W2-base-l30", "group": "qwen", "dataset": "eval_qwen", "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "d": "$list:dispatchers"},
@@ -206,6 +206,26 @@
      "configs": ["qwen.ap.{pw}.lor", "qwen.br.{t}.lor", "qwen.disp.{d}", "qwen.{darm}-dec.{dw}", "qwen.{arm}.{w}"],
      "traces": ["l24", "l18", "l36", "l42"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1, "darm": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W2s", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "the main grid's per-request routers as shipped, one call at a time (router concurrency 1: RouteLLM's and NVIDIA's serving pattern, owner 09-25), seed 1 only, beside W2's 32-call setting in the same comparison group (D135, owner 09-29: \"we will only leave it into the main, and for the others, pick the better baseline setting\"; \"Main grid seed 1 only\"): AvengersPro pw x LOR, BEST-Route 4 thresholds x LOR, RB-decoupled, at W2's six rates",
+   "plan": "78 cells, ~5 h, right after W2",
+   "blocks": [
+    {"name": "W2s-l30", "group": "qwen", "dataset": "eval_qwen",
+     "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "darm": "$decision:decoupled_arm", "dw": "$owner:decoupled_weights"},
+     "configs": ["qwen.ap.{pw}.lor-shipped", "qwen.br.{t}.lor-shipped", "qwen.{darm}-dec.{dw}-shipped"],
+     "traces": ["l30"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W2s-l12", "group": "qwen", "dataset": "eval_qwen",
+     "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "darm": "$decision:decoupled_arm", "dw": "$owner:decoupled_weights"},
+     "configs": ["qwen.ap.{pw}.lor-shipped", "qwen.br.{t}.lor-shipped", "qwen.{darm}-dec.{dw}-shipped"],
+     "traces": ["l12"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W2s-rest", "group": "qwen", "dataset": "eval_qwen",
+     "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "darm": "$decision:decoupled_arm", "dw": "$owner:decoupled_weights"},
+     "configs": ["qwen.ap.{pw}.lor-shipped", "qwen.br.{t}.lor-shipped", "qwen.{darm}-dec.{dw}-shipped"],
+     "traces": ["l24", "l18", "l36", "l42"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W2b", "kind": "cells", "prio": "must", "enabled": true, "why": null,
    "about": "the AC's RR/Po2 rows: AvengersPro pw{0.4 (the pw0.39 artifact), 0.7, 0.8} + BEST-Route {argmax, 0.3} x {RR, Po2} x lambda{12, 30}",

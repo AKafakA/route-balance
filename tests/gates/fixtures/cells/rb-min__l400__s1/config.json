@@ -24,6 +24,7 @@
   "timeout_s": 2.0
  },
  "mode": "routebalance",
+ "normalize_over": "round",
  "weights": {
   "w_quality": 0.5,
   "w_latency": 0.3,
