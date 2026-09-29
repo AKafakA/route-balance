@@ -17,6 +17,13 @@ from bench.scope import GroupSpec, Scope, cell_id, expected_cells
 from routebalance.config import ConfigError, fleet_digest, load_fleet
 from tests.unit.test_frontier import pt
 from tests.unit.fakes import CONFIG_DIGEST, FakeScheduler, FakeTokenizer, identity, scope_dict, write_dataset
+from analysis import manifest as _manifest
+
+
+@pytest.fixture(autouse=True)
+def _isolated(monkeypatch):
+    """These tests are about the report; the isolation evidence (D128/D132) has its own tests (tests/gates)."""
+    monkeypatch.setattr(_manifest, "isolation_problems", lambda d: [])
 
 CONFIGS = {"rb-a": ("RouteBalance", CONFIG_DIGEST), "ap-x": ("AvengersPro", "a" * 64)}
 KEY = "deepeval-llama3.1-8b-it_reference"

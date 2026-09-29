@@ -19,6 +19,7 @@ Reply: HTTP 200 with {"success": true} plus exactly the fields of bench.records.
   prompt_tokens, output_tokens      vLLM's usage counts
   ttft_s, server_latency_s          the scheduler's backend-client clock: from its call to the instance until
                                     the first token, and until the end of the stream
+  first_token_s        the scheduler's clock from the request's arrival to the first backend token (the SLO's TTFT)
   timings_ms           the scheduler's own time for this request by stage, in ms (finite, >= 0)
 Anything else is a failed request: a non-200 status, success false, a missing, extra or mistyped field, a
 different request_id, a transport error or a timeout. It is recorded with its error text and never retried.
@@ -37,6 +38,7 @@ from pydantic import ValidationError
 
 from bench.dataset import Prompt
 from bench.records import Reply, Sampling, SchedulerIdentity
+from routebalance.backend import stock_connector
 from bench.schema import parse
 from routebalance.config import ConfigError, loads_strict
 
@@ -118,8 +120,8 @@ class HttpSchedulerClient:
     async def __aenter__(self) -> "HttpSchedulerClient":
         trace = aiohttp.TraceConfig()
         trace.on_connection_queued_start.append(self._on_queued)
-        connector = aiohttp.TCPConnector(limit=self.max_connections, limit_per_host=self.max_connections)
-        self._session = aiohttp.ClientSession(connector=connector, trace_configs=[trace],
+        # D134: vLLM bench's stock connector (no connection limit, keep-alive); max_connections sizes the open-file check
+        self._session = aiohttp.ClientSession(connector=stock_connector(), trace_configs=[trace],
                                               timeout=aiohttp.ClientTimeout(total=self.timeout_s))
         return self
 

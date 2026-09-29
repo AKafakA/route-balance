@@ -31,7 +31,7 @@ BASE = {
     "estimator": {"index_dir": "knn/x", "index_md5": "1" * 32, "encoder_revision": "e" * 40, "k": 50,
                   "score_type": "deepeval", "prior": "knn"},
     "budget": {"admission_filter": False},
-    "telemetry": {"poll_ms": 50.0, "max_age_ms": 500.0, "timeout_s": 2.0},
+    "telemetry": {"poll_ms": 50.0, "timeout_s": 2.0},
     "pipeline": None,
 }
 

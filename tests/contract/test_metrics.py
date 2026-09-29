@@ -27,10 +27,9 @@ async def _serve(state: FakeState):
     return runner, Instance("fake_0", TIER, "n0", "127.0.0.1", port)
 
 
-def _view(inst, session, max_age_ms=1000.0):
+def _view(inst, session):
     # raw gauges: these tests check the exposition format; dead reckoning is unit-tested
-    return TelemetryView([inst], lambda i: fetch_metrics(session, i, 3.0), poll_ms=50.0, max_age_ms=max_age_ms,
-                         dead_reckoning=False)
+    return TelemetryView([inst], lambda i: fetch_metrics(session, i, 3.0), poll_ms=50.0, dead_reckoning=False)
 
 
 def _read(state: FakeState, mutate=None):
@@ -38,21 +37,21 @@ def _read(state: FakeState, mutate=None):
         runner, inst = await _serve(state)
         try:
             async with aiohttp.ClientSession() as session:
-                view = _view(inst, session, max_age_ms=10000.0)
+                view = _view(inst, session)
                 await view.refresh()
-                first = view.loads([inst.instance_id])[inst.instance_id].stats
+                first = view.loads([inst.instance_id])[inst.instance_id]
                 if mutate is None:
                     return first
                 mutate(state)
                 await view.refresh()
-                return view.loads([inst.instance_id])[inst.instance_id].stats
+                return view.loads([inst.instance_id])[inst.instance_id]
         finally:
             await runner.cleanup()
     return asyncio.run(scenario())
 
 
 def test_gauges_are_read_through_the_real_exposition_format():
-    s = _read(FakeState(running=7, waiting=3, kv_usage=0.42, preemptions=5))
+    s = _read(FakeState(running=7, waiting=3, kv_usage=0.42, preemptions=5)).stats
     assert (s.num_running, s.num_waiting, s.kv_cache_utilization, s.num_preemptions) == (7, 3, 0.42, 5)
     assert s.max_num_seqs == 256 and s.pending_decode_tokens == 0
 
@@ -63,17 +62,19 @@ def test_gauges_are_read_through_the_real_exposition_format():
     (FakeState(omit=("vllm:kv_cache_usage_perc",)), "lacks"),
     (FakeState(duplicate=("vllm:num_requests_running",)), "more than once"),
 ])
-def test_bad_answers_make_the_instance_unavailable(state, match):
+def test_an_instance_that_never_answered_well_is_unavailable(state, match):
+    """No good snapshot at all: there is no load to read (the only case that fails, D133)."""
     with pytest.raises(InstanceStateUnavailable, match=match):
         _read(state)
 
 
 @pytest.mark.parametrize("raw", [b"\xff\xfe", b"vllm:num_requests_running{a=\"b\"} NaN\n", b"no metrics here\n"])
-def test_malformed_body_after_a_good_snapshot_invalidates_it(raw):
+def test_a_malformed_body_after_a_good_snapshot_keeps_it_and_records_the_error(raw):
+    """D133 (owner: counted, never refused): the last good snapshot stays in use."""
     def mutate(state):
         state.raw_body = raw
-    with pytest.raises(InstanceStateUnavailable):
-        _read(FakeState(running=1), mutate)
+    load = _read(FakeState(running=1), mutate)
+    assert load.stats.num_running == 1 and load.error
 
 
 def test_unreachable_instance_is_unavailable():

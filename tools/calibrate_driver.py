@@ -184,7 +184,8 @@ async def calibrate(plan: dict, row: dict, fleet: list[Instance], prompts: list[
         backend = BackendClient(sess, plan["bench"]["request_timeout_s"])
         await direct.drain(sess, fleet, timeout_s=drain_s)
         w = plan["warmup"]
-        manifest["warmup"] = await direct.warm_up(backend, fleet, requests_per_instance=w["requests_per_instance"],
+        warm = BackendClient(sess, drain_s)      # the warm-up's own bound: the owner's kept pre-run bound (D134 item 10)
+        manifest["warmup"] = await direct.warm_up(sess, warm, fleet, requests_per_instance=w["requests_per_instance"],
                                                   max_tokens=w["max_tokens"], prompt=w["prompt"], sampling=sampling,
                                                   run_id=run_id)
         for j, c in enumerate(levels):

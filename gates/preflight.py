@@ -19,8 +19,8 @@ The scheduler
   GET /v1/manifest   the same two digests, the same fleet in the same order, and code on disk unchanged since
                      the scheduler started
   GET /v1/stats      no failure; active == 0; no decision line buffered (the previous cell's log is on disk);
-                     reading the pollers' cache (telemetry_read "poll", as the manifest says): a telemetry age
-                     for every instance, each below the view's max_age_ms; per round or per request: none
+                     reading the pollers' cache (telemetry_read "poll", as the manifest says): a snapshot of every
+                     instance (its age is counted, never a failure: D133); per round or per request: none
 """
 from __future__ import annotations
 
@@ -160,7 +160,7 @@ def scheduler_problems(replies: dict[str, Reply], fleet: list[Instance], expect_
             problems.append(f"scheduler: {stats.logged.decisions_buffered} decision lines are not yet on disk")
         ages = stats.telemetry_age_ms
         if manifest is None:
-            problems.append("scheduler: telemetry cannot be checked without the manifest (its read mode, max_age_ms)")
+            problems.append("scheduler: telemetry cannot be checked without the manifest (its read mode)")
         elif stats.telemetry_read != manifest.system.telemetry_read:
             problems.append(f"scheduler: /v1/stats reads telemetry '{stats.telemetry_read}', "
                             f"the manifest's {manifest.system.mode} system '{manifest.system.telemetry_read}'")
@@ -168,12 +168,8 @@ def scheduler_problems(replies: dict[str, Reply], fleet: list[Instance], expect_
             pass       # fetched per round (D53) or per request (D55), a miss failing the round or the request;
                        # the engines themselves were checked directly above
         elif set(ages) != {i.instance_id for i in fleet}:
-            problems.append(f"scheduler: telemetry is not fresh for every instance: {ages}")
-        else:
-            limit = manifest.telemetry.max_age_ms
-            stale = {i: a for i, a in ages.items() if not (isinstance(a, float) and a < limit)}
-            if stale:
-                problems.append(f"scheduler: telemetry older than max_age_ms {limit}: {stale}")
+            problems.append(f"scheduler: the pollers hold no snapshot for every instance: {ages}")
+        # D133 (owner): a snapshot's age is counted (every decision logs it), never gated
     return problems
 
 

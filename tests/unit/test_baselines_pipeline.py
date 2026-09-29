@@ -183,7 +183,7 @@ def real_view(gauges=None):
     async def fetch(inst):
         r, w = gauges.get(inst.instance_id, (0, 0))   # default-ok: an engine not listed is idle
         return metrics(running=r, waiting=w, kv=0.0)
-    view = TelemetryView(FLEET, fetch, poll_ms=50.0, max_age_ms=1e9, dead_reckoning=False, clock=lambda: 100.0)
+    view = TelemetryView(FLEET, fetch, poll_ms=50.0, dead_reckoning=False, clock=lambda: 100.0)
     run(view.refresh())
     return view
 

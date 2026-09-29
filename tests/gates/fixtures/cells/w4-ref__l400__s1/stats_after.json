@@ -1,10 +1,10 @@
 {
  "loop_lag": {
-  "samples": 13,
-  "p50_ms": 2.0476621575653553,
-  "p99_ms": 5.129287485033274,
-  "p999_ms": 5.129287485033274,
-  "max_ms": 5.129287485033274
+  "samples": 10,
+  "p50_ms": 1.99822336435318,
+  "p99_ms": 3.55359073728323,
+  "p999_ms": 3.55359073728323,
+  "max_ms": 3.55359073728323
  },
  "telemetry_read": "per_round",
  "telemetry_age_ms": null,
@@ -12,6 +12,7 @@
  "rounds": 4,
  "booster_calls": 0,
  "failure": null,
+ "evidence_failure": null,
  "connection_waits": {
   "engine": 0,
   "telemetry": 0

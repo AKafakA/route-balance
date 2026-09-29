@@ -27,9 +27,8 @@ class Clock:
         return self.t
 
 
-def view_with(fetch, instances=(A, B), clock=None, dead_reckoning=True, max_age_ms=500.0):
-    return TelemetryView(list(instances), fetch, poll_ms=50.0, max_age_ms=max_age_ms,
-                         dead_reckoning=dead_reckoning, clock=clock or Clock())
+def view_with(fetch, instances=(A, B), clock=None, dead_reckoning=True):
+    return TelemetryView(list(instances), fetch, poll_ms=50.0, dead_reckoning=dead_reckoning, clock=clock or Clock())
 
 
 def static_fetch(bodies):
@@ -90,17 +89,19 @@ def test_no_snapshot_raises_with_the_error():
     assert view.loads(["b"])["b"].stats.num_running == 2
 
 
-def test_malformed_reply_invalidates_the_cached_snapshot():
+def test_a_malformed_reply_keeps_the_last_good_snapshot_and_records_the_error():
+    """D133 (owner: counted, never refused): the last good snapshot stays in use; the Load carries the error."""
     bodies = {"a": metrics(), "b": metrics()}
-    view = view_with(static_fetch(bodies))
+    view = view_with(static_fetch(bodies), dead_reckoning=False)
     run(view.refresh())
     bodies["a"] = "garbage\n"
     run(view.refresh())
-    with pytest.raises(InstanceStateUnavailable, match="lacks"):
-        view.loads(["a"])
+    load = view.loads(["a"])["a"]
+    assert load.stats.num_running == 2 and "lacks" in load.error
 
 
-def test_network_failure_keeps_last_snapshot_until_it_is_stale():
+def test_a_network_failure_keeps_the_last_snapshot_whatever_its_age():
+    """D133: no age bound; the snapshot is used, its age and the failure are counted."""
     bodies = {"a": metrics(), "b": metrics()}
     clock = Clock()
     view = view_with(static_fetch(bodies), clock=clock, dead_reckoning=False)
@@ -108,10 +109,9 @@ def test_network_failure_keeps_last_snapshot_until_it_is_stale():
     bodies["a"] = RuntimeError("timeout")
     clock.t += 0.1
     run(view.refresh())
-    assert view.loads(["a"])["a"].stats.num_running == 2
-    clock.t += 0.45
-    with pytest.raises(InstanceStateUnavailable, match="timeout"):
-        view.loads(["a"])
+    clock.t += 5.0
+    load = view.loads(["a"])["a"]
+    assert load.stats.num_running == 2 and load.age_ms == pytest.approx(5100.0) and "timeout" in load.error
 
 
 def test_age_is_measured_from_when_the_scrape_was_sent():
@@ -121,25 +121,23 @@ def test_age_is_measured_from_when_the_scrape_was_sent():
         clock.t += 2.0
         return metrics()
 
-    view = view_with(slow_fetch, instances=(A,), clock=clock, max_age_ms=500.0)
+    view = view_with(slow_fetch, instances=(A,), clock=clock)
     run(view.refresh())
-    with pytest.raises(InstanceStateUnavailable, match="old"):
-        view.loads(["a"])
+    assert view.loads(["a"])["a"].age_ms == pytest.approx(2000.0)      # a slow reply is never fresh data
 
 
-def test_a_fetch_is_bounded_by_the_scrape_timeout_not_by_max_age():
-    """D30: max_age_ms bounds a cached snapshot; a fetch's own scrape may take longer (its timeout bounds it)."""
+def test_a_fetch_carries_its_scrapes_age_and_is_never_refused_for_it():
+    """D133: a fetch's scrape is bounded by its timeout only; the same snapshot read as a cache carries its age."""
     clock = Clock()
 
     async def slow_fetch(inst):
-        clock.t += 0.6                                         # longer than max_age_ms, within timeout_s
+        clock.t += 0.6                                         # a slow scrape, within timeout_s
         return metrics(running=2)
 
-    view = view_with(slow_fetch, instances=(A,), clock=clock, max_age_ms=500.0, dead_reckoning=False)
+    view = view_with(slow_fetch, instances=(A,), clock=clock, dead_reckoning=False)
     loads = run(view.fetch(["a"]))
     assert loads["a"].stats.num_running == 2 and loads["a"].age_ms == pytest.approx(600.0)
-    with pytest.raises(InstanceStateUnavailable, match="old"):   # the same snapshot, read as a cache: too old
-        view.loads(["a"])
+    assert view.loads(["a"])["a"].age_ms == pytest.approx(600.0)
 
 
 # ---------------------------------------------------------------- dispatch bookkeeping
@@ -294,14 +292,13 @@ def test_one_slow_instance_does_not_starve_the_others():
             return metrics()
 
         started_b = asyncio.Event()
-        view = TelemetryView([A, B], fetch, poll_ms=10.0, max_age_ms=100.0,
+        view = TelemetryView([A, B], fetch, poll_ms=10.0,
                              dead_reckoning=True)
         await view.start()
         await asyncio.sleep(0.3)
         try:
-            a_ok = view.loads(["a"])["a"].age_ms < 100.0
-            with pytest.raises(InstanceStateUnavailable):
-                view.loads(["b"])
+            loads = view.loads(["a", "b"])
+            a_ok = loads["a"].age_ms < 100.0 and loads["b"].age_ms > 250.0   # b's age is counted (D133), a stays fresh
         finally:
             await view.stop()
         return a_ok
@@ -325,7 +322,7 @@ def test_stop_during_start_leaves_no_poller():
             await gate.wait()
             return metrics()
 
-        view = TelemetryView([A], fetch, poll_ms=10.0, max_age_ms=100.0, dead_reckoning=True)
+        view = TelemetryView([A], fetch, poll_ms=10.0, dead_reckoning=True)
         starting = asyncio.create_task(view.start())
         await asyncio.sleep(0.01)
         await view.stop()
@@ -367,7 +364,7 @@ def test_dead_or_cancelled_poller_is_reported_on_read():
                 raise _Boom("boom")
             return metrics()
 
-        view = TelemetryView([A], fetch, poll_ms=1.0, max_age_ms=10000.0, dead_reckoning=True)
+        view = TelemetryView([A], fetch, poll_ms=1.0, dead_reckoning=True)
         await view.start()
         await asyncio.sleep(0.05)
         try:
@@ -376,7 +373,7 @@ def test_dead_or_cancelled_poller_is_reported_on_read():
         finally:
             await view.stop()
 
-        view2 = view_with(static_fetch({"a": metrics(), "b": metrics()}), max_age_ms=10000.0)
+        view2 = view_with(static_fetch({"a": metrics(), "b": metrics()}))
         await view2.start()
         view2._tasks[0].cancel()
         await asyncio.sleep(0)
@@ -388,10 +385,10 @@ def test_dead_or_cancelled_poller_is_reported_on_read():
     run(scenario())
 
 
-@pytest.mark.parametrize("poll,age", [(20.0, 20.0), (50.0, 100.0), (0.0, 100.0)])
-def test_view_rejects_configs_that_break_freshness(poll, age):
+@pytest.mark.parametrize("poll", [0.0, -5.0])
+def test_view_rejects_a_poll_interval_that_is_not_positive(poll):
     with pytest.raises(ValueError):
-        TelemetryView([A], static_fetch({"a": metrics()}), poll_ms=poll, max_age_ms=age, dead_reckoning=True)
+        TelemetryView([A], static_fetch({"a": metrics()}), poll_ms=poll, dead_reckoning=True)
 
 
 def test_parse_accepts_a_sample_on_the_first_line_and_without_labels():
@@ -404,9 +401,10 @@ def test_fetch_round_returns_this_scrapes_loads_only():
     view = view_with(static_fetch(bodies), dead_reckoning=False)
     loads = run(view.fetch_round())
     assert loads["a"].stats.num_running == 3 and loads["b"].stats.num_running == 1
-    bodies["a"] = RuntimeError("connection refused")          # the previous snapshot is still young ...
-    with pytest.raises(InstanceStateUnavailable, match="load fetch failed.*connection refused"):
-        run(view.fetch_round())                               # ... but a round never uses it (D53)
+    bodies["a"] = RuntimeError("connection refused")          # a failed scrape: the round uses the last snapshot,
+    loads = run(view.fetch_round())                           # with the failure counted (D133), never refused
+    assert loads["a"].stats.num_running == 3 and "connection refused" in loads["a"].error
+    assert loads["b"].error is None
 
 
 def test_fetch_scrapes_only_the_instances_asked_for():
@@ -422,9 +420,9 @@ def test_fetch_scrapes_only_the_instances_asked_for():
     assert (loads["b"].stats.num_running, loads["b"].stats.num_waiting) == (4, 2)   # the engine's own counts
 
 
-def test_a_concurrent_fetchs_newer_scrape_counts_but_an_older_one_does_not():
-    """Two requests probing one instance at once: the later scrape's outcome serves both (it was sent after
-    both fetches began); a snapshot from before a fetch began never does."""
+def test_a_concurrent_fetchs_newer_scrape_counts_and_a_failed_one_keeps_the_last_snapshot():
+    """Two requests probing one instance at once: the later scrape's outcome serves both; a fetch whose own scrape
+    fails uses the last good snapshot, with the failure counted (D133), never refused."""
     clock = Clock()
     slow = asyncio.Event()
     replies = ["slow failure", metrics(running=5), RuntimeError("refused")]
@@ -448,8 +446,8 @@ def test_a_concurrent_fetchs_newer_scrape_counts_but_an_older_one_does_not():
         first_loads = await first                    # its own scrape failed late; the newer one was sent after it began
         assert second["a"].stats.num_running == 5 and first_loads["a"].stats.num_running == 5
         clock.t += 0.01
-        with pytest.raises(InstanceStateUnavailable, match="refused"):
-            await view.fetch(["a"])                  # the young snapshot from before this fetch is not used
+        third = await view.fetch(["a"])              # its scrape is refused: the last good snapshot, with the error
+        assert third["a"].stats.num_running == 5 and "refused" in third["a"].error
     run(scenario())
 
 

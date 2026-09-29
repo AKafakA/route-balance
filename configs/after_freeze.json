@@ -117,5 +117,19 @@
   "decision": "D127",
   "owner": "it we can have it under the appendix and use the static as default, and also, we need to rerun the affected cells by the round-fix in the thesis checker?",
   "gpu_cost": "G1c-l30: 6 runs at 30 req/s (~16 min), the per-round RouteBalance variants (curve, static, learned) on both G1 presets on the fixed code; nothing else changes"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "275e84921ecb068a09eb2d342e02e012272456d4ea5d15812a2257ae7d2313cc",
+  "decision": "D134",
+  "owner": "remove 1 2 3 4 6 gates, keep the gate 5 to make sure any request failed as invalid and rerun, 8 back the torch default, 9 back to vllm bench (and also, check if other unexpected vllm bench changes made by you?), 10 could be keep if serving behavior not courrupted",
+  "gpu_cost": "the request timeouts to vLLM bench's stock 6 h (were 600 s scheduler / 900 s client), the send-lag bound removed (counted per run), torch_threads null (torch's default, as v3); no run added"
+ },
+ {
+  "file": "configs/presets.json",
+  "sha256": "6b1887c1bb27440d266c7a2d5277f1ca4946c4f66b106de3a4a3bd68d489ff31",
+  "decision": "D134",
+  "owner": "remove 1 2 3 4 6 gates, keep the gate 5 to make sure any request failed as invalid and rerun, 8 back the torch default, 9 back to vllm bench (and also, check if other unexpected vllm bench changes made by you?), 10 could be keep if serving behavior not courrupted",
+  "gpu_cost": "telemetry max_age_ms removed (the stale-load refusal is gone; each decision logs its snapshot's age, D133); no run added"
  }
 ]

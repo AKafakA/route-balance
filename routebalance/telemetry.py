@@ -23,11 +23,13 @@ Three ways to read (config telemetry_read; D53, D55):
   per_round   RouteBalance's own: every instance fetched once per batch, at each round's start (fetch_round), and
               the whole round scheduled from that fetch;
   per_request v3's baselines: each request fetches its candidates (fetch) and reads the engine's own counts.
-A fetch uses only scrapes sent after it began; an instance without one fails the round or the request.
+A fetch scrapes every instance it asks for; an instance whose scrape failed, timed out or was malformed is read from
+its last good snapshot (D133), and only an instance never read fails the round or the request.
 
-Freshness is measured from when a scrape was SENT, so a slow reply cannot pass for fresh data. A
-malformed reply makes the instance unavailable until a valid one arrives; a failed fetch leaves the
-last snapshot usable only while it is younger than max_age_ms. Nothing falls back to an idle default.
+Freshness is measured from when a scrape was SENT, so a slow reply cannot pass for fresh data. A failed, slow or
+malformed scrape leaves the last good snapshot in use, as a production balancer's scraped cache does (D133: v5's
+refusal of a snapshot older than 500 ms is removed; v2 used the last snapshot too). Every Load carries its
+snapshot's age and its last scrape's error, and every decision logs both. Nothing falls back to an idle default.
 """
 from __future__ import annotations
 
@@ -125,6 +127,7 @@ class Load:
     in_flight: int                # requests dispatched and not yet completed or failed (scheduler-side)
     engine_waiting: int           # the engine's own waiting gauge, whatever dead reckoning says: requests
                                   # the engine has received but cannot run yet (the round-size busy signal)
+    error: Optional[str] = None   # the last scrape's failure when it is not this snapshot's (D133: counted)
 
 
 @dataclass(eq=False)
@@ -152,18 +155,17 @@ Fetch = Callable[[Instance], Awaitable[str]]
 
 
 class TelemetryView:
-    def __init__(self, instances: Sequence[Instance], fetch: Fetch, *, poll_ms: float, max_age_ms: float,
+    def __init__(self, instances: Sequence[Instance], fetch: Fetch, *, poll_ms: float,
                  dead_reckoning: bool, clock: Callable[[], float] = time.monotonic):
         ids = [i.instance_id for i in instances]
         if len(set(ids)) != len(ids):
             raise ValueError("duplicate instance ids")
-        if not 0 < 3 * poll_ms <= max_age_ms:
-            raise ValueError("need 0 < 3 * poll_ms <= max_age_ms")
+        if not poll_ms > 0:
+            raise ValueError("need poll_ms > 0")
         self._instances = list(instances)
         self._fetch = fetch
-        self._settings = (poll_ms, max_age_ms, dead_reckoning)    # as given, for the execution manifest
+        self._settings = (poll_ms, dead_reckoning)    # as given, for the execution manifest
         self._poll_s = poll_ms / 1000.0
-        self._max_age_s = max_age_ms / 1000.0
         self._dead_reckoning = dead_reckoning
         self._clock = clock
         self._entries: dict[str, _Entry] = {i.instance_id: _Entry(i.tier.max_num_seqs) for i in instances}
@@ -176,12 +178,8 @@ class TelemetryView:
         return self._settings[0]
 
     @property
-    def max_age_ms(self) -> float:
-        return self._settings[1]
-
-    @property
     def dead_reckoning(self) -> bool:
-        return self._settings[2]
+        return self._settings[1]
 
     @property
     def polling(self) -> bool:
@@ -196,9 +194,9 @@ class TelemetryView:
         entry = self._entries[inst.instance_id]
         try:
             snapshot = parse_metrics(inst.instance_id, await self._fetch(inst))
-        except InstanceStateUnavailable as e:     # the server answered with something malformed: stop using it
+        except InstanceStateUnavailable as e:     # a malformed reply: the last good snapshot stays in use (D133)
             if seq > entry.outcome_seq:
-                entry.outcome_seq, entry.snapshot, entry.error = seq, None, str(e)
+                entry.outcome_seq, entry.error = seq, str(e)
             return
         except Exception as e:                    # network failure: the last snapshot ages out on its own
             if seq > entry.outcome_seq:
@@ -215,21 +213,15 @@ class TelemetryView:
         await asyncio.gather(*(self._poll_one(i) for i in self._instances))
 
     async def fetch(self, instance_ids: Sequence[str]) -> dict[str, Load]:
-        """Scrape these instances now, concurrently, and return their loads from scrapes sent after this call
-        began: this one's, or a concurrent fetch's newer one. An instance without such a scrape fails the whole
-        fetch; an older snapshot is never used, however young. Each scrape is bounded by the scrape timeout, not
-        by max_age_ms, which bounds a cached snapshot (D30). Only without background pollers."""
+        """Scrape these instances now, concurrently, and return their loads: from this fetch's scrapes, or, for an
+        instance whose scrape failed, timed out or was malformed, its last good snapshot, whose age and error the
+        Load carries (D133: counted, never refused). Only an instance never read fails the fetch. Each scrape is
+        bounded by the scrape timeout. Only without background pollers."""
         if self._state == "running":
             raise RuntimeError("fetch() with background pollers running: a view either polls or fetches")
         by_id = {i.instance_id: i for i in self._instances}
-        started = self._clock()
         await asyncio.gather(*(self._poll_one(by_id[i]) for i in instance_ids))
-        failed = {i: self._entries[i].error for i in instance_ids
-                  if self._entries[i].snapshot is None or self._entries[i].error is not None
-                  or self._entries[i].requested_at < started}
-        if failed:
-            raise InstanceStateUnavailable(f"the load fetch failed for {failed}")
-        return self._loads(instance_ids, max_age_s=None)
+        return self._loads(instance_ids)
 
     async def fetch_round(self) -> dict[str, Load]:
         """RouteBalance's per-batch load fetch (D53): every instance, at a round's start."""
@@ -273,10 +265,10 @@ class TelemetryView:
     # ---------------------------------------------------------------- reads and updates
 
     def loads(self, instance_ids: Iterable[str]) -> dict[str, Load]:
-        """The loads from the current snapshots, each at most max_age_ms old."""
-        return self._loads(instance_ids, max_age_s=self._max_age_s)
+        """The loads from the current snapshots, whatever their age (each Load carries it; D133)."""
+        return self._loads(instance_ids)
 
-    def _loads(self, instance_ids: Iterable[str], max_age_s: Optional[float]) -> dict[str, Load]:
+    def _loads(self, instance_ids: Iterable[str]) -> dict[str, Load]:
         self._check_pollers()
         now = self._clock()
         out: dict[str, Load] = {}
@@ -286,9 +278,6 @@ class TelemetryView:
             if snap is None:
                 raise InstanceStateUnavailable(f"{iid}: no usable telemetry ({entry.error})")
             age = now - entry.requested_at
-            if max_age_s is not None and age > max_age_s:
-                raise InstanceStateUnavailable(f"{iid}: telemetry is {age * 1000:.0f} ms old "
-                                               f"(max {max_age_s * 1000:.0f} ms; last error: {entry.error})")
             in_flight = len(entry.open_tokens)
             if self._dead_reckoning:
                 running = min(snap.num_running, in_flight)
@@ -297,7 +286,8 @@ class TelemetryView:
                 running, waiting = snap.num_running, snap.num_waiting
             stats = InstanceStats(running, waiting, snap.kv_cache_utilization, snap.num_preemptions,
                                   entry.max_num_seqs, sum(t.remaining() for t in entry.open_tokens.values()))
-            out[iid] = Load(stats=stats, age_ms=age * 1000.0, in_flight=in_flight, engine_waiting=snap.num_waiting)
+            out[iid] = Load(stats=stats, age_ms=age * 1000.0, in_flight=in_flight, engine_waiting=snap.num_waiting,
+                            error=entry.error)
         return out
 
     def record_dispatch(self, instance_id: str, predicted_decode_tokens: int) -> DispatchToken:

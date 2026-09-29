@@ -6,6 +6,14 @@ Every request goes through the scheduler's own backend client (routebalance.back
 a served request is: the raw prompt as the single user message, templated once by vLLM, with the scope's
 sampling. Engine load is read from the same Prometheus /metrics the telemetry view scrapes.
 
+The warm-up also empties every engine's prefix cache (D128: v2 gave every main-table cell a freshly deployed
+cluster; here the engines stay up, so each run resets them instead). Per engine, one at a time and all engines at once:
+the warm-up prompt once (so it is cached), vLLM's POST /reset_prefix_cache (served only with VLLM_SERVER_DEV_MODE=1),
+then the warm-up requests. The first after the reset must find no cached token and the second, the same prompt, must
+find some: the reset emptied the cache, and the counters (vllm:prefix_cache_queries_total and _hits_total, read before
+and after each request, the engine idle) do show it. Anything else raises, so a cell never runs on an unproven cache.
+Every cell therefore starts from the same cache: empty but for the warm-up prompt's own blocks.
+
 closed_loop keeps `concurrency` requests in flight on one instance until every measured request has finished.
 When fewer measured requests are left than the concurrency, filler requests (discarded, never measured) keep the
 batch at its level, so every measured request decodes with the level's number of requests on the instance; the
@@ -33,6 +41,9 @@ from routebalance.types import Instance
 
 POLL_S = 0.5                       # how often a drain re-reads the engines
 SCRAPE_TIMEOUT_S = 5.0             # one /metrics read (a failure bound, as the drain timeout)
+COUNTED_S = 5.0                    # how long a warm-up request may take to appear in the prefix-cache counters (a bound)
+COUNTER_POLL_S = 0.05
+PREFIX_COUNTERS = ("vllm:prefix_cache_queries_total", "vllm:prefix_cache_hits_total")
 
 
 def lease_fleet(plan: dict, name: str, fleet_path: Path, hosts_path: Path) -> list[Instance]:
@@ -65,6 +76,41 @@ def lease_prompts(plan: dict, name: str, data_root: Path) -> list["Prompt"]:
 
 class NotIdle(RuntimeError):
     pass
+
+
+class CacheNotReset(NotIdle):
+    """An engine's prefix cache could not be reset, or the reset could not be proven."""
+
+
+def prefix_cache_counters(instance_id: str, text: str) -> tuple[int, int]:
+    """(prompt tokens queried, of them found cached) from one engine's /metrics, summed over its engine series."""
+    got = {name: [] for name in PREFIX_COUNTERS}
+    for line in text.splitlines():
+        name = line.split("{", 1)[0].split(" ", 1)[0]
+        if name in got:
+            got[name].append(float(line.rsplit(" ", 1)[1]))
+    missing = [n for n, v in got.items() if not v]
+    if missing:
+        raise CacheNotReset(f"{instance_id}: /metrics has no {missing}: the engine does not report its prefix cache")
+    q, h = (sum(got[n]) for n in PREFIX_COUNTERS)
+    if q != int(q) or h != int(h) or not 0 <= h <= q:
+        raise CacheNotReset(f"{instance_id}: malformed prefix-cache counters (queried {q}, hit {h})")
+    return int(q), int(h)
+
+
+async def cache_counters(sess: aiohttp.ClientSession, inst: Instance) -> tuple[int, int]:
+    return prefix_cache_counters(inst.instance_id, await fetch_metrics(sess, inst, SCRAPE_TIMEOUT_S))
+
+
+async def reset_prefix_cache(sess: aiohttp.ClientSession, inst: Instance) -> None:
+    """vLLM's POST /reset_prefix_cache on one idle engine; anything but HTTP 200 raises."""
+    url = f"{inst.base_url}/reset_prefix_cache"
+    async with sess.post(url, timeout=aiohttp.ClientTimeout(total=SCRAPE_TIMEOUT_S)) as resp:
+        status, body = resp.status, (await resp.text())[:200]
+    if status == 404:
+        raise CacheNotReset(f"{inst.instance_id}: {url} is not served: start the engine with VLLM_SERVER_DEV_MODE=1")
+    if status != 200:
+        raise CacheNotReset(f"{inst.instance_id}: HTTP {status} from {url}: {body}")
 
 
 @dataclass(frozen=True)
@@ -117,18 +163,45 @@ def outcome(res: GenerationResult, **fields) -> dict:
     return {**fields, **d}
 
 
-async def warm_up(backend: BackendClient, instances: Sequence[Instance], *, requests_per_instance: int,
-                  max_tokens: int, prompt: str, sampling: Sampling, run_id: str) -> list[dict]:
-    """A few short requests to every engine, one at a time per engine, all engines at once. Any failure raises:
-    an engine that cannot answer a warm-up cannot serve a cell."""
+async def warm_up(sess: aiohttp.ClientSession, backend: BackendClient, instances: Sequence[Instance], *,
+                  requests_per_instance: int, max_tokens: int, prompt: str, sampling: Sampling,
+                  run_id: str) -> list[dict]:
+    """Empty every engine's prefix cache and prove it (see the module docstring), then the warm-up requests: a few short
+    requests to every engine, one at a time per engine, all engines at once. Any failure raises: an engine that cannot
+    answer a warm-up cannot serve a cell. Each line carries its request's prefix-cache counts (cache_queried,
+    cache_hit) and its step (prime, first after the reset, control, warm-up)."""
+    if requests_per_instance < 2:
+        raise ConfigError("the warm-up needs at least 2 requests per instance: the reset's check and its control")
+
+    async def counted(inst: Instance, rid: str, step: str) -> dict:
+        q0, h0 = await cache_counters(sess, inst)
+        res = await backend.generate(inst, request(rid, Prompt("warmup", prompt), sampling, max_tokens))
+        if not res.success:
+            raise NotIdle(f"warm-up request {rid} failed on {inst.instance_id}: {res.error}")
+        deadline = time.monotonic() + COUNTED_S
+        while True:
+            q, h = await cache_counters(sess, inst)
+            if q - q0 >= res.prompt_tokens or time.monotonic() > deadline:
+                break
+            await asyncio.sleep(COUNTER_POLL_S)
+        if q - q0 != res.prompt_tokens:
+            raise CacheNotReset(f"{inst.instance_id}: warm-up request {rid} ({res.prompt_tokens} prompt tokens) moved the "
+                                f"prefix-cache queries by {q - q0} within {COUNTED_S} s (the engine must be idle)")
+        return outcome(res, purpose="warmup", cache_step=step, cache_queried=q - q0, cache_hit=h - h0)
+
     async def one(inst: Instance) -> list[dict]:
-        lines = []
+        base = f"warmup.{run_id}.{inst.instance_id}"
+        lines = [await counted(inst, f"{base}.prime", "prime")]
+        await reset_prefix_cache(sess, inst)
         for k in range(requests_per_instance):
-            rid = f"warmup.{run_id}.{inst.instance_id}.{k}"
-            res = await backend.generate(inst, request(rid, Prompt("warmup", prompt), sampling, max_tokens))
-            lines.append(outcome(res, purpose="warmup"))
-            if not res.success:
-                raise NotIdle(f"warm-up request {rid} failed on {inst.instance_id}: {res.error}")
+            line = await counted(inst, f"{base}.{k}", ("after_reset", "control")[k] if k < 2 else "warmup")
+            if k == 0 and line["cache_hit"] != 0:
+                raise CacheNotReset(f"{inst.instance_id}: the first request after the reset found {line['cache_hit']} "
+                                    f"of its {line['cache_queried']} prompt tokens cached: the cache was not emptied")
+            if k == 1 and line["cache_hit"] == 0:
+                raise CacheNotReset(f"{inst.instance_id}: the same prompt again found no cached token: the counters do "
+                                    "not show the prefix cache, so the reset is not proven")
+            lines.append(line)
         return lines
     return [line for per in await asyncio.gather(*(one(i) for i in instances)) for line in per]
 

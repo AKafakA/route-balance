@@ -2,7 +2,7 @@
 
 A run is defined by three documents:
   fleet      configs/fleet_*.json (tracked): tiers (model, GPU, prices) and instances by logical node
-  hosts      local/hosts.json (untracked): node -> {address, hw}; real host names never enter git
+  hosts      local/hosts.json (untracked): node -> {address, hw, service_address?}; real host names never enter git
   scheduler  one complete document; POST /v1/config replaces it whole (validated first, no merging)
 
 Every key is required unless stated, unknown keys are rejected, and no value is coerced from a string.
@@ -82,11 +82,14 @@ class _FleetSpec(_Strict):
 class _HostSpec(_Strict):
     address: str
     hw: str
+    service_address: Optional[str] = None   # D131: the engines are served to the scheduler here (the experiment network)
 
-    @field_validator("address")
+    @field_validator("address", "service_address")
     @classmethod
-    def _plain_host(cls, v: str) -> str:
+    def _plain_host(cls, v: Optional[str]) -> Optional[str]:
         # a bare lower-case host name or IPv4 address: no scheme, port, whitespace or trailing dot
+        if v is None:
+            return v
         if not _HOST.fullmatch(v):
             raise ValueError(f"address {v!r} must be a bare lower-case host name or IPv4 address")
         try:
@@ -143,7 +146,7 @@ def load_fleet(fleet_path: Path, hosts_path: Path) -> list[Instance]:
     fleet = parse(_FleetSpec, read_json(fleet_path), f"fleet {fleet_path}")
     raw_hosts = read_json(hosts_path)
     if not isinstance(raw_hosts, dict):
-        raise ConfigError(f"hosts file {hosts_path} must map node -> {{address, hw}}")
+        raise ConfigError(f"hosts file {hosts_path} must map node -> {{address, hw, service_address?}}")
     hosts = {n: parse(_HostSpec, h, f"host {n!r}") for n, h in raw_hosts.items()}
 
     bad_ids = [tid for tid in fleet.tiers if not _ID_RE.fullmatch(tid)]
@@ -182,12 +185,13 @@ def load_fleet(fleet_path: Path, hosts_path: Path) -> list[Instance]:
         if gpu != tier.gpu:
             raise ConfigError(f"instance {spec.instance_id!r}: node {spec.node!r} is {host.hw} ({gpu}) "
                               f"but tier {tier.tier_id!r} expects {tier.gpu}")
-        endpoint = (host.address, spec.port)
-        if endpoint in seen_endpoints:
-            raise ConfigError(f"instance {spec.instance_id!r}: endpoint {endpoint} already used")
+        served_at = host.address if host.service_address is None else host.service_address
+        endpoints = {(host.address, spec.port), (served_at, spec.port)}
+        if endpoints & seen_endpoints:
+            raise ConfigError(f"instance {spec.instance_id!r}: endpoint {sorted(endpoints & seen_endpoints)} already used")
         seen_ids.add(spec.instance_id)
-        seen_endpoints.add(endpoint)
-        out.append(Instance(spec.instance_id, tier, spec.node, host.address, spec.port))
+        seen_endpoints |= endpoints
+        out.append(Instance(spec.instance_id, tier, spec.node, host.address, spec.port, host.service_address))
     unused = set(tiers) - {i.tier.tier_id for i in out}
     if unused:
         raise ConfigError(f"tiers with no instance: {sorted(unused)}")
@@ -274,14 +278,10 @@ class Budget(_Strict):
 
 class Telemetry(_Strict):
     poll_ms: float = Field(gt=0)
-    max_age_ms: float = Field(gt=0)
     timeout_s: float = Field(gt=0)
-
-    @model_validator(mode="after")
-    def _age_covers_poll(self):
-        if self.max_age_ms < 3 * self.poll_ms:
-            raise ValueError("max_age_ms must be at least 3x poll_ms, or healthy reads would turn stale")
-        return self
+    # D133 (owner: "we should only mark this, not means we have to refuse the request just because of stale load"):
+    # no age bound any more; the configurations of records made before it carry one, which nothing reads
+    max_age_ms: Optional[float] = Field(default=None, gt=0)
 
 
 class Router(_Strict):
@@ -430,4 +430,5 @@ def config_digest(cfg: SchedulerConfig) -> str:
 def fleet_digest(instances: list[Instance]) -> str:
     """Identity of the deployment in order (order is behaviour), including tiers and prices."""
     return _digest([[i.instance_id, i.tier.tier_id, i.tier.model, i.tier.gpu, i.tier.cost_in, i.tier.cost_out,
-                     i.tier.max_num_seqs, list(i.tier.stop_token_ids), i.node, i.address, i.port] for i in instances])
+                     i.tier.max_num_seqs, list(i.tier.stop_token_ids), i.node, i.address, i.port]
+                    + ([i.service_address] if i.service_address else []) for i in instances])   # D131: the path used

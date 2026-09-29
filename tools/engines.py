@@ -167,7 +167,30 @@ async def engine(session: aiohttp.ClientSession, inst: Instance, record: dict, t
     return {"argv_sha256": hashlib.sha256(rec["argv"].encode()).hexdigest(), "argv": rec["argv"],
             "gpus": rec["gpus"], "cmdline": rec["cmdline"], "start_time_s": now,
             "cache_config": cache_config(inst.instance_id, text), "model": data[0]["id"],
-            "max_model_len": data[0]["max_model_len"]}
+            "max_model_len": data[0]["max_model_len"], "served": served(inst.instance_id, text)}
+
+
+SERVED = {"requests": "vllm:request_success_total", "prompt_tokens": "vllm:prompt_tokens_total",
+          "generation_tokens": "vllm:generation_tokens_total", "prefix_queries": "vllm:prefix_cache_queries_total",
+          "prefix_hits": "vllm:prefix_cache_hits_total"}
+
+
+def served(instance_id: str, text: str) -> dict:
+    """D132: the engine's cumulative serving counters, each summed over its series (request_success_total has one per
+    finished_reason, abort and error included). The change over a cell must be the cell's own requests there."""
+    got = {name: [] for name in SERVED.values()}
+    for line in text.splitlines():
+        name = line.split("{", 1)[0].split(" ", 1)[0]
+        if name in got:
+            got[name].append(float(line.rsplit(" ", 1)[1]))
+    missing = [n for n, v in got.items() if not v]
+    if missing:
+        raise ConfigError(f"{instance_id}: /metrics has no {missing}")
+    out = {k: sum(got[n]) for k, n in SERVED.items()}
+    for v in out.values():
+        if not (v == int(v) and v >= 0):
+            raise ConfigError(f"{instance_id}: malformed serving counters {out}")
+    return {k: int(v) for k, v in out.items()}
 
 
 async def engines(fleet: Sequence[Instance], record_path: Path, timeout_s: float) -> dict:

@@ -65,6 +65,7 @@ class Stats(Strict):
     rounds: Optional[int]
     booster_calls: Optional[int]                     # None: no latency model is loaded
     failure: Optional[str]
+    evidence_failure: Optional[str] = None           # D134: a log writer failed (the run is invalid, never refused)
     connection_waits: ConnectionWaits
     logged: Logged
 
@@ -111,7 +112,7 @@ class SystemKeys(Strict):
 
 class TelemetrySettings(Strict):
     poll_ms: float
-    max_age_ms: float
+    max_age_ms: Optional[float] = None     # records made before D133 only
     timeout_s: float
     dead_reckoning: bool
 
@@ -151,7 +152,7 @@ class Cpus(Strict):
 
 
 class Launch(Strict):
-    torch_threads: int
+    torch_threads: Optional[int]           # None: torch's default (D134)
     torch_threads_effective: Optional[int]
     max_connections: int
     request_timeout_s: float
@@ -259,6 +260,15 @@ def _parse(model, data: Any, what: str):
 
 # ---------------------------------------------------------------- engines_before.json / engines_after.json
 
+class Served(Strict):
+    """An engine's cumulative serving counters at one reading, from its /metrics (tools/engines.py, D132)."""
+    requests: int = Field(ge=0)            # vllm:request_success_total over every finished_reason
+    prompt_tokens: int = Field(ge=0)       # vllm:prompt_tokens_total
+    generation_tokens: int = Field(ge=0)   # vllm:generation_tokens_total
+    prefix_queries: int = Field(ge=0)      # vllm:prefix_cache_queries_total
+    prefix_hits: int = Field(ge=0)         # vllm:prefix_cache_hits_total
+
+
 class EngineLaunch(Strict):
     """One engine as it reports itself (tools/engines.py), with the launch command deploy.sh ran for it."""
     argv_sha256: str = Field(pattern=_SHA256)
@@ -269,10 +279,11 @@ class EngineLaunch(Strict):
     cache_config: dict[str, str] = Field(min_length=1)
     model: str = Field(min_length=1)
     max_model_len: int = Field(ge=1)
+    served: Optional[Served] = None        # D132; records made before it have none (and fail traffic_problems)
 
     def launch(self) -> dict:
-        """Everything but the start time: what a cell of the group must share with every other."""
-        return self.model_dump(mode="json", exclude={"start_time_s"})
+        """Everything but the start time and the counters: what a cell of the group must share with every other."""
+        return self.model_dump(mode="json", exclude={"start_time_s", "served"})
 
 
 class Engines(Strict):
@@ -285,7 +296,7 @@ def engine_changes(before: Engines, after: Engines) -> list[str]:
     if set(before.instances) != set(after.instances):
         return [f"instances {sorted(before.instances)} vs {sorted(after.instances)}"]
     return [f"{i}.{k}" for i in sorted(before.instances)
-            for k, v in before.instances[i].model_dump(mode="json").items()
+            for k, v in before.instances[i].model_dump(mode="json", exclude={"served"}).items()
             if after.instances[i].model_dump(mode="json")[k] != v]
 
 
@@ -411,3 +422,97 @@ def run(gate: str, check: Callable[[], tuple[list[str], str]]) -> int:
     print(f"PASS {gate}: {summary}")
     sys.stdout.flush()
     return 0
+
+
+# ---------------------------------------------------------------- isolation (D128, D132)
+
+RESET_STEPS = ("prime", "after_reset", "control")
+
+
+def reset_problems(cell: Cell) -> list[str]:
+    """D128: every engine of the cell's fleet started the cell from an emptied prefix cache (but for the warm-up
+    prompt's own blocks, the same in every cell), as its warm-up proved
+    (tools/direct.py): the prime, then after vLLM's reset a request with no cached token, then the same prompt again
+    with some. A cell without that proof (made before the reset, or on engines that could not reset) is invalid."""
+    try:
+        fleet = sorted(cell.engines("before").instances)
+        lines = cell._json("warmup.json")["requests"]
+    except (GateError, KeyError, TypeError) as e:
+        return [f"the warm-up record cannot prove the cache reset: {str(e)[:300]}"]
+    out = []
+    for inst in fleet:
+        steps = {x.get("cache_step"): x for x in lines if isinstance(x, dict) and x.get("instance_id") == inst}
+        missing = [k for k in RESET_STEPS if k not in steps]
+        if missing:
+            out.append(f"{inst}: the warm-up has no {missing} step: the prefix-cache reset is not proven")
+            continue
+        after, control = steps["after_reset"], steps["control"]
+        if not (after.get("cache_queried", 0) > 0 and after.get("cache_hit") == 0):
+            out.append(f"{inst}: the first request after the reset found {after.get('cache_hit')} cached tokens of "
+                       f"{after.get('cache_queried')}")
+        if not control.get("cache_hit", 0) > 0:
+            out.append(f"{inst}: the control request found no cached token: the counters do not show the cache")
+    return out
+
+
+def traffic_problems(cell: Cell) -> list[str]:
+    """D132: between the cell's two engine readings (the first taken before the warm-up, so the reset and its proof are
+    inside), only the warm-up's and the cell's own requests reached the engines. Per engine, the change in finished
+    requests, prompt tokens and generated tokens must equal what warmup.json and the record say it served."""
+    try:
+        before, after, rec = cell.engines("before"), cell.engines("after"), cell.record
+        warm = cell._json("warmup.json")["requests"]
+    except (GateError, KeyError, TypeError) as e:
+        return [f"the engine readings cannot show the traffic: {str(e)[:300]}"]
+    served: dict[str, list[int]] = {i: [0, 0, 0] for i in before.instances}
+    for w in warm:
+        if not (isinstance(w, dict) and w.get("success") and w.get("instance_id") in served):
+            return [f"a warm-up line is not a served request of the fleet: {str(w)[:200]}"]
+        t = served[w["instance_id"]]
+        t[0] += 1
+        t[1] += w["prompt_tokens"]
+        t[2] += w["output_tokens"]
+    for r in rec.requests:
+        if r.reply is not None:
+            if r.reply.instance_id not in served:
+                return [f"request {r.request_id} was served by {r.reply.instance_id}, which the engine record lacks"]
+            t = served[r.reply.instance_id]
+            t[0] += 1
+            t[1] += r.reply.prompt_tokens
+            t[2] += r.reply.output_tokens
+    out = []
+    for i, want in sorted(served.items()):
+        b, a = before.instances[i].served, after.instances.get(i) and after.instances[i].served
+        if b is None or a is None:
+            out.append(f"{i}: no serving counters in the engine readings")
+            continue
+        got = [a.requests - b.requests, a.prompt_tokens - b.prompt_tokens, a.generation_tokens - b.generation_tokens]
+        if got != want:
+            out.append(f"{i}: the engine served (requests, prompt tokens, generated tokens) {tuple(got)} during the "
+                       f"cell, its record {tuple(want)}: other traffic reached it, or the record is short")
+    return out
+
+
+def scheduler_problems(cell: Cell) -> list[str]:
+    """D132: the cell ran on a fresh scheduler process (it had logged no decision before the cell), and D134: no
+    evidence writer failed during it (requests were still served; the cell is invalid)."""
+    try:
+        before, after = cell.stats("before"), cell.stats("after")
+    except GateError as e:
+        return [f"the scheduler's stats cannot show a fresh process: {str(e)[:300]}"]
+    out = []
+    if before.logged.decisions != 0:
+        out.append(f"the scheduler had logged {before.logged.decisions} decisions before the cell: not a fresh process")
+    failed = [f for f in (before.evidence_failure, after.evidence_failure) if f is not None]
+    if failed:
+        out.append(f"an evidence writer failed: {failed[0]}")
+    return out
+
+
+def isolation_problems(path: Path) -> list[str]:
+    """The isolation checks on a cell directory (the verdict, resume and the report's coverage all apply them)."""
+    try:
+        cell = open_cell(path)
+    except GateError as e:
+        return [str(e)]
+    return reset_problems(cell) + traffic_problems(cell) + scheduler_problems(cell)

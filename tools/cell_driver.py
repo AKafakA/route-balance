@@ -44,7 +44,7 @@ from bench.schema import parse, read_json
 from bench.scope import ExpectedCell, Scope, expected_cells, group_record
 from routebalance.backend import BackendClient
 from routebalance.config import ConfigError, loads_strict
-from gates.cell import GateError, engine_changes, fleet_uncovered, open_cell
+from gates.cell import GateError, engine_changes, fleet_uncovered, isolation_problems, open_cell
 from tools import direct, engines
 from tools.campaign import load_plan
 
@@ -153,6 +153,16 @@ async def drain(render: Path, cell: str, fleet: Path, hosts: Path, url: str) -> 
         return await direct.drain(sess, instances, timeout_s=max(bound - (time.monotonic() - start), 0.0))
 
 
+async def fresh(url: str) -> None:
+    """D132: a cell runs only on a fresh scheduler process (one that has logged no decision); refused before the cell
+    runs, so a forgotten run_scope.sh --fresh-scheduler costs no run (the verdict checks it again)."""
+    logged = (await _get(url, "/v1/stats"))["logged"]
+    seen = logged["decisions"] + logged["decisions_buffered"]     # flushed or not yet (Codex review 09-29)
+    if seen != 0:
+        raise ConfigError(f"the scheduler has logged {seen} decisions: not a fresh process "
+                          "(run_scope.sh --fresh-scheduler restarts it before every cell)")
+
+
 async def post_config(url: str, attempt: Path, config_digest: str, fleet_digest: str) -> None:
     status, text = await _post(url, "/v1/config", (attempt / "config.json").read_bytes())
     (attempt / "post_config.json").write_text(text)
@@ -181,7 +191,8 @@ def engine_problems(d: Path) -> list[str]:
     except GateError as e:
         return [f"the engine record is missing or malformed: {str(e)[:300]}"]
     return ([f"the engine record does not cover the cell's fleet: {gap}" for gap in uncovered]
-            + ([f"an engine restarted or changed during the cell: {changed}"] if changed else []))
+            + ([f"an engine restarted or changed during the cell: {changed}"] if changed else [])
+            + isolation_problems(d))           # D128/D132: the proven cache reset, no traffic but the cell's own
 
 
 async def warm_up(render: Path, cell: str, fleet: Path, hosts: Path, attempt: Path) -> None:
@@ -190,8 +201,8 @@ async def warm_up(render: Path, cell: str, fleet: Path, hosts: Path, attempt: Pa
     scope, plan, exp, instances = cell_context(render, cell, fleet, hosts)
     w, sampling = plan["warmup"], Sampling.model_validate(scope.bench.sampling.model_dump())
     async with direct.session(len(instances)) as sess:
-        backend = BackendClient(sess, scope.bench.request_timeout_s)
-        lines = await direct.warm_up(backend, instances, requests_per_instance=w["requests_per_instance"],
+        backend = BackendClient(sess, plan["drain"]["timeout_s"])   # the owner's kept pre-run bound (D134 item 10)
+        lines = await direct.warm_up(sess, backend, instances, requests_per_instance=w["requests_per_instance"],
                                      max_tokens=w["max_tokens"], prompt=w["prompt"], sampling=sampling,
                                      run_id=attempt.parent.name)
         waited = await direct.drain(sess, instances, timeout_s=plan["drain"]["timeout_s"])
@@ -364,7 +375,8 @@ def status(scope: Scope, exp: ExpectedCell, root: Path) -> str:
         raise ConfigError(f"{v}: 'valid' must be a boolean, got {valid!r}")
     if not valid:
         return "invalid"
-    return "invalid" if record_problems(scope, exp, d) else "done"
+    # D128/D132: the isolation evidence is rechecked on every resume, not trusted from the saved verdict
+    return "invalid" if record_problems(scope, exp, d) or isolation_problems(d) else "done"
 
 
 def record_problems(scope: Scope, exp: ExpectedCell, d: Path) -> list[str]:
@@ -386,7 +398,8 @@ def _gated_valid(root: Path, exp: ExpectedCell) -> bool:
     valid = read_json(v)["valid"]
     if not isinstance(valid, bool):
         raise ConfigError(f"{v}: 'valid' must be a boolean, got {valid!r}")
-    return valid
+    return valid     # the verdict only (this runs after every cell); status(), which group_ready calls next and resume
+                     # plans with, rechecks the record and the isolation evidence (D128/D132)
 
 
 def group_ready(render: Path, root: Path, group: str) -> list[str]:
@@ -546,6 +559,7 @@ def main(argv: list[str]) -> int:
         return p
     cmd("prepare", "render", "cell", "cells-root", "fleet", "hosts")
     cmd("drain", "render", "cell", "fleet", "hosts", "scheduler")
+    cmd("fresh", "scheduler")
     cmd("post-config", "scheduler", "attempt", "config-digest", "fleet-digest")
     cmd("warmup", "render", "cell", "fleet", "hosts", "attempt")
     cmd("engines", "render", "cell", "fleet", "hosts", "engines-record", "out")
@@ -573,6 +587,8 @@ def main(argv: list[str]) -> int:
     elif a.cmd == "drain":
         waited = asyncio.run(drain(p["render"], a.cell, p["fleet"], p["hosts"], a.scheduler))
         print(f"engines idle after {waited:.1f} s")
+    elif a.cmd == "fresh":
+        asyncio.run(fresh(a.scheduler))
     elif a.cmd == "post-config":
         asyncio.run(post_config(a.scheduler, p["attempt"], a.config_digest, a.fleet_digest))
     elif a.cmd == "engines":

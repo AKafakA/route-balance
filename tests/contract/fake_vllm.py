@@ -42,6 +42,18 @@ class FakeState:
     cache_config: tuple[tuple[str, str], ...] = (("block_size", "16"), ("cache_dtype", "auto"),
                                                  ("enable_prefix_caching", "True"), ("gpu_memory_utilization", "0.9"),
                                                  ("num_gpu_blocks", "8000"))
+    # the prefix cache, as vLLM counts it (tokens): every chat request queries its prompt tokens (5); a prompt already
+    # cached hits 4 of them. /reset_prefix_cache (served only in vLLM's developer mode) empties it.
+    dev_mode: bool = True  # default-ok: VLLM_SERVER_DEV_MODE=1, as the lease engines since D128
+    reset_ignored: bool = False  # default-ok: a reset that answers 200 and empties nothing (the proof must catch it)
+    cached: set = field(default_factory=set)
+    prefix_queries: int = 0  # default-ok: a fresh engine
+    prefix_hits: int = 0  # default-ok: a fresh engine
+    resets: int = 0  # default-ok: counts /reset_prefix_cache calls
+    # vLLM's serving counters (D132: a cell's engine readings must change by exactly its own requests)
+    served_requests: int = 0  # default-ok: a fresh engine
+    served_prompt_tokens: int = 0  # default-ok: a fresh engine
+    served_generation_tokens: int = 0  # default-ok: a fresh engine
 
     def metrics_text(self) -> str:
         self.scrapes += 1
@@ -51,6 +63,11 @@ class FakeState:
             "vllm:num_requests_waiting": self.waiting,
             "vllm:kv_cache_usage_perc": self.kv_usage,
             "vllm:num_preemptions_total": self.preemptions,
+            "vllm:prefix_cache_queries_total": self.prefix_queries,
+            "vllm:prefix_cache_hits_total": self.prefix_hits,
+            "vllm:request_success_total": self.served_requests,
+            "vllm:prompt_tokens_total": self.served_prompt_tokens,
+            "vllm:generation_tokens_total": self.served_generation_tokens,
         }
         lines = ["# HELP vllm:num_requests_running Number of requests in model execution batches.",
                  "# TYPE vllm:num_requests_running gauge"]
@@ -105,6 +122,10 @@ def make_app(state: FakeState) -> web.Application:
         mode = state.chat_mode
         if mode == "http500":
             return web.Response(status=500, reason="Internal Server Error")
+        text = payload["messages"][0]["content"]
+        state.prefix_queries += 5
+        state.prefix_hits += 4 if text in state.cached else 0
+        state.cached.add(text)
         if mode == "close_after_body":
             request.transport.close()              # received the request, then drop the connection
             return web.Response(status=200)
@@ -174,10 +195,23 @@ def make_app(state: FakeState) -> web.Application:
                     return resp
         if mode not in ("no_usage", "no_final_usage"):
             await send({"choices": [], "usage": {"prompt_tokens": 5, "completion_tokens": len(state.chat_tokens)}})
+        if mode == "ok":                           # vLLM counts a request when it finishes
+            state.served_requests += 1
+            state.served_prompt_tokens += 5
+            state.served_generation_tokens += len(state.chat_tokens)
         await resp.write(f": keep-alive{end}data: [DONE]{end}".encode())
         return resp
 
+    async def reset_prefix_cache(_request):
+        if not state.dev_mode:
+            return web.Response(status=404, text='{"detail":"Not Found"}')
+        state.resets += 1
+        if not state.reset_ignored:
+            state.cached.clear()
+        return web.Response(status=200)
+
     app = web.Application()
+    app.router.add_post("/reset_prefix_cache", reset_prefix_cache)
     app.router.add_get("/health", health)
     app.router.add_get("/version", version)
     app.router.add_get("/v1/models", models)

@@ -2,7 +2,7 @@
 
 {
   "bench":    {"sampling": {...Sampling}, "max_connections": int, "request_timeout_s": float,
-               "max_send_lag_ms": float},
+               "max_send_lag_ms": float (optional; no longer a bound, D134)},
   "datasets": {"<name>": {"path": "<relative to the data root>", "sha256": "<hex>", "rows": int,
                           "tokenizer_id": "<HF id of the reference tokenizer>",
                           "budgets": null | {"path": "<relative to the data root>", "sha256": "<hex>"}}},
@@ -31,8 +31,8 @@ the subtree under a) in which that configuration's cells may differ. In a compar
 every configuration lists the same system-defining paths; in an ablation group each one lists what it changes
 from the group's reference configuration, and the reference itself lists nothing. Everything else the
 manifest records must be identical (the parity gate reads each cell's group.json, scripts/run_cell.sh).
-max_send_lag_ms bounds how late the client may start a request after its scheduled arrival; a cell that
-exceeds it was not the intended open-loop load.
+max_send_lag_ms is no longer a bound (D134, owner: a late send is counted, never a gate); the report gives each
+cell's latest start after its scheduled arrival. Scopes made before it may still carry a value, which nothing reads.
 """
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ class BenchParams(Strict):
     sampling: Sampling
     max_connections: int = Field(ge=1)
     request_timeout_s: float = Field(gt=0)
-    max_send_lag_ms: float = Field(gt=0)
+    max_send_lag_ms: Optional[float] = Field(default=None, gt=0)   # D134: no longer a bound (scopes before it carry one)
 
 
 def _relative_path(v: str) -> str:

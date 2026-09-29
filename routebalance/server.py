@@ -47,7 +47,7 @@ import aiohttp
 from aiohttp import web
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from routebalance.backend import BackendClient, BackendUnreachable, GenerationRequest, GenerationResult
+from routebalance.backend import BackendClient, BackendUnreachable, GenerationRequest, GenerationResult, stock_connector
 from routebalance.baselines.dispatch import Dispatcher, build_dispatcher
 from routebalance.baselines.pipeline import fleet_models, select_instance
 from routebalance.baselines.routers import (BEST_ROUTE_MODULES, DecoupledInputs, Estimate as DecoupledEstimate, Router,
@@ -287,6 +287,8 @@ class _Round:
     fetched: float
     waiting: dict
     dispatched: int = 0   # default-ok: counts the round's dispatches as they happen
+    ages: Optional[dict] = None   # default-ok: instance -> age (ms) of the snapshot the round read (D133: counted)
+    errors: Optional[dict] = None   # default-ok: instance -> its last scrape's failure, when the round used an older one
 
 
 class RouteBalance:
@@ -326,7 +328,9 @@ class RouteBalance:
                 admission = Admission() if cfg.budget.admission_filter else None
                 self.rounds += 1                  # numbered before any dispatch; a round that fails leaves a gap
                 rnd = _Round(self.rounds, len(batch), limits, backlog, closed, estimated, fetched,
-                             {id(r): (fut, arrived) for r, (_, fut, arrived) in zip(requests, batch, strict=True)})
+                             {id(r): (fut, arrived) for r, (_, fut, arrived) in zip(requests, batch, strict=True)},
+                             ages={i: round(ld.age_ms, 1) for i, ld in loads.items()},
+                             errors={i: ld.error for i, ld in loads.items() if ld.error is not None})
 
                 def decided(d: Decision, rnd: _Round = rnd) -> None:
                     """On the pool's thread, right after each decision: dispatch it on the loop now (D78, v3's
@@ -358,6 +362,8 @@ class RouteBalance:
             best = next(s for s in d.scored if s.candidate.instance_id == d.instance.instance_id)
             evidence = {"round": rnd.number, "round_size": rnd.size, "round_pos": pos,
                         "round_max_batch": rnd.limits[0], "round_timeout_ms": rnd.limits[1], "round_backlog": rnd.backlog,
+                        "telemetry_age_ms": rnd.ages[d.instance.instance_id],
+                        "telemetry_error": rnd.errors.get(d.instance.instance_id),
                         "decode_tokens": d.decode_tokens, "lpt_key": d.lpt_key, "feature_tokens": n_feature,
                         "lengths": {m: e.length for m, e in d.request.estimates.items()},
                         "admitted_all": d.admitted_all, "score": best.score,
@@ -387,7 +393,7 @@ class RouteBalance:
 
 class Service:
     def __init__(self, fleet: list[Instance], *, artifact_root: Path, avengers_repo: Optional[Path],
-                 request_timeout_s: float, max_connections: int, torch_threads: int, log_dir: Path,
+                 request_timeout_s: float, max_connections: int, torch_threads: Optional[int], log_dir: Path,
                  factory: Callable[..., Components] = load_components, best_route_repo: Optional[Path] = None):
         if not fleet:
             raise ConfigError("empty fleet")
@@ -417,21 +423,21 @@ class Service:
         self._active = 0
         self._swapping = False
         self.failure: Optional[str] = None
+        # D134 (owner: no refusal of my own): a failure to write the evidence (decision, latency or lag logs) is
+        # recorded here and makes the run invalid (gates/cell.py isolation_problems); requests keep being served
+        self.evidence_failure: Optional[str] = None
         self.connection_waits = {"engine": 0, "telemetry": 0}   # waits for a pooled connection (a requeued one counts again)
 
     async def start(self, cfg: SchedulerConfig) -> None:
-        # streams get the whole bound; telemetry scrapes have their own keep-alive pool, as large, so that v3's
-        # per-request probes (D55: every request fetches its candidates at once) never queue on the pool; the
-        # pollers and the per-round fetch keep at most one scrape per instance in flight either way. The bound is
-        # set far above any in-flight count; a request that ever waits for a connection is counted, and the arm
-        # gate invalidates that cell (rerun it with a larger max_connections), so the bound never shapes a result
-        self._session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self._max_conn, force_close=True),
+        # D134 (owner: "back to vllm bench"): the engine streams and the telemetry scrapes each get vLLM bench's stock
+        # connector (no connection limit, keep-alive); a wait for a connection is still counted (none can happen)
+        self._session = aiohttp.ClientSession(connector=stock_connector(),
                                               trace_configs=[self._wait_counter("engine")])
-        self._telemetry_session = aiohttp.ClientSession(connector=aiohttp.TCPConnector(limit=self._max_conn),
+        self._telemetry_session = aiohttp.ClientSession(connector=stock_connector(),
                                                         trace_configs=[self._wait_counter("telemetry")])
         self.backend = BackendClient(self._session, self._timeout_s)
         for coro in (self.decisions.run(), self.lag.run()):
-            self._tasks.append(self._watch(asyncio.create_task(coro)))
+            self._tasks.append(self._watch(asyncio.create_task(coro), evidence=True))
         await self.apply(cfg)
 
     def _wait_counter(self, session: str) -> aiohttp.TraceConfig:
@@ -442,10 +448,17 @@ class Service:
         trace.on_connection_queued_start.append(queued)
         return trace
 
-    def _watch(self, task: asyncio.Task, on_fail: Optional[Callable[[BaseException], None]] = None) -> asyncio.Task:
+    def _watch(self, task: asyncio.Task, on_fail: Optional[Callable[[BaseException], None]] = None, *,
+               evidence: bool = False) -> asyncio.Task:
         def done(t: asyncio.Task):
             if not t.cancelled() and t.exception() is not None:
-                self.failure = f"{t.get_coro().__qualname__}: {t.exception()!r}"
+                what = f"{t.get_coro().__qualname__}: {t.exception()!r}"
+                if evidence:                     # a log writer: counted, never a reason to refuse a request (D134)
+                    if self.evidence_failure is None:          # the first failure is the evidence
+                        self.evidence_failure = what
+                    log.error("an evidence writer failed; requests are still served, the run is invalid: %s", what)
+                    return
+                self.failure = what
                 log.error("background task failed, refusing requests: %s", self.failure)
                 if on_fail is not None:
                     on_fail(RuntimeError(f"the scheduler has failed: {self.failure}"))
@@ -469,7 +482,7 @@ class Service:
                 router_lane=self.router_lane, best_route_repo=self._best_route))
             t = cfg.telemetry
             view = TelemetryView(self.fleet, lambda i: fetch_metrics(self._telemetry_session, i, t.timeout_s),
-                                 poll_ms=t.poll_ms, max_age_ms=t.max_age_ms, dead_reckoning=cfg.dead_reckoning)
+                                 poll_ms=t.poll_ms, dead_reckoning=cfg.dead_reckoning)
             # every instance answers once, or this raises and the old config stays live
             if cfg.telemetry_read == "poll":  # the pollers' cache (D19)
                 await view.start()
@@ -494,7 +507,7 @@ class Service:
                 if self.digest not in self._latency_logs:
                     lg = JsonlLog(self._log_dir / f"latency.{self.digest[:16]}.jsonl", FLUSH_S)
                     self._latency_logs[self.digest] = lg
-                    self._tasks.append(self._watch(asyncio.create_task(lg.run())))
+                    self._tasks.append(self._watch(asyncio.create_task(lg.run()), evidence=True))
                 self.latency_log = self._latency_logs[self.digest]
             self._rb = None
             if cfg.mode == "routebalance":
@@ -504,6 +517,7 @@ class Service:
             self._swapping = False
 
     async def complete(self, c: Completion) -> dict:
+        arrived = time.perf_counter()           # the request's arrival, for its first-token time (as v2's client_ttft)
         if self.failure is not None:
             raise RuntimeError(f"the scheduler has failed: {self.failure}")
         if self._swapping or self.cfg is None:
@@ -517,7 +531,7 @@ class Service:
             except BaseException as e:        # no dispatch happened: log the request anyway
                 self._log(c, None, None, c.max_tokens, None, f"{type(e).__name__}: {e}")
                 raise
-            return await self._serve(c, a)
+            return await self._serve(c, a, arrived)
         finally:
             self._active -= 1
 
@@ -547,10 +561,12 @@ class Service:
         o = sel.overhead
         return Assignment(sel.instance, sel.token, sel.load.stats,
                           {"reason": sel.reason, "router_score": sel.score, "decode_tokens": decode[sel.model],
-                           "feature_tokens": feature_tokens, "in_flight": sel.load.in_flight, **lengths},
+                           "feature_tokens": feature_tokens, "in_flight": sel.load.in_flight,
+                           "telemetry_age_ms": round(sel.load.age_ms, 1), "telemetry_error": sel.load.error,
+                           **lengths},
                           {"router_ms": o.router_ms, "telemetry_ms": o.telemetry_ms, "dispatch_ms": o.dispatch_ms})
 
-    async def _serve(self, c: Completion, a: Assignment) -> dict:
+    async def _serve(self, c: Completion, a: Assignment, arrived: float) -> dict:
         inst, token = a.instance, a.token
         max_tokens, clamp = c.max_tokens, None
         if c.budget_cost is not None:
@@ -558,6 +574,7 @@ class Service:
             max_tokens = clamp.max_tokens
         req = GenerationRequest(c.request_id, c.prompt, max_tokens, c.temperature, c.repetition_penalty,
                                 c.frequency_penalty)
+        sent = time.perf_counter()
         try:
             res = await self.backend.generate(inst, req, on_progress=functools.partial(self.view.record_progress, token))
         except BaseException as e:     # unreachable instance, cancellation: the dispatch is over either way
@@ -576,7 +593,8 @@ class Service:
             raise ServeError(res.error)
         return {"success": True, "request_id": c.request_id, "model": inst.model, "instance_id": inst.instance_id,
                 "generated_text": res.text, "prompt_tokens": res.prompt_tokens, "output_tokens": res.output_tokens,
-                "ttft_s": res.ttft_s, "server_latency_s": res.latency_s, "timings_ms": a.timings_ms}
+                "ttft_s": res.ttft_s, "server_latency_s": res.latency_s, "timings_ms": a.timings_ms,
+                "first_token_s": sent - arrived + res.ttft_s}
 
     def _log(self, c: Completion, a: Optional[Assignment], res: Optional[GenerationResult], max_tokens: int,
              clamp, error: str) -> None:
@@ -616,6 +634,7 @@ class Service:
                 "telemetry_age_ms": ages if self.telemetry_read() == "poll" else None, "active": self._active,
                 "rounds": None if self._rb is None else self._rb.rounds,
                 "booster_calls": None if lat is None else lat.predict_calls, "failure": self.failure,
+                "evidence_failure": self.evidence_failure,
                 "connection_waits": dict(self.connection_waits),
                 "logged": {"decisions": self.decisions.written, "decisions_buffered": self.decisions.buffered,
                            "latency": None if self.latency_log is None else self.latency_log.written}}
@@ -654,7 +673,7 @@ class Service:
                        "estimator": dump(cfg.estimator), "router": None if pipe is None else dump(pipe.router),
                        "dispatch": None if pipe is None else dump(pipe.dispatch)},
             "budget": dump(cfg.budget),
-            "telemetry": {"poll_ms": view.poll_ms, "max_age_ms": view.max_age_ms, "timeout_s": cfg.telemetry.timeout_s,
+            "telemetry": {"poll_ms": view.poll_ms, "timeout_s": cfg.telemetry.timeout_s,
                           "dead_reckoning": view.dead_reckoning},
             "loaded": {"estimator": _name(comps.estimator), "latency_source": None if lat is None else lat.source.kind,
                        "latency_envelope": None if lat is None else lat.envelope, "router": _name(comps.router),
@@ -679,9 +698,13 @@ class Service:
         for t in [*self._tasks, *([self._mode_task] if self._mode_task else [])]:
             t.cancel()
         await asyncio.gather(*self._tasks, *([self._mode_task] if self._mode_task else []), return_exceptions=True)
-        await self.decisions.flush()
-        for lg in self._latency_logs.values():
-            await lg.flush()
+        for lg in (self.decisions, *self._latency_logs.values()):
+            try:
+                await lg.flush()
+            except OSError as e:          # the evidence is incomplete (recorded, D134); the shutdown still completes
+                if self.evidence_failure is None:
+                    self.evidence_failure = f"final flush of {lg.path.name}: {e!r}"
+                log.error("the final flush of %s failed: %r", lg.path, e)
         if self.view is not None:
             await self.view.stop()
         await self._session.close()
@@ -744,7 +767,7 @@ def build_app(service: Service) -> web.Application:
         ok = service.failure is None and service.cfg is not None
         return web.Response(text="ok" if ok else "failed", status=200 if ok else 503)
 
-    app = web.Application(client_max_size=16 * 1024 * 1024)
+    app = web.Application()          # aiohttp's stock request-body limit (1 MiB; a request here is a few KB), D134
     app.router.add_post("/v1/completions", completions)
     app.router.add_get("/v1/config", get_config)
     app.router.add_post("/v1/config", post_config)
@@ -766,14 +789,17 @@ def main(argv=None) -> None:
     p.add_argument("--port", type=int, required=True)
     p.add_argument("--request-timeout-s", type=float, required=True)
     p.add_argument("--max-connections", type=int, required=True, help="engine connection bound, above peak in flight")
-    p.add_argument("--torch-threads", type=int, required=True, help="intra-op threads for every model call")
+    p.add_argument("--torch-threads", type=int, default=None,
+                   help="intra-op threads for every model call; unset: torch's default (D134, as v3)")
     p.add_argument("--log-dir", type=Path, required=True)
     a = p.parse_args(argv)
-    if not (a.request_timeout_s > 0 and math.isfinite(a.request_timeout_s)) or a.max_connections < 1 or a.torch_threads < 1:
+    if not (a.request_timeout_s > 0 and math.isfinite(a.request_timeout_s)) or a.max_connections < 1 \
+            or (a.torch_threads is not None and a.torch_threads < 1):
         p.error("timeouts, connection bound and thread count must be positive")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    import torch                      # one explicit thread count for every system's models
-    torch.set_num_threads(a.torch_threads)
+    if a.torch_threads is not None:   # unset (D134): torch's default, as v3; the manifest records the effective count
+        import torch
+        torch.set_num_threads(a.torch_threads)
     import uvloop
     uvloop.install()
     fleet, cfg = load_fleet(a.fleet, a.hosts), load_scheduler(a.config)

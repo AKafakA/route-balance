@@ -1,8 +1,8 @@
 {
  "notes": {
   "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W1 -> G1 -> W1b -> W1c -> G1b -> G1c -> W2 -> W2b -> W4 -> W5 -> W7 -> W8 (seed 1 of every main experiment) -> W8r -> W7r -> W9 -> W4r -> W5r (seeds 2-3, owner 09-29, D121) -> W7b -> W12 -> W13 -> W10 (W3, W6 and W11 disabled). tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
-  "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). Owner 09-25: the client's connection bound (8192) is set far above any in-flight count and a cell in which any request waited for a connection is invalid (rerun with a larger bound); the request timeout (900 s, above the server's 600 s) and the send-lag bound (500 ms since D103; 100 ms before) are failure bounds.",
-  "server": "D44: the scheduler launch values, identical for every system (owner 09-25): 8 torch threads per model call on the one shared 4-thread pool; the engine and telemetry connection bound 4096, far above any in-flight count (a cell in which any request waited for a connection is invalid: rerun with a larger bound); the request timeout 600 s, a failure bound. The baselines' routers call their model one request at a time on a separate lane, as shipped routers do.",
+  "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). D134 (owner: \"back to vllm bench\"): the client uses vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); max_connections only sizes the open-file check; a late send is counted per run, never a bound. Any failed request makes a run invalid, and it is rerun (owner 09-29: \"keep the gate 5\")",
+  "server": "D134 (owner): the scheduler's engine and telemetry sessions use vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); torch's default thread count (as v3; torch_threads null, nothing set); max_connections is recorded only (no pool bound). The baselines' routers call their model one request at a time on a separate lane, as shipped routers do (D60)",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
   "datasets": "eval_qwen is the v3 evaluation set; the other three are written by tools/prompt_set.py from the scored corpora (train_scored_filtered.jsonl for Qwen, gemma3_merged_test/train.jsonl for Gemma; each training split is checked disjoint from its evaluation set). Owner 09-25: each model's own tokenizer; the four Gemma-3 models ship byte-identical tokenizer files and one chat template (checked on the Hub 09-25), so google/gemma-3-1b-it gives every Gemma model's count, and each cell checks the count every engine reports.",
   "scored_corpora": "D62: quality is looked up by (prompt, served model) in these scored corpora, as in v2 and v3 (analysis/quality.py; judge key in configs/prereg_rules.json). The budget sweep's cells (W7b) are judged on the text they served instead (D67, tools/judge_served.py), with these corpora's reference answers.",
@@ -15,12 +15,11 @@
   "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it. None is held now: W6 (the AvengersPro top-2 spillover router) is dropped and W7b's budgets are sent by the benchmark client (owner 09-25). W4's arm 3 is dropped and W4's D45 control runs (owner 09-25). W11 needs the lpt key min/mean of S5b.",
   "w8": "W8 as written runs the same RB presets as W2 plus the four RB-decoupled presets, 5 AvengersPro pw and passthrough, all on least-outstanding: 108 cells against the plan's ~80. BEST-Route has no Gemma checkpoint."
  },
- "server": {"torch_threads": 8, "max_connections": 4096, "request_timeout_s": 600.0},
+ "server": {"torch_threads": null, "max_connections": 4096, "request_timeout_s": 21600.0},
  "bench": {
   "sampling": {"temperature": 0.0, "repetition_penalty": 1.0, "frequency_penalty": 1.2, "max_tokens": 1024},
   "max_connections": 8192,
-  "request_timeout_s": 900.0,
-  "max_send_lag_ms": 500.0
+  "request_timeout_s": 21600.0
  },
  "warmup": {"requests_per_instance": 2, "max_tokens": 8, "prompt": "Reply with the single word: ready."},
  "drain": {"timeout_s": 300.0},

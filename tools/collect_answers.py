@@ -64,8 +64,9 @@ async def collect(plan: dict, fleet: Sequence[Instance], prompts: Sequence[direc
         backend = BackendClient(sess, plan["bench"]["request_timeout_s"])
         await direct.drain(sess, fleet, timeout_s=plan["drain"]["timeout_s"])
         w = plan["warmup"]
-        await direct.warm_up(backend, fleet, requests_per_instance=w["requests_per_instance"], max_tokens=w["max_tokens"],
-                             prompt=w["prompt"], sampling=sampling, run_id=run_id)
+        warm = BackendClient(sess, plan["drain"]["timeout_s"])   # the owner's kept pre-run bound (D134 item 10)
+        await direct.warm_up(sess, warm, fleet, requests_per_instance=w["requests_per_instance"],
+                             max_tokens=w["max_tokens"], prompt=w["prompt"], sampling=sampling, run_id=run_id)
 
         async def one(inst: Instance, mine: list) -> list[dict]:
             run = await direct.closed_loop(backend, inst, [p for _, p in mine], concurrency, sampling,

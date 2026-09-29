@@ -87,7 +87,7 @@ from tools.campaign import load_plan
 
 SLO_LEVELS = ("tight", "loose")
 MACRO_METRICS = {"e2e_mean_ms": "Mean", "e2e_p99_ms": "Tail", "cost_total_per_1k": "Cost",
-                 "cost_decode_per_1k": "DecodeCost"}   # D117: Cost is prompt + output; DecodeCost as v2/v3
+                 "cost_decode_per_1k": "DecodeCost"}   # D117: Cost is prompt + output (as v2); DecodeCost as v3
 TABLE_METRICS = {**MACRO_METRICS, "slo_miss_tight": "SLO tight (pp)", "slo_miss_loose": "SLO loose (pp)"}
 ATTAINMENT = ("slo_miss_tight", "slo_miss_loose")        # shown as the change of attainment, in points
 APPENDIX_SYSTEMS = frozenset({"dispatcher-inflight"})  # D84: compared in the appendix only (equal_appendix.*)
@@ -150,6 +150,12 @@ class Inputs:
             self.corpora[family] = ScoredCorpus.load([path], judge_key)
         self.store = ScoreStore.load(list(stores), judge_key) if stores else None
         self.slo_bases = {family: SloBase.load(p) for family, p in slo_bases.items()}
+        # Codex audit 09-29: the report records which calibration produced its SLO thresholds (and, set by main(),
+        # which rules), so every attainment and goodput number names its inputs
+        self.provenance = {"slo_bases": {f: {"path": str(p), "sha256": file_sha256(Path(p)),
+                                             "ttft_s": dict(self.slo_bases[f].ttft_s),
+                                             "tpot_s": dict(self.slo_bases[f].tpot_s)} for f, p in slo_bases.items()},
+                           "rules": None}
 
     def group_fleet(self, group: str) -> tuple[str, str]:
         name = self.plan["groups"][group]["fleet"]
@@ -316,7 +322,8 @@ def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:
             "failures": sorted(c for c in left_out if c not in no_quality),
             "left_out": left_out, "parity": parity, "cells": cells, "configs": [asdict(p) for p in configs],
             "frontiers": fronts,
-            **readings, "not_compared": not_compared, "goodput": good, "rates": rates}
+            **readings, "not_compared": not_compared, "goodput": good, "rates": rates,
+            "provenance": inputs.provenance}
 
 
 # ---------------------------------------------------------------- LaTeX
@@ -488,6 +495,7 @@ def main(argv: list[str]) -> int:
     a = ap.parse_args(argv)
     inputs = Inputs(a.render, a.data_root, _pairs(a.fleet, "fleet"), a.hosts, _pairs(a.slo_base, "slo-base"),
                     a.store, load_rules(a.rules))
+    inputs.provenance["rules"] = {"path": str(a.rules), "sha256": file_sha256(a.rules)}
     known = {e.config.system for e in expected_cells(inputs.scope)}
     unknown = sorted(set(a.treatment) - known)
     if unknown:

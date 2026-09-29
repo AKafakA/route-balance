@@ -620,3 +620,11 @@ def test_an_enabled_block_needs_seeds_and_previous_must_be_a_render(tmp_path):
     result = campaign.render(presets, scope, pins=pins(presets), decisions={}, fleets=FLEETS)
     with pytest.raises(ConfigError, match="not a render"):
         campaign.check_previous(result, tmp_path / "nowhere")
+
+
+def test_the_tracked_scope_server_section_validates_as_it_is():
+    """Codex re-review 09-29: the tracked scope's null torch_threads (torch's default, D134) must render."""
+    from tools.campaign import Server
+    scope = json.loads((Path(__file__).resolve().parents[2] / "configs" / "scope.json").read_text())
+    s = Server.model_validate(scope["server"])
+    assert s.torch_threads is None and s.request_timeout_s == 21600.0

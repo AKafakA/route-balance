@@ -34,7 +34,7 @@ RB = {
     "estimator": {"index_dir": "knn/x", "index_md5": "0" * 32, "encoder_revision": "0" * 40, "k": 50,
                   "score_type": "deepeval", "prior": "knn"},
     "budget": {"admission_filter": False},
-    "telemetry": {"poll_ms": 20.0, "max_age_ms": 2000.0, "timeout_s": 2.0},
+    "telemetry": {"poll_ms": 20.0, "timeout_s": 2.0},
     "pipeline": None,
 }
 
@@ -438,7 +438,8 @@ def test_a_switch_from_the_cache_to_per_round_stops_the_pollers(tmp_path):
     assert manifest["loaded"]["telemetry_pollers"] is False and manifest["system"]["telemetry_read"] == "per_round"
 
 
-def test_a_failed_scrape_fails_the_round_even_with_a_young_snapshot(tmp_path):
+def test_a_failed_scrape_keeps_the_last_snapshot_and_every_request_is_served(tmp_path):
+    """D133 (owner: counted, never refused): the round uses the engine's last snapshot; its age and error are logged."""
     states = fleet_states()
 
     async def scenario():
@@ -450,8 +451,8 @@ def test_a_failed_scrape_fails_the_round_even_with_a_young_snapshot(tmp_path):
             loads = h.service.view.loads([i.instance_id for i in h.fleet])
             return out, young, loads, h.service.busy
     out, young, loads, busy = asyncio.run(scenario())
-    assert young and all(s == 500 and "load fetch failed" in r["error"] for s, r in out)   # ... but a round never uses it
-    assert all(load.in_flight == 0 for load in loads.values()) and not busy                # no dispatch was opened
+    assert young and all(s == 200 for s, _ in out) and not busy
+    assert all(load.in_flight == 0 for load in loads.values())                             # every stream completed
 
 
 def test_an_rb_config_is_refused_while_an_engine_cannot_be_fetched(tmp_path):
@@ -466,7 +467,7 @@ def test_an_rb_config_is_refused_while_an_engine_cannot_be_fetched(tmp_path):
             status, reply = await h.post("/v1/config", RB)
             return status, reply, old, h.service.digest, h.service.cfg.mode
     status, reply, old, now, mode = asyncio.run(scenario())
-    assert status != 200 and "load fetch failed" in json.dumps(reply) and now == old and mode == "pipeline"
+    assert status != 200 and "no usable telemetry" in json.dumps(reply) and now == old and mode == "pipeline"
 
 
 def test_routebalance_on_the_pollers_cache_never_fetches_per_round(tmp_path):
@@ -503,9 +504,9 @@ def test_the_probe_arm_fetches_the_candidates_per_request_and_reads_engine_count
     assert stats["telemetry_read"] == "per_request" and stats["telemetry_age_ms"] is None
 
 
-def test_a_request_that_waits_for_an_engine_connection_is_counted(tmp_path):
-    """The bound is set far above any in-flight count; if it is ever reached, stats show it and the arm gate
-    invalidates the cell (owner 09-25)."""
+def test_the_engine_and_telemetry_sessions_use_vllm_benchs_connector(tmp_path):
+    """D134 (owner: "back to vllm bench"): no connection limit and keep-alive, so no stream or scrape ever waits for a
+    connection (the waits are still counted), whatever max_connections says."""
     states = [(SMALL, FakeState(chat_delay_s=0.05)), (SMALL, FakeState(chat_delay_s=0.05)),
               (LARGE, FakeState(chat_delay_s=0.05))]
 
@@ -516,9 +517,7 @@ def test_a_request_that_waits_for_an_engine_connection_is_counted(tmp_path):
             out = await asyncio.gather(*(h.post("/v1/completions", body(i)) for i in range(3)))
             return out, before, h.service.stats()["connection_waits"]
     out, before, after = asyncio.run(scenario())
-    assert all(s == 200 for s, _ in out) and before["engine"] == 0
-    assert after["engine"] - before["engine"] >= 1       # the other two streams waited for the one connection
-    assert after["telemetry"] >= 1                       # three pollers share the telemetry pool's one connection
+    assert all(s == 200 for s, _ in out) and before["engine"] == 0 and after == {"engine": 0, "telemetry": 0}
 
 
 def test_a_pipeline_router_is_built_on_the_one_at_a_time_lane(tmp_path):
@@ -590,3 +589,22 @@ def test_a_request_is_dispatched_as_soon_as_it_is_scored(tmp_path):
     decisions = read_jsonl(tmp_path / "logs/decisions.jsonl")
     assert sorted(d["round_pos"] for d in decisions) == [0, 1] and len({d["round"] for d in decisions}) == 1
 
+
+
+def test_a_failed_log_writer_is_recorded_and_requests_are_still_served(tmp_path):
+    """D134 (owner: no refusal of my own): an evidence writer that fails is recorded in /v1/stats (the cell is then
+    invalid, gates/cell.py scheduler_problems); the scheduler keeps serving every request."""
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            await h.start(pipeline_cfg())
+
+            def full_disk(lines):
+                raise OSError(28, "No space left on device")
+            h.service.decisions._append = full_disk
+            first = await h.post("/v1/completions", body(0))
+            await asyncio.sleep(1.3)                            # one flush (FLUSH_S): the writer fails
+            second = await h.post("/v1/completions", body(1))
+            return first, second, h.service.stats()
+    first, second, stats = asyncio.run(scenario())
+    assert first[0] == 200 and second[0] == 200
+    assert stats["failure"] is None and "No space left" in stats["evidence_failure"]

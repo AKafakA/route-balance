@@ -61,6 +61,14 @@ class GenerationResult:
     latency_s: float
 
 
+def stock_connector() -> aiohttp.TCPConnector:
+    """vLLM bench's connector, as shipped (vllm 0.18.1 benchmarks/serve.py:641-650): no connection limit, keep-alive,
+    DNS cache. Every HTTP client of the lease uses it (D134, owner: "back to vllm bench"): the scheduler's engine and
+    telemetry sessions and the benchmark client."""
+    return aiohttp.TCPConnector(limit=0, limit_per_host=0, ttl_dns_cache=300, use_dns_cache=True,
+                                keepalive_timeout=60, enable_cleanup_closed=True, force_close=False)
+
+
 def _chat_payload(inst: Instance, req: GenerationRequest) -> dict:
     return {
         "model": inst.model,

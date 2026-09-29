@@ -395,7 +395,7 @@ class ScopeFile(Strict):
 
 
 class Server(Strict):
-    torch_threads: int = Field(ge=1)
+    torch_threads: Optional[int] = Field(ge=1)       # null: torch's default thread count (D134, as v3)
     max_connections: int = Field(ge=1)
     request_timeout_s: float = Field(gt=0)
 
