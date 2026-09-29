@@ -125,10 +125,10 @@ def test_the_tracked_files_dry_run_every_row():
 
 
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
-    for trace in ("sweep6-36", "sweep42-60"):                  # W1b and its 42-60 req/s extension W1c (D119)
+    for trace in ("sweep6-36", "sweep38-42"):                  # W1b and its 38-42 req/s extension W1c (D119, D120)
         sweep = sum(s["n_requests"] for s in SCOPE_JSON["traces"][trace]["segments"])
         assert sweep == SCOPE_JSON["datasets"]["train_qwen"]["rows"] == 14919, trace
-    assert [s["rate"] for s in SCOPE_JSON["traces"]["sweep42-60"]["segments"]] == [42.0, 48.0, 54.0, 60.0]
+    assert [s["rate"] for s in SCOPE_JSON["traces"]["sweep38-42"]["segments"]] == [38.0, 40.0, 42.0]
 
 
 def test_the_time_varying_load_is_v2s():

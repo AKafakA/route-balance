@@ -82,5 +82,12 @@
   "decision": "D119",
   "owner": "that is the problem, we need tp add the new sweeps up tp 42 or may even higher 48 chained after current sweeping to fill the gaps?; [extra sweep] 42 to 60 req/s; [static table] Keep, check at 42; [learned check at 42] Add 42 (6 runs)",
   "gpu_cost": "the extra sweep W1c: 6 runs at 42-60 req/s, ~1 h 10 min, chained after W1b; the learned-variant check G1b +2 runs at 42 req/s (~5 min); the static table unchanged (no fleet time)"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "15aba9f3e925f35cc0bb0b26f5b61d88d5d352c68ca057919fd7d8941d82fad7",
+  "decision": "D120",
+  "owner": "b [run the extra sweep only up to the highest rate that holds]; adding 42 and 38 and 40",
+  "gpu_cost": "the extra sweep W1c at 38, 40 and 42 req/s: 6 runs, ~1 h 12 min, after the thesis rerun; the 42-60 req/s runs (one published invalid, one stopped) retired; no other change"
  }
 ]
