@@ -281,6 +281,7 @@ class _Round:
     number: int
     size: int
     limits: tuple
+    backlog: int       # requests already waiting in the scheduler when the round opened (D123)
     closed: float
     estimated: float
     fetched: float
@@ -307,7 +308,7 @@ class RouteBalance:
         while True:
             batch = await self.collector.next_round()
             closed = time.perf_counter()
-            limits = (self.collector.max_batch, self.collector.timeout_ms)   # this round's; adapt() sets the next
+            limits, backlog = self.collector.limits, self.collector.backlog   # this round's; adapt() sets the next
             try:
                 ests = await loop.run_in_executor(self._executor, self._c.estimator.estimate_batch,
                                                   [c.prompt for c, _, _ in batch], P_UNDER_BUDGET_TOKENS)
@@ -324,7 +325,7 @@ class RouteBalance:
                 cfg = self._cfg
                 admission = Admission() if cfg.budget.admission_filter else None
                 self.rounds += 1                  # numbered before any dispatch; a round that fails leaves a gap
-                rnd = _Round(self.rounds, len(batch), limits, closed, estimated, fetched,
+                rnd = _Round(self.rounds, len(batch), limits, backlog, closed, estimated, fetched,
                              {id(r): (fut, arrived) for r, (_, fut, arrived) in zip(requests, batch, strict=True)})
 
                 def decided(d: Decision, rnd: _Round = rnd) -> None:
@@ -356,7 +357,7 @@ class RouteBalance:
             token = self._view.record_dispatch(d.instance.instance_id, d.decode_tokens)
             best = next(s for s in d.scored if s.candidate.instance_id == d.instance.instance_id)
             evidence = {"round": rnd.number, "round_size": rnd.size, "round_pos": pos,
-                        "round_max_batch": rnd.limits[0], "round_timeout_ms": rnd.limits[1],
+                        "round_max_batch": rnd.limits[0], "round_timeout_ms": rnd.limits[1], "round_backlog": rnd.backlog,
                         "decode_tokens": d.decode_tokens, "lpt_key": d.lpt_key, "feature_tokens": n_feature,
                         "lengths": {m: e.length for m, e in d.request.estimates.items()},
                         "admitted_all": d.admitted_all, "score": best.score,
