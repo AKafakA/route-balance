@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "b4e82d551e3c394cb0dcb036ad8fc931e0ef96486a93c920c0a17a0bd5bf92f0",
- "fleet_digest": "14eea81ed30ba994d4734f92949310b222dae98db94a522e9da3019eeb638126",
+ "config_digest": "aef4e2e31dbaacbd36951415835c428ec75a250f53877a13777e0d7ecde2f9dc",
+ "fleet_digest": "1c220c1673881e3e832f9f6af06fe40b21c473bfab341ef762a98057865ff23b",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -54,7 +54,11 @@
    "envelope": "batch_aware",
    "normalization": "fixed_ref",
    "table": "calib/tpot.json",
-   "table_md5": "3004488055fdb43f53da93726b9e2130"
+   "table_md5": "3004488055fdb43f53da93726b9e2130",
+   "prefill": {
+    "table": "calib/prefill.json",
+    "table_md5": "6d25f12e06d796cde7f87232072c7ca4"
+   }
   },
   "estimator": {
    "index_dir": "knn/x",
@@ -88,12 +92,13 @@
  "artifacts": {
   "knn/x/knn_estimator.pkl": "00000000000000000000000000000000",
   "estimator@hf:sentence-transformers/all-MiniLM-L6-v2/model.safetensors": "f34e46da929d438c0ccffa365f614203",
-  "calib/tpot.json": "3004488055fdb43f53da93726b9e2130"
+  "calib/tpot.json": "3004488055fdb43f53da93726b9e2130",
+  "calib/prefill.json": "6d25f12e06d796cde7f87232072c7ca4"
  },
  "code": {
-  "routebalance": "ac1a1b94f8901e1d625d50ec1ca61d14f6fb4c51a67f6729ca38a62ba718895e",
+  "routebalance": "05bbee537aae5b69c8c02753888ace2a517607f83b517d8269e666a3c7df6705",
   "avengers_pro": null,
-  "routebalance_now": "ac1a1b94f8901e1d625d50ec1ca61d14f6fb4c51a67f6729ca38a62ba718895e",
+  "routebalance_now": "05bbee537aae5b69c8c02753888ace2a517607f83b517d8269e666a3c7df6705",
   "avengers_pro_now": null
  },
  "threadpools": {

@@ -30,7 +30,8 @@ RB = {
     "dead_reckoning": True,
     "telemetry_read": "per_round",
     "latency": {"source": "profiled_curve", "envelope": "batch_aware", "normalization": "fixed_ref",
-                "table": "calib/qwen_tpot_curve.json", "table_md5": "1" * 32},
+                "table": "calib/qwen_tpot_curve.json", "table_md5": "1" * 32,
+                "prefill": {"table": "calib/prefill_qwen.json", "table_md5": "2" * 32}},
     "estimator": {"index_dir": "knn/qwen", "index_md5": "0" * 32, "encoder_revision": "a" * 40, "k": 50,
                   "score_type": "deepeval", "prior": "knn"},
     "budget": {"admission_filter": False},
@@ -119,6 +120,9 @@ def test_valid_configs_parse():
     lambda d: d["estimator"].update(index_md5="abc"),                # malformed md5
     lambda d: d["latency"].update(table_md5="0" * 31),               # malformed table md5
     lambda d: d["latency"].pop("table_md5"),                         # the table is pinned like the index
+    lambda d: d["latency"].pop("prefill"),                           # on or off is stated, never assumed (D118)
+    lambda d: d["latency"]["prefill"].pop("table_md5"),              # the prefill table is pinned too
+    lambda d: d["latency"]["prefill"].update(table="/abs/prefill.json"),   # an artifact path is relative
     lambda d: d["estimator"].update(encoder_revision="main"),        # a branch name is not a pinned commit
     lambda d: d["latency"].update(envelope="queue_aware"),           # a curve has no single TPOT to queue on
     lambda d: d["latency"].update(source="xgboost", envelope="own_length"),     # not an arm that exists
@@ -237,6 +241,14 @@ def test_pipeline_needs_its_section():
     d["pipeline"] = None
     with pytest.raises(ConfigError, match="needs a pipeline section"):
         parse_scheduler(d)
+
+
+def test_prefill_off_is_null_and_changes_the_digest():
+    off = copy.deepcopy(RB)
+    off["latency"]["prefill"] = None
+    assert parse_scheduler(off).latency.prefill is None
+    assert parse_scheduler(RB).latency.prefill.table == "calib/prefill_qwen.json"
+    assert config_digest(parse_scheduler(off)) != config_digest(parse_scheduler(RB))
 
 
 def test_digest_is_stable_and_sensitive():

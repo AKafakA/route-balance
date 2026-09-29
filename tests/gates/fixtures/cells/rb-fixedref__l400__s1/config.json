@@ -5,7 +5,11 @@
   "envelope": "batch_aware",
   "normalization": "fixed_ref",
   "table": "calib/tpot.json",
-  "table_md5": "3004488055fdb43f53da93726b9e2130"
+  "table_md5": "3004488055fdb43f53da93726b9e2130",
+  "prefill": {
+   "table": "calib/prefill.json",
+   "table_md5": "6d25f12e06d796cde7f87232072c7ca4"
+  }
  },
  "estimator": {
   "index_dir": "knn/x",

@@ -200,11 +200,15 @@ def model_files(role: str, name: str, revision: Optional[str]) -> dict[str, str]
 
 def latency_artifacts(cfg: SchedulerConfig, latency) -> dict[str, str]:
     """The files the latency model read, each verified against its pinned md5 at load (the xgboost source
-    lists its md5s.json and every file that manifest pinned and it read)."""
+    lists its md5s.json and every file that manifest pinned and it read; the prefill table when configured)."""
     t = cfg.latency
     if t.source != "xgboost":
-        return {t.table: t.table_md5}
-    return {f"{t.table}/{n}": m for n, m in latency.source.files.items()}
+        files = {t.table: t.table_md5}
+    else:
+        files = {f"{t.table}/{n}": m for n, m in latency.source.files.items()}
+    if t.prefill is not None:
+        files[t.prefill.table] = t.prefill.table_md5
+    return files
 
 
 def py_tree_digest(directory: Path) -> str:
@@ -262,9 +266,9 @@ def _decoupled_inputs(cfg: SchedulerConfig, fleet: list[Instance], estimator, la
         return [{m: DecoupledEstimate(e.quality, e.length) for m, e in d.items()}
                 for d in estimator.estimate_batch(list(prompts), P_UNDER_BUDGET_TOKENS)]
 
-    def unloaded(tier: Tier, tokens: float) -> float:
+    def unloaded(tier: Tier, tokens: float, prompt_tokens: int) -> float:
         inst = first[tier.tier_id]
-        return latency.latencies([inst], [idle_state(tier)], {tier.model: tokens}, 0)[0]
+        return latency.latencies([inst], [idle_state(tier)], {tier.model: tokens}, prompt_tokens)[0]
     return DecoupledInputs(_tiers(fleet), cfg.weights, cfg.latency.normalization, estimate, unloaded)
 
 
@@ -537,7 +541,7 @@ class Service:
             feature_tokens = c.max_tokens
             lengths = {}
         sel = await select_instance(self._comps.router, self._comps.dispatcher, self.fleet, self.view,
-                                    RouterRequest(c.prompt, c.request_id), decode_tokens=decode,
+                                    RouterRequest(c.prompt, c.request_id, c.prompt_tokens), decode_tokens=decode,
                                     probe=self.cfg.telemetry_read == "per_request")
         o = sel.overhead
         return Assignment(sel.instance, sel.token, sel.load.stats,

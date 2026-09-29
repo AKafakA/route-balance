@@ -75,7 +75,8 @@ async def select_instance(router: Router, dispatcher: Dispatcher, instances: Seq
     if bad:
         raise ValueError(f"decode_tokens must give every fleet model an int >= 1, got {bad}")
     t0 = time.perf_counter()
-    decision = await router.choose_model(RouterRequest(unwrap_chat_prompt(request.prompt), request.request_id),
+    decision = await router.choose_model(RouterRequest(unwrap_chat_prompt(request.prompt), request.request_id,
+                                                       request.prompt_tokens),
                                          models)
     t1 = time.perf_counter()
     candidates = _candidates(instances, decision.model)

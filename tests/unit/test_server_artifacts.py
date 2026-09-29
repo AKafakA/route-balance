@@ -27,7 +27,7 @@ BASE = {
     "rounds": {"adaptive": True}, "lpt": "max", "pending_decode": "own_length", "dead_reckoning": True,
     "telemetry_read": "per_round",
     "latency": {"source": "constant", "envelope": "own_length", "normalization": "max_divide",
-                "table": "calib/t.json", "table_md5": "0" * 32},
+                "table": "calib/t.json", "table_md5": "0" * 32, "prefill": None},
     "estimator": {"index_dir": "knn/x", "index_md5": "1" * 32, "encoder_revision": "e" * 40, "k": 50,
                   "score_type": "deepeval", "prior": "knn"},
     "budget": {"admission_filter": False},
@@ -69,6 +69,22 @@ def pipeline(router: dict, **kw) -> dict:
     cfg.update(mode="pipeline", weights=None, pending_decode=None, dead_reckoning=False, telemetry_read="poll",
                pipeline={"router": router, "dispatch": {"type": "least_outstanding", "seed": 1, "count": "in_flight"}}, **kw)
     return cfg
+
+
+def test_the_prefill_table_is_verified_and_recorded(tmp_path, fake_knn):
+    """D118: the prefill table is pinned by md5 like the TPOT table and listed with the files the latency model read."""
+    cfg = copy.deepcopy(BASE)
+    cfg["latency"]["table_md5"] = write_table(tmp_path)
+    data = json.dumps({"unit": "ms", "prefill": {"small_a30": {"intercept_ms": 20.0, "per_token_ms": 0.05, "n": 64,
+                                                               "r2": 0.9}}, "provenance": {}}).encode()
+    (tmp_path / "calib/p.json").write_bytes(data)
+    cfg["latency"]["prefill"] = {"table": "calib/p.json", "table_md5": md5(data)}
+    c = load(cfg, tmp_path)
+    assert c.artifacts["calib/p.json"] == md5(data) and c.artifacts["calib/t.json"] == cfg["latency"]["table_md5"]
+    assert c.latency.prefill.seconds("small_a30", 100) == pytest.approx(0.020 + 0.05e-3 * 100)
+    cfg["latency"]["prefill"]["table_md5"] = "3" * 32
+    with pytest.raises(ArtifactError, match="does not match"):
+        load(cfg, tmp_path)
 
 
 def test_routebalance_records_the_index_its_encoder_and_the_table(tmp_path, fake_knn):

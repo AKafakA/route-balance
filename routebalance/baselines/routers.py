@@ -62,6 +62,8 @@ def router_lane() -> ThreadPoolExecutor:
 class RouterRequest:
     prompt: str          # the user's text (estimate.prompt.unwrap_chat_prompt), as v3 handed it to routers
     request_id: str
+    prompt_tokens: Optional[int] = None   # the templated prompt's tokens as the client counted them (= vLLM's);
+    #                                       RB-decoupled's cost needs them (D117), the other routers ignore them
 
 
 @dataclass(frozen=True)
@@ -453,7 +455,7 @@ class Estimate(NamedTuple):
 
 
 EstimateBatch = Callable[[Sequence[str]], Sequence[Mapping[str, Estimate]]]   # one {model: Estimate} per prompt
-UnloadedLatency = Callable[[Tier, float], float]                            # (tier, output tokens) -> s, idle instance
+UnloadedLatency = Callable[[Tier, float, int], float]      # (tier, output tokens, prompt tokens) -> s, idle instance
 
 @dataclass(frozen=True)
 class DecoupledInputs:
@@ -478,7 +480,7 @@ class RBDecoupledRouter(Router):
         self._in = inputs
         self._executor = executor
 
-    def _decide(self, prompt: str, pool: Sequence[str]) -> tuple[Tier, float]:
+    def _decide(self, prompt: str, prompt_tokens: int, pool: Sequence[str]) -> tuple[Tier, float]:
         tiers = [t for t in self._in.tiers if t.model in pool]
         if not tiers:
             raise ValueError(f"rb_decoupled: no tier serves a pool model {list(pool)}")
@@ -488,14 +490,15 @@ class RBDecoupledRouter(Router):
             raise RuntimeError(f"rb_decoupled: the estimator returned nothing for {missing}")
         quality = [est[t.model].quality for t in tiers]
         lens = [est[t.model].expected_len for t in tiers]
-        latency = [self._in.unloaded_latency(t, n) for t, n in zip(tiers, lens, strict=True)]
+        latency = [self._in.unloaded_latency(t, n, prompt_tokens) for t, n in zip(tiers, lens, strict=True)]
         if not all(math.isfinite(x) for x in (*quality, *lens, *latency)) or min(lens) < 0 or min(latency) <= 0:
             raise RuntimeError(f"rb_decoupled: need finite quality, length >= 0 and latency > 0, got "
                                f"{quality} / {lens} / {latency}")
         # RouteBalance's own objective (schedule/score.py) over tiers, every latency that of an idle instance;
         # no queue or recency: the first tier in fleet order wins exact ties
-        cands = [Candidate(t.tier_id, t.model, q, n * t.cost_out, lat, lat, 0, 0.0)   # decode-only cost, as RB
-                 for t, q, n, lat in zip(tiers, quality, lens, latency, strict=True)]
+        cost = [prompt_tokens * t.cost_in + n * t.cost_out for t, n in zip(tiers, lens, strict=True)]   # as RB (D117)
+        cands = [Candidate(t.tier_id, t.model, q, c, lat, lat, 0, 0.0)
+                 for t, q, c, lat in zip(tiers, quality, cost, latency, strict=True)]
         w = self._in.weights
         scored = score(cands, w_quality=w.w_quality, w_cost=w.w_cost, w_latency=w.w_latency,
                        normalization=self._in.normalization)
@@ -504,7 +507,9 @@ class RBDecoupledRouter(Router):
 
     async def choose_model(self, request: RouterRequest, pool: Sequence[str]) -> RouterDecision:
         _require_pool(pool)
-        tier, score = await _off_loop(self._executor, self._decide, request.prompt, tuple(pool))
+        if request.prompt_tokens is None or request.prompt_tokens < 1:
+            raise ValueError(f"rb_decoupled: request {request.request_id} carries no prompt token count (D117)")
+        tier, score = await _off_loop(self._executor, self._decide, request.prompt, request.prompt_tokens, tuple(pool))
         return RouterDecision(tier.model, score, f"rb_decoupled:tier={tier.tier_id}:score={score:.6f}")
 
 

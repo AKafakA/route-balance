@@ -120,7 +120,7 @@ def test_the_tracked_files_dry_run_every_row():
                                            "w5_systems",
                                            "w7_systems"]
     assert summary["owner_unset"] == []                                    # every owner value is set (09-25)
-    assert "tpot-table.qwen" in summary["pins_needed"] and "xgb-heads.qwen" in summary["pins_needed"]
+    assert {"tpot-table.qwen", "prefill-table.qwen", "xgb-heads.qwen"} <= set(summary["pins_needed"])
     assert "W4" in campaign.dry_run_text(summary)
 
 
@@ -176,6 +176,8 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
         got, needs = campaign.render_config(p, resolver)
         assert needs.empty() and got is not None, p.preset_id
         assert campaign.config_digest(parse_scheduler(got.document)) == got.digest
+        table = got.document["latency"]["prefill"]["table"]            # D118: in every variant, the family's table
+        assert table.startswith("art/prefill-table.") and table.split(".")[-1] in p.preset_id.split("."), p.preset_id
 
 
 def test_uniform_is_one_third_each_and_the_drops_renormalize():
@@ -363,7 +365,7 @@ def test_owner_values_are_never_invented():
 
 def test_the_first_render_before_w1_gives_the_direct_rows(tmp_path):
     presets, scope = filled()
-    early = {k: v for k, v in pins(presets).items() if not k.startswith(("tpot-table", "xgb"))}
+    early = {k: v for k, v in pins(presets).items() if not k.startswith(("tpot-table", "prefill-table", "xgb"))}
     result = campaign.render(presets, scope, pins=early, decisions={}, fleets=FLEETS)
     assert result.scope is None and result.pending and result.blocked_rows == {}
     campaign.write_render(result, tmp_path / "r0", {})

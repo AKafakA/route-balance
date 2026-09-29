@@ -95,6 +95,7 @@ class CellSummary:
     off_instance_ms: Optional[Spread]
     prompt_token_mismatches: Optional[int]    # sent count != vLLM's count; None when not recorded
     problems: tuple[str, ...]
+    cost_total_per_1k: Optional[float] = None  # D117: the prompt at the input price + the output at the output price
 
     @property
     def valid(self) -> bool:
@@ -115,6 +116,7 @@ class RequestValues:
     cost: np.ndarray
     met_tight: np.ndarray
     met_loose: np.ndarray
+    cost_total: Optional[np.ndarray] = None   # D117: prompt + output cost (USD); None without input prices
 
     def at(self, draws: np.ndarray) -> dict[str, np.ndarray]:
         """Each metric of analysis/frontier.py, and quality, on each row of `draws` (resamples x positions)."""
@@ -126,6 +128,8 @@ class RequestValues:
                 "e2e_mean_ms": e2e.mean(axis=1) * 1000.0,
                 "e2e_p99_ms": np.percentile(e2e, 99, axis=1) * 1000.0,
                 "cost_decode_per_1k": self.cost[draws].mean(axis=1) * 1000,
+                "cost_total_per_1k": (np.full(len(draws), np.nan) if self.cost_total is None
+                                      else self.cost_total[draws].mean(axis=1) * 1000),
                 "slo_miss_tight": 1.0 - self.met_tight[draws].mean(axis=1),
                 "slo_miss_loose": 1.0 - self.met_loose[draws].mean(axis=1)}
 
@@ -134,7 +138,7 @@ def request_values(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
                    slo: CellSlo) -> RequestValues:
     """The per-request values of a cell that summarize_cell() found valid (every request succeeded, was scored
     or is a corpus gap, and was served by a priced instance of the fleet)."""
-    prices = decode_prices(i.tier for i in fleet)
+    prices, in_prices = decode_prices(i.tier for i in fleet), input_prices(i.tier for i in fleet)
     rows = []
     for r, o in zip(cell.requests, outcomes_of(cell), strict=True):
         if not o.ok:
@@ -143,18 +147,32 @@ def request_values(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
         if outcome not in ("matched", "corpus_gap") or o.model not in prices:
             raise ConfigError(f"cell {cell.cell_id}: request {r.index} is {outcome} or unpriced; only a valid cell "
                               "has request values")
+        if o.prompt_tokens_served is None:
+            raise ConfigError(f"cell {cell.cell_id}: request {r.index} has no served prompt token count (D117)")
         rows.append((r.index, r.prompt_id, score if outcome == "matched" else math.nan, o.e2e_s,
                      o.output_tokens * prices[o.model],
                      *(slo.met(lvl, o.instance_id, o.e2e_s, o.server_latency_s, o.ttft_s, o.output_tokens)
-                       for lvl in LEVELS)))
+                       for lvl in LEVELS),
+                     o.prompt_tokens_served * in_prices[o.model] + o.output_tokens * prices[o.model]))
     rows.sort(key=lambda row: row[0])
     if len({row[0] for row in rows}) != len(rows):
         raise ConfigError(f"cell {cell.cell_id}: two requests share a send position")
-    cols = list(zip(*rows, strict=True)) if rows else [()] * 7
+    cols = list(zip(*rows, strict=True)) if rows else [()] * 8
     tight, loose = (cols[5 + LEVELS.index(lvl)] for lvl in ("tight", "loose"))
     return RequestValues(index=tuple(cols[0]), prompt_ids=tuple(cols[1]), score=np.array(cols[2], dtype=float),
                          e2e_s=np.array(cols[3], dtype=float), cost=np.array(cols[4], dtype=float),
-                         met_tight=np.array(tight, dtype=float), met_loose=np.array(loose, dtype=float))
+                         met_tight=np.array(tight, dtype=float), met_loose=np.array(loose, dtype=float),
+                         cost_total=np.array(cols[7], dtype=float))
+
+
+def input_prices(tiers: Iterable[Tier]) -> dict[str, float]:
+    """Input price (USD per prompt token) of each served model name, from the fleet's tiers (D117)."""
+    prices: dict[str, float] = {}
+    for t in tiers:
+        if t.model in prices and prices[t.model] != t.cost_in:
+            raise ConfigError(f"model {t.model!r} has two input prices in the fleet; cost would be ambiguous")
+        prices[t.model] = t.cost_in
+    return prices
 
 
 def decode_prices(tiers: Iterable[Tier]) -> dict[str, float]:
@@ -201,7 +219,7 @@ def summarize_cell(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
     if fleet_digest(list(fleet)) != cell.identity_start.fleet_digest:
         problems.append("the fleet given to the analysis is not the fleet the cell ran on")
     summary = summarize(cell.cell_id, outcomes_of(cell), cell.duration_s, quality,
-                        decode_prices(i.tier for i in fleet), slo, problems)
+                        decode_prices(i.tier for i in fleet), slo, problems, input_prices(i.tier for i in fleet))
     if not budgeted:
         return summary
     exhausted, why = budget_exhausted(cell, fleet)
@@ -236,7 +254,8 @@ NO_QUALITY = ("successful requests have a prompt absent from the scored corpora"
               "no successful request has a judged score")
 
 def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, quality: ScoredCorpus | ScoreStore,
-              prices: Mapping[str, float], slo: Optional[CellSlo], problems: Sequence[str]) -> CellSummary:
+              prices: Mapping[str, float], slo: Optional[CellSlo], problems: Sequence[str],
+              input_prices: Optional[Mapping[str, float]] = None) -> CellSummary:
     """`problems` are the caller's execution findings (integrity_problems for a cell record); the metric
     problems (failed requests, unmatched prompts, models the corpus never scores, unpriced models, mixed timings) are added
     here."""
@@ -277,6 +296,12 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
         cost = None
     else:
         cost = math.fsum(o.output_tokens * prices[o.model] for o in ok) / len(ok) * 1000 if ok else None
+    # D117: the prompt at its input price as well (vLLM's served count), when the caller gives input prices
+    total = None
+    if (input_prices is not None and ok and not unpriced and all(o.model in input_prices for o in ok)
+            and all(o.prompt_tokens_served is not None for o in ok)):
+        total = math.fsum(o.prompt_tokens_served * input_prices[o.model] + o.output_tokens * prices[o.model]
+                          for o in ok) / len(ok) * 1000
 
     overhead, overhead_problem = _overhead(ok)
     if overhead_problem:
@@ -306,7 +331,7 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
         slo_attainment_tight=attainment["tight"], slo_attainment_loose=attainment["loose"], overhead_ms=overhead,
         off_instance_ms=spread(residual, 1000.0) if ok and len(residual) == len(ok) else None,
         prompt_token_mismatches=mismatched if ok and len(counted) == len(ok) else None,
-        problems=tuple(problems))
+        problems=tuple(problems), cost_total_per_1k=total)
 
 
 def _overhead(ok: Sequence[Outcome]) -> tuple[dict[str, Spread], Optional[str]]:

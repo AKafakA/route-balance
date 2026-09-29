@@ -19,10 +19,10 @@ doc = load_table(Path(sys.argv[1]), sys.argv[2])
 fleet = [Instance(f"i{n}", Tier(t, "m-" + t, "a30", 1e-7, 1e-7, 8, ()), "n", "h", 8000 + n)
          for n, t in enumerate(sorted(doc["constant"]))]
 lengths = {i.model: 50.0 + n for n, i in enumerate(fleet)}
-for model in (LatencyModel(ConstantTPOT(doc["constant"]), "own_length"),
-              LatencyModel(ConstantTPOT(doc["constant"]), "queue_aware"),
-              LatencyModel(ProfiledCurveTPOT(doc["curve"]), "batch_aware"),
-              LatencyModel(ConstantTPOT(doc["constant"]), "batch_aware")):
+for model in (LatencyModel(ConstantTPOT(doc["constant"]), "own_length", None),
+              LatencyModel(ConstantTPOT(doc["constant"]), "queue_aware", None),
+              LatencyModel(ProfiledCurveTPOT(doc["curve"]), "batch_aware", None),
+              LatencyModel(ConstantTPOT(doc["constant"]), "batch_aware", None)):
     for r in range(1000):
         states = [SimpleNamespace(num_running=r % 9, num_waiting=r % 2, max_num_seqs=8, pending_decode_tokens=7 * r)
                   for _ in fleet]

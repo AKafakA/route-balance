@@ -40,6 +40,15 @@ def _summary(outcomes=CELL, duration=4.0, corpus=CORPUS, prices=PRICES, problems
     return summarize("c1", outcomes, duration, corpus, prices, SLO, problems)
 
 
+def test_total_cost_prices_the_served_prompt_and_the_output():
+    """D117: prompt tokens (vLLM's served count) at the input price + output tokens at the output price."""
+    cell = [_ok("p0", "small", 10, 0.5, served=7), _ok("p1", "large", 20, 1.5, served=9)]
+    s = summarize("c1", cell, 4.0, CORPUS, PRICES, SLO, (), {"small": 2e-7, "large": 3e-7})
+    assert s.cost_total_per_1k == pytest.approx((7 * 2e-7 + 10 * 1e-7 + 9 * 3e-7 + 20 * 4e-7) / 2 * 1000)
+    assert s.cost_decode_per_1k == pytest.approx((10 * 1e-7 + 20 * 4e-7) / 2 * 1000)             # v2/v3's, unchanged
+    assert summarize("c1", cell, 4.0, CORPUS, PRICES, SLO, ()).cost_total_per_1k is None        # no input prices
+
+
 def test_every_metric_on_a_small_cell():
     s = _summary()
     assert (s.n_requests, s.n_ok, s.n_failed) == (5, 4, 1)
@@ -160,6 +169,8 @@ def test_request_values_reproduce_the_summary_by_send_position(tmp_path):
     assert v.index == tuple(range(12)) and v.prompt_ids == tuple(r.prompt_id for r in rec.requests)
     assert got["quality"] == s.quality and got["e2e_mean_ms"] == s.e2e_ms.mean and got["e2e_p99_ms"] == s.e2e_ms.p99
     assert math.isclose(got["cost_decode_per_1k"], s.cost_decode_per_1k, rel_tol=1e-12)
+    assert s.cost_total_per_1k > s.cost_decode_per_1k and math.isclose(got["cost_total_per_1k"], s.cost_total_per_1k,
+                                                                         rel_tol=1e-12)
     assert got["slo_miss_tight"] == 1 - s.slo_attainment_tight and got["slo_miss_loose"] == 1 - s.slo_attainment_loose
 
 

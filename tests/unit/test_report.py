@@ -175,10 +175,11 @@ def test_request_values_that_do_not_reproduce_the_summary_are_refused():
     from analysis.metrics import CellSummary, RequestValues, Spread
     one = np.ones(2)
     v = RequestValues(index=(0, 1), prompt_ids=("a", "b"), score=np.array([0.5, 0.5]), e2e_s=np.array([1.0, 1.0]),
-                      cost=np.array([1e-6, 1e-6]), met_tight=one, met_loose=one)
+                      cost=np.array([1e-6, 1e-6]), met_tight=one, met_loose=one, cost_total=np.array([2e-6, 2e-6]))
     s = CellSummary(cell_id="c", n_requests=2, n_ok=2, n_failed=0, quality=0.5, matched=2, corpus_gap=0, unmatched=0,
                     unscored=0, budget_exhausted=None, n_zero=0, coverage=1.0, quality_zeros_excluded=0.5,
-                    cost_decode_per_1k=1e-3, throughput_rps=1.0, e2e_ms=Spread(1000.0, 1000.0, 1000.0),
+                    cost_decode_per_1k=1e-3, cost_total_per_1k=2e-3, throughput_rps=1.0,
+                    e2e_ms=Spread(1000.0, 1000.0, 1000.0),
                     slo_attainment_tight=1.0, slo_attainment_loose=1.0, overhead_ms={}, off_instance_ms=None,
                     prompt_token_mismatches=0, problems=())
     rp.check_values("c", s, v)

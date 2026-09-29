@@ -237,12 +237,19 @@ LATENCY_PAIRS = frozenset({("constant", "own_length"), ("constant", "queue_aware
                            ("profiled_curve", "batch_aware"), ("constant", "batch_aware")})
 
 
+class Prefill(_Strict):
+    table: ArtifactPath  # the prefill table (tools/fit_prefill.py): per tier, TTFT as a line in the prompt's tokens
+    table_md5: str = Field(pattern=r"^[0-9a-f]{32}$")
+
+
 class Latency(_Strict):
     source: Literal["profiled_curve", "constant", "xgboost"]
     envelope: Literal["batch_aware", "queue_aware", "own_length"]
     normalization: Literal["fixed_ref", "max_divide"]
     table: ArtifactPath  # calibration table (curve or constants) or XGBoost dir
     table_md5: str = Field(pattern=r"^[0-9a-f]{32}$")   # of the table file, or of the XGBoost dir's md5s.json
+    # the prompt's prefill, added to every envelope (D118); null: no prefill term (v2 and v3)
+    prefill: Optional[Prefill]
 
     @model_validator(mode="after")
     def _supported_pair(self):

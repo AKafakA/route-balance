@@ -26,6 +26,13 @@ max over b.
 
 The constant and curve sources never import xgboost and never call a booster: their predict_calls is
 always 0 (the zero-call gate).
+
+Prefill (D118, optional: Latency.prefill): every envelope's value plus the prompt's prefill on the tier,
+  intercept + per_token * P, with P the request's prompt tokens,
+from a table written by tools/fit_prefill.py: {"unit": "ms", "prefill": {tier: {"intercept_ms", "per_token_ms",
+"n", "r2"}}, "provenance": {...}}, both values positive. The line is fitted with the engines' prefix cache on, so it
+carries the calibration's average caching; no cached share is subtracted per request. The same addend enters a
+candidate's loaded and idle latency, so a fixed_ref term stays within (0, 1].
 """
 from __future__ import annotations
 
@@ -33,7 +40,7 @@ import bisect
 import math
 from functools import partial
 from pathlib import Path
-from typing import Callable, Collection, Mapping, Protocol, Sequence
+from typing import Callable, Collection, Mapping, Optional, Protocol, Sequence
 
 from routebalance.config import LATENCY_PAIRS, Latency as LatencyConfig, loads_strict
 from routebalance.estimate.artifacts import ArtifactError, read_verified
@@ -41,6 +48,8 @@ from routebalance.types import Instance
 
 MIN_TPOT_MS = 1.0
 _TABLE_KEYS = {"unit", "constant", "curve", "provenance"}
+_PREFILL_KEYS = {"unit", "prefill", "provenance"}
+_PREFILL_LINE = {"intercept_ms", "per_token_ms", "n", "r2"}
 
 
 class InstanceState(Protocol):
@@ -173,6 +182,54 @@ def load_table(path: Path, md5: str) -> dict:
     return doc
 
 
+# ---------------------------------------------------------------- prefill
+
+
+def _positive_ms(v: object, where: str) -> float:
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v <= 0:
+        raise LatencyError(f"{where}: {v!r} is not a positive time in ms")
+    return float(v)
+
+
+class Prefill:
+    """The prompt's prefill time (s) on a tier: intercept + per_token * prompt tokens."""
+
+    def __init__(self, lines: Mapping[str, Mapping[str, object]]):
+        if not lines:
+            raise LatencyError("the prefill table is empty")
+        self._line: dict[str, tuple[float, float]] = {}
+        for tier, line in lines.items():
+            if not isinstance(line, Mapping) or set(line) != _PREFILL_LINE:
+                raise LatencyError(f"prefill[{tier!r}]: a line has exactly the keys {sorted(_PREFILL_LINE)}")
+            self._line[tier] = (_positive_ms(line["intercept_ms"], f"prefill[{tier!r}].intercept_ms") / 1000.0,
+                                _positive_ms(line["per_token_ms"], f"prefill[{tier!r}].per_token_ms") / 1000.0)
+
+    @property
+    def tiers(self) -> frozenset[str]:
+        return frozenset(self._line)
+
+    def seconds(self, tier_id: str, prompt_tokens: int) -> float:
+        if tier_id not in self._line:
+            raise LatencyError(f"no prefill line for tier {tier_id!r}; the table has {sorted(self._line)}")
+        if isinstance(prompt_tokens, bool) or not isinstance(prompt_tokens, int) or prompt_tokens < 1:
+            raise LatencyError(f"a prefill needs the prompt's token count (>= 1), got {prompt_tokens!r}")
+        intercept, per_token = self._line[tier_id]
+        return intercept + per_token * prompt_tokens
+
+
+def load_prefill(path: Path, md5: str) -> Prefill:
+    """A prefill table (tools/fit_prefill.py), verified against its pinned md5."""
+    try:
+        doc = loads_strict(read_verified(path, md5).decode("utf-8"))
+    except UnicodeDecodeError as e:
+        raise ArtifactError(f"{path}: not UTF-8: {e}") from e
+    if not isinstance(doc, dict) or set(doc) != _PREFILL_KEYS:
+        raise LatencyError(f"{path}: a prefill table has exactly the keys {sorted(_PREFILL_KEYS)}")
+    if doc["unit"] != "ms" or not isinstance(doc["provenance"], dict) or not isinstance(doc["prefill"], dict):
+        raise LatencyError(f"{path}: unit must be 'ms', prefill and provenance objects")
+    return Prefill(doc["prefill"])
+
+
 # ---------------------------------------------------------------- envelopes
 
 
@@ -205,10 +262,10 @@ def batch_aware(tpot_at: Callable[[int], float], state: InstanceState, length: f
 
 
 class LatencyModel:
-    def __init__(self, source, envelope: str):
+    def __init__(self, source, envelope: str, prefill: Optional[Prefill]):
         if (source.kind, envelope) not in LATENCY_PAIRS:
             raise LatencyError(f"TPOT source {source.kind!r} has no envelope {envelope!r}")
-        self.source, self.envelope = source, envelope
+        self.source, self.envelope, self.prefill = source, envelope, prefill
 
     @property
     def predict_calls(self) -> int:
@@ -228,12 +285,17 @@ class LatencyModel:
             own.append(lengths[inst.model])
         tiers = [inst.tier.tier_id for inst in instances]
         if self.envelope == "batch_aware":
-            return [batch_aware(self.source.curve(t), s, L) for t, s, L in zip(tiers, states, own, strict=True)]
-        # v3 fed the booster one output length for every tier: the largest expectation over all models
-        tpots = self.source.tpots(tiers, states, num_prompt_tokens, max(1, int(max(lengths.values()))))
-        if self.envelope == "own_length":
-            return [own_length(t, L) for t, L in zip(tpots, own, strict=True)]
-        return [queue_aware(t, s, L) for t, s, L in zip(tpots, states, own, strict=True)]
+            out = [batch_aware(self.source.curve(t), s, L) for t, s, L in zip(tiers, states, own, strict=True)]
+        else:
+            # v3 fed the booster one output length for every tier: the largest expectation over all models
+            tpots = self.source.tpots(tiers, states, num_prompt_tokens, max(1, int(max(lengths.values()))))
+            if self.envelope == "own_length":
+                out = [own_length(t, L) for t, L in zip(tpots, own, strict=True)]
+            else:
+                out = [queue_aware(t, s, L) for t, s, L in zip(tpots, states, own, strict=True)]
+        if self.prefill is None:
+            return out
+        return [x + self.prefill.seconds(t, num_prompt_tokens) for x, t in zip(out, tiers, strict=True)]
 
 
 def load_latency_model(cfg: LatencyConfig, artifact_root: Path, tier_ids: Collection[str]) -> LatencyModel:
@@ -251,4 +313,11 @@ def load_latency_model(cfg: LatencyConfig, artifact_root: Path, tier_ids: Collec
     absent = sorted(set(tier_ids) - source.tiers)
     if absent:
         raise LatencyError(f"{path}: no TPOT for fleet tiers {absent}")
-    return LatencyModel(source, cfg.envelope)
+    prefill = None
+    if cfg.prefill is not None:
+        prefill_path = Path(artifact_root) / cfg.prefill.table
+        prefill = load_prefill(prefill_path, cfg.prefill.table_md5)
+        absent = sorted(set(tier_ids) - prefill.tiers)
+        if absent:
+            raise LatencyError(f"{prefill_path}: no prefill line for fleet tiers {absent}")
+    return LatencyModel(source, cfg.envelope, prefill)
