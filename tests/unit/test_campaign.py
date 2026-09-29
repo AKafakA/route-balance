@@ -113,8 +113,8 @@ def test_the_tracked_files_dry_run_every_row():
     assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2b", "W4", "W3", "W5", "W6", "W7", "W8-cal", "W8",
                           "W8r", "W7r", "W9", "W4r", "W5r", "W7b", "W11", "W12", "W13", "W10"]   # D121: seed 1 first
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
-    assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 10, "W2": 156, "W2b": 20, "W4": 34, "W5": 10, "W7": 12,
-                     "W8": 52, "W8r": 104, "W7r": 24, "W9": 312, "W4r": 68, "W5r": 20, "W7b": 9, "W12": 12, "W13": 7}
+    assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 10, "W2": 156, "W2b": 20, "W4": 51, "W5": 27, "W7": 18,
+                     "W8": 78, "W8r": 156, "W7r": 36, "W9": 312, "W4r": 102, "W5r": 54, "W7b": 9, "W12": 12, "W13": 7}
     # W8: the Qwen grid's baselines (D70); W12: the in-flight dispatchers (D84); W13: leave one source out (D93);
     # D121: seed 1 of every main row first (W4 with the LPT-key variants, W5, W7, W8), their seeds 2-3 after (W8r, W7r,
     # W4r, W5r) with the full grid's (W9, W3 merged in); W3 and W11 disabled
@@ -125,6 +125,22 @@ def test_the_tracked_files_dry_run_every_row():
     assert summary["owner_unset"] == []                                    # every owner value is set (09-25)
     assert {"tpot-table.qwen", "prefill-table.qwen", "xgb-heads.qwen"} <= set(summary["pins_needed"])
     assert "W4" in campaign.dry_run_text(summary)
+
+
+def test_the_burst_sweep_and_the_three_rates():
+    """D125: the burst sweep's traces (vLLM bench's burstiness: the gamma shape, the mean rate fixed) and the three rates
+    of the ablations, the topology and Gemma rows."""
+    traces = SCOPE_JSON["traces"]
+    bursts = {f"ga{a}-l{r}": (b, float(r)) for a, b in (("025", 0.25), ("05", 0.5), ("2", 2.0)) for r in (12, 30, 42)}
+    for name, (b, rate) in bursts.items():
+        assert traces[name] == {"burstiness": b, "segments": [{"n_requests": 3532, "rate": rate}]}, name
+    rows = {r["id"]: r for r in SCOPE_JSON["rows"]}
+    for rid in ("W5", "W5r"):          # alpha 1 is the main grid's own Poisson run at each rate and seed
+        assert {t for b in rows[rid]["blocks"] for t in b["traces"]} == set(bursts)
+    for rid, want in (("W4", {"l12", "l30", "l42"}), ("W4r", {"l12", "l30", "l42"}), ("W7", {"l12", "l30", "l42"}),
+                      ("W7r", {"l12", "l30", "l42"}), ("W8", {"gl12", "gl30", "gl42"}), ("W8r", {"gl12", "gl30", "gl42"})):
+        assert {t for b in rows[rid]["blocks"] if b["enabled"] for t in b["traces"]} == want, rid
+    assert [traces[g]["segments"][0]["n_requests"] for g in ("gl12", "gl30", "gl42")] == [1979] * 3
 
 
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
@@ -249,9 +265,9 @@ def test_the_tracked_files_render_with_every_lease_input():
     by_block = {}
     for c in cells:
         by_block[c.block] = by_block.get(c.block, 0) + 1
-    assert by_block["G1"] == 66 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 18   # seed 1 (D121)
-    assert (by_block["W4-latency"], by_block["W4-learned"], by_block["W4-const-batch"]) == (8, 2, 2)
-    assert (by_block["W4r-mechanisms"], by_block["W4-lpt-key"], by_block["W4r-lpt-key"]) == (36, 4, 8)
+    assert by_block["G1"] == 66 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 27   # seed 1, 3 rates (D125)
+    assert (by_block["W4-latency"], by_block["W4-learned"], by_block["W4-const-batch"]) == (12, 3, 3)
+    assert (by_block["W4r-mechanisms"], by_block["W4-lpt-key"], by_block["W4r-lpt-key"]) == (54, 6, 12)
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():
         assert campaign.config_digest(parse_scheduler(doc)) == scope.configs[cid].config_digest
@@ -540,20 +556,20 @@ def test_a_held_block_keeps_the_campaign_incomplete(tmp_path):
     assert result.pending == {} and sum(c.block.startswith("W7b-") for c in expected_cells(scope)) == 9
     assert "W6/W6" not in result.pending and not any(c.block == "W6" for c in expected_cells(scope))   # dropped
     assert "W4/W4-arm3" not in result.pending and not any(c.block == "W4-arm3" for c in expected_cells(scope))
-    assert sum(c.block in ("W4-const-batch", "W4r-const-batch") for c in expected_cells(scope)) == 6   # the D45 control
+    assert sum(c.block in ("W4-const-batch", "W4r-const-batch") for c in expected_cells(scope)) == 9   # the D45 control
 
 
 @pytest.mark.parametrize("arm", ["rb", "rb-static", "rb-learned"])
 def test_the_ablations_take_apart_the_decided_variant(arm):
     """D78: W4's reference is rb_default's variant and its nine mechanism ablations are of that variant; the six
     latency variants all run, one of them the reference; 102 cells whichever variant is decided (90, and the 12 LPT-key
-    cells since D121), seed 1 in W4 and seeds 2-3 in W4r."""
+    cells since D121) at two rates, 153 at three since D125, seed 1 in W4 and seeds 2-3 in W4r."""
     presets, scope = filled()
     distinct = {n: {"path": p["path"], "md5": hashlib.md5(n.encode()).hexdigest()} for n, p in pins(presets).items()}
     result = campaign.render(presets, scope, pins=distinct, decisions={**DECISIONS, "rb_default": arm}, fleets=FLEETS)
     rendered = parse(Scope, result.scope, "rendered")
     w4 = [c for c in expected_cells(rendered) if c.block.startswith(("W4-", "W4r-"))]
-    assert len(w4) == 102 and rendered.groups["qwen-ablation"].reference == f"abl.qwen.{arm}.q50l30c20"
+    assert len(w4) == 153 and rendered.groups["qwen-ablation"].reference == f"abl.qwen.{arm}.q50l30c20"
     lat = {"rb": "latency.curve", "rb-static": "latency.static", "rb-learned": "latency.xgb"}[arm]
     want = campaign.Resolver(presets, distinct).resolve(f"$part:{lat}", "test", campaign.Needs(), {"family": "qwen"})
     mechanisms = [c for c in w4 if c.block == "W4-mechanisms"]

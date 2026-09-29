@@ -103,5 +103,12 @@
   "decision": "D123",
   "owner": "ok, so, we need to fix and rerun the rate 42 all experiments to compare if it works?; ok, go for me",
   "gpu_cost": "G1c: 10 runs at 42 req/s (~30 min) after G1b, on the fixed code: RouteBalance's round-based variants (curve, static, learned; per-round and cache reads) for both G1 presets; the pipeline systems have no rounds and are not rerun; the main grid then starts ~30 min later"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "ec4e724ad8b2e7f5bee7a04672a7740971d8924ba7086e0e2b44bafdfdca7403",
+  "decision": "D125",
+  "owner": "we just the need ablation of burst studies with the vllm-bench burst sweep, check the astrolable/Block paper, about it. we can do the similar thing there; all others change to be 3 rate (all the same) with seed 3, will adding how many times?; ok, it is fine. update the decisions and plans to follow this, and update the testing scripts aslo accordingly",
+  "gpu_cost": "+6.6 h of runs in total at the measured run times (+198 runs): the ablations W4/W4r at 12, 30 and 42 (+51 runs, +1.8 h), the topology W7/W7r at 12, 30 and 42 in place of 12 and 24 (+18, +0.5 h), Gemma W8/W8r at 12, 30 and 42 in place of 12 and 24 (+78, +1.6 h), and the burst sweep W5/W5r (gamma alpha 0.25, 0.5, 2.0 at 12, 30, 42 req/s, 3 systems, 3 seeds: 81 runs, +2.7 h over the time-varying row it replaces); seed 1 +2.2 h, seeds 2-3 +4.4 h; the lease buffer stays ~3 days"
  }
 ]
