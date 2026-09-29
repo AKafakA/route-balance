@@ -1,6 +1,6 @@
 {
  "notes": {
-  "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W1 -> G1 -> W1b -> W1c -> G1b -> W2 -> W2b -> W4 -> W5 -> W7 -> W8 (seed 1 of every main experiment) -> W8r -> W7r -> W9 -> W4r -> W5r (seeds 2-3, owner 09-29, D121) -> W7b -> W12 -> W13 -> W10 (W3, W6 and W11 disabled). tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
+  "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W1 -> G1 -> W1b -> W1c -> G1b -> G1c -> W2 -> W2b -> W4 -> W5 -> W7 -> W8 (seed 1 of every main experiment) -> W8r -> W7r -> W9 -> W4r -> W5r (seeds 2-3, owner 09-29, D121) -> W7b -> W12 -> W13 -> W10 (W3, W6 and W11 disabled). tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
   "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). Owner 09-25: the client's connection bound (8192) is set far above any in-flight count and a cell in which any request waited for a connection is invalid (rerun with a larger bound); the request timeout (900 s, above the server's 600 s) and the send-lag bound (500 ms since D103; 100 ms before) are failure bounds.",
   "server": "D44: the scheduler launch values, identical for every system (owner 09-25): 8 torch threads per model call on the one shared 4-thread pool; the engine and telemetry connection bound 4096, far above any in-flight count (a cell in which any request waited for a connection is invalid: rerun with a larger bound); the request timeout 600 s, a failure bound. The baselines' routers call their model one request at a time on a separate lane, as shipped routers do.",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
@@ -87,6 +87,7 @@
  },
  "groups": {
   "g1": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
+  "g1-fix": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
   "qwen": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
   "qwen-ablation": {"fleet": "qwen_std", "reference": "abl.qwen.{rb_default}.{headline}", "intended_differences": null},
   "qwen-sweep": {"fleet": "qwen_std", "reference": null, "intended_differences": []},
@@ -152,6 +153,15 @@
     {"name": "G1b", "group": "g1", "dataset": "eval_qwen", "axes": {"w": "$owner:g1_weights"},
      "configs": ["qwen.rb-learned.{w}"],
      "traces": ["l12", "l30", "l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "g1",
+     "planned": {}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "G1c", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D123: the check of the round-size fix at 42 req/s (an adaptive round also takes the scheduler's backlog, up to 32): RouteBalance's round-based variants (the measured curve, static and learned; per-round load reads and the pollers' cache) on the G1 presets, on the fixed code, against the same runs of G1 and G1b before the fix; the pipeline systems have no rounds and are not rerun",
+   "plan": "10 cells, ~30 min, after G1b",
+   "blocks": [
+    {"name": "G1c", "group": "g1-fix", "dataset": "eval_qwen", "axes": {"w": "$owner:g1_weights"},
+     "configs": ["qwen.rb.{w}", "qwen.rb-poll.{w}", "qwen.rb-static.{w}", "qwen.rb-static-poll.{w}", "qwen.rb-learned.{w}"],
+     "traces": ["l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "fix",
      "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W2", "kind": "cells", "prio": "must", "enabled": true, "why": null,
