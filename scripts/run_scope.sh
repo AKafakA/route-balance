@@ -2,7 +2,7 @@
 # Run the cells of some lease rows in the plan's order, resuming: a cell already published is never run again
 # (valid ones are done; invalid or ungated ones are reported and left for the owner to account for or retire).
 #
-#   scripts/run_scope.sh --render DIR --rows G1,W2,... --max-invalid N [--restart "CMD"] \
+#   scripts/run_scope.sh --render DIR --rows G1,W2,... --max-invalid N [--restart "CMD"] [--fresh-scheduler RUN_DIR] \
 #                        --scheduler URL --scheduler-log-dir DIR --fleet FLEET.json --hosts HOSTS.json \
 #                        --engines-record FILE --data-root DIR --cells-root DIR --mirror DEST
 #
@@ -13,6 +13,9 @@
 # cell the scheduler's code on disk must be the code it started with (its manifest reports both): after an
 # rsync of the code the scheduler must be restarted. With --restart the command is run (it must restart the
 # scheduler and return once it is launched) and the check repeated; without it the run stops.
+# With --fresh-scheduler (D132, as v3's per-cell runner), every cell runs on a fresh scheduler process: before each
+# cell, scripts/restart_scheduler.sh restarts it from RUN_DIR (the deploy.sh scheduler run directory on this node)
+# with a new log directory, SCHED_LOG_DIR/<cell>.<stamp>, which that cell's driver reads.
 # A cell that could not run (exit 2) or whose mirror failed (exit 3) stops the run; an invalid cell (exit 1)
 # counts toward --max-invalid and the run stops when more than that many have been seen. Before the first cell and
 # after the last, the bookkeeping directories (_attempts, _groups, _retired) are copied to the second location
@@ -28,14 +31,15 @@ set -euo pipefail
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
-usage() { echo "usage: $0 --render DIR --rows R1,R2 --max-invalid N [--restart CMD] --scheduler URL" \
+usage() { echo "usage: $0 --render DIR --rows R1,R2 --max-invalid N [--restart CMD] [--fresh-scheduler RUN_DIR] --scheduler URL" \
                "--scheduler-log-dir DIR --fleet F --hosts H --engines-record FILE --data-root DIR --cells-root DIR" \
                "--mirror DEST" >&2; exit 2; }
-RENDER= ROWS= MAXINV= RESTART= URL= LOGDIR= FLEET= HOSTS= ENGINES= DATA= ROOT= MIRROR=
+RENDER= ROWS= MAXINV= RESTART= FRESH= URL= LOGDIR= FLEET= HOSTS= ENGINES= DATA= ROOT= MIRROR=
 while [ $# -gt 0 ]; do
   [ $# -ge 2 ] || usage          # every flag takes a value
   case "$1" in
     --render) RENDER=$2 ;; --rows) ROWS=$2 ;; --max-invalid) MAXINV=$2 ;; --restart) RESTART=$2 ;;
+    --fresh-scheduler) FRESH=$2 ;;
     --scheduler) URL=$2 ;; --scheduler-log-dir) LOGDIR=$2 ;; --fleet) FLEET=$2 ;; --hosts) HOSTS=$2 ;;
     --data-root) DATA=$2 ;; --cells-root) ROOT=$2 ;; --mirror) MIRROR=$2 ;; --engines-record) ENGINES=$2 ;;
     *) usage ;;
@@ -43,6 +47,7 @@ while [ $# -gt 0 ]; do
   shift 2
 done
 for v in RENDER ROWS MAXINV URL LOGDIR FLEET HOSTS ENGINES DATA ROOT MIRROR; do [ -n "${!v}" ] || usage; done
+case "$LOGDIR" in /*) ;; *) [ -z "$FRESH" ] || { echo "--scheduler-log-dir must be absolute with --fresh-scheduler" >&2; exit 2; } ;; esac
 case "$MAXINV" in ''|*[!0-9]*) usage ;; esac
 
 source "$REPO/scripts/mirror.sh"
@@ -84,9 +89,15 @@ echo "$(ts) [run_scope] ${#CELLS[@]} cells to run in rows $ROWS"
 INVALID=0
 for cell in "${CELLS[@]}"; do
   [ -n "$cell" ] || continue
+  cell_log="$LOGDIR"
+  if [ -n "$FRESH" ]; then
+    cell_log="$LOGDIR/$cell.$(date -u +%Y%m%dT%H%M%SZ)"
+    bash scripts/restart_scheduler.sh "$FRESH" "$cell_log" \
+      || { echo "$(ts) [run_scope] stopping: the scheduler could not be restarted for $cell"; exit 2; }
+  fi
   scheduler_current || exit 2
   set +e
-  scripts/run_cell.sh --render "$RENDER" --cell "$cell" --scheduler "$URL" --scheduler-log-dir "$LOGDIR" \
+  scripts/run_cell.sh --render "$RENDER" --cell "$cell" --scheduler "$URL" --scheduler-log-dir "$cell_log" \
       --fleet "$FLEET" --hosts "$HOSTS" --engines-record "$ENGINES" --data-root "$DATA" --cells-root "$ROOT" \
       --mirror "$MIRROR"
   rc=$?
@@ -107,7 +118,8 @@ for group in $ROW_GROUPS; do        # a group completed by a cell whose driver s
 done
 mirror_root || { echo "$(ts) [run_scope] the second location at $MIRROR does not match $ROOT"; exit 3; }
 set +e
-"$PY" -m analysis.manifest --scope "$RENDER/scope.json" --cells "$ROOT"
+"$PY" -m analysis.manifest --scope "$RENDER/scope.json" --cells "$ROOT"   # the whole render, for the log only: the
+                                  # rows' done-ness below is status(), which rechecks each run's isolation (D128/D132)
 drv status --render "$RENDER" --rows "$ROWS" --cells-root "$ROOT"
 DONE=$?
 set -e

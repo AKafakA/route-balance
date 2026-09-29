@@ -7,6 +7,9 @@ import aiohttp
 import pytest
 from aiohttp import web
 
+from bench.records import Sampling
+from routebalance.backend import BackendClient
+from routebalance.config import ConfigError
 from routebalance.types import Instance, Tier
 from tests.contract.fake_vllm import FakeState, make_app
 from tests.contract.test_server import free_port
@@ -175,3 +178,61 @@ def test_a_failed_warm_up_stops_the_run(tmp_path):
             await calibrate(p, row, e.fleet, TRAIN, tmp_path, {})
     with pytest.raises(direct.NotIdle, match="warm-up"):
         asyncio.run(scenario())
+
+
+# ---- D128: the warm-up empties every engine's prefix cache and proves it
+
+def _with_engines(tiers, setup, n=2):
+    async def scenario():
+        async with Engines(tiers) as e:
+            setup(e)
+            async with direct.session(4) as sess:
+                backend = BackendClient(sess, 10.0)
+                lines = await direct.warm_up(sess, backend, e.fleet, requests_per_instance=n, max_tokens=4,
+                                             prompt="ready?", sampling=Sampling.model_validate(SAMPLING), run_id="r1")
+            return e, lines
+    return asyncio.run(scenario())
+
+
+def test_the_warm_up_empties_every_engine_prefix_cache_and_proves_it():
+    def setup(e):
+        for st in e.states:
+            st.cached.update({"ready?", "a prompt of the previous run"})
+    e, lines = _with_engines([SMALL, LARGE], setup, n=3)
+    assert [st.resets for st in e.states] == [1, 1]
+    assert all("a prompt of the previous run" not in st.cached for st in e.states)   # the whole cache went
+    for inst in e.fleet:
+        mine = [(x["cache_step"], x["cache_queried"], x["cache_hit"]) for x in lines if x["instance_id"] == inst.instance_id]
+        assert mine == [("prime", 5, 4), ("after_reset", 5, 0), ("control", 5, 4), ("warmup", 5, 4)]
+    assert all(x["purpose"] == "warmup" and x["success"] for x in lines)
+
+
+def test_an_engine_without_the_developer_mode_stops_the_run():
+    with pytest.raises(direct.CacheNotReset, match="VLLM_SERVER_DEV_MODE=1"):
+        _with_engines([SMALL, LARGE], lambda e: setattr(e.states[1], "dev_mode", False))
+
+
+def test_a_reset_that_empties_nothing_is_caught():
+    with pytest.raises(direct.CacheNotReset, match="the cache was not emptied"):
+        _with_engines([SMALL], lambda e: setattr(e.states[0], "reset_ignored", True))
+
+
+def test_an_engine_that_does_not_report_its_prefix_cache_stops_the_run():
+    with pytest.raises(direct.CacheNotReset, match="does not report its prefix cache"):
+        _with_engines([SMALL], lambda e: setattr(e.states[0], "omit", ("vllm:prefix_cache_hits_total",)))
+
+
+def test_the_warm_up_needs_the_reset_check_and_its_control():
+    with pytest.raises(ConfigError, match="at least 2 requests"):
+        _with_engines([SMALL], lambda e: None, n=1)
+
+
+def test_prefix_cache_counters_sum_the_engine_series_and_refuse_malformed_ones():
+    text = ('vllm:prefix_cache_queries_total{engine="0",model_name="M"} 10.0\n'
+            'vllm:prefix_cache_queries_total{engine="1",model_name="M"} 6.0\n'
+            'vllm:prefix_cache_queries_created{engine="0",model_name="M"} 1.7e9\n'
+            'vllm:prefix_cache_hits_total{engine="0",model_name="M"} 3.0\n'
+            'vllm:prefix_cache_hits_total{engine="1",model_name="M"} 1.0\n')
+    assert direct.prefix_cache_counters("x", text) == (16, 4)
+    with pytest.raises(direct.CacheNotReset, match="malformed"):
+        direct.prefix_cache_counters("x", text.replace(" 1.0\n", " 99.0\n"))    # more hits than queries

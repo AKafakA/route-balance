@@ -76,16 +76,20 @@ def test_one_pooled_session_reuses_connections():
         assert len(server.peers) == 20 and len(set(server.peers)) == 1 and waits == 0
 
 
-def test_a_full_pool_is_counted_and_bounds_connections():
+def test_the_client_uses_vllm_benchs_connector_so_no_request_waits_for_a_connection():
+    """D134 (owner: "back to vllm bench"): no connection limit and keep-alive, as vLLM bench's connector; the
+    max_connections value only sizes the open-file check, so six concurrent requests never queue."""
     async def go(url):
         async with HttpSchedulerClient(url, max_connections=2, timeout_s=10.0) as client:
+            conn = client._session.connector
+            settings = (conn.limit, conn.limit_per_host, conn.force_close)
             await asyncio.gather(*(client.complete(request_body(f"cell.run.{i}", PROMPT, SAMPLING))
                                    for i in range(6)))
-            return client.connection_waits
+            return client.connection_waits, settings
     with LocalScheduler(delay_s=0.2) as server:
-        waits = asyncio.run(go(server.url))
-        assert server.peak <= 2 and len(set(server.peers)) <= 2
-    assert waits >= 4
+        waits, settings = asyncio.run(go(server.url))
+        assert server.peak == 6
+    assert waits == 0 and settings == (0, 0, False)
 
 
 @pytest.mark.parametrize("identity", [{"config_digest": CONFIG_DIGEST}, {"config_digest": 1, "fleet_digest": "f"}])

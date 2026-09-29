@@ -60,7 +60,7 @@ SHARED = [
     (("launch", "max_connections"), 65, "launch.max_connections"),
     (("launch", "request_timeout_s"), 60.0, "launch.request_timeout_s"),
     (("launch", "router_threads"), 8, "launch.router_threads"),
-    (("launch", "engine_session", "force_close"), False, "launch.engine_session.force_close"),
+    (("launch", "engine_session", "force_close"), True, "launch.engine_session.force_close"),
     (("launch", "engine_session", "limit"), 32, "launch.engine_session.limit"),
     (("launch", "telemetry_session", "limit"), 1, "launch.telemetry_session.limit"),
     (("launch", "event_loop"), "uvloop.Loop", "launch.event_loop"),

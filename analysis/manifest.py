@@ -8,7 +8,7 @@ Each expected cell is
   invalid    the directory holds another record than exactly that one, the file is unreadable, a request
              failed, it does not match its expectation (id, labels, seed, trace, prompt order, dataset,
              tokenizer, bench parameters, the scheduler configuration digest, the expected arrival and
-             prompt-order digests), a request started later than max_send_lag_ms after its scheduled arrival,
+             prompt-order digests),
              or an execution check failed (analysis/validity.py)
   accounted  missing or invalid, with its reason recorded in the scope's "accounted" table
 A record in a directory the scope does not list, or directly in the root, is unexpected. No other file is a
@@ -29,6 +29,7 @@ from pathlib import Path
 from analysis.validity import failed_requests, integrity_problems
 from bench.records import CELL_SUFFIX, CellRecord, cell_dir, cell_path, read_cell, records_in
 from bench.scope import BenchParams, ExpectedCell, Scope, expected_cells, load_scope
+from gates.cell import isolation_problems
 from routebalance.config import ConfigError
 
 _REASON_CHARS = 500
@@ -74,11 +75,7 @@ def expectation_problems(cell: CellRecord, exp: ExpectedCell, bench: BenchParams
     if budgeted != (len(cell.requests) if exp.dataset.budgets is not None else 0):
         problems.append(f"{budgeted}/{len(cell.requests)} requests carried a budget, the scope expects "
                         + ("all" if exp.dataset.budgets is not None else "none"))
-    lag_ms = max((r.sent_s - r.arrival_s for r in cell.requests), default=0.0) * 1000  # default-ok: no requests
-    if lag_ms > bench.max_send_lag_ms:
-        problems.append(f"a request started {lag_ms:.1f} ms after its arrival (bound {bench.max_send_lag_ms} ms): "
-                        "not the scheduled open-loop load")
-    return problems
+    return problems        # D134 (owner): a late send is counted (the report's max_send_lag_ms), never a gate
 
 
 def cell_problems(cell: CellRecord, exp: ExpectedCell, bench: BenchParams) -> list[str]:
@@ -108,7 +105,7 @@ def check(scope: Scope, cells_root: Path) -> Coverage:
         except ConfigError as e:
             invalid[exp.cell_id] = (f"unreadable: {str(e)[:_REASON_CHARS]}",)
             continue
-        problems = cell_problems(rec, exp, scope.bench)
+        problems = cell_problems(rec, exp, scope.bench) + isolation_problems(directory)   # D128/D132
         fleet_of[exp.cell_id] = (exp.group, rec.identity_start.fleet_digest)
         if problems:
             invalid[exp.cell_id] = tuple(problems)

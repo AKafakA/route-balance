@@ -22,7 +22,7 @@ from bench.scope import ExpectedCell
 from routebalance.config import ConfigError
 
 METRICS = ("e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k", "cost_total_per_1k", "slo_miss_tight",
-           "slo_miss_loose")   # lower is better; D117: total cost (prompt + output) beside v2/v3's decode cost
+           "slo_miss_loose")   # lower is better; D117: total cost (prompt + output) beside v3's decode cost (v2 priced both)
 _AVERAGED = ("quality", *METRICS, "throughput_rps")
 Key = tuple[str, str, str]
 

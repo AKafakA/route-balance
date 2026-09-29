@@ -61,16 +61,19 @@ echo "$(ts) [run_cell] $CELL: config $CONFIG_ID ($CONFIG_DIGEST), group $GROUP, 
 
 # ---- 1. drain  2. POST the configuration  3. preflight
 drv drain --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --scheduler "$URL" || fail "drain"
+drv fresh --scheduler "$URL" || fail "the scheduler is not a fresh process (D132: run_scope.sh --fresh-scheduler)"
 drv post-config --scheduler "$URL" --attempt "$ATTEMPT" --config-digest "$CONFIG_DIGEST" \
     --fleet-digest "$FLEET_DIGEST" || fail "POST /v1/config"
 "$PY" -m gates.preflight --scheduler "$URL" --fleet "$FLEET" --hosts "$HOSTS" \
     --expect-config-digest "$CONFIG_DIGEST" --expect-fleet-digest "$FLEET_DIGEST" > "$ATTEMPT/gates/preflight.log" 2>&1 \
   || { cat "$ATTEMPT/gates/preflight.log"; fail "preflight failed"; }
 
-# ---- 4. warm-up straight to the engines, then drain; the engines as they report themselves (D48)
-drv warmup --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --attempt "$ATTEMPT" || fail "warm-up"
+# ---- 4. the engines as they report themselves (D48), with their serving counters, BEFORE the warm-up, so the
+#         traffic check covers the reset, its proof and the whole run (D132); then the warm-up straight to the
+#         engines (the proven cache reset, D128), then drain
 drv engines --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --engines-record "$ENGINES" \
     --out "$ATTEMPT/engines_before.json" || fail "the engines could not be read"
+drv warmup --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --attempt "$ATTEMPT" || fail "warm-up"
 
 # ---- 5. stats and manifest before (settled logs), the scheduler's code and launch values
 drv before --scheduler "$URL" --attempt "$ATTEMPT" --log-dir "$LOGDIR" --config-digest "$CONFIG_DIGEST" \

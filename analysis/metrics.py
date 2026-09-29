@@ -13,8 +13,11 @@ counted, but it carries a problem and is invalid (analysis/validity.py adds the 
   budget_exhausted   budget cells only: the successful requests whose budget ran out, as v3 counted them (its
               budget could not pay for the prompt on the served tier, or the served reply's cost, prompt
               included, reached the budget to within 1e-9 USD); None for every other cell
-  cost        decode only: sum(output_tokens * output price of the served model) / successful * 1000, i.e.
-              USD per 1k successful requests, with prices from the fleet config (USD per token)
+  cost_total  the report's Cost (D117): sum(prompt_tokens * input price + output_tokens * output price of the served
+              model) / successful * 1000, USD per 1k successful requests (as v2 priced it; the objective prices the
+              prompt the same way)
+  cost        DecodeCost, beside it: sum(output_tokens * output price of the served model) / successful * 1000, as
+              v3 counted it; prices from the fleet config (USD per token)
   throughput  successful requests / duration_s
   e2e         client end-to-end latency, mean / p50 / p99 in ms (numpy, linear-interpolated percentiles)
   slo         the share of the cell's requests that met the SLO at each level, tight and loose (analysis/slo.py:
@@ -59,6 +62,7 @@ class Outcome:
     e2e_s: float
     ttft_s: Optional[float]               # the scheduler's backend clock: its call to the instance -> first token
     server_latency_s: Optional[float]
+    first_token_s: Optional[float]        # the scheduler's clock: the request's arrival -> first token (the SLO's TTFT)
     timings_ms: Optional[Mapping[str, float]]
     prompt_tokens_sent: Optional[int]
     prompt_tokens_served: Optional[int]
@@ -96,6 +100,7 @@ class CellSummary:
     prompt_token_mismatches: Optional[int]    # sent count != vLLM's count; None when not recorded
     problems: tuple[str, ...]
     cost_total_per_1k: Optional[float] = None  # D117: the prompt at the input price + the output at the output price
+    max_send_lag_ms: Optional[float] = None    # D134: the latest start after a scheduled arrival (counted, never a gate)
 
     @property
     def valid(self) -> bool:
@@ -151,7 +156,7 @@ def request_values(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
             raise ConfigError(f"cell {cell.cell_id}: request {r.index} has no served prompt token count (D117)")
         rows.append((r.index, r.prompt_id, score if outcome == "matched" else math.nan, o.e2e_s,
                      o.output_tokens * prices[o.model],
-                     *(slo.met(lvl, o.instance_id, o.e2e_s, o.server_latency_s, o.ttft_s, o.output_tokens)
+                     *(slo.met(lvl, o.instance_id, o.first_token_s, o.server_latency_s, o.ttft_s, o.output_tokens)
                        for lvl in LEVELS),
                      o.prompt_tokens_served * in_prices[o.model] + o.output_tokens * prices[o.model]))
     rows.sort(key=lambda row: row[0])
@@ -198,12 +203,13 @@ def outcomes_of(cell: CellRecord) -> list[Outcome]:
         if rep is None:
             out.append(Outcome(prompt=r.prompt, ok=False, model=None, instance_id=None, text=None,
                                output_tokens=None, e2e_s=r.e2e_s, ttft_s=None, server_latency_s=None, timings_ms=None,
-                               prompt_tokens_sent=r.prompt_tokens, prompt_tokens_served=None))
+                               prompt_tokens_sent=r.prompt_tokens, prompt_tokens_served=None, first_token_s=None))
         else:
             out.append(Outcome(prompt=r.prompt, ok=True, model=rep.model, instance_id=rep.instance_id,
                                text=rep.generated_text, output_tokens=rep.output_tokens, e2e_s=r.e2e_s, ttft_s=rep.ttft_s,
                                server_latency_s=rep.server_latency_s, timings_ms=rep.timings_ms,
-                               prompt_tokens_sent=r.prompt_tokens, prompt_tokens_served=rep.prompt_tokens))
+                               prompt_tokens_sent=r.prompt_tokens, prompt_tokens_served=rep.prompt_tokens,
+                               first_token_s=rep.first_token_s))
     return out
 
 
@@ -220,6 +226,8 @@ def summarize_cell(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
         problems.append("the fleet given to the analysis is not the fleet the cell ran on")
     summary = summarize(cell.cell_id, outcomes_of(cell), cell.duration_s, quality,
                         decode_prices(i.tier for i in fleet), slo, problems, input_prices(i.tier for i in fleet))
+    lags = [r.sent_s - r.arrival_s for r in cell.requests]            # D134: a late send is counted, never a gate
+    summary = replace(summary, max_send_lag_ms=max(lags) * 1000 if lags else None)
     if not budgeted:
         return summary
     exhausted, why = budget_exhausted(cell, fleet)
@@ -309,8 +317,11 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
     outside = [] if slo is None else sorted({o.instance_id for o in ok} - slo.instances())
     if outside:
         problems.append(f"served instances outside the fleet the SLO was built for: {outside}")
-    attainment = {level: None if slo is None or outside or not outcomes else
-                  sum(slo.met(level, o.instance_id, o.e2e_s, o.server_latency_s, o.ttft_s, o.output_tokens)
+    untimed = sum(o.first_token_s is None for o in ok)
+    if slo is not None and untimed:
+        problems.append(f"{untimed}/{len(ok)} replies carry no scheduler first-token time: the SLO cannot be judged")
+    attainment = {level: None if slo is None or outside or untimed or not outcomes else
+                  sum(slo.met(level, o.instance_id, o.first_token_s, o.server_latency_s, o.ttft_s, o.output_tokens)
                       for o in ok) / len(outcomes)
                   for level in LEVELS}
     residual = [o.e2e_s - o.server_latency_s for o in ok if o.server_latency_s is not None]

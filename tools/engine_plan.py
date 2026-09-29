@@ -40,7 +40,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 
 from pydantic import Field, StrictBool, StrictFloat, StrictInt, StrictStr, field_validator
 
@@ -87,7 +87,7 @@ class _Hub(Strict):
 class _Launch(Strict):
     host: str = Field(min_length=1)
     port: int = Field(gt=0, lt=65536)
-    torch_threads: int = Field(ge=1)
+    torch_threads: Optional[int] = Field(default=None, ge=1)   # D134: null = torch's default (v3), nothing set
     max_connections: int = Field(ge=1)
     request_timeout_s: float = Field(gt=0)
 
@@ -203,7 +203,8 @@ def main(argv: list[str]) -> int:
             return 0
         if a.cmd == "launch":
             x = load_launch(a.launch)
-            print(x.host, x.port, x.torch_threads, x.max_connections, x.request_timeout_s, sep="\t")
+            print(x.host, x.port, "none" if x.torch_threads is None else x.torch_threads, x.max_connections,
+                  x.request_timeout_s, sep="\t")
             return 0
         if a.cmd == "nodes":
             fleet = load_fleet(a.fleet, a.hosts)

@@ -26,12 +26,14 @@ def _ok(prompt, model, out, e2e, server=0.25, timings=None, sent=5, served=5, tt
                    e2e_s=e2e, ttft_s=ttft,
                    server_latency_s=server,
                    timings_ms={"queue_ms": e2e, "decide_ms": 1.0} if timings is None else timings,
-                   prompt_tokens_sent=sent, prompt_tokens_served=served)
+                   prompt_tokens_sent=sent, prompt_tokens_served=served,
+                   first_token_s=e2e - (server - ttft))    # the scheduler's first token, as E2E minus the decode was
 
 
 FAILED = Outcome(prompt="p0", ok=False, model=None, instance_id=None, text=None, output_tokens=None, e2e_s=30.0,
                  ttft_s=None,
-                 server_latency_s=None, timings_ms=None, prompt_tokens_sent=5, prompt_tokens_served=None)
+                 server_latency_s=None, timings_ms=None, prompt_tokens_sent=5, prompt_tokens_served=None,
+                 first_token_s=None)
 CELL = [_ok("p0", "small", 10, 0.5), _ok("p1", "large", 20, 1.5), _ok("p2", "small", 30, 2.0),
         _ok("p1", "small", 40, 1.2), FAILED]
 

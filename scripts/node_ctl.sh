@@ -111,14 +111,16 @@ cmd_launch() {
   mkdir -p "$RB_LOGS" "$RB_RUN"
   rm -f "$pidf"                        # a stale record (that process is gone), replaced by the new one below
   log="$RB_LOGS/engine.$id.$(date -u +%Y%m%dT%H%M%SZ).log"
-  printf '%s\n' "CUDA_VISIBLE_DEVICES=$gpus $ENGINE_VENV/bin/python -u -m vllm.entrypoints.openai.api_server $*" \
+  printf '%s\n' "CUDA_VISIBLE_DEVICES=$gpus VLLM_SERVER_DEV_MODE=1 $ENGINE_VENV/bin/python -u -m vllm.entrypoints.openai.api_server $*" \
     > "$RB_RUN/engine.$id.cmd"
+  # VLLM_SERVER_DEV_MODE=1 serves vLLM's POST /reset_prefix_cache (routes only; the serving path is unchanged), which every
+  # run's warm-up calls to start from an empty prefix cache (D128; tools/direct.py).
   # A new session per engine: its pid is its process group, which holds every worker it spawns.
   # (SC2016: the inner script expands in the child; SC2094: $log is recorded in the pid file, not read.)
   # shellcheck disable=SC2016,SC2094
   setsid --fork bash -c "$RECORD_AND_EXEC"'; exec "$@"' _ "$pidf" "$log" "$BOOT_ID" \
     env -i HOME="$HOME" PATH="$RB_PATH" LANG=C.UTF-8 CUDA_HOME="$CUDA_DIR" CUDA_VISIBLE_DEVICES="$gpus" \
-    HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 \
+    HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 VLLM_SERVER_DEV_MODE=1 \
     "$ENGINE_VENV/bin/python" -u -m vllm.entrypoints.openai.api_server "$@" > "$log" 2>&1 < /dev/null
   local i
   for i in $(seq 1 20); do [ -s "$pidf" ] && break; sleep 0.25; done
@@ -222,7 +224,8 @@ cmd_sched_start() {
   log="$RB_LOGS/scheduler.$(date -u +%Y%m%dT%H%M%SZ).log"
   local argv=(--fleet "$run/fleet.json" --hosts "$run/hosts.json" --config "$run/scheduler.json"
               --artifacts "$art" --avengers-repo "$AP_DIR" --best-route-repo "$BR_DIR" --host "$host" --port "$port"
-              --request-timeout-s "$timeout" --max-connections "$conns" --torch-threads "$threads" --log-dir "$logdir")
+              --request-timeout-s "$timeout" --max-connections "$conns" --log-dir "$logdir")
+  [ "$threads" = none ] || argv+=(--torch-threads "$threads")   # none: torch's default thread count (D134, v3)
   printf '%s\n' "CUDA_VISIBLE_DEVICES= $SCHED_VENV/bin/python -u -m routebalance.server ${argv[*]}" > "$run/scheduler.cmd"
   # the soft open-file limit is raised to the hard limit: the engine streams are bounded by --max-connections
   # shellcheck disable=SC2016,SC2094

@@ -4,8 +4,9 @@ A request meets its SLO at a level ("tight" or "loose") when
   TTFT <= k * its tier's single-request TTFT   and   TPOT <= k * its tier's single-request TPOT,
 with k the level's value for the served model (configs/prereg_rules.json "slo") and the single-request values
 measured on the lease stack in W1 at b = 1 (tools/slo_base.py). On the record's clocks:
-  TTFT  e2e - (server_latency - ttft): everything the client waits before the engine's first token (the
-        client and network, the scheduler's queue and decision, RouteBalance's round wait) plus the engine's TTFT
+  TTFT  first_token_s, the scheduler's clock from the request's arrival to its first token (its queue and decision,
+        RouteBalance's round wait, then the engine's TTFT), as v2's client_ttft; the reply's delivery after the last
+        token is no longer counted (Codex audit 09-29, which found E2E minus the decode doing so)
   TPOT  (server_latency - ttft) / (output_tokens - 1), the engine's time per output token; a one-token reply
         has no TPOT and is judged on its TTFT alone (vLLM's benchmark defines TPOT from two tokens on)
 Attainment: the share of the cell's requests that meet the SLO; a failed request never does. The comparisons
@@ -77,13 +78,17 @@ class CellSlo:
     def instances(self) -> frozenset[str]:
         return frozenset(i for per in self.limits.values() for i in per)
 
-    def met(self, level: str, instance_id: str, e2e_s: float, server_latency_s: float, ttft_s: float,
-            output_tokens: int) -> bool:
+    def met(self, level: str, instance_id: str, first_token_s: Optional[float], server_latency_s: float,
+            ttft_s: float, output_tokens: int) -> bool:
+        """first_token_s: the scheduler's clock from the request's arrival to its first token (v2's client_ttft); no
+        longer reconstructed as E2E minus the decode, which also counted the reply's delivery after the last token."""
         lim = self.limits[level].get(instance_id)
         if lim is None:
             raise ConfigError(f"instance {instance_id} is not in the cell's fleet")
+        if first_token_s is None:
+            raise ConfigError(f"instance {instance_id}: a reply without the scheduler's first-token time")
         decode_s = server_latency_s - ttft_s
-        if e2e_s - decode_s > lim.ttft_s:
+        if first_token_s > lim.ttft_s:
             return False
         if output_tokens < 2:
             return True                                  # a one-token reply has no TPOT

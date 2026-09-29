@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "bcc412b5f32f2fd8c77750f28332f7c52c36034fd58e0803d1d2a1a292e2f2b8",
- "fleet_digest": "e896e6e579753002e997668fbd9f2d31e34c636f5b2a65fcee7ca712faff7a78",
+ "config_digest": "aa7d93a7a85fe19994ae1e22cfc48660fd0ae84c30e51f2126bc9db8e15c1c19",
+ "fleet_digest": "39a614b89c6629a36ca6fadf9e832f2d8421c5d02f0897734e54f16d681cee11",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -73,7 +73,6 @@
  },
  "telemetry": {
   "poll_ms": 20.0,
-  "max_age_ms": 2000.0,
   "timeout_s": 2.0,
   "dead_reckoning": true
  },
@@ -92,9 +91,9 @@
   "calib/tpot.json": "3004488055fdb43f53da93726b9e2130"
  },
  "code": {
-  "routebalance": "30054d6788c7f7c0a820e3dbda021d22d059282eaf81ef59746484c8c715f302",
+  "routebalance": "774dceb126dd6a37df979eae148af49739aabece1398ef24fa2ef45cc63923a6",
   "avengers_pro": null,
-  "routebalance_now": "30054d6788c7f7c0a820e3dbda021d22d059282eaf81ef59746484c8c715f302",
+  "routebalance_now": "774dceb126dd6a37df979eae148af49739aabece1398ef24fa2ef45cc63923a6",
   "avengers_pro_now": null
  },
  "threadpools": {
@@ -155,12 +154,12 @@
   "router_threads": 4,
   "router_lane_threads": 1,
   "engine_session": {
-   "limit": 64,
+   "limit": 0,
    "limit_per_host": 0,
-   "force_close": true
+   "force_close": false
   },
   "telemetry_session": {
-   "limit": 64,
+   "limit": 0,
    "limit_per_host": 0,
    "force_close": false
   },

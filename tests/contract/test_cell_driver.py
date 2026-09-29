@@ -173,6 +173,7 @@ def test_a_clean_record_with_every_gate_passed_is_valid(lease, monkeypatch):
     attempt = cd.Path(cd.prepare(render, CELL, root, fleet, hosts)["ATTEMPT"])
     (attempt / "gates").mkdir()
     monkeypatch.setattr(cd, "record_problems", lambda scope, exp, d: [])
+    monkeypatch.setattr(cd, "isolation_problems", lambda d: [])   # its own tests: tests/gates/test_isolation.py
     for when in ("before", "after"):
         (attempt / f"engines_{when}.json").write_text(json.dumps(ENGINES))
     _manifest(attempt)
@@ -189,6 +190,7 @@ def test_an_engine_restart_during_the_cell_invalidates_it(lease, monkeypatch):
     attempt = cd.Path(cd.prepare(render, CELL, root, fleet, hosts)["ATTEMPT"])
     (attempt / "gates").mkdir()
     monkeypatch.setattr(cd, "record_problems", lambda scope, exp, d: [])
+    monkeypatch.setattr(cd, "isolation_problems", lambda d: [])   # its own tests: tests/gates/test_isolation.py
     restarted = json.loads(json.dumps(ENGINES))
     restarted["instances"]["e_0"]["start_time_s"] += 60.0
     (attempt / "engines_before.json").write_text(json.dumps(ENGINES))
@@ -250,6 +252,7 @@ def test_an_unpublished_record_is_never_run_again(lease):
 
 
 def test_the_rows_are_done_only_when_every_cell_is_and_parity_passed(lease, monkeypatch):
+    monkeypatch.setattr(cd, "isolation_problems", lambda d: [])   # its own tests: tests/gates/test_isolation.py
     render, root, *_ = lease
     problems, published = cd.rows_status(render, ["G1"], root)
     assert len(problems) == 66 and published == []
@@ -340,3 +343,18 @@ def test_a_row_selection_that_names_no_row_is_refused(lease, cmd, rows):
     with pytest.raises(SystemExit) as e:
         cd.main([cmd, "--render", str(render), "--rows", rows, *extra])
     assert e.value.code == 2
+
+
+def test_a_cell_is_refused_before_it_runs_on_a_scheduler_that_has_served_requests():
+    """D132 (local review 09-29): a forgotten --fresh-scheduler must cost no run, so the driver refuses up front."""
+    async def scenario():
+        async with Scheduler() as s:
+            s.stats["logged"]["decisions"] = 0
+            await cd.fresh(s.url)
+            s.stats["logged"]["decisions"] = 3
+            with pytest.raises(cd.ConfigError, match="not a fresh process"):
+                await cd.fresh(s.url)
+            s.stats["logged"].update(decisions=0, decisions_buffered=1)      # written, not yet flushed
+            with pytest.raises(cd.ConfigError, match="not a fresh process"):
+                await cd.fresh(s.url)
+    asyncio.run(scenario())

@@ -63,7 +63,8 @@ class FakeTokenizer:
 def reply_body(request_id: str, model: str = "m-small", output_tokens: int = 10, **overrides) -> dict:
     body = {"success": True, "request_id": request_id, "model": model, "instance_id": f"{model}_0",
             "generated_text": "ok", "prompt_tokens": 12, "output_tokens": output_tokens, "ttft_s": 0.001,
-            "server_latency_s": 0.004, "timings_ms": {"queue_ms": 0.5, "decide_ms": 0.25}}
+            "server_latency_s": 0.004, "timings_ms": {"queue_ms": 0.5, "decide_ms": 0.25},
+            "first_token_s": 0.00175}   # the scheduler's arrival-to-first-token: its 0.75 ms + the engine's 1 ms
     body.update(overrides)
     return body
 

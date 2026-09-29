@@ -1,21 +1,22 @@
 {
  "loop_lag": {
-  "samples": 2,
-  "p50_ms": 0.6900103762745857,
-  "p99_ms": 2.6739733293652534,
-  "p999_ms": 2.6739733293652534,
-  "max_ms": 2.6739733293652534
+  "samples": 1,
+  "p50_ms": 2.3501962423324585,
+  "p99_ms": 2.3501962423324585,
+  "p999_ms": 2.3501962423324585,
+  "max_ms": 2.3501962423324585
  },
  "telemetry_read": "poll",
  "telemetry_age_ms": {
-  "S_0": 10.1,
-  "S_1": 9.7,
-  "L_2": 9.5
+  "S_0": 7.3,
+  "S_1": 7.0,
+  "L_2": 6.8
  },
  "active": 0,
  "rounds": null,
  "booster_calls": null,
  "failure": null,
+ "evidence_failure": null,
  "connection_waits": {
   "engine": 0,
   "telemetry": 0

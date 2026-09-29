@@ -128,8 +128,8 @@ MUST_FAIL = [
     (RB_MAXDIV, round_one(lambda ms: [m.__setitem__("round_size", 5) for m in ms]), "more requests than its max_batch"),
     (RB_MAXDIV, round_one(lambda ms: [m.__setitem__("round_timeout_ms", 99.0) for m in ms]),
      "fixed round limits are not the configured ones"),
-    (RB_FIXEDREF, round_one(lambda ms: [m.__setitem__("round_max_batch", 8) for m in ms]),
-     "not an adaptive pair widened to the round's backlog"),
+    (RB_FIXEDREF, round_one(lambda ms: [m.__setitem__("round_max_batch", 33) for m in ms]),   # above the cap: never
+     "not an adaptive pair widened to the round's backlog"),                                  # a valid limit
     (RB_FIXEDREF, round_one(lambda ms: [m.__setitem__("round_backlog", 20) for m in ms]),        # D123: 20 waiting,
      "not an adaptive pair widened to the round's backlog"),                                   # max_batch not 20
     (RB_FIXEDREF, round_one(lambda ms: [m.pop("round_backlog") for m in ms]), "decision line is malformed"),

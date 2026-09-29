@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -22,8 +23,10 @@ class Instance:
     instance_id: str
     tier: Tier
     node: str
-    address: str
+    address: str                   # the node's name for deploys and ssh (hosts.json address)
     port: int
+    service_address: Optional[str] = None   # where the engine is served to the scheduler and the drivers, when not
+    # `address` (D131: the experiment network); every HTTP request to the engine goes there
 
     @property
     def model(self) -> str:
@@ -31,4 +34,5 @@ class Instance:
 
     @property
     def base_url(self) -> str:
-        return f"http://{self.address}:{self.port}"
+        host = self.address if self.service_address is None else self.service_address
+        return f"http://{host}:{self.port}"

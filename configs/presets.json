@@ -10,7 +10,7 @@
   "decoupled": "RB-decoupled follows the RouteBalance arm it is the control of (same predictors, plan section 1): rb-dec uses the curve arm's latency, rb-static-dec the static arm's; the main grid runs <rb_default>-dec.",
   "pipeline": "In a pipeline configuration the RouteBalance-only keys (rounds, lpt, and for AvengersPro, BEST-Route and dispatcher rows the estimator and latency) are inert: the scheduler does not load or read them. They still enter the configuration digest, so they name the deployment's own artifacts.",
   "budget": "budget.off: admission_filter false in every configuration but the budget sweep's. budget.filter (W7b): v3's budget filter as its budget sweep ran it (routebalance/schedule/assign.py Admission: the expected cost within the budget, else the cheapest by worst-case cost); every system in a budget cell clamps its output to the request's budget (routebalance/schedule/budget.py).",
-  "owner": "Owner values (09-25): telemetry poll_ms / max_age_ms / timeout_s = 50 / 500 / 1.0 (D30); RouteBalance pending_decode = own_length (D31); dispatcher seed 1 (v3's po2 seed); the fixed 32-request round's timeout 200 ms (the adaptive rule pairs 32 with 200 ms). The W1b sweep estimator is the main KNN index (owner 09-25: the sweep measures decode latency across batch shapes; the training prompts are fine for it)",
+  "owner": "Owner values (09-25): telemetry poll_ms / timeout_s = 50 / 1.0 (D30; max_age_ms removed, D133); RouteBalance pending_decode = own_length (D31); dispatcher seed 1 (v3's po2 seed); the fixed 32-request round's timeout 200 ms (the adaptive rule pairs 32 with 200 ms). The W1b sweep estimator is the main KNN index (owner 09-25: the sweep measures decode latency across batch shapes; the training prompts are fine for it)",
   "lodo": "D93 (owner 09-27, optional W13): estimator.lodo.<source> is the main index without that source dataset's training rows (knn-lodo-<source>.<family>, one pin per source)",
   "pins": "$pin names come from the lease (tools/campaign.py render --pins): knn.<family> and knn-half.<family> (index dir + md5), tpot-table.<family> (the W1 calibration table + md5), prefill-table.<family> (the prefill lines fitted on W1's single-request level by tools/fit_prefill.py + md5, D118; in every latency part), xgb-heads.<family> (the W1b-trained heads dir + the md5 of its md5s.json), ap.<family>.<pw> (artifact dir), br.<family> (checkpoint dir)."
  },
@@ -39,7 +39,7 @@
   "rounds.adaptive": {"adaptive": true, "max_batch": null, "timeout_ms": null},
   "rounds.fixed1": {"adaptive": false, "max_batch": 1, "timeout_ms": 50.0},
   "rounds.fixed32": {"adaptive": false, "max_batch": 32, "timeout_ms": 200.0},
-  "telemetry": {"poll_ms": 50.0, "max_age_ms": 500.0, "timeout_s": 1.0},
+  "telemetry": {"poll_ms": 50.0, "timeout_s": 1.0},
   "budget.off": {"admission_filter": false},
   "budget.filter": {"admission_filter": true},
   "rb.pending_decode": "own_length",

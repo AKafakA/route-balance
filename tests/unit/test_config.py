@@ -35,7 +35,7 @@ RB = {
     "estimator": {"index_dir": "knn/qwen", "index_md5": "0" * 32, "encoder_revision": "a" * 40, "k": 50,
                   "score_type": "deepeval", "prior": "knn"},
     "budget": {"admission_filter": False},
-    "telemetry": {"poll_ms": 50.0, "max_age_ms": 500.0, "timeout_s": 3.0},
+    "telemetry": {"poll_ms": 50.0, "timeout_s": 3.0},
     "pipeline": None,
 }
 
@@ -126,8 +126,6 @@ def test_valid_configs_parse():
     lambda d: d["estimator"].update(encoder_revision="main"),        # a branch name is not a pinned commit
     lambda d: d["latency"].update(envelope="queue_aware"),           # a curve has no single TPOT to queue on
     lambda d: d["latency"].update(source="xgboost", envelope="own_length"),     # not an arm that exists
-    lambda d: d["telemetry"].update(max_age_ms=10.0),                # stale by construction
-    lambda d: d["telemetry"].update(max_age_ms=100.0),               # less than 3x poll_ms
     lambda d: d.update(pipeline={"router": {"type": "passthrough", "kwargs": {}},
                                  "dispatch": {"type": "po2", "seed": 1, "count": "in_flight"}}),  # a pipeline in RB mode
     lambda d: d.update(weights=None),                                # RB scoring without weights
@@ -520,3 +518,36 @@ def test_supported_latency_pairs_parse(source, envelope):
     d["latency"].update(source=source, envelope=envelope)
     cfg = parse_scheduler(d)
     assert (cfg.latency.source, cfg.latency.envelope) == (source, envelope)
+
+
+# ---- D131: the engines are served to the scheduler on the experiment network (hosts.json service_address)
+
+def _lan_hosts():
+    hosts = copy.deepcopy(HOSTS)
+    for k, n in enumerate(sorted(hosts), start=1):
+        hosts[n]["service_address"] = f"198.51.100.{k}"
+    return hosts
+
+
+def test_a_service_address_carries_every_http_request_and_the_node_name_stays_for_deploys(tmp_path):
+    plain = load_fleet(*_write(tmp_path))
+    lan = load_fleet(*_write(tmp_path, hosts=_lan_hosts()))
+    for p, q in zip(plain, lan, strict=True):
+        assert q.address == p.address and q.service_address.startswith("198.51.100.")
+        assert q.base_url == f"http://{q.service_address}:{q.port}" and p.base_url == f"http://{p.address}:{p.port}"
+    assert fleet_digest(plain) != fleet_digest(lan)          # the path is part of the deployment's identity
+    assert fleet_digest(load_fleet(*_write(tmp_path))) == fleet_digest(plain)   # unchanged without one
+
+
+def test_a_malformed_or_shared_service_address_is_refused(tmp_path):
+    hosts = _lan_hosts()
+    hosts[sorted(hosts)[0]]["service_address"] = "http://198.51.100.1"
+    with pytest.raises(ConfigError, match="bare lower-case host name"):
+        load_fleet(*_write(tmp_path, hosts=hosts))
+    hosts = _lan_hosts()
+    hosts["node2"]["service_address"] = hosts["node1"]["service_address"]
+    fleet = copy.deepcopy(FLEET)
+    for inst in fleet["instances"]:
+        inst["port"] = 8000                                   # two nodes, one private endpoint
+    with pytest.raises(ConfigError, match="already used"):
+        load_fleet(*_write(tmp_path, fleet=fleet, hosts=hosts))

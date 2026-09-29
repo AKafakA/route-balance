@@ -132,7 +132,7 @@ def test_under_dead_reckoning_the_queue_is_the_in_flight_count():
         lab = '{engine="0",model_name="M"}'
         return (f"vllm:num_requests_running{lab} {r}\nvllm:num_requests_waiting{lab} {w}\n"
                 f"vllm:kv_cache_usage_perc{lab} 0.1\nvllm:num_preemptions_total{lab} 0\n")
-    view = TelemetryView(FLEET[:2], fetch, poll_ms=50.0, max_age_ms=1e9, dead_reckoning=True, clock=lambda: 1.0)
+    view = TelemetryView(FLEET[:2], fetch, poll_ms=50.0, dead_reckoning=True, clock=lambda: 1.0)
     rng = random.Random(3)
     for _ in range(40):
         view.record_dispatch(rng.choice(ids), 5)

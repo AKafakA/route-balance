@@ -21,7 +21,6 @@
  },
  "telemetry": {
   "poll_ms": 20.0,
-  "max_age_ms": 2000.0,
   "timeout_s": 2.0
  },
  "mode": "routebalance",

@@ -109,10 +109,10 @@ SCHEDULER_FAIL = [
     (stats(lambda s: s.__setitem__("failure", "log writer: OSError")), "has failed: log writer"),
     (stats(lambda s: s.__setitem__("active", 2)), "2 requests are in service"),
     (stats(lambda s: s["logged"].__setitem__("decisions_buffered", 4)), "4 decision lines are not yet on disk"),
-    (stats(lambda s: s.__setitem__("telemetry_age_ms", {"error": "S_0: telemetry is 900 ms old"})),
-     "telemetry is not fresh for every instance"),
-    (stats(first_age(2500.0)), "telemetry older than max_age_ms 2000.0"),
-    (stats(lambda s: s["telemetry_age_ms"].popitem()), "telemetry is not fresh for every instance"),
+    (stats(lambda s: s.__setitem__("telemetry_age_ms", {"error": "S_0: no usable telemetry"})),
+     "the pollers hold no snapshot for every instance"),
+    (stats(lambda s: s["telemetry_age_ms"].popitem()), "the pollers hold no snapshot for every instance"),
+    # D133: an old snapshot is counted, never a preflight failure
     (stats(lambda s: s.__setitem__("telemetry_age_ms", None)), "scheduler: /v1/stats"),     # poll without ages
     ({"/v1/stats": Reply(200, '{"active": 0}', None)}, "scheduler: /v1/stats"),
     ({"/v1/stats": Reply(200, "null", None)}, "/v1/stats: the reply is not a JSON object"),
