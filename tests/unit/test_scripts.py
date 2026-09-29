@@ -218,12 +218,12 @@ def test_node_ctl_started_reports_what_the_recorded_engine_process_executes(tmp_
     (tmp_path / "srv.py").write_text(SERVE_OWN_START)
     lib = f"source scripts/node_layout.sh; source scripts/node_ctl.sh; RB_RUN={tmp_path}; "
     launch = (f'setsid --fork bash -c "$RECORD_AND_EXEC"\'; exec "$@"\' _ {tmp_path}/engine.{{id}}.pid LOG "$BOOT_ID" '
-              f'env CUDA_VISIBLE_DEVICES=2,3 {{cmd}} < /dev/null > /dev/null 2>&1\n'
+              f'env CUDA_VISIBLE_DEVICES=2,3 VLLM_HTTP_TIMEOUT_KEEP_ALIVE={{ka}} {{cmd}} < /dev/null > /dev/null 2>&1\n'
               f'for i in $(seq 1 50); do [ -s {tmp_path}/engine.{{id}}.pid ] && break; sleep 0.1; done\n')
     cleanup = (f"trap 'stop_group {tmp_path}/engine.E.pid E > /dev/null; "
                f"stop_group {tmp_path}/engine.S.pid S > /dev/null' EXIT\n")
-    script = lib + cleanup + launch.format(id="E", cmd=f"{sys.executable} {tmp_path}/srv.py {port}") + "sleep 1\n" + \
-        launch.format(id="S", cmd="sleep 30") + f"""
+    script = lib + cleanup + launch.format(id="E", ka=600, cmd=f"{sys.executable} {tmp_path}/srv.py {port}") + \
+        "sleep 1\n" + launch.format(id="S", ka=600, cmd="sleep 30") + f"""
 for i in $(seq 1 50); do curl -sf -m 1 http://127.0.0.1:{port}/metrics > /dev/null && break; sleep 0.1; done
 cmd_started E {port}
 ( cmd_started S {port} ) 2>&1 | tail -1 || true
@@ -233,7 +233,7 @@ cmd_started E {port}
     lines = r.stdout.strip().splitlines()
     fields = lines[0].split("\t")
     assert fields[:2] == ["started", "E"] and float(fields[2]) > 1.7e9 and fields[3] == "2,3", r.stdout + r.stderr
-    assert fields[4] == f"{sys.executable} {tmp_path}/srv.py {port}"
+    assert fields[4] == f"VLLM_HTTP_TIMEOUT_KEEP_ALIVE=600 {sys.executable} {tmp_path}/srv.py {port}"   # D138
     assert "another process answers" in lines[-1]
 
 
@@ -266,3 +266,17 @@ def test_setup_never_reads_an_unread_mig_mode_as_off(tmp_path, modes, rc, messag
     assert r.returncode == rc and message in r.stderr
     if not message:                                                # MIG off or on is read, never a failed setup
         assert "SETUP FAILED" not in r.stderr
+
+
+def test_every_engine_starts_with_the_raised_keep_alive():
+    """D138 (owner 09-29): vLLM's VLLM_HTTP_TIMEOUT_KEEP_ALIVE above the clients' 60 s keep-alive, in the environment the
+    engine runs with and in the launch command recorded for it (the parity gate compares engine launches)."""
+    layout = subprocess.run(["bash", "-c", "source scripts/node_layout.sh; echo $ENGINE_KEEP_ALIVE_S"],
+                            capture_output=True, text=True, check=True, cwd=REPO).stdout.strip()
+    code = [ln for ln in (REPO / "scripts" / "node_ctl.sh").read_text().splitlines() if not ln.lstrip().startswith("#")]
+    assert layout == "600"
+    assert any("env -i" not in ln and 'VLLM_SERVER_DEV_MODE=1 VLLM_HTTP_TIMEOUT_KEEP_ALIVE="$ENGINE_KEEP_ALIVE_S"' in ln
+               for ln in code)                                                           # the process's environment
+    assert any(ln.lstrip().startswith("printf") and "VLLM_HTTP_TIMEOUT_KEEP_ALIVE=$ENGINE_KEEP_ALIVE_S $ENGINE_VENV" in ln
+               for ln in code)                                                           # the recorded launch command
+    # what the process actually runs with is checked on the node (cmd_started, the test above)

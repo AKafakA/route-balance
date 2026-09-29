@@ -111,16 +111,20 @@ cmd_launch() {
   mkdir -p "$RB_LOGS" "$RB_RUN"
   rm -f "$pidf"                        # a stale record (that process is gone), replaced by the new one below
   log="$RB_LOGS/engine.$id.$(date -u +%Y%m%dT%H%M%SZ).log"
-  printf '%s\n' "CUDA_VISIBLE_DEVICES=$gpus VLLM_SERVER_DEV_MODE=1 $ENGINE_VENV/bin/python -u -m vllm.entrypoints.openai.api_server $*" \
+  printf '%s\n' "CUDA_VISIBLE_DEVICES=$gpus VLLM_SERVER_DEV_MODE=1 VLLM_HTTP_TIMEOUT_KEEP_ALIVE=$ENGINE_KEEP_ALIVE_S $ENGINE_VENV/bin/python -u -m vllm.entrypoints.openai.api_server $*" \
     > "$RB_RUN/engine.$id.cmd"
   # VLLM_SERVER_DEV_MODE=1 serves vLLM's POST /reset_prefix_cache (routes only; the serving path is unchanged), which every
   # run's warm-up calls to start from an empty prefix cache (D128; tools/direct.py).
+  # VLLM_HTTP_TIMEOUT_KEEP_ALIVE (vLLM's own setting, stock 5 s) above the clients' keep-alive (vLLM bench's stock
+  # connector, 60 s): at 5 s an engine could close an idle connection just as the scheduler reused it ("Can not write
+  # request body", 2 of 4 runs at the 32-call setting); v3 met the same race on its scheduler's inbound hop and raised
+  # that server's keep-alive to 600 s. Owner 09-29 (D138): "Raise the engines' keep-alive".
   # A new session per engine: its pid is its process group, which holds every worker it spawns.
   # (SC2016: the inner script expands in the child; SC2094: $log is recorded in the pid file, not read.)
   # shellcheck disable=SC2016,SC2094
   setsid --fork bash -c "$RECORD_AND_EXEC"'; exec "$@"' _ "$pidf" "$log" "$BOOT_ID" \
     env -i HOME="$HOME" PATH="$RB_PATH" LANG=C.UTF-8 CUDA_HOME="$CUDA_DIR" CUDA_VISIBLE_DEVICES="$gpus" \
-    HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 VLLM_SERVER_DEV_MODE=1 \
+    HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 VLLM_SERVER_DEV_MODE=1 VLLM_HTTP_TIMEOUT_KEEP_ALIVE="$ENGINE_KEEP_ALIVE_S" \
     "$ENGINE_VENV/bin/python" -u -m vllm.entrypoints.openai.api_server "$@" > "$log" 2>&1 < /dev/null
   local i
   for i in $(seq 1 20); do [ -s "$pidf" ] && break; sleep 0.25; done
@@ -151,7 +155,7 @@ $(tail -30 "$log")"
 # port (its /metrics start time), which must be that process: its /proc start time in epoch seconds (btime +
 # starttime / CLK_TCK, the formula of Prometheus's process collector) agrees to within rounding.
 cmd_started() {
-  local id="$1" port="$2" pidf="$RB_RUN/engine.$1.pid" pid start own cuda cmdline
+  local id="$1" port="$2" pidf="$RB_RUN/engine.$1.pid" pid start own cuda ka cmdline
   pid=$(pid_of "$pidf")
   alive "$pid" || fail "$id is not running"
   start=$(curl -sf -m 10 "http://127.0.0.1:$port/metrics" \
@@ -162,8 +166,12 @@ cmd_started() {
     || fail "$id: the engine on port $port started at $start, its recorded pid $pid at $own: another process answers"
   cuda=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^CUDA_VISIBLE_DEVICES=//p')
   [ -n "$cuda" ] || fail "$id: pid $pid has no CUDA_VISIBLE_DEVICES"
+  # D138: the keep-alive the process runs with, checked and recorded ahead of its command line (tools/engines.py checks
+  # the record's command line ends with the planned arguments; the parity gate compares the whole of it)
+  ka=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^VLLM_HTTP_TIMEOUT_KEEP_ALIVE=//p')
+  [ "$ka" = "$ENGINE_KEEP_ALIVE_S" ] || fail "$id: pid $pid runs with VLLM_HTTP_TIMEOUT_KEEP_ALIVE='$ka', not $ENGINE_KEEP_ALIVE_S"
   cmdline=$(tr '\0' ' ' < "/proc/$pid/cmdline")
-  printf 'started\t%s\t%s\t%s\t%s\n' "$id" "$start" "$cuda" "${cmdline% }"
+  printf 'started\t%s\t%s\t%s\t%s\n' "$id" "$start" "$cuda" "VLLM_HTTP_TIMEOUT_KEEP_ALIVE=$ka ${cmdline% }"
 }
 
 cmd_stop() {
