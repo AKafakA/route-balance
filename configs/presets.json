@@ -20,7 +20,7 @@
   "rb_weights": ["q10l10c80", "q10l80c10", "q20l20c60", "q20l60c20", "uniform", "q50l30c20", "q60l20c20", "q80l10c10"],
   "ap_pw": ["pw025", "pw039", "pw053", "pw070", "pw080"],
   "br_t": ["t00", "t03", "t05", "t07"],
-  "routed_dispatch": ["lor", "rr", "po2"],
+  "routed_dispatch": ["lor", "rr", "po2", "lowest-latency"],
   "probe_dispatch": ["lor", "po2"],
   "rb_arms": ["rb", "rb-static", "rb-learned"],
   "dispatchers": ["rr", "po2", "lor", "random", "lowest-latency"],

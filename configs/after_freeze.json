@@ -159,5 +159,19 @@
   "decision": "D140",
   "owner": "ok, also add the per-request normalization ablations to rerun all rb weights cells in the main grid before the ablation runs. so, we can actually make the decisions, which will be used eventually; and then for the left ablations and seed 2 and 3",
   "gpu_cost": "no run added here (the {family}.{arm}-reqnorm template over RouteBalance's latency variants and its part; W2n is counted in scope.json's entry)"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "b5cf7a78f80359a582a1e98b43a3c77c7e8d903560dfe52c2b83bdc67bde62db",
+  "decision": "D156, D158",
+  "owner": "topology can be dropped. and add the qwen routers * dispatchers extension into the main grid, and also same for the gemma main grid and mark then at the draft paper finished; swap these two as well, so qwen model routers * dispatcher as merged into the main rows delay the time for the paper drafting to be delievered after the sat 6:30, which is fine",
+  "gpu_cost": "row W2p: AvengersPro (5) and BEST-Route (4) on round robin, power of two and lowest latency at W2's six rates, seed 1, 142 runs (~8.6 h), after W2n and before the load sweep; the 20 W2b runs are not repeated"
+ },
+ {
+  "file": "configs/presets.json",
+  "sha256": "203c04c931683ba05b40dd9caa6e4ea852240fd09af71b7794edd1d4ddb55ed7",
+  "decision": "D156, D158",
+  "owner": "topology can be dropped. and add the qwen routers * dispatchers extension into the main grid, and also same for the gemma main grid and mark then at the draft paper finished; swap these two as well, so qwen model routers * dispatcher as merged into the main rows delay the time for the paper drafting to be delievered after the sat 6:30, which is fine",
+  "gpu_cost": "no run added here (lowest-latency joins the routers' dispatcher list, so the {family}.ap/br templates render it; W2p is counted in scope.json's entry)"
  }
 ]

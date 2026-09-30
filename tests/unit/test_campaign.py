@@ -110,11 +110,12 @@ def full_render(**over):
 def test_the_tracked_files_dry_run_every_row():
     summary = campaign.dry_run(campaign.load_presets(campaign.PRESETS), campaign.load_scope_file(campaign.SCOPE))
     rows = {r["id"]: r for r in summary["rows"]}
-    assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2s", "W2b", "W2n", "W4", "W3", "W5", "W6",
+    assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2s", "W2b", "W2n", "W2p", "W4", "W3", "W5", "W6",
                           "W7", "W8-cal", "W8", "W8r", "W7r", "W9", "W4r", "W5r", "W7b", "W11", "W12", "W13",
                           "W10"]   # D121: seed 1 first
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 78, "W2b": 20, "W2n": 48,
+                     "W2p": 142,
                      "W4": 51, "W5": 27, "W7": 18, "W8": 78, "W8r": 156, "W7r": 36, "W9": 312, "W4r": 102, "W5r": 54,
                      "W7b": 9, "W12": 12, "W13": 7}
     # W8: the Qwen grid's baselines (D70); W12: the in-flight dispatchers (D84); W13: leave one source out (D93);
@@ -184,7 +185,7 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 1095       # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
+    assert len(expanded) == 1131       # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
     #                                    the budget sweep's filter arms (rb, rb-static x 2 families; rb-learned, Qwen);
     #                                    Gemma BEST-Route, 4 t x 3 dispatchers (D70); the power-of-two probe
     #                                    controls (10 AP + 2 dispatcher-only, D59); the mechanism ablations once per
@@ -196,7 +197,8 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     #                                    the as-shipped copies of the per-request routers (D135: RB-decoupled 2 x 8 x 2,
     #                                    AvengersPro 5 pw x 3 dispatchers x 2, BEST-Route 4 t x 3 x 2 = 86);
     #                                    RouteBalance with per-request normalization, once per latency variant
-    #                                    (D140: 3 variants x 8 weights x 2 families = 48)
+    #                                    (D140: 3 variants x 8 weights x 2 families = 48); the routers on lowest
+    #                                    latency (D156: 5 pw + 4 t, 2 families, each with its as-shipped copy = 36)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
