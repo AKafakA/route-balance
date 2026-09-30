@@ -1,6 +1,6 @@
 {
  "notes": {
-  "what": "Every row of the 7-day lease (plan section 5), in the plan's order: W1 -> G1 -> W1b -> W1c -> G1b -> G1c -> W2 -> W2b -> W4 -> W5 -> W7 -> W8 (seed 1 of every main experiment) -> W8r -> W7r -> W9 -> W4r -> W5r (seeds 2-3, owner 09-29, D121) -> W7b -> W12 -> W13 -> W10 (W3, W6 and W11 disabled). tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
+  "what": "Every row of the lease; the order is the plan of record (route-balance-paper mlsys_2027/lease/SCHEDULE_2026-09-30.md, D152-D158, D163): W1 -> G1 -> W1b -> W1c -> G1b -> G1c (day 1) -> W2 -> W2s -> W2b -> W2n -> W2p (the Qwen main rows) -> W2x (the extra presets, D167) -> W1b -> W1c (the new load sweep, D142, in the main grid's cells root; the stopped 30 Sep attempt of its first run holds no record, so it counts as new) -> W4, then W4l once the heads are retrained (the ablations) -> W5 (burst) -> W7b (budget, seed 1) -> vLLM-SR Qwen, seed 1 (vllm-sr-bench, outside this scope) -> W8-cal -> W8 (Gemma) -> vLLM-SR Gemma -> W10. Every row runs seed 1 only until every seed-1 row and the draft are done (D166); the repetitions are revised then (W4r, W4lr and W5r are disabled until then, the main grids' W8r and W9 replaced by knee points, D157). Disabled, each with its reason: W3, W4r, W4lr, W5r, W6, W7, W7r, W8r, W9, W11, W12, W13. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
   "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). D134 (owner: \"back to vllm bench\"): the client uses vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); max_connections only sizes the open-file check; a late send is counted per run, never a bound. Any failed request makes a run invalid, and it is rerun (owner 09-29: \"keep the gate 5\")",
   "server": "D134 (owner): the scheduler's engine and telemetry sessions use vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); torch's default thread count (as v3; torch_threads null, nothing set); max_connections is recorded only (no pool bound). The baselines' routers call their model one request at a time on a separate lane, as shipped routers do (D60)",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
@@ -8,12 +8,12 @@
   "scored_corpora": "D62: quality is looked up by (prompt, served model) in these scored corpora, as in v2 and v3 (analysis/quality.py; judge key in configs/prereg_rules.json). The budget sweep's cells (W7b) are judged on the text they served instead (D67, tools/judge_served.py), with these corpora's reference answers.",
   "traces": "Each Qwen cell sends the whole evaluation set (3532 prompts: v3's 3534 without the 2 whose re-collected answer has no score under the uniform judge input, D114), each Gemma cell its 1979 (v3). W5 is the burst sweep (D125): ga025, ga05 and ga2 send the 3532 prompts with gamma gaps of shape 0.25, 0.5 and 2.0 at 12, 30 and 42 req/s (the mean rate fixed; shape 1 is the Poisson l-traces). v2's two patterns (square30-6, gamma-b03) are kept defined and unused since D125. The W1b sweep sends every training prompt once a run.",
   "owner": "g1_weights: the two G1 presets; decoupled_weights: the four RB-decoupled presets of W2 and W8 (both from rb_weights).",
-  "decisions": "Made during the lease into a decisions file (tools/campaign.py render --decisions): rb_default and decoupled_arm after G1b (rb_default: 'rb', 'rb-static' or 'rb-learned', the RouteBalance latency arm of W2, W4, W8 and W9); the rest after W2's lambda-12/30 panels. W3's planned sizes (16 near-frontier, 6 headline configurations) reproduce the plan's ~100 cells; W5 plans 3 systems (D125) and W7 6.",
-  "groups": "Main comparison groups declare the system-defining manifest paths (system.*) for every cell, and telemetry.dead_reckoning (RouteBalance dead-reckons; every pipeline system reads the engines' own counts, owner 09-25, except W12's in-flight dispatchers, D84); qwen-sweep has a single configuration and declares nothing; so does qwen-sweep2 (W1c, the sweep's extension to 38-42 req/s, D119/D120), its own group because it runs on the tree after D118 (a different code digest; the sweep path is unchanged). qwen-ablation (W4, W11) is self-contained and paired: its reference is rb_default's variant at the headline preset over lambda 12/30 x seeds 1-3 (listed again under the abl alias; D78), and each variant declares only what its template ablates (configs/presets.json): the nine mechanism ablations are of rb_default's variant, and the six latency variants (the curve, static, learned, static prior, curve + max-divide, constant + batch) declare every latency path, since any of them may be the reference.",
-  "fill": "W9 blocks are fill blocks: cells an earlier block lists (W3's seeds 2-3) are not run twice. A fill block renders only after every earlier block of its group that could list one of its cells, so W9 waits for the W3 decisions and no cell ever moves between blocks from one render to the next.",
+  "decisions": "Made during the lease into a decisions file (tools/campaign.py render --decisions): rb_default and decoupled_arm after G1b (rb_default: 'rb', 'rb-static' or 'rb-learned', the RouteBalance latency arm of W2 and W4; W8, Gemma, runs decoupled_arm's, Gemma having no learned heads); headline (the ablations' preset) and ablation_norm (their normalization) on the complete Qwen main grid, the extra presets included (D140, D142, D158); w5_systems for the burst sweep (3 systems, D125). W3's and W7's decisions belong to disabled rows.",
+  "groups": "Main comparison groups declare the system-defining manifest paths (system.*) for every cell, and telemetry.dead_reckoning (RouteBalance dead-reckons; every pipeline system reads the engines' own counts, owner 09-25); qwen-sweep has a single configuration and declares nothing; so does qwen-sweep2 (W1c, the sweep's extension to 38-42 req/s, D119/D120), its own group because it runs on the tree after D118 (a different code digest; the sweep path is unchanged). qwen-ablation (W4, W4l, W4r, W4lr) is self-contained and paired: its reference is rb_default's variant at the ablation preset in the decided normalization, listed again under the abl alias (D78, D142), and each variant declares only what its template ablates (configs/presets.json): the mechanism, label-fraction and leave-out ablations are of rb_default's variant; latency weight 0 declares the weights; the static prior and the retrained learned heads declare every latency path.",
+  "fill": "A fill block's cells that an earlier block of its group lists are not run twice; a fill block renders only after every earlier block of its group that could list one of its cells, so no cell ever moves between blocks from one render to the next. No enabled row has a fill block now (W9, the one that had, is disabled, D157).",
   "decoupled": "RB-decoupled follows the decoupled_arm decision ('{darm}-dec'): the same predictors as rb_default, except that with the learned heads it uses the measured curve at an idle instance (it scores idle instances before load is visible). The Gemma rows (no learned heads) use decoupled_arm for RouteBalance too. G1 pairs RB-new with rb-dec.",
-  "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it. None is held now: W6 (the AvengersPro top-2 spillover router) is dropped and W7b's budgets are sent by the benchmark client (owner 09-25). W4's arm 3 is dropped and W4's D45 control runs (owner 09-25). W11 needs the lpt key min/mean of S5b.",
-  "w8": "W8 as written runs the same RB presets as W2 plus the four RB-decoupled presets, 5 AvengersPro pw and passthrough, all on least-outstanding: 108 cells against the plan's ~80. BEST-Route has no Gemma checkpoint."
+  "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it. None is held now: W6 (the AvengersPro top-2 spillover router) is dropped and W7b's budgets are sent by the benchmark client (owner 09-25). W4's arm 3 and the D45 control are dropped (D142); W11's LPT keys run in W4 and W4r.",
+  "w8": "W8 renders 78 cells at seed 1 (its blocks list the systems: the RouteBalance presets, RB-decoupled, AvengersPro, BEST-Route from its Gemma checkpoint, pin br.gemma, and the dispatchers). The Gemma grid at the six rates with the routers on the three dispatchers (D156) enters with the Gemma scope change."
  },
  "server": {"torch_threads": null, "max_connections": 4096, "request_timeout_s": 21600.0},
  "bench": {
@@ -99,7 +99,7 @@
   "g1": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
   "g1-fix": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
   "qwen": {"fleet": "qwen_std", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
-  "qwen-ablation": {"fleet": "qwen_std", "reference": "abl.qwen.{rb_default}.{headline}", "intended_differences": null},
+  "qwen-ablation": {"fleet": "qwen_std", "reference": "abl.qwen.{rb_default}{ablation_norm}.{headline}", "intended_differences": null},
   "qwen-sweep": {"fleet": "qwen_std", "reference": null, "intended_differences": []},
   "qwen-sweep2": {"fleet": "qwen_std", "reference": null, "intended_differences": []},
   "qwen-topo53": {"fleet": "qwen_topo53", "reference": null, "intended_differences": ["system.*", "telemetry.dead_reckoning"]},
@@ -115,10 +115,11 @@
  "decisions": {
   "rb_default": {"after": "G1b", "about": "the RouteBalance latency arm of the main grid: 'rb' (the measured TPOT curve), 'rb-static' (the static per-tier TPOT) or 'rb-learned' (the learned heads); static TPOT is the default if day 1 supports it (owner 09-25, as v2's breadth experiments)"},
   "decoupled_arm": {"after": "G1b", "about": "'rb' or 'rb-static': the RB-decoupled control's latency source, rb_default's own; with rb_default 'rb-learned', 'rb' (the decoupled router scores idle instances before any load is visible, so it cannot use the learned heads). The Gemma rows use it for RouteBalance too (Gemma has no learned heads)"},
-  "headline": {"after": "W2", "about": "the headline weights (a rb_weights id): W4's ablations are taken there"},
+  "headline": {"after": "W2x", "about": "the ablations' preset (D142/D158: the RouteBalance preset that dominates the most baselines on the complete Qwen main grid, the extra presets included): a rb_weights_all id (the eight of v3's grid and D167's three); W4's ablations are taken there"},
+  "ablation_norm": {"after": "W2x", "about": "the normalization of the ablations and the repetitions (D140: the winner on the complete Qwen main grid): \"\" (in-batch, D137) or \"-reqnorm\" (per request)"},
   "w3_near_frontier": {"after": "W2", "about": "configuration ids near the lambda-12/30 frontiers (seeds 2-3)"},
   "w3_headline": {"after": "W2", "about": "the headline configuration ids for lambda 18/24/36/42 (seeds 2-3)"},
-  "w5_systems": {"after": "W2", "about": "the three configuration ids of the burst sweep (D125): RouteBalance's main configuration, RB-decoupled, and the main grid's strongest published router-and-dispatcher configuration (one id, e.g. qwen.ap.pw070.lor)"},
+  "w5_systems": {"after": "W2x", "about": "the three configuration ids of the burst sweep (D125): RouteBalance's main configuration, RB-decoupled, and the main grid's strongest published router-and-dispatcher configuration (one id, e.g. qwen.ap.pw070.lor)"},
   "w7_systems": {"after": "W2", "about": "the six configuration ids re-run on the 5/3 topology"}
  },
  "rows": [
@@ -208,8 +209,8 @@
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1, "darm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W2s", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "the main grid's per-request routers as shipped, one call at a time (router concurrency 1: RouteLLM's and NVIDIA's serving pattern, owner 09-25), seed 1 only, beside W2's 32-call setting in the same comparison group (D135, owner 09-29: \"we will only leave it into the main, and for the others, pick the better baseline setting\"; \"Main grid seed 1 only\"): AvengersPro pw x LOR, BEST-Route 4 thresholds x LOR, RB-decoupled, at W2's six rates",
-   "plan": "78 cells, ~5 h, right after W2",
+   "about": "the main grid's per-request routers as shipped, one call at a time (router concurrency 1: RouteLLM's and NVIDIA's serving pattern, owner 09-25), seed 1 only, beside W2's 32-call setting in the same comparison group (D135, owner 09-29: \"we will only leave it into the main, and for the others, pick the better baseline setting\"; \"Main grid seed 1 only\"): AvengersPro pw x LOR, BEST-Route 4 thresholds x LOR, RB-decoupled; since D169 (owner 09-30: \"Yes: 12/30/42 only\"; \"it supposed be in the appendix rules ans cite in the paper to explain why stock serial approach dropeed\") an appendix result at 12, 30 and 42 req/s, the ablations' rates, cited in the paper for why the main comparison runs the routers 32 calls at once rather than in their stock serial form (the 24/18/36 runs dropped before any ran)",
+   "plan": "39 cells, ~3.3 h, right after W2",
    "blocks": [
     {"name": "W2s-l30", "group": "qwen", "dataset": "eval_qwen",
      "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "darm": "$decision:decoupled_arm", "dw": "$owner:decoupled_weights"},
@@ -224,7 +225,7 @@
     {"name": "W2s-rest", "group": "qwen", "dataset": "eval_qwen",
      "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "darm": "$decision:decoupled_arm", "dw": "$owner:decoupled_weights"},
      "configs": ["qwen.ap.{pw}.lor-shipped", "qwen.br.{t}.lor-shipped", "qwen.{darm}-dec.{dw}-shipped"],
-     "traces": ["l24", "l18", "l36", "l42"], "seeds": [1],
+     "traces": ["l42"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W2b", "kind": "cells", "prio": "must", "enabled": true, "why": null,
@@ -237,7 +238,7 @@
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W2n", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "D140 (owner 09-30): every RouteBalance weight preset of the main grid again with per-request normalization (each request's own candidates, v3's score) in place of the in-batch normalization (D137), at W2's six rates, seed 1, in W2's comparison group, before the ablations; the owner then decides which normalization the ablations and seeds 2-3 use (\"so, we can actually make the decisions, which will be used eventually\")",
+   "about": "D140 (owner 09-30): every RouteBalance weight preset of the main grid again with per-request normalization (each request's own candidates, v3's score) in place of the in-batch normalization (D137), at W2's six rates, seed 1, in W2's comparison group, before the ablations; the ablations' normalization is then chosen by D140's fixed rule on the complete Qwen main grid, the extra presets included, and notified (D158; owner: \"so, we can actually make the decisions, which will be used eventually\"); seeds 2-3 wait for the draft (D166)",
    "plan": "48 cells, ~3 h, after W2b",
    "blocks": [
     {"name": "W2n-l30", "group": "qwen", "dataset": "eval_qwen", "axes": {"arm": "$decision:rb_default", "w": "$list:rb_weights"},
@@ -255,36 +256,22 @@
     {"name": "W2p-rrpo2-rest", "group": "qwen", "dataset": "eval_qwen", "axes": {"pw": ["pw039", "pw070", "pw080"], "t": ["t00", "t03"], "d": ["rr", "po2"]}, "configs": ["qwen.ap.{pw}.{d}", "qwen.br.{t}.{d}"], "traces": ["l24", "l18", "l36", "l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null},
     {"name": "W2p-lowest-latency", "group": "qwen", "dataset": "eval_qwen", "axes": {"pw": "$list:ap_pw", "t": "$list:br_t"}, "configs": ["qwen.ap.{pw}.lowest-latency", "qwen.br.{t}.lowest-latency"], "traces": ["l30", "l12", "l24", "l18", "l36", "l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W4", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "D41 ablations at the headline preset x lambda{12, 30, 42} x 3 seeds (42 since D125), paired, D78: the reference is rb_default's variant; the nine mechanism ablations (LPT off, round 1 / 32, w_lat = 0, prompt-blind, 50% labels, dead reckoning off, w_q = 0, w_c = 0) are of that variant; the six latency variants (measured curve, static, learned, static prior, curve + max-divide, constant + batch) all run, one of them the reference; seed 1 here, seeds 2-3 in the row's repetition after every seed-1 row (owner 09-29, D121); the LPT key min / mean variants (formerly W11) run here beside LPT off (owner 09-29)",
-   "plan": "51 cells (seed 1: 45 + the 6 LPT-key cells), ~2.9 h",
+  {"id": "W2x", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D167 (owner 09-30): the extra RouteBalance presets picked from the preliminary frontier audit of the complete in-batch main grid (W2), each under both normalizations (in-batch and per request, D140), at W2's six rates, seed 1, in W2's comparison group, after W2p (D158): q90l05c05 (towards BEST-Route t07), q30l10c60 (towards BEST-Route t00), q05l25c70 (towards the lowest-latency dispatcher); the normalization and the ablations' preset are decided on the grid with them (D158)",
+   "plan": "36 cells (3 presets x 2 normalizations x 6 rates), ~2.6 h, after W2p",
    "blocks": [
-    {"name": "W4-latency", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline"},
-     "configs": ["qwen.rb.{h}", "qwen.rb-static.{h}", "qwen.abl-static-prior.{h}", "qwen.abl-maxdiv.{h}"],
-     "traces": ["l12", "l30", "l42"], "seeds": [1],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1}, "enabled": true, "why": null, "hold": null},
-    {"name": "W4-learned", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline"},
-     "configs": ["qwen.rb-learned.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [1],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1}, "enabled": true, "why": null, "hold": null},
-    {"name": "W4-mechanisms", "group": "qwen-ablation", "dataset": "eval_qwen",
-     "axes": {"h": "$decision:headline", "arm": "$decision:rb_default"},
-     "configs": ["qwen.{arm}.abl-lpt-off.{h}", "qwen.{arm}.abl-round1.{h}", "qwen.{arm}.abl-round32.{h}",
-                 "qwen.{arm}.abl-wlat0.{h}", "qwen.{arm}.abl-prompt-blind.{h}", "qwen.{arm}.abl-half-labels.{h}",
-                 "qwen.{arm}.abl-dr-off.{h}", "qwen.{arm}.abl-wq0.{h}", "qwen.{arm}.abl-wc0.{h}"],
-     "traces": ["l12", "l30", "l42"], "seeds": [1],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1}, "enabled": true, "why": null, "hold": null},
-    {"name": "W4-arm3", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline"},
-     "configs": ["qwen.abl-wlat0-predictive.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [1],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1}, "enabled": false,
-     "why": "owner 09-25: dropped (v2's arm 3, w_latency = 0 with a predictive-latency tie-break; the rebuilt tie-break has no predictive mode, D35)",
-     "hold": null},
-    {"name": "W4-const-batch", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline"},
-     "configs": ["qwen.abl-const-batch.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [1],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1}, "enabled": true, "why": null,
-     "hold": null},
-    {"name": "W4-lpt-key", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "k": ["min", "mean"]},
-     "configs": ["qwen.{arm}.abl-lpt-{k}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [1],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1}, "enabled": true, "why": null, "hold": null}
+    {"name": "W2x", "group": "qwen", "dataset": "eval_qwen", "axes": {"arm": "$decision:rb_default", "w": "$list:rb_weights_extra"},
+     "configs": ["qwen.{arm}.{w}", "qwen.{arm}-reqnorm.{w}"], "traces": ["l30", "l12", "l24", "l18", "l36", "l42"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W4", "kind": "cells", "prio": "must", "enabled": true, "why": null, "about": "D142 (owner 09-30): the ablations at the ablation preset (the headline decision: the RouteBalance preset that dominates the most baselines on the complete Qwen main grid, D158) in the winning normalization (ablation_norm, D140's rule) x lambda{12, 30, 42}, seed 1, paired against that preset: the latency terms as v2's four arms (the full objective, the reference; latency weight 0 with the shortest-queue tie-break; the learned heads retrained on the new load sweep, in W4l, after the heads are retrained; the static prior), the mechanisms (LPT off, round of 1, fixed round of 32, prompt-blind, the KNN with 75/50/25% of the labels, dead reckoning off, the LPT key min and mean) and leave-out (the KNN without lmsys, without gsm8k; D147). Dropped (D142): the measured curve, curve + max-divide, constant + batch, the quality and cost weight 0, v2's predictive tie-break", "plan": "45 cells (15 configurations x 3 rates), ~3.0 h; the learned variant is W4l", "blocks": [
+    {"name": "W4-latency", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "nv": "$decision:ablation_norm"}, "configs": ["qwen.{arm}{nv}.{h}", "qwen.{arm}{nv}.abl-wlat0.{h}", "qwen.abl-static-prior{nv}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1, "nv": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W4-mechanisms", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "nv": "$decision:ablation_norm"}, "configs": ["qwen.{arm}{nv}.abl-lpt-off.{h}", "qwen.{arm}{nv}.abl-round1.{h}", "qwen.{arm}{nv}.abl-round32.{h}", "qwen.{arm}{nv}.abl-prompt-blind.{h}", "qwen.{arm}{nv}.abl-half-labels.{h}", "qwen.{arm}{nv}.abl-labels75.{h}", "qwen.{arm}{nv}.abl-labels25.{h}", "qwen.{arm}{nv}.abl-dr-off.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1, "nv": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W4-lpt-key", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "nv": "$decision:ablation_norm", "k": ["min", "mean"]}, "configs": ["qwen.{arm}{nv}.abl-lpt-{k}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1, "nv": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W4-leave-out", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "nv": "$decision:ablation_norm", "ds": ["lmsys", "gsm8k"]}, "configs": ["qwen.{arm}{nv}.abl-lodo-{ds}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1, "nv": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W4l", "kind": "cells", "prio": "must", "enabled": true, "why": null, "about": "D142: the ablation's learned variant, the heads retrained on the new load sweep (their own pin, xgb-heads-retrained.qwen), at the ablation preset in the decided normalization x lambda{12, 30, 42}, seed 1, in W4's group and paired with its reference; its own row so W4 runs while the heads retrain (a requested row with a pending block is refused, tools/cell_driver.py)", "plan": "3 cells, ~0.2 h", "blocks": [
+    {"name": "W4-learned", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "nv": "$decision:ablation_norm"}, "configs": ["qwen.rb-learned-retrained{nv}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "nv": 1}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W3", "kind": "cells", "prio": "must", "enabled": false, "why": "owner 09-29 (D121): merged into W9, the full grid at seeds 2-3 after every seed-1 row, so no seed picks",
    "about": "seeds 2-3 (per-seed prompt permutation + arrivals): near-frontier configurations x lambda{12, 30} + headline x lambda{18, 24, 36, 42} (6 replaced by 36 and 42, D116)",
@@ -298,7 +285,7 @@
      "prompt_order": "per_seed", "fill": true, "alias": null, "planned": {"c": 6}, "enabled": false, "why": "owner 09-29 (D121): merged into W9, the full grid at seeds 2-3 after every seed-1 row, so no seed picks", "hold": null}
    ]},
   {"id": "W5", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "D125: the burst sweep, as the Astrolabe paper's (vLLM bench's burstiness: gamma inter-arrival times, shape alpha, mean rate fixed; alpha 1 is Poisson): alpha 0.25, 0.5 and 2.0 at 12, 30 and 42 req/s; alpha 1.0 is the main grid's own run at each rate and seed (W2 seed 1, W9 seeds 2-3); 3 systems (w5_systems) x 9 traces; seed 1 here, seeds 2-3 in W5r (owner 09-29); replaces v2's time-varying patterns",
+   "about": "D125: the burst sweep, as the Astrolabe paper's (vLLM bench's burstiness: gamma inter-arrival times, shape alpha, mean rate fixed; alpha 1 is Poisson): alpha 0.25, 0.5 and 2.0 at 12, 30 and 42 req/s; alpha 1.0 is the main grid's own run at each rate (W2, W2n, W2p or W2x, seed 1); 3 systems (w5_systems) x 9 traces; seed 1 (its repetitions W5r revised after the draft, D166); replaces v2's time-varying patterns",
    "plan": "27 cells (seed 1), ~1.6 h",
    "blocks": [
     {"name": "W5", "group": "qwen", "dataset": "eval_qwen", "axes": {"c": "$decision:w5_systems"},
@@ -313,7 +300,7 @@
      "traces": ["l12", "l30"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": null,
      "planned": {}, "enabled": false, "why": "owner 09-25: dropped. No reviewer asked for it (an objection anticipated in the 09-24 plan), and it would be a baseline of our own rather than a stock one", "hold": null}
    ]},
-  {"id": "W7", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W7", "kind": "cells", "prio": "must", "enabled": false, "why": "D156 (owner 09-30): topology dropped",
    "about": "topology: the A30 pool 3/5 -> 5/3; 6 systems x lambda{12, 30, 42} x 3 seeds (30 and 42 in place of 24 since D125; the same configurations, re-listed under the topo53 alias); seed 1 here, seeds 2-3 in the row's repetition after every seed-1 row (owner 09-29, D121)",
    "plan": "18 cells (seed 1), ~1.0 h",
    "blocks": [
@@ -328,7 +315,7 @@
    "levels": [1, 4, 16, 32, 64, 96],
    "requests_per_level": 128},
   {"id": "W8", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "Gemma with the main Qwen grid's baselines (owner 09-26): RB presets, RB-decoupled, AvengersPro 5 pw and BEST-Route 4 t on least-outstanding, the five dispatchers x lambda{12, 30, 42} x 3 seeds (30 and 42 in place of 24 since D125); seed 1 here, seeds 2-3 in the row's repetition after every seed-1 row (owner 09-29, D121)",
+   "about": "Gemma with the main Qwen grid's baselines (owner 09-26): RB presets, RB-decoupled, AvengersPro 5 pw and BEST-Route 4 t on least-outstanding, the five dispatchers x lambda{12, 30, 42} (30 and 42 in place of 24 since D125), seed 1 (its repetitions revised after the draft, D157, D166)",
    "plan": "78 cells (seed 1), ~2.9 h",
    "blocks": [
     {"name": "W8", "group": "gemma", "dataset": "eval_gemma",
@@ -338,7 +325,7 @@
      "traces": ["gl12", "gl30", "gl42"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W8r", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W8r", "kind": "cells", "prio": "must", "enabled": false, "why": "D157 (owner 09-30): the main grids' repetitions only at the knee points, chosen from the seed-1 results",
    "about": "the repetitions of W8 (seeds 2-3), right after its seed 1 (no engine switch; owner 09-29, D121)",
    "plan": "156 cells, ~5.9 h",
    "blocks": [
@@ -349,7 +336,7 @@
      "traces": ["gl12", "gl30", "gl42"], "seeds": [2, 3],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W7r", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W7r", "kind": "cells", "prio": "must", "enabled": false, "why": "D156 (owner 09-30): topology dropped",
    "about": "the repetitions of W7 (seeds 2-3), after every seed-1 row (owner 09-29, D121)",
    "plan": "36 cells, ~2.1 h",
    "blocks": [
@@ -357,7 +344,7 @@
      "configs": ["{c}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3],
      "prompt_order": "per_seed", "fill": false, "alias": "topo53", "planned": {"c": 6}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W9", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W9", "kind": "cells", "prio": "must", "enabled": false, "why": "D157 (owner 09-30): the main grids' repetitions only at the knee points, chosen from the seed-1 results",
    "about": "the full W2 grid at seeds 2-3, lambda 30 -> 12 -> 24 -> 18 -> 36 -> 42 (6 replaced by 36 and 42, D116), W3 merged in (owner 09-29, D121: no seed picks), after every seed-1 row (W4 is its own group: its reference cells are separate)",
    "plan": "312 cells, ~17 h, after every seed-1 row (owner 09-29, D121)",
    "blocks": [
@@ -398,38 +385,16 @@
      "traces": ["l42"], "seeds": [2, 3],
      "prompt_order": "per_seed", "fill": true, "alias": null, "planned": {"arm": 1, "darm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W4r", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "the repetitions of W4 (seeds 2-3, the per-seed prompt order and arrivals), after every seed-1 row (owner 09-29, D121): the same blocks, the LPT-key variants included, in the same group as seed 1",
-   "plan": "102 cells, ~5.9 h",
-   "blocks": [
-    {"name": "W4r-latency", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline"},
-     "configs": ["qwen.rb.{h}", "qwen.rb-static.{h}", "qwen.abl-static-prior.{h}", "qwen.abl-maxdiv.{h}"],
-     "traces": ["l12", "l30", "l42"], "seeds": [2, 3],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1}, "enabled": true, "why": null, "hold": null},
-    {"name": "W4r-learned", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline"},
-     "configs": ["qwen.rb-learned.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1}, "enabled": true, "why": null, "hold": null},
-    {"name": "W4r-mechanisms", "group": "qwen-ablation", "dataset": "eval_qwen",
-     "axes": {"h": "$decision:headline", "arm": "$decision:rb_default"},
-     "configs": ["qwen.{arm}.abl-lpt-off.{h}", "qwen.{arm}.abl-round1.{h}", "qwen.{arm}.abl-round32.{h}",
-                 "qwen.{arm}.abl-wlat0.{h}", "qwen.{arm}.abl-prompt-blind.{h}", "qwen.{arm}.abl-half-labels.{h}",
-                 "qwen.{arm}.abl-dr-off.{h}", "qwen.{arm}.abl-wq0.{h}", "qwen.{arm}.abl-wc0.{h}"],
-     "traces": ["l12", "l30", "l42"], "seeds": [2, 3],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1}, "enabled": true, "why": null, "hold": null},
-    {"name": "W4r-arm3", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline"},
-     "configs": ["qwen.abl-wlat0-predictive.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1}, "enabled": false,
-     "why": "owner 09-25: dropped (v2's arm 3, w_latency = 0 with a predictive-latency tie-break; the rebuilt tie-break has no predictive mode, D35)",
-     "hold": null},
-    {"name": "W4r-const-batch", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline"},
-     "configs": ["qwen.abl-const-batch.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1}, "enabled": true, "why": null,
-     "hold": null},
-    {"name": "W4r-lpt-key", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "k": ["min", "mean"]},
-     "configs": ["qwen.{arm}.abl-lpt-{k}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3],
-     "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1}, "enabled": true, "why": null, "hold": null}
+  {"id": "W4r", "kind": "cells", "prio": "must", "enabled": false, "why": "D166 (owner 09-30): every row's seeds 2-3 wait until every seed-1 row and the paper draft are done; the repetitions are revised then", "about": "the repetitions of W4 (seeds 2-3), in D156's priority order after every seed-1 row", "plan": "90 cells, ~6.1 h; the learned variant's are W4lr", "blocks": [
+    {"name": "W4r-latency", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "nv": "$decision:ablation_norm"}, "configs": ["qwen.{arm}{nv}.{h}", "qwen.{arm}{nv}.abl-wlat0.{h}", "qwen.abl-static-prior{nv}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1, "nv": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W4r-mechanisms", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "nv": "$decision:ablation_norm"}, "configs": ["qwen.{arm}{nv}.abl-lpt-off.{h}", "qwen.{arm}{nv}.abl-round1.{h}", "qwen.{arm}{nv}.abl-round32.{h}", "qwen.{arm}{nv}.abl-prompt-blind.{h}", "qwen.{arm}{nv}.abl-half-labels.{h}", "qwen.{arm}{nv}.abl-labels75.{h}", "qwen.{arm}{nv}.abl-labels25.{h}", "qwen.{arm}{nv}.abl-dr-off.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1, "nv": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W4r-lpt-key", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "nv": "$decision:ablation_norm", "k": ["min", "mean"]}, "configs": ["qwen.{arm}{nv}.abl-lpt-{k}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1, "nv": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W4r-leave-out", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "arm": "$decision:rb_default", "nv": "$decision:ablation_norm", "ds": ["lmsys", "gsm8k"]}, "configs": ["qwen.{arm}{nv}.abl-lodo-{ds}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1, "nv": 1}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W5r", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W4lr", "kind": "cells", "prio": "must", "enabled": false, "why": "D166 (owner 09-30): every row's seeds 2-3 wait until every seed-1 row and the paper draft are done; the repetitions are revised then", "about": "the repetitions of W4l (seeds 2-3), with W4r in D156's priority order", "plan": "6 cells, ~0.4 h", "blocks": [
+    {"name": "W4r-learned", "group": "qwen-ablation", "dataset": "eval_qwen", "axes": {"h": "$decision:headline", "nv": "$decision:ablation_norm"}, "configs": ["qwen.rb-learned-retrained{nv}.{h}"], "traces": ["l12", "l30", "l42"], "seeds": [2, 3], "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "nv": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W5r", "kind": "cells", "prio": "must", "enabled": false, "why": "D166 (owner 09-30): every row's seeds 2-3 wait until every seed-1 row and the paper draft are done; the repetitions are revised then",
    "about": "the repetitions of W5, the burst sweep (seeds 2-3), after every seed-1 row (owner 09-29, D121, D125)",
    "plan": "54 cells, ~3.1 h",
    "blocks": [
@@ -462,7 +427,7 @@
      "configs": ["qwen.{arm}.abl-lpt-{k}.{h}"], "traces": ["l12", "l30"], "seeds": [1, 2, 3],
      "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1}, "enabled": false, "why": "owner 09-29 (D121): merged into the ablation rows W4 (seed 1) and W4r (seeds 2-3) as the block W4(r)-lpt-key, beside LPT off", "hold": null}
    ]},
-  {"id": "W12", "kind": "cells", "prio": "should", "enabled": true, "why": null,
+  {"id": "W12", "kind": "cells", "prio": "should", "enabled": false, "why": "D154 (owner 09-30): the self-counting dispatchers dropped",
    "about": "D84 (appendix): the dispatch-only least-outstanding and power of two counting their own in-flight requests (as Envoy's LEAST_REQUEST and NGINX's least_conn count at the proxy), paired with the main grid's dispatchers on the engines' cached gauges at the same rates and seed (W2); whether it enters the paper is decided after it runs",
    "plan": "12 cells, ~1 h",
    "blocks": [
@@ -470,7 +435,7 @@
      "configs": ["qwen.disp.{d}-inflight"], "traces": ["l12", "l18", "l24", "l30", "l36", "l42"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W13", "kind": "cells", "prio": "good-to-have", "enabled": true, "why": null,
+  {"id": "W13", "kind": "cells", "prio": "good-to-have", "enabled": false, "why": "D147 (owner 09-30): leave-out joins the ablations (two sources at 12/30/42, W4-leave-out)",
    "about": "D93 (owner 09-27, optional; not for the paper if time is short): leave one source dataset out of the KNN index, online: the headline cell with rb_default's arm at lambda 12, seed 1, once per source (7), paired with W4's seed-1 reference; quality read over the held-out source's prompts and overall. The last experiment row, run only if time allows before Friday",
    "plan": "7 cells, ~40 min",
    "blocks": [

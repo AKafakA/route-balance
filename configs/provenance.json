@@ -387,7 +387,6 @@
     "presets.parts.latency.curve_maxdiv.prefill": "$part:prefill",
     "presets.parts.latency.static_prior.source": "constant",
     "presets.parts.latency.static_prior.envelope": "own_length",
-    "presets.parts.latency.static_prior.normalization": "fixed_ref",
     "presets.parts.latency.static_prior.table": "$pin:tpot-table.{family}:path",
     "presets.parts.latency.static_prior.table_md5": "$pin:tpot-table.{family}:md5",
     "presets.parts.latency.static_prior.prefill": "$part:prefill",
@@ -538,11 +537,68 @@
    }
   },
   {
-   "path": "presets.parts.rb.normalize_over.request",
+   "path": "presets.parts.rb.normalize_over.request, presets.parts.rb.normalize_over-reqnorm",
    "source": "owner",
    "ref": "D140 (owner 09-30): \"add the per-request normalization ablations to rerun all rb weights cells in the main grid before the ablation runs\"; v3's per-request scale",
    "values": {
-    "presets.parts.rb.normalize_over.request": "request"
+    "presets.parts.rb.normalize_over.request": "request",
+    "presets.parts.rb.normalize_over-reqnorm": "request"
+   }
+  },
+  {
+   "path": "presets.parts.estimator.labels75.*, presets.parts.estimator.labels25.*",
+   "source": "owner",
+   "ref": "D142 (owner 09-30: \"the knn with 50 -> should also be 25 and 75?\"; \"and your mechisms ablations seems good\"), which enters D94's 25% and 75% label points into the scope: the indexes built as the half-label one (v3's builder, k=50, the same seed rule), each pinned (D68); k = 50 and DeepEval scores as v2/v3 (D14)",
+   "values": {
+    "presets.parts.estimator.labels25.encoder_revision": "$part:encoder_revision",
+    "presets.parts.estimator.labels25.index_dir": "$pin:knn-q25.{family}:path",
+    "presets.parts.estimator.labels25.index_md5": "$pin:knn-q25.{family}:md5",
+    "presets.parts.estimator.labels25.k": 50,
+    "presets.parts.estimator.labels25.prior": "knn",
+    "presets.parts.estimator.labels25.score_type": "deepeval",
+    "presets.parts.estimator.labels75.encoder_revision": "$part:encoder_revision",
+    "presets.parts.estimator.labels75.index_dir": "$pin:knn-q75.{family}:path",
+    "presets.parts.estimator.labels75.index_md5": "$pin:knn-q75.{family}:md5",
+    "presets.parts.estimator.labels75.k": 50,
+    "presets.parts.estimator.labels75.prior": "knn",
+    "presets.parts.estimator.labels75.score_type": "deepeval"
+   }
+  },
+  {
+   "path": "presets.parts.latency.xgb-retrained.*",
+   "source": "owner",
+   "ref": "D142 (owner 09-30: \"for the learned predictor, we need redo the latency sweeping, and retraining the head\"): the learned heads retrained on the new load sweep, pinned apart from the retired heads (D128, D68); every other setting as the learned heads' part latency.xgb (D38, D127)",
+   "values": {
+    "presets.parts.latency.xgb-retrained.source": "xgboost",
+    "presets.parts.latency.xgb-retrained.envelope": "queue_aware",
+    "presets.parts.latency.xgb-retrained.normalization": "max_divide",
+    "presets.parts.latency.xgb-retrained.table": "$pin:xgb-heads-retrained.{family}:path",
+    "presets.parts.latency.xgb-retrained.table_md5": "$pin:xgb-heads-retrained.{family}:md5",
+    "presets.parts.latency.xgb-retrained.prefill": "$part:prefill"
+   }
+  },
+  {
+   "path": "presets.parts.latency.static_prior.normalization",
+   "source": "owner",
+   "ref": "D164 (owner 09-30, \"Max-divide\"): the static prior keeps the reference's normalization (rb-static, max_divide), as v2's arm 4 did (\"keeping identical normalization and the queue tiebreak\", neurips_2026_v2.tex)",
+   "values": {
+    "presets.parts.latency.static_prior.normalization": "max_divide"
+   }
+  },
+  {
+   "path": "presets.parts.weights.q90l05c05.*, presets.parts.weights.q30l10c60.*, presets.parts.weights.q05l25c70.*",
+   "source": "owner",
+   "ref": "D167 (owner 09-30, picked from the preliminary frontier audit of the complete in-batch main grid: \"90/5/5, 30/10/60, 5/25/70\", quality/latency/cost)",
+   "values": {
+    "presets.parts.weights.q90l05c05.w_quality": 0.9,
+    "presets.parts.weights.q90l05c05.w_latency": 0.05,
+    "presets.parts.weights.q90l05c05.w_cost": 0.05,
+    "presets.parts.weights.q30l10c60.w_quality": 0.3,
+    "presets.parts.weights.q30l10c60.w_latency": 0.1,
+    "presets.parts.weights.q30l10c60.w_cost": 0.6,
+    "presets.parts.weights.q05l25c70.w_quality": 0.05,
+    "presets.parts.weights.q05l25c70.w_latency": 0.25,
+    "presets.parts.weights.q05l25c70.w_cost": 0.7
    }
   }
  ],
