@@ -674,6 +674,20 @@
    "value": "256"
   },
   {
+   "module": "routebalance.server",
+   "name": "TIMEOUT_KEEP_ALIVE_S",
+   "source": "v3",
+   "ref": "D141: v3's scheduler passed timeout_keep_alive=600 to uvicorn (Block v3-campaign, its TIMEOUT_KEEP_ALIVE); every other uvicorn setting is its stock (0.32.1: backlog 2048)",
+   "value": "600"
+  },
+  {
+   "module": "routebalance.server",
+   "name": "NOFILE_SOFT",
+   "source": "v3",
+   "ref": "D141 (owner 09-30: \"yes\"): v3's set_ulimit target, 65535 (Block v3-campaign utils.set_ulimit, as vLLM's); the soft limit raised to it when lower, the hard limit unchanged",
+   "value": "65535"
+  },
+  {
    "module": "routebalance.telemetry",
    "name": "AUTO_EXTEND_TOKENS",
    "source": "v3",

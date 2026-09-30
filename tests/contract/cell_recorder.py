@@ -33,6 +33,7 @@ from bench.records import Sampling, write_cell
 from bench.runner import CellSpec, run_cell
 from routebalance.config import config_digest, load_fleet, parse_scheduler
 from tests.contract.fake_vllm import FakeState, make_app
+from tests.contract.scheduler_http import ServedScheduler
 from tests.unit.fakes import SAMPLING, FakeTokenizer, write_dataset
 from tools.engines import engines
 
@@ -197,9 +198,7 @@ class LiveFleet:
                                       request_timeout_s=5.0, max_connections=64, torch_threads=1, log_dir=w / "logs")
         await self.service.start(parse_scheduler(self.configs["lor"]))
         self.port = free_port()
-        self.app = web.AppRunner(server.build_app(self.service))
-        await self.app.setup()
-        await web.TCPSite(self.app, "127.0.0.1", self.port).start()
+        self.app = await ServedScheduler(self.service, self.port).start()
         self.url = f"http://127.0.0.1:{self.port}"
         self.http = aiohttp.ClientSession()
         return self
@@ -261,7 +260,7 @@ class LiveFleet:
 
     async def __aexit__(self, *exc) -> None:
         await self.http.close()
-        await self.app.cleanup()
+        await self.app.stop()
         await self.service.stop()
         for r in self.engines:
             await r.cleanup()

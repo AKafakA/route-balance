@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import email.message
 import functools
 import gc
 import hashlib
@@ -36,6 +37,8 @@ import importlib.metadata
 import logging
 import math
 import os
+import resource
+import signal
 import sys
 import time
 from concurrent.futures import Executor
@@ -44,7 +47,9 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import aiohttp
-from aiohttp import web
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, PlainTextResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from routebalance.backend import BackendClient, BackendUnreachable, GenerationRequest, GenerationResult, stock_connector
@@ -248,6 +253,51 @@ def native_threadpools() -> dict[str, int]:
     return out
 
 
+NOFILE_SOFT = 65535          # v3's open-file target (its set_ulimit, as vLLM's); owner 09-30: "yes" (D141)
+
+
+def set_ulimit(target_soft_limit: int = NOFILE_SOFT) -> None:
+    """v3's set_ulimit (Block, tag v3-campaign, block/global_scheduler/.../utils.py), as vLLM's: the soft open-file
+    limit raised to the target when it is lower, the hard limit unchanged; a refusal is logged as v3 logged it, and
+    the manifest records the limit the process runs with."""
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if soft < target_soft_limit:
+        try:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target_soft_limit, hard))
+        except ValueError as e:
+            log.warning("Found ulimit of %s and failed to automatically increase with error %s. This can cause fd "
+                        "limit errors like `OSError: [Errno 24] Too many open files`. Consider increasing with "
+                        "ulimit -n", soft, e)
+
+
+def open_files_limit() -> dict[str, int]:
+    soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+    return {"soft": soft, "hard": hard}
+
+
+def tcp_listen_counters() -> dict[str, int]:
+    """The node's kernel counters of connections a full listen queue turned away (TcpExt ListenOverflows and
+    ListenDrops in /proc/net/netstat), cumulative since boot; stats_before/after bracket a run (D141). Recorded only."""
+    lines = Path("/proc/net/netstat").read_text().splitlines()
+    for head, values in zip(lines[::2], lines[1::2], strict=True):
+        if head.startswith("TcpExt:"):
+            row = dict(zip(head.split()[1:], values.split()[1:], strict=True))
+            return {"overflows": int(row["ListenOverflows"]), "drops": int(row["ListenDrops"])}
+    raise RuntimeError("/proc/net/netstat has no TcpExt counters")
+
+
+def http_settings(server: Optional[uvicorn.Server]) -> Optional[dict]:
+    """What the listening server executes, read from its loaded configuration, and the kernel's cap on the listen
+    backlog (the queue a connection waits in until the event loop accepts it)."""
+    if server is None or not server.config.loaded:
+        return None
+    c, http = server.config, server.config.http_protocol_class
+    return {"server": f"uvicorn {uvicorn.__version__}", "http": f"{http.__module__}.{http.__qualname__}",
+            "backlog": c.backlog, "somaxconn": int(Path("/proc/sys/net/core/somaxconn").read_text()),
+            "timeout_keep_alive": c.timeout_keep_alive, "access_log": c.access_log,
+            "limit_concurrency": c.limit_concurrency, "workers": c.workers}
+
+
 def _session_settings(session: aiohttp.ClientSession) -> dict:
     conn = session.connector
     return {"limit": conn.limit, "limit_per_host": conn.limit_per_host, "force_close": conn.force_close}
@@ -430,6 +480,7 @@ class Service:
         # recorded here and makes the run invalid (gates/cell.py isolation_problems); requests keep being served
         self.evidence_failure: Optional[str] = None
         self.connection_waits = {"engine": 0, "telemetry": 0}   # waits for a pooled connection (a requeued one counts again)
+        self.http: Optional[uvicorn.Server] = None                # the server this service is served by (the manifest)
 
     async def start(self, cfg: SchedulerConfig) -> None:
         # D134 (owner: "back to vllm bench"): the engine streams and the telemetry scrapes each get vLLM bench's stock
@@ -648,7 +699,7 @@ class Service:
                 "rounds": None if self._rb is None else self._rb.rounds,
                 "booster_calls": None if lat is None else lat.predict_calls, "failure": self.failure,
                 "evidence_failure": self.evidence_failure,
-                "connection_waits": dict(self.connection_waits),
+                "connection_waits": dict(self.connection_waits), "tcp_listen": tcp_listen_counters(),
                 "logged": {"decisions": self.decisions.written, "decisions_buffered": self.decisions.buffered,
                            "latency": None if self.latency_log is None else self.latency_log.written}}
 
@@ -704,6 +755,7 @@ class Service:
                        "engine_session": _session_settings(self._session),
                        "telemetry_session": _session_settings(self._telemetry_session),
                        "event_loop": f"{type(loop).__module__}.{type(loop).__qualname__}",
+                       "http_server": http_settings(self.http), "open_files": open_files_limit(),
                        "cpus": {"count": os.cpu_count(), "affinity": len(os.sched_getaffinity(0))},
                        "env": {k: os.environ.get(k) for k in THREAD_ENV}},   # env-ok: recorded, not a setting
         }
@@ -733,62 +785,97 @@ class ServeError(RuntimeError):
 
 
 # ---------------------------------------------------------------- HTTP
+# v3's scheduler served FastAPI through uvicorn (Block, tag v3-campaign: its run_server -> block/server_utils_lite.py
+# serve_http, a copy of vLLM's launcher), as vLLM's own server does (D141): uvicorn.Config with the host, the port and v3's
+# keep-alive; every other setting is uvicorn's stock (a 2048 listen backlog, httptools, the access log).
+TIMEOUT_KEEP_ALIVE_S = 600    # v3's (its TIMEOUT_KEEP_ALIVE: "Was 5 -- caused localhost RST race vs bench keepalive=60s")
 
-def build_app(service: Service) -> web.Application:
-    async def completions(request: web.Request) -> web.Response:
+
+def http_server(app: FastAPI, host: str, port: int) -> uvicorn.Server:
+    return uvicorn.Server(uvicorn.Config(app, host=host, port=port, timeout_keep_alive=TIMEOUT_KEEP_ALIVE_S))
+
+
+async def serve_http(server: uvicorn.Server) -> None:
+    """v3's launcher (block/server_utils_lite.py serve_http, a copy of vLLM's): SIGINT and SIGTERM cancel the serving
+    task, and the server then shuts down gracefully, so the caller's cleanup runs (v3's debug-only report of the
+    process holding the port is left out)."""
+    loop = asyncio.get_running_loop()
+    task = loop.create_task(server.serve())
+    loop.add_signal_handler(signal.SIGINT, task.cancel)
+    loop.add_signal_handler(signal.SIGTERM, task.cancel)
+    try:
+        await task
+    except asyncio.CancelledError:
+        log.info("Shutting down FastAPI HTTP server.")
+        await server.shutdown()
+
+
+async def _body(request: Request) -> str:
+    """The body in its declared charset, UTF-8 when none (or an empty one) is declared, as aiohttp's request.text()
+    read it before (D141 reviews). A body that does not decode is a ValueError: a bad request; an unknown charset
+    name raises LookupError: a server error, as before."""
+    header, content_type = email.message.Message(), request.headers.get("content-type")
+    if content_type is not None:
+        header["content-type"] = content_type
+    charset = header.get_content_charset()           # None: no charset; "": an empty one
+    return (await request.body()).decode("utf-8" if not charset else charset)
+
+
+def build_app(service: Service) -> FastAPI:
+    app = FastAPI()
+
+    @app.post("/v1/completions")
+    async def completions(request: Request) -> Response:
         try:
-            c = Completion.model_validate(loads_strict(await request.text()))
+            c = Completion.model_validate(loads_strict(await _body(request)))
         except (ValidationError, ConfigError, ValueError) as e:
-            return web.json_response({"success": False, "error": f"bad request: {e}"}, status=400)
+            return JSONResponse({"success": False, "error": f"bad request: {e}"}, status_code=400)
         try:
-            return web.json_response(await service.complete(c))
+            return JSONResponse(await service.complete(c))
         except Busy as e:
-            return web.json_response({"success": False, "error": str(e)}, status=503)
+            return JSONResponse({"success": False, "error": str(e)}, status_code=503)
         except (ServeError, BackendUnreachable) as e:
-            return web.json_response({"success": False, "error": str(e)}, status=502)
+            return JSONResponse({"success": False, "error": str(e)}, status_code=502)
         except Exception as e:         # the scheduler failed this request: loud, never a fabricated reply
             log.exception("request %s failed", c.request_id)
-            return web.json_response({"success": False, "error": f"{type(e).__name__}: {e}"}, status=500)
+            return JSONResponse({"success": False, "error": f"{type(e).__name__}: {e}"}, status_code=500)
 
-    async def get_config(request: web.Request) -> web.Response:
+    @app.get("/v1/config")
+    async def get_config() -> Response:
         cfg = service.cfg
-        return web.json_response({"config": None if cfg is None else cfg.model_dump(mode="json"),
-                                  "config_digest": None if cfg is None else config_digest(cfg),
-                                  "fleet_digest": service.fleet_digest})
+        return JSONResponse({"config": None if cfg is None else cfg.model_dump(mode="json"),
+                             "config_digest": None if cfg is None else config_digest(cfg),
+                             "fleet_digest": service.fleet_digest})
 
-    async def post_config(request: web.Request) -> web.Response:
+    @app.post("/v1/config")
+    async def post_config(request: Request) -> Response:
         try:
-            cfg = parse_scheduler(loads_strict(await request.text()))
+            cfg = parse_scheduler(loads_strict(await _body(request)))
         except (ConfigError, ValueError) as e:
-            return web.json_response({"error": str(e)}, status=400)
+            return JSONResponse({"error": str(e)}, status_code=400)
         try:
             await service.apply(cfg)
         except Busy as e:
-            return web.json_response({"error": str(e)}, status=409)
+            return JSONResponse({"error": str(e)}, status_code=409)
         except Exception as e:         # nothing was swapped: the old configuration is still live
-            return web.json_response({"error": f"{type(e).__name__}: {e}"}, status=400)
-        return await get_config(request)
+            return JSONResponse({"error": f"{type(e).__name__}: {e}"}, status_code=400)
+        return await get_config()
 
-    async def stats(request: web.Request) -> web.Response:
-        return web.json_response(service.stats())
+    @app.get("/v1/stats")
+    async def stats() -> Response:
+        return JSONResponse(service.stats())
 
-    async def manifest(request: web.Request) -> web.Response:
+    @app.get("/v1/manifest")
+    async def manifest() -> Response:
         try:
-            return web.json_response(await service.manifest())
+            return JSONResponse(await service.manifest())
         except Busy as e:
-            return web.json_response({"error": str(e)}, status=503)
+            return JSONResponse({"error": str(e)}, status_code=503)
 
-    async def health(request: web.Request) -> web.Response:
+    @app.get("/health")
+    async def health() -> Response:
         ok = service.failure is None and service.cfg is not None
-        return web.Response(text="ok" if ok else "failed", status=200 if ok else 503)
-
-    app = web.Application()          # aiohttp's stock request-body limit (1 MiB; a request here is a few KB), D134
-    app.router.add_post("/v1/completions", completions)
-    app.router.add_get("/v1/config", get_config)
-    app.router.add_post("/v1/config", post_config)
-    app.router.add_get("/v1/stats", stats)
-    app.router.add_get("/v1/manifest", manifest)
-    app.router.add_get("/health", health)
+        return PlainTextResponse("ok" if ok else "failed", status_code=200 if ok else 503)
     return app
 
 
@@ -812,6 +899,7 @@ def main(argv=None) -> None:
             or (a.torch_threads is not None and a.torch_threads < 1):
         p.error("timeouts, connection bound and thread count must be positive")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    set_ulimit()                      # v3's, before anything opens a file (D141)
     if a.torch_threads is not None:   # unset (D134): torch's default, as v3; the manifest records the effective count
         import torch
         torch.set_num_threads(a.torch_threads)
@@ -824,17 +912,14 @@ def main(argv=None) -> None:
                           request_timeout_s=a.request_timeout_s, max_connections=a.max_connections,
                           torch_threads=a.torch_threads, log_dir=a.log_dir, best_route_repo=a.best_route_repo)
         await service.start(cfg)
-        runner = web.AppRunner(build_app(service), access_log=None)
-        await runner.setup()
-        await web.TCPSite(runner, a.host, a.port).start()
-        log.info("serving %s on %s:%d (config %s, fleet %s)", cfg.mode, a.host, a.port, config_digest(cfg),
-                 service.fleet_digest)
+        server = service.http = http_server(build_app(service), a.host, a.port)
+        log.info("starting uvicorn for %s on %s:%d (config %s, fleet %s)", cfg.mode, a.host, a.port,
+                 config_digest(cfg), service.fleet_digest)
         try:
-            await asyncio.Event().wait()
+            await serve_http(server)
         finally:
-            await runner.cleanup()
             await service.stop()
-    asyncio.run(serve())
+    asyncio.run(serve())      # on uvloop, installed above (v3: uvloop's event-loop policy, then asyncio.run)
 
 
 if __name__ == "__main__":

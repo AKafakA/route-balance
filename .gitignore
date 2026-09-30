@@ -16,3 +16,4 @@ __pycache__/
 
 # agent worktrees and tool state (never tracked)
 /.claude/
+.venv-uvicorn/

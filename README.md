@@ -19,8 +19,8 @@ A minimal, readable codebase: `CODE_TOUR.md` walks it in reading order, with eac
 ## Development
 
 ```bash
-uv venv --python 3.10 .venv
-uv pip install --python .venv/bin/python -e ".[dev]"
+uv venv --python 3.10 .venv-uvicorn
+uv pip install --python .venv-uvicorn/bin/python -e ".[dev]"
 ```
 
 The test suite and the campaign gates are kept on the maintainers' local branch and are not part of this

@@ -1,16 +1,16 @@
 {
  "loop_lag": {
-  "samples": 15,
-  "p50_ms": 9.055690839886665,
-  "p99_ms": 37.46869973838329,
-  "p999_ms": 37.46869973838329,
-  "max_ms": 37.46869973838329
+  "samples": 9,
+  "p50_ms": 4.006556235253811,
+  "p99_ms": 12.783809565007687,
+  "p999_ms": 12.783809565007687,
+  "max_ms": 12.783809565007687
  },
  "telemetry_read": "poll",
  "telemetry_age_ms": {
-  "S_0": 22.1,
-  "S_1": 36.5,
-  "L_2": 36.0
+  "S_0": 18.2,
+  "S_1": 17.8,
+  "L_2": 17.6
  },
  "active": 0,
  "rounds": null,
@@ -20,6 +20,10 @@
  "connection_waits": {
   "engine": 0,
   "telemetry": 0
+ },
+ "tcp_listen": {
+  "overflows": 77381,
+  "drops": 77416
  },
  "logged": {
   "decisions": 128,

@@ -13,8 +13,9 @@ from tools.venv_parity import differences, packages
 def _setup_built_venv_is_current() -> None:
     """In a venv setup.sh built (a CloudLab node's test venv), every equivalence test first checks the venv: built
     from this tree and its current pyproject, and still the scheduler venv's stack plus the dev extras
-    (tools/venv_parity.py, against its sibling venv-scheduler). A stale or drifted venv would test the new code on
-    another stack and report a pass for one that no longer serves. A development machine's venv has no marker."""
+    (tools/venv_parity.py, against its sibling scheduler venv: venv-test* -> venv-scheduler*). A stale or drifted
+    venv would test the new code on another stack and report a pass for one that no longer serves. A development
+    machine's venv has no marker."""
     marker = Path(sys.prefix) / "rb-setup.spec"
     if not marker.is_file():
         return
@@ -23,7 +24,10 @@ def _setup_built_venv_is_current() -> None:
     want = f"complete test {repo} pyproject.sha256={sha}"
     if marker.read_text().strip() != want:
         pytest.fail(f"{sys.prefix} was built as '{marker.read_text().strip()}', not '{want}': rerun setup.sh --with-tests")
-    sched = Path(sys.prefix).parent / "venv-scheduler" / "rb-setup.freeze"
+    name = Path(sys.prefix).name
+    if not name.startswith("venv-test"):
+        pytest.fail(f"{sys.prefix}: a test venv is named venv-test*, paired with its venv-scheduler* sibling")
+    sched = Path(sys.prefix).parent / name.replace("venv-test", "venv-scheduler", 1) / "rb-setup.freeze"
     if not sched.is_file():
         pytest.fail(f"no {sched}: the scheduler venv this test venv mirrors is missing")
     diff = differences(packages(sched.read_text().splitlines()),

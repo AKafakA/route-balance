@@ -235,16 +235,16 @@ cmd_sched_start() {
               --request-timeout-s "$timeout" --max-connections "$conns" --log-dir "$logdir")
   [ "$threads" = none ] || argv+=(--torch-threads "$threads")   # none: torch's default thread count (D134, v3)
   printf '%s\n' "CUDA_VISIBLE_DEVICES= $SCHED_VENV/bin/python -u -m routebalance.server ${argv[*]}" > "$run/scheduler.cmd"
-  # the soft open-file limit is raised to the hard limit: the engine streams are bounded by --max-connections
+  # the open-file limit: the scheduler raises its own soft limit at start as v3's did (set_ulimit, 65535; D141)
   # shellcheck disable=SC2016,SC2094
-  (cd "$tree" && setsid --fork bash -c "$RECORD_AND_EXEC"'; ulimit -n "$(ulimit -Hn)"; exec "$@"' _ "$pidf" "$log" "$BOOT_ID" \
+  (cd "$tree" && setsid --fork bash -c "$RECORD_AND_EXEC"'; exec "$@"' _ "$pidf" "$log" "$BOOT_ID" \
     env -i HOME="$HOME" PATH="$RB_PATH" LANG=C.UTF-8 CUDA_VISIBLE_DEVICES= HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 \
     TIKTOKEN_CACHE_DIR="$RB_TIKTOKEN" \
     "$SCHED_VENV/bin/python" -u -m routebalance.server "${argv[@]}" > "$log" 2>&1 < /dev/null)
   local i
   for i in $(seq 1 20); do [ -s "$pidf" ] && break; sleep 0.25; done
   alive "$(pid_of "$pidf")" || fail "the scheduler did not start; log $log: $(tail -5 "$log" 2>/dev/null | tr '\n' ' ')"
-  note "scheduler launched: pid $(pid_of "$pidf") port $port log $log (open files $(cat "/proc/$(pid_of "$pidf")/limits" | awk '/open files/ {print $4}'))"
+  note "scheduler launched: pid $(pid_of "$pidf") port $port log $log"   # its open-file limit: the manifest (D141)
 }
 
 cmd_sched_wait() {

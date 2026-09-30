@@ -1,4 +1,4 @@
-PY ?= .venv/bin/python
+PY ?= .venv-uvicorn/bin/python
 ORACLE ?=
 ARTIFACTS ?=
 THREADS ?= 6

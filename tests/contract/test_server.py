@@ -7,7 +7,13 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import copy
 import json
+import os
+import signal
 import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
 from dataclasses import dataclass
 
 import aiohttp
@@ -19,9 +25,10 @@ from routebalance.baselines.dispatch import build_dispatcher
 from routebalance.baselines.routers import PassthroughRouter
 from routebalance.config import ConfigError, parse_scheduler
 from routebalance.estimate.latency import ConstantTPOT, LatencyModel
-from routebalance.server import Assignment, Completion, Components, Service, build_app, idle_state
+from routebalance.server import Assignment, Completion, Components, Service, idle_state
 from routebalance.types import Instance, Tier
 from tests.contract.fake_vllm import FakeState, make_app
+from tests.contract.scheduler_http import ServedScheduler
 
 SMALL = Tier("small_a30", "S", "a30", 1e-7, 1e-7, 8, ())
 LARGE = Tier("large_a100", "L", "a100", 4e-7, 4e-7, 8, ())
@@ -105,9 +112,7 @@ class Harness:
     async def start(self, cfg: dict):
         await self.service.start(parse_scheduler(cfg))
         self.port = free_port()
-        self.app = web.AppRunner(build_app(self.service))
-        await self.app.setup()
-        await web.TCPSite(self.app, "127.0.0.1", self.port).start()
+        self.app = await ServedScheduler(self.service, self.port).start()
         self.http = aiohttp.ClientSession()
 
     async def post(self, path, body):
@@ -120,7 +125,7 @@ class Harness:
 
     async def __aexit__(self, *exc):
         await self.http.close()
-        await self.app.cleanup()
+        await self.app.stop()
         await self.service.stop()
         for r in self.runners:
             await r.cleanup()
@@ -272,6 +277,103 @@ def test_malformed_requests_are_rejected(tmp_path, change):
             return await h.post("/v1/completions", body(0, **change))
     status, reply = asyncio.run(scenario())
     assert status == 400 and reply["success"] is False
+
+
+def test_a_body_that_is_not_utf8_is_a_bad_request(tmp_path):
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            await h.start(pipeline_cfg())
+            async with h.http.post(f"http://127.0.0.1:{h.port}/v1/completions", data=b"\xff\xfe{}") as r:
+                return r.status, await r.json()
+    status, reply = asyncio.run(scenario())
+    assert status == 400 and reply["success"] is False and reply["error"].startswith("bad request")
+
+
+def test_a_body_in_its_declared_charset_is_read_as_before(tmp_path):
+    """Codex review (D141): a declared charset is honoured, as aiohttp's request.text() did."""
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            await h.start(pipeline_cfg())
+            data = json.dumps(body(0, prompt="caf\u00e9?"), ensure_ascii=False).encode("iso-8859-1")
+            async with h.http.post(f"http://127.0.0.1:{h.port}/v1/completions", data=data,
+                                   headers={"Content-Type": "application/json; charset=iso-8859-1"}) as r:
+                return r.status, await r.json()
+    status, reply = asyncio.run(scenario())
+    assert status == 200 and reply["success"] is True
+
+
+ULIMIT_SCRIPT = """
+import json, logging, resource, sys
+from routebalance.server import set_ulimit
+logging.basicConfig(level=logging.INFO)
+hard = resource.getrlimit(resource.RLIMIT_NOFILE)[1] if sys.argv[2] == "keep" else int(sys.argv[2])
+resource.setrlimit(resource.RLIMIT_NOFILE, (int(sys.argv[1]), hard))
+set_ulimit()
+print(json.dumps(resource.getrlimit(resource.RLIMIT_NOFILE)))
+"""
+
+
+def test_set_ulimit_raises_a_lower_soft_limit_to_v3s_65535_and_keeps_a_higher_one(tmp_path):
+    """v3's set_ulimit (D141): the soft open-file limit raised to 65535 when lower, the hard limit unchanged."""
+    script = tmp_path / "ulimit_check.py"
+    script.write_text(ULIMIT_SCRIPT)
+    repo = Path(__file__).resolve().parents[2]
+    import resource
+    hard = resource.getrlimit(resource.RLIMIT_NOFILE)[1]
+
+    def run(start, hard_arg):
+        p = subprocess.run([sys.executable, str(script), str(start), hard_arg], cwd=repo, capture_output=True,
+                           text=True, env={**os.environ, "PYTHONPATH": str(repo)}, check=True)
+        return json.loads(p.stdout), p.stderr
+    start = min(1024, hard)
+    raised, _ = run(start, "keep")
+    assert raised == [65535 if hard >= 65535 else start, hard]
+    above = min(hard, 70000)
+    assert run(above, "keep")[0] == [above, hard]
+    low = min(hard, 4096)                   # the hard limit below the target: refused and logged, as v3
+    refused, log = run(min(1024, low), str(low))
+    assert refused == [min(1024, low), low] and "failed to automatically increase" in log
+
+
+LAUNCH_SCRIPT = """
+import asyncio, sys
+import uvloop
+from fastapi import FastAPI
+from routebalance.server import http_server, serve_http
+uvloop.install()
+async def main():
+    try:
+        await serve_http(http_server(FastAPI(), "127.0.0.1", int(sys.argv[1])))
+    finally:
+        open(sys.argv[2], "w").write("cleaned up")
+asyncio.run(main())
+"""
+
+
+def test_sigterm_stops_the_server_gracefully_and_the_cleanup_runs(tmp_path):
+    """v3's launcher (local review, D141): SIGTERM cancels the serving task, the server shuts down, and the caller's
+    cleanup (the scheduler's service.stop, its final log flush) runs; the process exits 0."""
+    port, marker = free_port(), tmp_path / "marker"
+    script = tmp_path / "launch.py"
+    script.write_text(LAUNCH_SCRIPT)
+    repo = Path(__file__).resolve().parents[2]
+    p = subprocess.Popen([sys.executable, str(script), str(port), str(marker)], cwd=repo,
+                         env={**os.environ, "PYTHONPATH": str(repo)}, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
+    try:
+        for _ in range(300):
+            with socket.socket() as c:
+                if c.connect_ex(("127.0.0.1", port)) == 0:
+                    break
+            time.sleep(0.05)
+        else:
+            raise AssertionError("the server never listened")
+        p.send_signal(signal.SIGTERM)
+        assert p.wait(timeout=30) == 0
+    finally:
+        if p.poll() is None:
+            p.kill()
+    assert marker.read_text() == "cleaned up"
 
 
 def test_the_latency_sweep_logs_the_served_feature_vector(tmp_path):

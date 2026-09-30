@@ -1,10 +1,10 @@
 {
  "loop_lag": {
-  "samples": 10,
-  "p50_ms": 1.1303247883915901,
-  "p99_ms": 3.4545958042144775,
-  "p999_ms": 3.4545958042144775,
-  "max_ms": 3.4545958042144775
+  "samples": 13,
+  "p50_ms": 1.9294554367661476,
+  "p99_ms": 6.330958567559719,
+  "p999_ms": 6.330958567559719,
+  "max_ms": 6.330958567559719
  },
  "telemetry_read": "per_round",
  "telemetry_age_ms": null,
@@ -16,6 +16,10 @@
  "connection_waits": {
   "engine": 0,
   "telemetry": 0
+ },
+ "tcp_listen": {
+  "overflows": 77381,
+  "drops": 77416
  },
  "logged": {
   "decisions": 208,

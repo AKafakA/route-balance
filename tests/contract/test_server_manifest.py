@@ -2,8 +2,10 @@
 import asyncio
 import hashlib
 import subprocess
+from pathlib import Path
 
 import aiohttp
+import uvicorn
 
 from routebalance.server import PACKAGE_DIR, py_tree_digest
 from routebalance.server import Service
@@ -70,6 +72,30 @@ def test_the_manifest_reports_what_this_process_executes(tmp_path):
     assert launch["event_loop"].startswith("asyncio.") or launch["event_loop"].startswith("uvloop")
     assert launch["cpus"]["count"] >= launch["cpus"]["affinity"] >= 1
     assert set(launch["env"]) >= {"OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "RAYON_NUM_THREADS"}
+    # D141: served as v3's scheduler was, through uvicorn with v3's keep-alive; every other setting is uvicorn's stock
+    assert man["versions"]["uvicorn"] == uvicorn.__version__ == "0.32.1" and man["versions"]["httptools"] == "0.8.0"
+    assert launch["http_server"] == {"server": "uvicorn 0.32.1",
+                                     "http": "uvicorn.protocols.http.httptools_impl.HttpToolsProtocol",
+                                     "backlog": 2048, "somaxconn": int(Path("/proc/sys/net/core/somaxconn").read_text()),
+                                     "timeout_keep_alive": 600, "access_log": True, "limit_concurrency": None,
+                                     "workers": 1}
+    import resource
+    assert launch["open_files"] == dict(zip(("soft", "hard"), resource.getrlimit(resource.RLIMIT_NOFILE), strict=True))
+
+
+def test_the_listen_queue_the_kernel_holds_is_uvicorns(tmp_path):
+    """D141, by execution: the listening socket's accept queue (ss's Send-Q for a listener) is uvicorn's stock 2048,
+    capped by the kernel's somaxconn; and the stats carry the kernel's listen-overflow counters for every run."""
+    async def scenario():
+        async with Harness(tmp_path, fleet_states()) as h:
+            await h.start(RB)
+            ss = subprocess.run(["ss", "-Hltn", f"sport = :{h.port}"], capture_output=True, text=True, check=True).stdout
+            _, stats = await h.get("/v1/stats")
+            return ss, stats
+    ss, stats = asyncio.run(scenario())
+    (row,) = ss.splitlines()
+    assert int(row.split()[2]) == min(2048, int(Path("/proc/sys/net/core/somaxconn").read_text()))
+    assert set(stats["tcp_listen"]) == {"overflows", "drops"} and all(v >= 0 for v in stats["tcp_listen"].values())
 
 
 def test_the_manifest_follows_a_config_swap(tmp_path):

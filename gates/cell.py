@@ -57,6 +57,12 @@ class ConnectionWaits(Strict):
     telemetry: int = Field(ge=0)
 
 
+class TcpListen(Strict):
+    """The node's kernel counters of connections turned away by a full listen queue, cumulative since boot (D141)."""
+    overflows: int = Field(ge=0)
+    drops: int = Field(ge=0)
+
+
 class Stats(Strict):
     loop_lag: dict[str, Union[int, float]]
     telemetry_read: Literal["per_round", "per_request", "poll"]   # D53, D55; the pollers' cache is D19
@@ -67,6 +73,7 @@ class Stats(Strict):
     failure: Optional[str]
     evidence_failure: Optional[str] = None           # D134: a log writer failed (the run is invalid, never refused)
     connection_waits: ConnectionWaits
+    tcp_listen: Optional[TcpListen] = None           # since D141 (recorded, never a reason to discard a run)
     logged: Logged
 
     @model_validator(mode="after")
@@ -155,6 +162,24 @@ class Cpus(Strict):
     affinity: int
 
 
+class HttpServer(Strict):
+    """The scheduler's HTTP server as it runs (D141: uvicorn, as v3 and vLLM)."""
+    server: str
+    http: str
+    backlog: int
+    somaxconn: int
+    timeout_keep_alive: int
+    access_log: bool
+    limit_concurrency: Optional[int]
+    workers: int
+
+
+class OpenFiles(Strict):
+    """RLIMIT_NOFILE as the scheduler runs with it (D141: v3's set_ulimit, soft 65535)."""
+    soft: int
+    hard: int
+
+
 class Launch(Strict):
     torch_threads: Optional[int]           # None: torch's default (D134)
     torch_threads_effective: Optional[int]
@@ -165,6 +190,8 @@ class Launch(Strict):
     engine_session: SessionSettings
     telemetry_session: SessionSettings
     event_loop: str
+    http_server: Optional[HttpServer] = None    # before D141 the scheduler served through aiohttp (not recorded)
+    open_files: Optional[OpenFiles] = None      # before D141 not recorded
     cpus: Cpus
     env: dict[str, Optional[str]]
 
