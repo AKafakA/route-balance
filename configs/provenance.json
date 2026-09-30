@@ -536,6 +536,14 @@
    "values": {
     "presets.parts.rb.normalize_over": "round"
    }
+  },
+  {
+   "path": "presets.parts.rb.normalize_over.request",
+   "source": "owner",
+   "ref": "D140 (owner 09-30): \"add the per-request normalization ablations to rerun all rb weights cells in the main grid before the ablation runs\"; v3's per-request scale",
+   "values": {
+    "presets.parts.rb.normalize_over.request": "request"
+   }
   }
  ],
  "constants": [

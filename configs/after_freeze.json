@@ -145,5 +145,19 @@
   "decision": "D135, D137",
   "owner": "i mean the max batch size (the router concurrency 32, RouteBalance's largest round; 1 as shipped); the in-batch normalization: if the in-batch could change and shift the model calls as expected direction of thesis, or making light differences -> pick it; Adopt",
   "gpu_cost": "no run added: the router concurrency and RouteBalance's normalize_over change configurations only (W2s is counted in scope.json's entry)"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "df491f1d969b9bc43dafdc8611f03473422ab6466585bcbdc00af9b485d80d5a",
+  "decision": "D140",
+  "owner": "ok, also add the per-request normalization ablations to rerun all rb weights cells in the main grid before the ablation runs. so, we can actually make the decisions, which will be used eventually; and then for the left ablations and seed 2 and 3",
+  "gpu_cost": "row W2n: the 8 RouteBalance-static presets with per-request normalization at W2's six rates, seed 1, 48 runs, ~3 h, after W2b and before the ablations"
+ },
+ {
+  "file": "configs/presets.json",
+  "sha256": "541d1944e2cf0c04e55d75d90aa84f25911b71047b8d9778f60c4d4e7b57b569",
+  "decision": "D140",
+  "owner": "ok, also add the per-request normalization ablations to rerun all rb weights cells in the main grid before the ablation runs. so, we can actually make the decisions, which will be used eventually; and then for the left ablations and seed 2 and 3",
+  "gpu_cost": "no run added here (the {family}.{arm}-reqnorm template over RouteBalance's latency variants and its part; W2n is counted in scope.json's entry)"
  }
 ]

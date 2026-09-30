@@ -236,6 +236,20 @@
      "configs": ["qwen.ap.{pw}.{d}", "qwen.br.{t}.{d}"], "traces": ["l12", "l30"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
+  {"id": "W2n", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D140 (owner 09-30): every RouteBalance weight preset of the main grid again with per-request normalization (each request's own candidates, v3's score) in place of the in-batch normalization (D137), at W2's six rates, seed 1, in W2's comparison group, before the ablations; the owner then decides which normalization the ablations and seeds 2-3 use (\"so, we can actually make the decisions, which will be used eventually\")",
+   "plan": "48 cells, ~3 h, after W2b",
+   "blocks": [
+    {"name": "W2n-l30", "group": "qwen", "dataset": "eval_qwen", "axes": {"arm": "$decision:rb_default", "w": "$list:rb_weights"},
+     "configs": ["qwen.{arm}-reqnorm.{w}"], "traces": ["l30"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W2n-l12", "group": "qwen", "dataset": "eval_qwen", "axes": {"arm": "$decision:rb_default", "w": "$list:rb_weights"},
+     "configs": ["qwen.{arm}-reqnorm.{w}"], "traces": ["l12"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null},
+    {"name": "W2n-rest", "group": "qwen", "dataset": "eval_qwen", "axes": {"arm": "$decision:rb_default", "w": "$list:rb_weights"},
+     "configs": ["qwen.{arm}-reqnorm.{w}"], "traces": ["l24", "l18", "l36", "l42"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
   {"id": "W4", "kind": "cells", "prio": "must", "enabled": true, "why": null,
    "about": "D41 ablations at the headline preset x lambda{12, 30, 42} x 3 seeds (42 since D125), paired, D78: the reference is rb_default's variant; the nine mechanism ablations (LPT off, round 1 / 32, w_lat = 0, prompt-blind, 50% labels, dead reckoning off, w_q = 0, w_c = 0) are of that variant; the six latency variants (measured curve, static, learned, static prior, curve + max-divide, constant + batch) all run, one of them the reference; seed 1 here, seeds 2-3 in the row's repetition after every seed-1 row (owner 09-29, D121); the LPT key min / mean variants (formerly W11) run here beside LPT off (owner 09-29)",
    "plan": "51 cells (seed 1: 45 + the 6 LPT-key cells), ~2.9 h",
