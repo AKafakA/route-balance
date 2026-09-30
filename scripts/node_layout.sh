@@ -12,6 +12,8 @@ ENGINE_VENV=$RB_ROOT/venv-engine      # official vLLM (its own torch); never sha
 # venv-test are left as they are (R1), their sibling names below keep the test venv's parity check pairing them
 SCHED_VENV=$RB_ROOT/venv-scheduler-uvicorn   # this repository, pip install -e (its own torch)
 TEST_VENV=$RB_ROOT/venv-test-uvicorn         # setup.sh --with-tests: the same pins plus the dev extras, for the test suite only
+VSR_VENV=$RB_ROOT/venv-vsr           # setup.sh --role vsr: the vLLM Semantic Router CLI (vllm-sr-bench/requirements-vsr.txt)
+DOCKER_ROOT=/mydata/docker          # setup.sh --role vsr: Docker's data root, as v2 deployed vLLM-SR (the root disk is 63 GB)
 AP_DIR=$RB_ROOT/AvengersPro           # the pinned upstream AvengersPro checkout (scheduler only)
 BR_DIR=$RB_ROOT/best-route-llm        # the pinned upstream BEST-Route checkout (scheduler only, D79)
 RB_TIKTOKEN=$RB_ROOT/tiktoken         # TIKTOKEN_CACHE_DIR of the scheduler (upstream AvengersPro's cl100k_base)

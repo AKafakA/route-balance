@@ -1,0 +1,3 @@
+extend = "../pyproject.toml"
+# upstream vllm-sr 0.4.0 CLI templates, kept byte for byte (templates.diff lists our only edits)
+extend-exclude = ["templates"]

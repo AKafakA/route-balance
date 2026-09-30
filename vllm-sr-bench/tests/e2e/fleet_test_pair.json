@@ -1,0 +1,38 @@
+{
+ "tiers": {
+  "m-small_a30": {
+   "model": "m-small",
+   "gpu": "a30",
+   "cost_in": 6e-08,
+   "cost_out": 6e-08,
+   "max_num_seqs": 256,
+   "stop_token_ids": [
+    151645
+   ]
+  },
+  "m-large_a30": {
+   "model": "m-large",
+   "gpu": "a30",
+   "cost_in": 4e-07,
+   "cost_out": 4e-07,
+   "max_num_seqs": 256,
+   "stop_token_ids": [
+    151645
+   ]
+  }
+ },
+ "instances": [
+  {
+   "instance_id": "s0",
+   "tier": "m-small_a30",
+   "node": "devgpu",
+   "port": 8611
+  },
+  {
+   "instance_id": "l0",
+   "tier": "m-large_a30",
+   "node": "devgpu",
+   "port": 8612
+  }
+ ]
+}

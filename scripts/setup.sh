@@ -7,6 +7,7 @@
 #   setup.sh --role engine    --hf-token-file PATH --model ORG/NAME@REV [--model ...] [--data-disk DEV]
 #   setup.sh --role scheduler --hf-token-file PATH --model ORG/NAME@REV [...] [--tokenizer ORG/NAME@REV ...]
 #                             [--data-disk DEV] [--with-tests]
+#   setup.sh --role vsr       --vsr-models DIR
 #
 #   /mydata goes on the node type's scratch disk (c4130 /dev/sdb, d7525/d8545 /dev/nvme0n1, as v3). Some d7525
 #   have no NVMe disk: then --data-disk must name one, and without it setup fails and lists the candidates (whole
@@ -20,7 +21,13 @@
 #              (tokenizer files only; configs/scheduler_hub.json lists both). No driver: the scheduler is CPU-only.
 #              --with-tests also builds $TEST_VENV: this repository with the dev extras (pytest), for running the
 #              test suite on the node against the same pins and Hub snapshots; nothing serves from it.
-#   Both end with a self-check that prints the versions and exits non-zero on any mismatch.
+#   vsr        (the scheduler's node, after its scheduler role; D146, D150) Docker from Ubuntu's archive (docker.io
+#              $DOCKER_IO_VERSION, the owner's choice), the lease user in the docker group, $VSR_VENV with vllm-sr and
+#              the versions it was tested with (vllm-sr-bench/requirements-vsr.txt), the four images vLLM-SR 0.4.0 runs,
+#              pulled by their pinned digests and tagged as its CLI names them (vllm-sr-bench/vsrbench/constants.py),
+#              and the router's classifier weights at --vsr-models checked file by file (vllm-sr-bench/models.sha256).
+#              No token and no --model.
+#   Every role ends with a self-check that prints the versions and exits non-zero on any mismatch.
 #
 # Exit status: 0 ready; 1 failed; 3 REBOOT REQUIRED (the driver needs a reboot: reboot the node, then run
 # the same command again; it continues where it stopped). A node with the scheduler runs both roles.
@@ -72,7 +79,9 @@ say() { echo "[$(ts)] $*"; }
 step() { echo; echo "===== [$(ts)] $* ====="; }
 die() { echo "[$(ts)] SETUP FAILED: $*" >&2; exit 1; }
 
-ROLE="" TOKEN_FILE="" MODELS=() TOKENIZERS=() DATA_DISK="" WITH_TESTS=0
+ROLE="" TOKEN_FILE="" MODELS=() TOKENIZERS=() DATA_DISK="" WITH_TESTS=0 VSR_MODELS_SRC=""
+# Ubuntu 22.04's docker.io (jammy-updates) as the lease nodes' archive offered it on 30 Sep (owner: "Ubuntu's docker.io")
+DOCKER_IO_VERSION="29.1.3-0ubuntu3~22.04.2"
 
 parse_args() {
   while [ $# -gt 0 ]; do
@@ -83,14 +92,21 @@ parse_args() {
       --tokenizer) [ $# -ge 2 ] || die "--tokenizer needs a value"; TOKENIZERS+=("$2"); shift 2 ;;
       --data-disk) [ $# -ge 2 ] || die "--data-disk needs a value"; DATA_DISK="$2"; shift 2 ;;
       --with-tests) WITH_TESTS=1; shift ;;
+      --vsr-models) [ $# -ge 2 ] || die "--vsr-models needs a value"; VSR_MODELS_SRC="$2"; shift 2 ;;
       -h|--help) sed -n '4,/^$/p' "${BASH_SOURCE[0]}"; exit 0 ;;
       *) die "unknown argument $1" ;;
     esac
   done
   case "$ROLE" in
     engine|scheduler) ;;
-    *) die "--role must be engine or scheduler (got '${ROLE}')" ;;
+    vsr)
+      [ -n "$VSR_MODELS_SRC" ] || die "--vsr-models is required for the vsr role"
+      [ -z "$TOKEN_FILE" ] && [ "${#MODELS[@]}" -eq 0 ] && [ "${#TOKENIZERS[@]}" -eq 0 ] && [ "$WITH_TESTS" = 0 ] \
+        && [ -z "$DATA_DISK" ] || die "the vsr role takes only --vsr-models"
+      return 0 ;;
+    *) die "--role must be engine, scheduler or vsr (got '${ROLE}')" ;;
   esac
+  [ -z "$VSR_MODELS_SRC" ] || die "--vsr-models is for the vsr role"
   [ -n "$TOKEN_FILE" ] || die "--hf-token-file is required"
   [ "${#MODELS[@]}" -ge 1 ] || die "at least one --model ORG/NAME@REV is required"
   if [ "$ROLE" = engine ] && [ "${#TOKENIZERS[@]}" -gt 0 ]; then die "--tokenizer is for the scheduler role"; fi
@@ -354,6 +370,120 @@ test_venv() {
   say "SELF-CHECK OK: tests ($TEST_VENV: $where)"
 }
 
+# ---------------------------------------------------------------- the vLLM Semantic Router (vsr only)
+
+docker_engine() {
+  step "Docker: docker.io=$DOCKER_IO_VERSION (Ubuntu's archive), data root $DOCKER_ROOT, $USER in the docker group"
+  local have conf sim changed
+  have=$(dpkg-query -W -f '${Version}' docker.io 2>/dev/null || true)
+  [ -z "$have" ] || installed docker.io || die "docker.io $have is not fully installed (unpacked or half-configured): R1"
+  # v2's vLLM-SR deployment guide (2026-05-03: "Always set data-root: /mydata/docker before starting Docker"; the root
+  # disk is 63 GB), written before the package's first start of the daemon; D168 (owner: "v2's storage"): Docker 29's
+  # containerd image store off, so images and layers stay under the data root in Docker's classic store, as v2 ran
+  conf='{"data-root":"'"$DOCKER_ROOT"'","features":{"containerd-snapshotter":false}}'
+  if [ "$have" != "$DOCKER_IO_VERSION" ]; then
+    [ -z "$have" ] || die "docker.io $have is installed, not $DOCKER_IO_VERSION: it is never replaced here (R1)"
+    sudo apt-get update || die "apt-get update"
+    # R1, nothing installed is changed here: apt's own dry run first (before anything is written), refused if it would
+    # upgrade, downgrade or remove any installed package ("Inst <pkg> [<installed version>] ..." or "Remv")
+    sim=$(apt-get -s install --no-remove "docker.io=$DOCKER_IO_VERSION") || die "apt-get -s install docker.io"
+    changed=$(printf '%s\n' "$sim" | grep -E '^(Inst [^ ]+ \[|Remv )' || true)
+    [ -z "$changed" ] || die "installing docker.io would change installed packages (R1): $changed"
+    say "new packages: $(printf '%s\n' "$sim" | awk '/^Inst /{printf "%s=%s ", $2, substr($3, 2)}')"
+    if [ -e /etc/docker/daemon.json ]; then
+      [ "$(cat /etc/docker/daemon.json)" = "$conf" ] || die "/etc/docker/daemon.json exists and is not $conf (R1)"
+    else
+      sudo mkdir -p /etc/docker "$DOCKER_ROOT" || die "mkdir /etc/docker $DOCKER_ROOT"
+      printf '%s\n' "$conf" | sudo tee /etc/docker/daemon.json >/dev/null || die "writing /etc/docker/daemon.json"
+    fi
+    sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-remove -o Dpkg::Options::=--force-confold \
+      "docker.io=$DOCKER_IO_VERSION" || die "apt-get install docker.io"
+  fi
+  [ "$(cat /etc/docker/daemon.json)" = "$conf" ] || die "/etc/docker/daemon.json is not $conf"
+  # D165 (owner): Docker runs only during the vLLM-SR blocks, so never at boot: started here, its units disabled (and
+  # ubuntu-fan's, a package apt's default install brings with docker.io, as v2's install did)
+  local u
+  for u in docker.service docker.socket containerd.service ubuntu-fan.service; do
+    systemctl cat "$u" >/dev/null 2>&1 || continue
+    sudo systemctl disable "$u" || die "systemctl disable $u"
+  done
+  sudo systemctl start docker || die "systemctl start docker"
+  if ! id -nG "$USER" | tr ' ' '\n' | grep -qx docker; then
+    sudo usermod -aG docker "$USER" || die "usermod -aG docker $USER"
+    say "$USER joined the docker group: a new login (or sg docker) picks it up"
+  fi
+}
+
+vsr_venv() {
+  local req="$REPO/vllm-sr-bench/requirements-vsr.txt" spec
+  [ -f "$req" ] || die "$req is missing (this tree has no vllm-sr-bench)"
+  spec="vsr requirements.sha256=$(sha256sum "$req" | cut -c1-16)"
+  step "venv $VSR_VENV: vllm-sr and the versions it was tested with"
+  if new_venv "$VSR_VENV" "$spec"; then
+    "$VSR_VENV/bin/python" -m pip install --no-deps -r "$req" || die "pip install -r $req"
+    finish_venv "$VSR_VENV" "$spec"
+  fi
+}
+
+vsr_image_list() {   # sets VSR_IMAGES: "<ref> <digest>" per image, from the module's pins; all four, or die
+  VSR_IMAGES=$("$VSR_VENV/bin/python" -c 'import sys; sys.path.insert(0, sys.argv[1]); from vsrbench import constants as C
+for ref, digest in C.IMAGES.values(): print(ref, digest)' "$REPO/vllm-sr-bench") || die "reading the image pins"
+  [ "$(printf '%s\n' "$VSR_IMAGES" | grep -c .)" = 4 ] || die "the module pins $(printf '%s\n' "$VSR_IMAGES" | grep -c .) images, 4 expected"
+}
+
+vsr_images() {
+  step "the images vLLM-SR 0.4.0 runs, by their pinned digests"
+  local ref digest repo
+  vsr_image_list
+  while read -r ref digest; do
+    repo=${ref%:*}
+    sudo docker pull "$repo@$digest" || die "docker pull $repo@$digest"
+    sudo docker tag "$repo@$digest" "$ref" || die "docker tag $ref"
+  done <<< "$VSR_IMAGES"
+}
+
+vsr_models() {
+  local manifest="$REPO/vllm-sr-bench/models.sha256" n
+  step "the router's classifier weights at $VSR_MODELS_SRC, file by file"
+  [ -d "$VSR_MODELS_SRC" ] || die "$VSR_MODELS_SRC is not a directory"
+  # the model files; the download metadata the router may rewrite (.cache/, the revision receipts) is not compared,
+  # as vsrbench/run_cell.py verify_weights does every run
+  grep -v -e '/\.cache/' -e 'router-model-revision\.json$' "$manifest" > "$STATE_DIR/vsr-models.sha256" \
+    || die "reading $manifest"
+  (cd "$VSR_MODELS_SRC" && sha256sum --quiet -c "$STATE_DIR/vsr-models.sha256") || die "the weights differ from $manifest"
+  n=$(cd "$VSR_MODELS_SRC" && find . -type f -not -path '*/.cache/*' -not -name '.router-model-revision.json' | wc -l)
+  [ "$n" = "$(wc -l < "$STATE_DIR/vsr-models.sha256")" ] \
+    || die "$VSR_MODELS_SRC holds $n model files, $manifest lists $(wc -l < "$STATE_DIR/vsr-models.sha256")"
+}
+
+self_check_vsr() {
+  step "self-check (vsr)"
+  local fail=0 ref digest
+  installed docker.io && [ "$(dpkg-query -W -f '${Version}' docker.io)" = "$DOCKER_IO_VERSION" ] || { say "docker.io is not fully installed at $DOCKER_IO_VERSION"; fail=1; }
+  [ "$(sudo docker info --format '{{.DockerRootDir}}')" = "$DOCKER_ROOT" ] || { say "Docker's data root is not $DOCKER_ROOT"; fail=1; }
+  [ "$(sudo docker info --format '{{.Driver}}')" = overlay2 ] || { say "Docker's storage is not overlay2 under $DOCKER_ROOT (D168)"; fail=1; }
+  local u state
+  for u in docker.service docker.socket containerd.service ubuntu-fan.service; do     # D165: never started at boot
+    state=$(systemctl is-enabled "$u" 2>&1) || :      # disabled (and a missing unit) exit nonzero; the case reads it
+    case "$state" in
+      disabled) ;;
+      *"No such file"*|*"not found"*|not-found*) [ "$u" = ubuntu-fan.service ] || { say "$u is not installed"; fail=1; } ;;
+      *) say "$u is not disabled at boot ($state)"; fail=1 ;;
+    esac
+  done
+  say "Docker's storage: $(sudo docker info --format '{{.Driver}} {{json .DriverStatus}}'); root disk $(df -h / | awk 'NR==2{print $4}') free"
+  say "docker server $(sudo docker version --format '{{.Server.Version}}'); containerd $(dpkg-query -W -f '${Version}' containerd 2>/dev/null || echo none); runc $(dpkg-query -W -f '${Version}' runc 2>/dev/null || echo none)"
+  "$VSR_VENV/bin/vllm-sr" --version | grep -q "0\.4\.0" || { say "vllm-sr is not 0.4.0"; fail=1; }
+  vsr_image_list
+  while read -r ref digest; do
+    sudo docker image inspect "$ref" --format '{{join .RepoDigests " "}}' | tr ' ' '\n' | grep -qx "${ref%:*}@$digest" \
+      || { say "$ref is not $digest"; fail=1; }
+  done <<< "$VSR_IMAGES"
+  id -nG "$USER" | tr ' ' '\n' | grep -qx docker || { say "$USER is not in the docker group"; fail=1; }
+  [ "$fail" = 0 ] || die "self-check (vsr) failed"
+  say "self-check (vsr) OK"
+}
+
 # ---------------------------------------------------------------- AvengersPro (scheduler only)
 
 ap_patch() {   # v3's one local edit: upstream imports `datasets` for training only; routing never uses it
@@ -591,6 +721,18 @@ main() {
   LOG="$STATE_DIR/setup.$ROLE.$(date -u +%Y%m%dT%H%M%SZ).log"
   exec > >(tee -a "$LOG") 2>&1
   say "log: $LOG"
+  if [ "$ROLE" = vsr ]; then
+    preflight
+    # the scheduler role ran on this node first (its apt upgrade, packages and /mydata): this role upgrades nothing
+    grep -q '^complete ' "$SCHED_VENV/rb-setup.spec" 2>/dev/null \
+      || die "the vsr role runs on the scheduler's node after its scheduler role ($SCHED_VENV is not complete)"
+    docker_engine
+    vsr_venv
+    vsr_images
+    vsr_models
+    self_check_vsr
+    return 0
+  fi
   check_token_file
   preflight
   base_packages

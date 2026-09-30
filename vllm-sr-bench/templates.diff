@@ -1,0 +1,42 @@
+--- venv-vsr/lib/python3.12/site-packages/cli/templates/envoy.template.yaml	2026-09-30 14:20:05.778450596 +0100
++++ templates-rb/envoy.template.yaml	2026-09-30 14:54:12.323907151 +0100
+@@ -164,7 +164,7 @@
+                 response_body_mode: "BUFFERED"
+               # Unlike route/idle timeouts, zero expires immediately here.
+               # Bound each Router processing step independently of chat duration.
+-              message_timeout: 1200s
++              message_timeout: 3600s
+           - name: envoy.filters.http.router
+             typed_config:
+               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+@@ -186,6 +186,12 @@
+     {% endif %}
+     lb_policy: ROUND_ROBIN
+     http2_protocol_options: {}
++    circuit_breakers:
++      thresholds:
++      - priority: DEFAULT
++        max_connections: 200000
++        max_pending_requests: 200000
++        max_requests: 200000
+     load_assignment:
+       cluster_name: extproc_service
+       endpoints:
+@@ -238,14 +244,12 @@
+     {% else %}
+     lb_policy: ROUND_ROBIN
+     {% endif %}
+-    {% if model.reliability.retry_count | default(0) > 0 or model.reliability.consecutive_5xx | default(0) > 0 %}
+     circuit_breakers:
+       thresholds:
+       - priority: DEFAULT
+-        max_connections: 1024
+-        max_pending_requests: 1024
+-        max_requests: 4096
+-    {% endif %}
++        max_connections: 200000
++        max_pending_requests: 200000
++        max_requests: 200000
+     {% if model.reliability.consecutive_5xx | default(0) > 0 and model.endpoints | length > 1 %}
+     outlier_detection:
+       consecutive_5xx: {{ model.reliability.consecutive_5xx }}

@@ -52,7 +52,12 @@ def test_setup_spec_pattern_is_the_plans():
 
 
 @pytest.mark.parametrize("args, message", [
-    ("", "--role must be engine or scheduler"),
+    ("", "--role must be engine, scheduler or vsr"),
+    ("--role vsr", "--vsr-models is required"),
+    ("--role vsr --vsr-models d --hf-token-file t", "the vsr role takes only --vsr-models"),
+    ("--role vsr --vsr-models d --model a/b@" + "0" * 40, "the vsr role takes only --vsr-models"),
+    ("--role vsr --vsr-models d --data-disk /dev/sdb", "the vsr role takes only --vsr-models"),
+    ("--role engine --hf-token-file t --model a/b@" + "0" * 40 + " --vsr-models d", "--vsr-models is for the vsr role"),
     ("--role worker --hf-token-file t --model a/b@" + "0" * 40, "--role must be"),
     ("--role engine --model a/b@" + "0" * 40, "--hf-token-file is required"),
     ("--role engine --hf-token-file t", "at least one --model"),
@@ -76,6 +81,9 @@ def test_setup_accepts_good_arguments():
     r = bash("source scripts/setup.sh && parse_args --role scheduler --hf-token-file t --model a/b@" + "0" * 40
              + ' --with-tests && echo "$WITH_TESTS"')
     assert r.returncode == 0 and r.stdout.split() == ["1"], r.stderr
+    r = bash("source scripts/setup.sh && parse_args --role vsr --vsr-models /mydata/rb/vsr-models"
+             ' && echo "$ROLE $VSR_MODELS_SRC"')
+    assert r.returncode == 0 and r.stdout.split() == ["vsr", "/mydata/rb/vsr-models"], r.stderr
 
 
 def test_setup_token_file_must_be_private(tmp_path):
@@ -98,7 +106,7 @@ def test_setup_never_installs_outside_its_own_venvs():
     pythons = re.findall(r"(\S+) -m pip ", code)
     assert len(pythons) >= 5, pythons                       # pip itself, vllm, the repo, check, freeze
     assert set(pythons) == {'"$dir/bin/python"', '"$ENGINE_VENV/bin/python"', '"$SCHED_VENV/bin/python"',
-                            '"$TEST_VENV/bin/python"'}      # each made by new_venv (--with-tests: the test venv)
+                            '"$TEST_VENV/bin/python"', '"$VSR_VENV/bin/python"'}   # each made by new_venv
     assert not re.search(r"(^|[;&|(]|\bsudo)\s*(pip3?|python3(\.10)?\s+-m\s+pip)\s", code, re.M)
 
 
@@ -280,3 +288,33 @@ def test_every_engine_starts_with_the_raised_keep_alive():
     assert any(ln.lstrip().startswith("printf") and "VLLM_HTTP_TIMEOUT_KEEP_ALIVE=$ENGINE_KEEP_ALIVE_S $ENGINE_VENV" in ln
                for ln in code)                                                           # the recorded launch command
     # what the process actually runs with is checked on the node (cmd_started, the test above)
+
+
+@pytest.mark.parametrize("enabled, rc, text", [("disabled", 0, "self-check (vsr) OK"),
+                                               ("enabled", 1, "is not disabled at boot (enabled)")])
+def test_the_vsr_self_check_reads_the_units_boot_state_under_set_e(tmp_path, enabled, rc, text):
+    """D165 (local and Codex reviews 09-30): systemctl is-enabled exits 1 for a disabled unit and for a missing one; the
+    self-check runs under main's set -euo pipefail and must read those states, not stop on the exit status. Every
+    command it runs is stubbed here: nothing on the machine is touched."""
+    stub = f"""
+set -euo pipefail
+source scripts/setup.sh
+VSR_VENV={tmp_path}/venv DOCKER_ROOT=/mydata/docker USER=tester
+mkdir -p {tmp_path}/venv/bin
+printf '#!/bin/sh\\necho "vllm-sr 0.4.0"\\n' > {tmp_path}/venv/bin/vllm-sr
+chmod +x {tmp_path}/venv/bin/vllm-sr
+installed() {{ return 0; }}
+dpkg-query() {{ case "$*" in *Version*docker.io*) echo "$DOCKER_IO_VERSION";; *) echo none;; esac; }}
+sudo() {{ "$@"; }}
+docker() {{ case "$*" in *DockerRootDir*) echo /mydata/docker;; *"{{{{.Driver}}}}"*) echo overlay2;;
+            *RepoDigests*) echo "${{VSR_REF%:*}}@$VSR_DIGEST";; *) echo 29.1.3;; esac; }}
+vsr_image_list() {{ VSR_IMAGES="x/r:1 sha256:aa"; }}
+VSR_REF=x/r:1 VSR_DIGEST=sha256:aa
+id() {{ echo "tester docker"; }}
+systemctl() {{ case "$2" in
+               ubuntu-fan.service) echo "Failed to get unit file state for $2: No such file or directory" >&2; return 1;;
+               *) echo {enabled}; [ {enabled} = enabled ];; esac; }}
+self_check_vsr
+"""
+    r = bash(stub)
+    assert r.returncode == rc and text in (r.stdout + r.stderr), (r.stdout, r.stderr)

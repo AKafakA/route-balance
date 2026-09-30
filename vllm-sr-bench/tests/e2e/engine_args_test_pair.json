@@ -1,0 +1,31 @@
+{
+ "vllm": "0.18.1",
+ "tiers": {
+  "m-small_a30": {
+   "revision": "060db6499f32faf8b98477b0a26969ef7d8b9987",
+   "args": {
+    "--dtype": "float16",
+    "--gpu-memory-utilization": 0.045,
+    "--max-model-len": 4096,
+    "--enforce-eager": true
+   }
+  },
+  "m-large_a30": {
+   "revision": "060db6499f32faf8b98477b0a26969ef7d8b9987",
+   "args": {
+    "--dtype": "float16",
+    "--gpu-memory-utilization": 0.045,
+    "--max-model-len": 4096,
+    "--enforce-eager": true
+   }
+  }
+ },
+ "gpus": {
+  "s0": [
+   0
+  ],
+  "l0": [
+   0
+  ]
+ }
+}
