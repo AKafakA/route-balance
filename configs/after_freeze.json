@@ -215,5 +215,19 @@
   "decision": "D177",
   "owner": "D177: \"25/15/60\"; \"give a quick probe cell to check if the lowest-latency gap can be closed at rate 24 and 30? (so two cell should be 10 mins?) and decide if move forward to other rate\"; \"that is also the case for the first weight, do the checking if fill the gaps before prompte to others\"",
   "gpu_cost": "no run added here: q25l15c60 and q05l45c50 (their weights parts, rb_weights_extra2) join rb_weights_all; every existing configuration unchanged"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "981eb299f7f73ec5f7c65900d235b35fd0435c9686938e0f4a95f22a1f8d623e",
+  "decision": "D179",
+  "owner": "D179: \"Probe 5/35/60 at 24 and 30, Probe 22/18/60 at 30\"",
+  "gpu_cost": "W2y2: a second probe, RouteBalance in-batch at q05l35c60 (30, 24 req/s) and q22l18c60 (30 req/s): 3 runs, ~10 min, after W2x; nothing that ran changes"
+ },
+ {
+  "file": "configs/presets.json",
+  "sha256": "f8445cf74fb513be89826f2302952a520a4704389480f37b1bb0c80234172469",
+  "decision": "D179",
+  "owner": "D179: \"Probe 5/35/60 at 24 and 30, Probe 22/18/60 at 30\"",
+  "gpu_cost": "no run added here: q05l35c60 and q22l18c60 (weights parts, rb_weights_extra2) join rb_weights_all; every existing configuration unchanged"
  }
 ]
