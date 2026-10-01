@@ -111,11 +111,11 @@ def test_the_tracked_files_dry_run_every_row():
     summary = campaign.dry_run(campaign.load_presets(campaign.PRESETS), campaign.load_scope_file(campaign.SCOPE))
     rows = {r["id"]: r for r in summary["rows"]}
     assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2s", "W2b", "W2n", "W2p", "W2x", "W2y", "W2y2",
-                          "W4", "W4l", "W3", "W5", "W6", "W7", "W8-cal", "W8", "W8r", "W7r", "W9", "W4r", "W4lr", "W5r",
-                          "W7b", "W11", "W12", "W13", "W10"]   # D121: seed 1 first
+                          "W2y3", "W2y4", "W2y5", "W4", "W4l", "W3", "W5", "W6", "W7", "W8-cal", "W8", "W8r", "W7r", "W9",
+                          "W4r", "W4lr", "W5r", "W7b", "W11", "W12", "W13", "W10"]   # D121: seed 1 first
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 39, "W2b": 20, "W2n": 48,
-                     "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3,
+                     "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3, "W2y3": 4, "W2y4": 5, "W2y5": 1,
                      "W4": 45, "W4l": 3, "W5": 27, "W8": 78, "W7b": 9}     # D166: every seeds 2-3 row waits for the draft
     # W8: the Qwen grid's baselines (D70); W4: D142's ablations with leave-out (15 configurations x 3 rates), W4l the
     # learned variant, its own row so W4 is not refused while the retrained heads' pin is pending;
@@ -187,7 +187,7 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 3140       # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
+    assert len(expanded) == 3506       # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
     #                                    the budget sweep's filter arms (rb, rb-static x 2 families; rb-learned, Qwen);
     #                                    Gemma BEST-Route, 4 t x 3 dispatchers (D70); the power-of-two probe
     #                                    controls (10 AP + 2 dispatcher-only, D59); the mechanism ablations once per
@@ -209,7 +209,7 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     #                                    per-request, learned and ablation templates (+537: 6 + 6 + 18 + 3 + 6
     #                                    retrained + 252 seven mechanisms + 12 static prior + 36 label fractions + 126
     #                                    leave-out + 72 LPT keys); RB-decoupled's two templates at the three (D172, +12);
-    #                                    D177's and D179's four probed extra presets in all of them (+4 x 183)
+    #                                    D177's, D179's, D181's and D183's six probed extra presets in all of them (+6 x 183)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue

@@ -229,5 +229,40 @@
   "decision": "D179",
   "owner": "D179: \"Probe 5/35/60 at 24 and 30, Probe 22/18/60 at 30\"",
   "gpu_cost": "no run added here: q05l35c60 and q22l18c60 (weights parts, rb_weights_extra2) join rb_weights_all; every existing configuration unchanged"
- }
+ },
+  {
+   "file": "configs/scope.json",
+   "sha256": "5fc142bca6dd6682c36ae4f8e4bdc0259513a13a3952991556aa41f808390c3d",
+   "decision": "D180",
+   "owner": "D180: \"it seems for me rate 18 24 36 42 is close to be filled, if we have lower cost but high quality to close the gap, but have us already had 22 18 60?\"; \"Probe all four rates\"",
+   "gpu_cost": "W2y3: a third probe, RouteBalance in-batch at q22l18c60 (18, 24, 36, 42 req/s): 4 runs, ~15 min, after W2y2; nothing that ran changes; the headline decision's about text names the fifteen presets"
+  },
+  {
+   "file": "configs/scope.json",
+   "sha256": "52b6a4035420af6c3dc7238fdf4f0872776a5bece7ea7a1d8295b1a1c90edede",
+   "decision": "D181",
+   "owner": "D181: \"ok, i will leave for 1 hours, so may be chain also 25 10 65 as well across the target rates, so i can back and check with you later without wasting time for me to review and approve.\"",
+   "gpu_cost": "W2y4: a fourth probe, RouteBalance in-batch at q25l10c65 (30, 18, 24, 36, 42 req/s): 5 runs, ~18 min, after W2y3; nothing that ran changes"
+  },
+  {
+   "file": "configs/presets.json",
+   "sha256": "82dd243a4d891c1d9d7b5477f38662a3499195dd15c5e8c86c47045248a9b059",
+   "decision": "D181",
+   "owner": "D181: \"ok, i will leave for 1 hours, so may be chain also 25 10 65 as well across the target rates, so i can back and check with you later without wasting time for me to review and approve.\"",
+   "gpu_cost": "no run added here: q25l10c65 (its weights part, rb_weights_extra2) joins rb_weights_all; every existing configuration unchanged"
+  },
+  {
+   "file": "configs/scope.json",
+   "sha256": "1fa3c022d9a8ca6bbcc3bc4324c8b542b65a65dc2ae79b9b5c5d319dcb6c03de",
+   "decision": "D183",
+   "owner": "D183: \"p99 is not our target\"; \"we only care about mean across all 3 dimensions\"; D182: \"so, we should keep iterating as this way and try our best efforts to fill all holes\"",
+   "gpu_cost": "W2y5: a fifth probe, RouteBalance in-batch at q05l40c55 (24 req/s): 1 run, ~4 min, after W2y4; nothing that ran changes"
+  },
+  {
+   "file": "configs/presets.json",
+   "sha256": "7c2a68cf6acb308f3e4562e0e86fd533a3fa8227b007f63512f4f20a4b629415",
+   "decision": "D183",
+   "owner": "D183: \"p99 is not our target\"; \"we only care about mean across all 3 dimensions\"; D182: \"so, we should keep iterating as this way and try our best efforts to fill all holes\"",
+   "gpu_cost": "no run added here: q05l40c55 (its weights part, rb_weights_extra2) joins rb_weights_all; every existing configuration unchanged"
+  }
 ]

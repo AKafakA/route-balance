@@ -626,6 +626,26 @@
     "presets.parts.weights.q22l18c60.w_latency": 0.18,
     "presets.parts.weights.q22l18c60.w_cost": 0.6
    }
+  },
+  {
+   "path": "presets.parts.weights.q25l10c65.*",
+   "source": "owner",
+   "ref": "D181 (owner 10-01: \"chain also 25 10 65 as well across the target rates\"), quality/latency/cost",
+   "values": {
+    "presets.parts.weights.q25l10c65.w_quality": 0.25,
+    "presets.parts.weights.q25l10c65.w_latency": 0.1,
+    "presets.parts.weights.q25l10c65.w_cost": 0.65
+   }
+  },
+  {
+   "path": "presets.parts.weights.q05l40c55.*",
+   "source": "owner",
+   "ref": "D183 (owner 10-01: \"we only care about mean across all 3 dimensions\"; D182 \"keep iterating\"), quality/latency/cost",
+   "values": {
+    "presets.parts.weights.q05l40c55.w_quality": 0.05,
+    "presets.parts.weights.q05l40c55.w_latency": 0.4,
+    "presets.parts.weights.q05l40c55.w_cost": 0.55
+   }
   }
  ],
  "constants": [
