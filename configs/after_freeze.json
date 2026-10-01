@@ -285,5 +285,19 @@
    "decision": "D185",
    "owner": "D185: answered \"20/50/30\"; \"the only left thing is 1) if 25 15 60 could replace 22 18 60 and 2) if low rate hole could be closed as much as possible\"",
    "gpu_cost": "no run added here: q20l50c30 (its weights part, rb_weights_extra2) joins rb_weights_all; every existing configuration unchanged"
+  },
+  {
+   "file": "configs/scope.json",
+   "sha256": "11a017ba3d557c9e499620f7bebeceddcac12816d120d04e8babf412685d02b4",
+   "decision": "D186",
+   "owner": "D186: \"ok, then we need to keep the 22/18/60, or i am thinink 22/60 ratio as the similar but adjust the latecny weight lower, to make both as multipler of 5\"",
+   "gpu_cost": "W2y8: a probe, RouteBalance in-batch at q25l05c70 (all six rates): 6 runs, ~22 min, after W2y7; nothing that ran changes"
+  },
+  {
+   "file": "configs/presets.json",
+   "sha256": "2f2aae03a7ee0a87cb50320205d0d5192243ffd07bcde92286dd77a55d867387",
+   "decision": "D186",
+   "owner": "D186: \"ok, then we need to keep the 22/18/60, or i am thinink 22/60 ratio as the similar but adjust the latecny weight lower, to make both as multipler of 5\"",
+   "gpu_cost": "no run added here: q25l05c70 (its weights part, rb_weights_extra2) joins rb_weights_all; every existing configuration unchanged"
   }
 ]

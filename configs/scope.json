@@ -115,11 +115,11 @@
  "decisions": {
   "rb_default": {"after": "G1b", "about": "the RouteBalance latency arm of the main grid: 'rb' (the measured TPOT curve), 'rb-static' (the static per-tier TPOT) or 'rb-learned' (the learned heads); static TPOT is the default if day 1 supports it (owner 09-25, as v2's breadth experiments)"},
   "decoupled_arm": {"after": "G1b", "about": "'rb' or 'rb-static': the RB-decoupled control's latency source, rb_default's own; with rb_default 'rb-learned', 'rb' (the decoupled router scores idle instances before any load is visible, so it cannot use the learned heads). The Gemma rows use it for RouteBalance too (Gemma has no learned heads)"},
-  "headline": {"after": "W2y7", "about": "the ablations' preset (D142/D158: the RouteBalance preset that dominates the most baselines on the complete Qwen main grid, the extra presets included): a rb_weights_all id (the eight of v3's grid, D167's three and the seven probed by D177, D179, D181, D183 and D185); W4's ablations are taken there"},
-  "ablation_norm": {"after": "W2y7", "about": "the normalization of the ablations and the repetitions (D140: the winner on the complete Qwen main grid): \"\" (in-batch, D137) or \"-reqnorm\" (per request)"},
+  "headline": {"after": "W2y8", "about": "the ablations' preset (D142/D158: the RouteBalance preset that dominates the most baselines on the complete Qwen main grid, the extra presets included): a rb_weights_all id (the eight of v3's grid, D167's three and the eight probed by D177, D179, D181, D183, D185 and D186); W4's ablations are taken there"},
+  "ablation_norm": {"after": "W2y8", "about": "the normalization of the ablations and the repetitions (D140: the winner on the complete Qwen main grid): \"\" (in-batch, D137) or \"-reqnorm\" (per request)"},
   "w3_near_frontier": {"after": "W2", "about": "configuration ids near the lambda-12/30 frontiers (seeds 2-3)"},
   "w3_headline": {"after": "W2", "about": "the headline configuration ids for lambda 18/24/36/42 (seeds 2-3)"},
-  "w5_systems": {"after": "W2y7", "about": "the three configuration ids of the burst sweep (D125): RouteBalance's main configuration, RB-decoupled, and the main grid's strongest published router-and-dispatcher configuration (one id, e.g. qwen.ap.pw070.lor)"},
+  "w5_systems": {"after": "W2y8", "about": "the three configuration ids of the burst sweep (D125): RouteBalance's main configuration, RB-decoupled, and the main grid's strongest published router-and-dispatcher configuration (one id, e.g. qwen.ap.pw070.lor)"},
   "w7_systems": {"after": "W2", "about": "the six configuration ids re-run on the 5/3 topology"}
  },
  "rows": [
@@ -324,6 +324,14 @@
    "blocks": [
     {"name": "W2y7-q20l50c30", "group": "qwen", "dataset": "eval_qwen", "axes": {"arm": "$decision:rb_default"},
      "configs": ["qwen.{arm}.q20l50c30"], "traces": ["l12", "l18"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W2y8", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D186 (owner 10-01: \"22/60 ratio as the similar but adjust the latecny weight lower, to make both as multipler of 5\"): a probe, RouteBalance in-batch, seed 1, after W2y7: q25l05c70 (quality-to-cost 0.357, latency weight 0.05) at all six rates, the round-numbered alternative to q22l18c60 (BEST-Route t00); then the promotion",
+   "plan": "6 cells, ~22 min, after W2y7",
+   "blocks": [
+    {"name": "W2y8-q25l05c70", "group": "qwen", "dataset": "eval_qwen", "axes": {"arm": "$decision:rb_default"},
+     "configs": ["qwen.{arm}.q25l05c70"], "traces": ["l30", "l12", "l24", "l18", "l36", "l42"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W4", "kind": "cells", "prio": "must", "enabled": true, "why": null, "about": "D142 (owner 09-30): the ablations at the ablation preset (the headline decision: the RouteBalance preset that dominates the most baselines on the complete Qwen main grid, D158) in the winning normalization (ablation_norm, D140's rule) x lambda{12, 30, 42}, seed 1, paired against that preset: the latency terms as v2's four arms (the full objective, the reference; latency weight 0 with the shortest-queue tie-break; the learned heads retrained on the new load sweep, in W4l, after the heads are retrained; the static prior), the mechanisms (LPT off, round of 1, fixed round of 32, prompt-blind, the KNN with 75/50/25% of the labels, dead reckoning off, the LPT key min and mean) and leave-out (the KNN without lmsys, without gsm8k; D147). Dropped (D142): the measured curve, curve + max-divide, constant + batch, the quality and cost weight 0, v2's predictive tie-break", "plan": "45 cells (15 configurations x 3 rates), ~3.0 h; the learned variant is W4l", "blocks": [

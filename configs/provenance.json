@@ -656,6 +656,16 @@
     "presets.parts.weights.q20l50c30.w_latency": 0.5,
     "presets.parts.weights.q20l50c30.w_cost": 0.3
    }
+  },
+  {
+   "path": "presets.parts.weights.q25l05c70.*",
+   "source": "owner",
+   "ref": "D186 (owner 10-01: \"22/60 ratio as the similar but adjust the latecny weight lower, to make both as multipler of 5\"), quality/latency/cost",
+   "values": {
+    "presets.parts.weights.q25l05c70.w_quality": 0.25,
+    "presets.parts.weights.q25l05c70.w_latency": 0.05,
+    "presets.parts.weights.q25l05c70.w_cost": 0.7
+   }
   }
  ],
  "constants": [
