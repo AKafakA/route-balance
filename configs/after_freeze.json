@@ -264,5 +264,26 @@
    "decision": "D183",
    "owner": "D183: \"p99 is not our target\"; \"we only care about mean across all 3 dimensions\"; D182: \"so, we should keep iterating as this way and try our best efforts to fill all holes\"",
    "gpu_cost": "no run added here: q05l40c55 (its weights part, rb_weights_extra2) joins rb_weights_all; every existing configuration unchanged"
+  },
+  {
+   "file": "configs/scope.json",
+   "sha256": "e97043b5b866f0c72102ff0e586f789902205aef2d4f5d450ee28bda19a2fb17",
+   "decision": "D184",
+   "owner": "D184: \"22 18 60 seems too ugly, do we running 25 15 60 if can close the gaps as well? and then next focus is low rate with one more preset try, and then we are good to promote\"",
+   "gpu_cost": "W2y6: a sixth probe, RouteBalance in-batch at q25l15c60 (18, 24, 36, 42 req/s): 4 runs, ~15 min, after W2y5; nothing that ran changes"
+  },
+  {
+   "file": "configs/scope.json",
+   "sha256": "61dfbf108e1d57ecc1a106cde9927a8b791683862ca68415983decb718cb2df0",
+   "decision": "D185",
+   "owner": "D185: answered \"20/50/30\"; \"the only left thing is 1) if 25 15 60 could replace 22 18 60 and 2) if low rate hole could be closed as much as possible\"",
+   "gpu_cost": "W2y7: the low-rate try, RouteBalance in-batch at q20l50c30 (12, 18 req/s): 2 runs, ~8 min, after W2y6; nothing that ran changes"
+  },
+  {
+   "file": "configs/presets.json",
+   "sha256": "665d92a183d2d5bc56f0c01abb8b52076bc90c2318d5f5bd5a33c86be26d8741",
+   "decision": "D185",
+   "owner": "D185: answered \"20/50/30\"; \"the only left thing is 1) if 25 15 60 could replace 22 18 60 and 2) if low rate hole could be closed as much as possible\"",
+   "gpu_cost": "no run added here: q20l50c30 (its weights part, rb_weights_extra2) joins rb_weights_all; every existing configuration unchanged"
   }
 ]

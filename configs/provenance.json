@@ -646,6 +646,16 @@
     "presets.parts.weights.q05l40c55.w_latency": 0.4,
     "presets.parts.weights.q05l40c55.w_cost": 0.55
    }
+  },
+  {
+   "path": "presets.parts.weights.q20l50c30.*",
+   "source": "owner",
+   "ref": "D185 (owner 10-01: \"20/50/30\"), quality/latency/cost",
+   "values": {
+    "presets.parts.weights.q20l50c30.w_quality": 0.2,
+    "presets.parts.weights.q20l50c30.w_latency": 0.5,
+    "presets.parts.weights.q20l50c30.w_cost": 0.3
+   }
   }
  ],
  "constants": [
