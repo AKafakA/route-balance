@@ -187,5 +187,19 @@
   "decision": "D142, D94, D140, D164, D167",
   "owner": "D142: \"for the learned predictor, we need redo the latency sweeping, and retraining the head, secondly the knn with 50 -> should also be 25 and 75? ... but the quality/latency/cost weight as 0 seems meaningless as overlapped with main grid\"; \"no, we need the learned heads to fill it, and add the latency weight 0 back, so the 4 arm could be full\"; D94: the 25% and 75% label points, entered by D142's words (their ask, reviewer faAU: \"the routing-degradation curve under missing quality signals\"); D140: \"add the per-request normalization ablations to rerun all rb weights cells in the main grid before the ablation runs\"; \"and then for the left ablations and seed 2 and 3\"; D164: \"Max-divide\"; D167: \"90/5/5, 30/10/60, 5/25/70\"",
   "gpu_cost": "no run added here: every ablation template the rows use gains the normalization axis (its empty value leaves every existing configuration byte-identical, checked against render 15), the 75/25% label-fraction templates and their index pins, the learned heads retrained on the new load sweep (their own pin xgb-heads-retrained, so the earlier learned configurations keep theirs), the static prior with the reference's max-divide (it never ran), and D167's three weight vectors in RouteBalance's main, per-request, learned and ablation templates; the runs are counted in scope.json's entry"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "0f65e9a30bcde6fc61c2b0abe6d695ae8e13fc1dcd93e7791f6cc62a7ee2d3f9",
+  "decision": "D172",
+  "owner": "D172: \"and also, for the extra preset, you need to run both rb and rb-decouple\"",
+  "gpu_cost": "W2x gains RB-decoupled at the three extra presets: +18 runs (3 x 6 rates), ~1.1 h, after W2p; nothing that ran changes"
+ },
+ {
+  "file": "configs/presets.json",
+  "sha256": "97d423f6ea40dbcf96a7fb183cd1ef706bb0e93eff1171c59234e16784923c57",
+  "decision": "D172",
+  "owner": "D172: \"and also, for the extra preset, you need to run both rb and rb-decouple\"",
+  "gpu_cost": "no run added here: RB-decoupled's two templates (rb-dec, rb-static-dec) span rb_weights_all; every existing configuration unchanged; the runs are counted in scope.json's entry"
  }
 ]

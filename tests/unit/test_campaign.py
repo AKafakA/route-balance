@@ -116,7 +116,7 @@ def test_the_tracked_files_dry_run_every_row():
                           "W10"]   # D121: seed 1 first
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 39, "W2b": 20, "W2n": 48,
-                     "W2p": 142, "W2x": 36,
+                     "W2p": 142, "W2x": 54,
                      "W4": 45, "W4l": 3, "W5": 27, "W8": 78, "W7b": 9}     # D166: every seeds 2-3 row waits for the draft
     # W8: the Qwen grid's baselines (D70); W4: D142's ablations with leave-out (15 configurations x 3 rates), W4l the
     # learned variant, its own row so W4 is not refused while the retrained heads' pin is pending;
@@ -188,7 +188,7 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
-    assert len(expanded) == 2396       # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
+    assert len(expanded) == 2408       # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
     #                                    the budget sweep's filter arms (rb, rb-static x 2 families; rb-learned, Qwen);
     #                                    Gemma BEST-Route, 4 t x 3 dispatchers (D70); the power-of-two probe
     #                                    controls (10 AP + 2 dispatcher-only, D59); the mechanism ablations once per
@@ -209,7 +209,7 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     #                                    their own pin: 2 x 8 = 16); D167's three extra presets in RouteBalance's main,
     #                                    per-request, learned and ablation templates (+537: 6 + 6 + 18 + 3 + 6
     #                                    retrained + 252 seven mechanisms + 12 static prior + 36 label fractions + 126
-    #                                    leave-out + 72 LPT keys)
+    #                                    leave-out + 72 LPT keys); RB-decoupled's two templates at the three (D172, +12)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
@@ -715,3 +715,18 @@ def test_the_router_concurrency_is_routebalances_largest_round_or_one_as_shipped
         main, shipped = dict(parts[name]), dict(parts[f"{name}.shipped"])
         assert main.pop("concurrency") == largest and shipped.pop("concurrency") == 1 and main == shipped
     assert parts["br.router.v3"]["concurrency"] == largest
+
+
+def test_the_extra_presets_row_is_routebalance_in_both_normalizations_and_rb_decoupled():
+    """D167/D172 (local review 10-01): W2x is exactly the three extra presets for RouteBalance (rb_default's variant,
+    in-batch and per request) and RB-decoupled (decoupled_arm's), at the six rates, seed 1; rb_default and decoupled_arm
+    differ here, so a template written with the wrong decision would show."""
+    presets, scope = filled()
+    result = campaign.render(presets, scope, pins=pins(presets),
+                             decisions={**DECISIONS, "rb_default": "rb-learned", "decoupled_arm": "rb"}, fleets=FLEETS)
+    w2x = [c for c in expected_cells(parse(Scope, result.scope, "rendered")) if c.block == "W2x"]
+    extra = ("q90l05c05", "q30l10c60", "q05l25c70")
+    want = {f"qwen.{c}.{w}" for w in extra for c in ("rb-learned", "rb-learned-reqnorm", "rb-dec")}
+    assert {c.config_id for c in w2x} == want and len(w2x) == len(want) * 6
+    assert {(c.trace_id, c.seed) for c in w2x} == {(t, 1) for t in ("l12", "l18", "l24", "l30", "l36", "l42")}
+    assert all(c.group == "qwen" for c in w2x)
