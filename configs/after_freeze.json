@@ -201,5 +201,19 @@
   "decision": "D172",
   "owner": "D172: \"and also, for the extra preset, you need to run both rb and rb-decouple\"",
   "gpu_cost": "no run added here: RB-decoupled's two templates (rb-dec, rb-static-dec) span rb_weights_all; every existing configuration unchanged; the runs are counted in scope.json's entry"
+ },
+ {
+  "file": "configs/scope.json",
+  "sha256": "e6fce3c87ac889d0ab9415a36142795480b7d0ac7f65b516c60cdf273d03ce91",
+  "decision": "D177",
+  "owner": "D177: \"25/15/60\"; \"give a quick probe cell to check if the lowest-latency gap can be closed at rate 24 and 30? (so two cell should be 10 mins?) and decide if move forward to other rate\"; \"that is also the case for the first weight, do the checking if fill the gaps before prompte to others\"",
+  "gpu_cost": "W2y: a probe, RouteBalance in-batch at q25l15c60 (30, 12 req/s) and q05l45c50 (30, 24 req/s): 4 runs, ~15 min, after W2x; promotion to the other rates and systems decided after it; nothing that ran changes"
+ },
+ {
+  "file": "configs/presets.json",
+  "sha256": "a2c5ed0a8b1abe16a4ad950dc111e304ee176777e3a50692982e0c8972a5ec93",
+  "decision": "D177",
+  "owner": "D177: \"25/15/60\"; \"give a quick probe cell to check if the lowest-latency gap can be closed at rate 24 and 30? (so two cell should be 10 mins?) and decide if move forward to other rate\"; \"that is also the case for the first weight, do the checking if fill the gaps before prompte to others\"",
+  "gpu_cost": "no run added here: q25l15c60 and q05l45c50 (their weights parts, rb_weights_extra2) join rb_weights_all; every existing configuration unchanged"
  }
 ]

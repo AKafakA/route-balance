@@ -600,6 +600,19 @@
     "presets.parts.weights.q05l25c70.w_latency": 0.25,
     "presets.parts.weights.q05l25c70.w_cost": 0.7
    }
+  },
+  {
+   "path": "presets.parts.weights.q25l15c60.*, presets.parts.weights.q05l45c50.*",
+   "source": "owner",
+   "ref": "D177 (owner 10-01: \"25/15/60\"; the probe of the lowest-latency gap at 24 and 30 req/s, 5/45/50 as offered: \"give a quick probe cell to check if the lowest-latency gap can be closed at rate 24 and 30\"), quality/latency/cost",
+   "values": {
+    "presets.parts.weights.q25l15c60.w_quality": 0.25,
+    "presets.parts.weights.q25l15c60.w_latency": 0.15,
+    "presets.parts.weights.q25l15c60.w_cost": 0.6,
+    "presets.parts.weights.q05l45c50.w_quality": 0.05,
+    "presets.parts.weights.q05l45c50.w_latency": 0.45,
+    "presets.parts.weights.q05l45c50.w_cost": 0.5
+   }
   }
  ],
  "constants": [
