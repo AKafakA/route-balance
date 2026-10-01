@@ -299,5 +299,12 @@
    "decision": "D186",
    "owner": "D186: \"ok, then we need to keep the 22/18/60, or i am thinink 22/60 ratio as the similar but adjust the latecny weight lower, to make both as multipler of 5\"",
    "gpu_cost": "no run added here: q25l05c70 (its weights part, rb_weights_extra2) joins rb_weights_all; every existing configuration unchanged"
+  },
+  {
+   "file": "configs/scope.json",
+   "sha256": "a7e55d8fbb61aa8fb5b92d0bb549c3d5fe2e085d67acd0d189a297b07deddebe",
+   "decision": "D187",
+   "owner": "D187: \"If only pick 2, Which one suggested\"; \"Ok do it\" (to the promotion of 22/18/60 and 25/5/70)",
+   "gpu_cost": "W2z: the promotion of q22l18c60 and q25l05c70 (in-batch at 12 for q22l18c60, then per request and RB-decoupled at six rates): 25 runs, ~1.5 h, after W2y8, before the load sweep; nothing that ran changes"
   }
 ]

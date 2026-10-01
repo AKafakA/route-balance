@@ -111,12 +111,12 @@ def test_the_tracked_files_dry_run_every_row():
     summary = campaign.dry_run(campaign.load_presets(campaign.PRESETS), campaign.load_scope_file(campaign.SCOPE))
     rows = {r["id"]: r for r in summary["rows"]}
     assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2s", "W2b", "W2n", "W2p", "W2x", "W2y", "W2y2",
-                          "W2y3", "W2y4", "W2y5", "W2y6", "W2y7", "W2y8", "W4", "W4l", "W3", "W5", "W6", "W7", "W8-cal",
-                          "W8", "W8r", "W7r", "W9", "W4r", "W4lr", "W5r", "W7b", "W11", "W12", "W13", "W10"]   # D121
+                          "W2y3", "W2y4", "W2y5", "W2y6", "W2y7", "W2y8", "W2z", "W4", "W4l", "W3", "W5", "W6", "W7",
+                          "W8-cal", "W8", "W8r", "W7r", "W9", "W4r", "W4lr", "W5r", "W7b", "W11", "W12", "W13", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 39, "W2b": 20, "W2n": 48,
                      "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3, "W2y3": 4, "W2y4": 5, "W2y5": 1, "W2y6": 4, "W2y7": 2,
-                     "W2y8": 6, "W4": 45, "W4l": 3, "W5": 27, "W8": 78, "W7b": 9}     # D166: seeds 2-3 wait for the draft
+                     "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8": 78, "W7b": 9}   # D166
     # W8: the Qwen grid's baselines (D70); W4: D142's ablations with leave-out (15 configurations x 3 rates), W4l the
     # learned variant, its own row so W4 is not refused while the retrained heads' pin is pending;
     # D121: seed 1 of every main row first, their seeds 2-3 after (W4r, W5r); W3 and W11 disabled (D121); topology
