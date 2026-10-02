@@ -13,7 +13,7 @@
   "fill": "A fill block's cells that an earlier block of its group lists are not run twice; a fill block renders only after every earlier block of its group that could list one of its cells, so no cell ever moves between blocks from one render to the next. No enabled row has a fill block now (W9, the one that had, is written as explicit points since 10-02, D203; its 30 Sep form is the fill fixture of tests/unit/test_campaign.py).",
   "decoupled": "RB-decoupled follows the decoupled_arm decision ('{darm}-dec'): the same predictors as rb_default, except that with the learned heads it uses the measured curve at an idle instance (it scores idle instances before load is visible). The Gemma rows (no learned heads) use decoupled_arm for RouteBalance too. G1 pairs RB-new with rb-dec.",
   "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it. None is held now: W6 (the AvengersPro top-2 spillover router) is dropped and W7b's budgets are sent by the benchmark client (owner 09-25). W4's arm 3 and the D45 control are dropped (D142); W11's LPT keys run in W4 (their repetitions dropped, D198).",
-  "w8": "W8 renders 90 cells at seed 1 (its blocks list the systems: RouteBalance in-batch and RB-decoupled at the eight presets of D192, AvengersPro, BEST-Route from its Gemma checkpoint, pin br.gemma, both on least-outstanding, and the dispatchers); W8p 81 (the routers on round robin, power of two and lowest latency, D191). Gemma runs at 12, 30 and 42 req/s only (D191). D208/D209 (owner 10-02): W8 ran at v3's cheapest-listed prices and is kept as the price-sensitivity grid (render 30, cells-v8); W8p dropped; at D208's prices W8gp (the probe: 11 cells at 30 req/s) then W8g (22 cells at 12 and 42 req/s), D209's 11 settings fixed on Qwen, in cells-v8g."
+  "w8": "W8 renders 90 cells at seed 1 (its blocks list the systems: RouteBalance in-batch and RB-decoupled at the eight presets of D192, AvengersPro, BEST-Route from its Gemma checkpoint, pin br.gemma, both on least-outstanding, and the dispatchers); W8p 81 (the routers on round robin, power of two and lowest latency, D191). Gemma runs at 12, 30 and 42 req/s only (D191). D208/D209 (owner 10-02): W8 ran at v3's cheapest-listed prices and is kept as the price-sensitivity grid (render 30, cells-v8); W8p dropped; at D208's prices W8gp (the probe: 11 cells at 30 req/s) then W8g (22 cells at 12 and 42 req/s), D209's 11 settings fixed on Qwen, in cells-v8g; then W8gt (BEST-Route at threshold 0 at the three rates, D211)."
  },
  "server": {"torch_threads": null, "max_connections": 4096, "request_timeout_s": 21600.0},
  "bench": {
@@ -425,6 +425,15 @@
      "configs": ["gemma.{darm}.{w}", "gemma.{darm}-dec.{w}", "gemma.ap.{pw}.lor", "gemma.br.{t}.lor", "gemma.disp.lor"],
      "traces": ["gl12", "gl42"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W8gt", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D211 (owner 10-02): BEST-Route at threshold 0 on Gemma at D208's prices, at 12, 30 and 42 req/s, seed 1, in W8gp/W8g's comparison group and cells root (cells-v8g): the BEST-Route setting the main grid names, added to D209's settings fixed on Qwen",
+   "plan": "3 cells (seed 1), ~8 min, after W8g",
+   "blocks": [
+    {"name": "W8gt", "group": "gemma", "dataset": "eval_gemma", "axes": {},
+     "configs": ["gemma.br.t00.lor"],
+     "traces": ["gl12", "gl30", "gl42"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W8r", "kind": "cells", "prio": "must", "enabled": false, "why": "D157 (owner 09-30): the main grids' repetitions only at the knee points, chosen from the seed-1 results",
    "about": "the repetitions of W8 (seeds 2-3), right after its seed 1 (no engine switch; owner 09-29, D121)",
