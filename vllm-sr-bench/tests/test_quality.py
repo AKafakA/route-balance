@@ -27,3 +27,12 @@ def test_a_row_without_a_score_is_an_error(tmp_path):
 def test_a_score_outside_the_range_is_an_error(tmp_path):
     with pytest.raises(ValueError, match="not in"):
         training_means(rows(tmp_path, [{"a": 1.5}]), ["a"])
+
+
+def test_a_json_string_holding_a_line_separator_stays_one_row(tmp_path):
+    """U+2028 (and U+2029, U+0085) inside a JSON string is not a line end: the 28 Sep Qwen training rows hold 37 (10-02)."""
+    p = tmp_path / "rows.jsonl"
+    p.write_text("".join(json.dumps({"response": f"a{sep}b", "models": {"a": {"llm_judge_scores": {KEY: 0.5}}}},
+                                    ensure_ascii=False) + "\n" for sep in (" ", " ", "\u0085")), encoding="utf-8")
+    got = training_means(p, ["a"])
+    assert got["rows"] == 3 and got["means"] == pytest.approx({"a": 0.5})

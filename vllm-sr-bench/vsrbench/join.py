@@ -37,7 +37,7 @@ TIMINGS = {"signal_phase_timing": ("signal_phase_ms", "signals"), "decision_phas
 def access_lines(path: Path) -> tuple[dict[str, list[dict]], list[str]]:
     by_id: dict[str, list[dict]] = {}
     bad = []
-    for line in Path(path).read_text(errors="replace").splitlines():
+    for line in Path(path).read_text(errors="replace").split("\n"):   # newlines only (U+2028 is not a line end)
         if not line.strip():
             continue
         m = _ACCESS.match(line)
@@ -51,7 +51,7 @@ def access_lines(path: Path) -> tuple[dict[str, list[dict]], list[str]]:
 def router_events(path: Path) -> dict[str, dict[str, dict]]:
     """{request_id: {event name: the event}} for the per-request events (the log's other lines are skipped)."""
     out: dict[str, dict[str, dict]] = {}
-    for line in Path(path).read_text(errors="replace").splitlines():
+    for line in Path(path).read_text(errors="replace").split("\n"):   # newlines only (U+2028 is not a line end)
         if not line.startswith("{"):
             continue
         try:
