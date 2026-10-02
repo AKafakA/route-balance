@@ -306,5 +306,12 @@
    "decision": "D187",
    "owner": "D187: \"If only pick 2, Which one suggested\"; \"Ok do it\" (to the promotion of 22/18/60 and 25/5/70)",
    "gpu_cost": "W2z: the promotion of q22l18c60 and q25l05c70 (in-batch at 12 for q22l18c60, then per request and RB-decoupled at six rates): 25 runs, ~1.5 h, after W2y8, before the load sweep; nothing that ran changes"
+  },
+  {
+   "file": "configs/scope.json",
+   "sha256": "270e31b8604adf4d28cc164a8c61f5c250c3c65b61baf97d9ba541cc321e7e44",
+   "decision": "D156, D191, D192",
+   "owner": "D156: \"add the qwen routers * dispatchers extension into the main grid, and also same for the gemma main grid\"; D191: \"what if gemma also only test 3 rates, as part of ablations\" (answered \"Bring back burst, budget, per-request\"); D192: \"1) yes, just this 8 preset and ignore others as never shown in the paper 2) same 8 preset for gemma\"",
+   "gpu_cost": "W8 at the eight presets of D192 for RouteBalance in-batch and RB-decoupled (90 runs, from 78: +12, ~0.5 h); W8p, the Gemma routers on round robin, power of two and lowest latency at 12/30/42 (81 runs, ~3.4 h), in the plan of record since D191; both after the Gemma switch; nothing that ran changes"
   }
 ]

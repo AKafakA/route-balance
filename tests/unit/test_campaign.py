@@ -112,11 +112,13 @@ def test_the_tracked_files_dry_run_every_row():
     rows = {r["id"]: r for r in summary["rows"]}
     assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2s", "W2b", "W2n", "W2p", "W2x", "W2y", "W2y2",
                           "W2y3", "W2y4", "W2y5", "W2y6", "W2y7", "W2y8", "W2z", "W4", "W4l", "W3", "W5", "W6", "W7",
-                          "W8-cal", "W8", "W8r", "W7r", "W9", "W4r", "W4lr", "W5r", "W7b", "W11", "W12", "W13", "W10"]
+                          "W8-cal", "W8", "W8p", "W8r", "W7r",
+                          "W9", "W4r", "W4lr", "W5r", "W7b", "W11", "W12", "W13", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 39, "W2b": 20, "W2n": 48,
                      "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3, "W2y3": 4, "W2y4": 5, "W2y5": 1, "W2y6": 4, "W2y7": 2,
-                     "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8": 78, "W7b": 9}   # D166
+                     "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8": 90, "W8p": 81,
+                     "W7b": 9}   # D166; W8 and W8p: D191, D192
     # W8: the Qwen grid's baselines (D70); W4: D142's ablations with leave-out (15 configurations x 3 rates), W4l the
     # learned variant, its own row so W4 is not refused while the retrained heads' pin is pending;
     # D121: seed 1 of every main row first, their seeds 2-3 after (W4r, W5r); W3 and W11 disabled (D121); topology
@@ -143,7 +145,8 @@ def test_the_burst_sweep_and_the_three_rates():
     for rid in ("W5", "W5r"):          # alpha 1 is the main grid's own Poisson run at each rate and seed
         assert {t for b in rows[rid]["blocks"] for t in b["traces"]} == set(bursts)
     for rid, want in (("W4", {"l12", "l30", "l42"}), ("W4r", {"l12", "l30", "l42"}), ("W7", {"l12", "l30", "l42"}),
-                      ("W7r", {"l12", "l30", "l42"}), ("W8", {"gl12", "gl30", "gl42"}), ("W8r", {"gl12", "gl30", "gl42"})):
+                      ("W7r", {"l12", "l30", "l42"}), ("W8", {"gl12", "gl30", "gl42"}), ("W8p", {"gl12", "gl30", "gl42"}),
+                      ("W8r", {"gl12", "gl30", "gl42"})):
         assert {t for b in rows[rid]["blocks"] if b["enabled"] for t in b["traces"]} == want, rid
     assert [traces[g]["segments"][0]["n_requests"] for g in ("gl12", "gl30", "gl42")] == [1979] * 3
 

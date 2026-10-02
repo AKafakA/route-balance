@@ -1,19 +1,19 @@
 {
  "notes": {
-  "what": "Every row of the lease; the order is the plan of record (route-balance-paper mlsys_2027/lease/SCHEDULE_2026-09-30.md, D152-D158, D163): W1 -> G1 -> W1b -> W1c -> G1b -> G1c (day 1) -> W2 -> W2s -> W2b -> W2n -> W2p (the Qwen main rows) -> W2x, W2y (the extra presets, D167, D172, D177) -> W1b -> W1c (the new load sweep, D142, in the main grid's cells root; the stopped 30 Sep attempt of its first run holds no record, so it counts as new) -> W4, then W4l once the heads are retrained (the ablations) -> W5 (burst) -> W7b (budget, seed 1) -> vLLM-SR Qwen, seed 1 (vllm-sr-bench, outside this scope) -> W8-cal -> W8 (Gemma) -> vLLM-SR Gemma -> W10. Every row runs seed 1 only until every seed-1 row and the draft are done (D166); the repetitions are revised then (W4r, W4lr and W5r are disabled until then, the main grids' W8r and W9 replaced by knee points, D157). Disabled, each with its reason: W3, W4r, W4lr, W5r, W6, W7, W7r, W8r, W9, W11, W12, W13. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
+  "what": "Every row of the lease; the order is the plan of record (route-balance-paper mlsys_2027/lease/SCHEDULE_2026-09-30.md, D152-D158, D163): W1 -> G1 -> W1b -> W1c -> G1b -> G1c (day 1) -> W2 -> W2s -> W2b -> W2n -> W2p (the Qwen main rows) -> W2x, W2y (the extra presets, D167, D172, D177) -> W1b -> W1c (the new load sweep, D142, in the main grid's cells root; the stopped 30 Sep attempt of its first run holds no record, so it counts as new) -> W4, then W4l once the heads are retrained (the ablations) -> W5 (burst) -> W7b (budget, seed 1) -> vLLM-SR Qwen, seed 1 (vllm-sr-bench, outside this scope) -> W8-cal -> W8, W8p (Gemma, D191) -> vLLM-SR Gemma -> W10. Every row runs seed 1 only until every seed-1 row and the draft are done (D166); the repetitions are revised then (W4r, W4lr and W5r are disabled until then, the main grids' W8r and W9 replaced by knee points, D157). Disabled, each with its reason: W3, W4r, W4lr, W5r, W6, W7, W7r, W8r, W9, W11, W12, W13. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
   "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). D134 (owner: \"back to vllm bench\"): the client uses vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); max_connections only sizes the open-file check; a late send is counted per run, never a bound. Any failed request makes a run invalid, and it is rerun (owner 09-29: \"keep the gate 5\")",
   "server": "D134 (owner): the scheduler's engine and telemetry sessions use vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); torch's default thread count (as v3; torch_threads null, nothing set); max_connections is recorded only (no pool bound). The baselines' routers call their model one request at a time on a separate lane, as shipped routers do (D60)",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
   "datasets": "eval_qwen is the v3 evaluation set; the other three are written by tools/prompt_set.py from the scored corpora (train_scored_filtered.jsonl for Qwen, gemma3_merged_test/train.jsonl for Gemma; each training split is checked disjoint from its evaluation set). Owner 09-25: each model's own tokenizer; the four Gemma-3 models ship byte-identical tokenizer files and one chat template (checked on the Hub 09-25), so google/gemma-3-1b-it gives every Gemma model's count, and each cell checks the count every engine reports.",
   "scored_corpora": "D62: quality is looked up by (prompt, served model) in these scored corpora, as in v2 and v3 (analysis/quality.py; judge key in configs/prereg_rules.json). The budget sweep's cells (W7b) are judged on the text they served instead (D67, tools/judge_served.py), with these corpora's reference answers.",
   "traces": "Each Qwen cell sends the whole evaluation set (3532 prompts: v3's 3534 without the 2 whose re-collected answer has no score under the uniform judge input, D114), each Gemma cell its 1979 (v3). W5 is the burst sweep (D125): ga025, ga05 and ga2 send the 3532 prompts with gamma gaps of shape 0.25, 0.5 and 2.0 at 12, 30 and 42 req/s (the mean rate fixed; shape 1 is the Poisson l-traces). v2's two patterns (square30-6, gamma-b03) are kept defined and unused since D125. The W1b sweep sends every training prompt once a run.",
-  "owner": "g1_weights: the two G1 presets; decoupled_weights: the four RB-decoupled presets of W2 and W8 (both from rb_weights).",
+  "owner": "g1_weights: the two G1 presets; decoupled_weights: the four RB-decoupled presets of W2 and of the disabled W8r (both from rb_weights); d192_weights: the eight presets RouteBalance is shown and run at (D192: the preset cover plus 50/30/20), Gemma's RouteBalance in-batch and RB-decoupled presets in W8 (D191, D192).",
   "decisions": "Made during the lease into a decisions file (tools/campaign.py render --decisions): rb_default and decoupled_arm after G1b (rb_default: 'rb', 'rb-static' or 'rb-learned', the RouteBalance latency arm of W2 and W4; W8, Gemma, runs decoupled_arm's, Gemma having no learned heads); headline (the ablations' preset) and ablation_norm (their normalization) on the complete Qwen main grid, the extra presets included (D140, D142, D158); w5_systems for the burst sweep (3 systems, D125). W3's and W7's decisions belong to disabled rows.",
   "groups": "Main comparison groups declare the system-defining manifest paths (system.*) for every cell, and telemetry.dead_reckoning (RouteBalance dead-reckons; every pipeline system reads the engines' own counts, owner 09-25); qwen-sweep has a single configuration and declares nothing; so does qwen-sweep2 (W1c, the sweep's extension to 38-42 req/s, D119/D120), its own group because it runs on the tree after D118 (a different code digest; the sweep path is unchanged). qwen-ablation (W4, W4l, W4r, W4lr) is self-contained and paired: its reference is rb_default's variant at the ablation preset in the decided normalization, listed again under the abl alias (D78, D142), and each variant declares only what its template ablates (configs/presets.json): the mechanism, label-fraction and leave-out ablations are of rb_default's variant; latency weight 0 declares the weights; the static prior and the retrained learned heads declare every latency path.",
   "fill": "A fill block's cells that an earlier block of its group lists are not run twice; a fill block renders only after every earlier block of its group that could list one of its cells, so no cell ever moves between blocks from one render to the next. No enabled row has a fill block now (W9, the one that had, is disabled, D157).",
   "decoupled": "RB-decoupled follows the decoupled_arm decision ('{darm}-dec'): the same predictors as rb_default, except that with the learned heads it uses the measured curve at an idle instance (it scores idle instances before load is visible). The Gemma rows (no learned heads) use decoupled_arm for RouteBalance too. G1 pairs RB-new with rb-dec.",
   "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it. None is held now: W6 (the AvengersPro top-2 spillover router) is dropped and W7b's budgets are sent by the benchmark client (owner 09-25). W4's arm 3 and the D45 control are dropped (D142); W11's LPT keys run in W4 and W4r.",
-  "w8": "W8 renders 78 cells at seed 1 (its blocks list the systems: the RouteBalance presets, RB-decoupled, AvengersPro, BEST-Route from its Gemma checkpoint, pin br.gemma, and the dispatchers). The Gemma grid at the six rates with the routers on the three dispatchers (D156) enters with the Gemma scope change."
+  "w8": "W8 renders 90 cells at seed 1 (its blocks list the systems: RouteBalance in-batch and RB-decoupled at the eight presets of D192, AvengersPro, BEST-Route from its Gemma checkpoint, pin br.gemma, both on least-outstanding, and the dispatchers); W8p 81 (the routers on round robin, power of two and lowest latency, D191). Gemma runs at 12, 30 and 42 req/s only (D191)."
  },
  "server": {"torch_threads": null, "max_connections": 4096, "request_timeout_s": 21600.0},
  "bench": {
@@ -110,7 +110,8 @@
  },
  "owner": {
   "g1_weights": ["q50l30c20", "uniform"],
-  "decoupled_weights": ["q80l10c10", "q60l20c20", "q50l30c20", "uniform"]
+  "decoupled_weights": ["q80l10c10", "q60l20c20", "q50l30c20", "uniform"],
+  "d192_weights": ["uniform", "q60l20c20", "q80l10c10", "q90l05c05", "q05l25c70", "q22l18c60", "q25l05c70", "q50l30c20"]
  },
  "decisions": {
   "rb_default": {"after": "G1b", "about": "the RouteBalance latency arm of the main grid: 'rb' (the measured TPOT curve), 'rb-static' (the static per-tier TPOT) or 'rb-learned' (the learned heads); static TPOT is the default if day 1 supports it (owner 09-25, as v2's breadth experiments)"},
@@ -389,15 +390,25 @@
    "levels": [1, 4, 16, 32, 64, 96],
    "requests_per_level": 128},
   {"id": "W8", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "Gemma with the main Qwen grid's baselines (owner 09-26): RB presets, RB-decoupled, AvengersPro 5 pw and BEST-Route 4 t on least-outstanding, the five dispatchers x lambda{12, 30, 42} (30 and 42 in place of 24 since D125), seed 1 (its repetitions revised after the draft, D157, D166)",
-   "plan": "78 cells (seed 1), ~2.9 h",
+   "about": "Gemma with the main Qwen grid's baselines (owner 09-26): RouteBalance in-batch and RB-decoupled at the eight presets of D192 (owner 10-01: \"same 8 preset for gemma\"), AvengersPro 5 pw and BEST-Route 4 t on least-outstanding, the five dispatchers x lambda{12, 30, 42} (D191: Gemma at these three rates only), seed 1 (its repetitions revised after the draft, D157, D166)",
+   "plan": "90 cells (seed 1), ~3.8 h",
    "blocks": [
     {"name": "W8", "group": "gemma", "dataset": "eval_gemma",
-     "axes": {"darm": "$decision:decoupled_arm", "w": "$list:rb_weights", "dw": "$owner:decoupled_weights", "pw": "$list:ap_pw",
+     "axes": {"darm": "$decision:decoupled_arm", "w": "$owner:d192_weights", "dw": "$owner:d192_weights", "pw": "$list:ap_pw",
               "t": "$list:br_t", "d": "$list:dispatchers"},
      "configs": ["gemma.{darm}.{w}", "gemma.{darm}-dec.{dw}", "gemma.ap.{pw}.lor", "gemma.br.{t}.lor", "gemma.disp.{d}"],
      "traces": ["gl12", "gl30", "gl42"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W8p", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D191 (owner 10-01: \"what if gemma also only test 3 rates\"; the Gemma routers on round robin, power of two and lowest latency at 12/30/42 in its plan): Gemma's trained routers on the three other dispatchers besides least-outstanding (W8), as Qwen's W2p (D156): AvengersPro's 5 settings and BEST-Route's 4 thresholds x {RR, Po2, lowest latency} x lambda{12, 30, 42}, seed 1, in W8's comparison group. Runs after W8",
+   "plan": "81 cells (seed 1), ~3.4 h, after W8",
+   "blocks": [
+    {"name": "W8p", "group": "gemma", "dataset": "eval_gemma",
+     "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "d": ["rr", "po2", "lowest-latency"]},
+     "configs": ["gemma.ap.{pw}.{d}", "gemma.br.{t}.{d}"],
+     "traces": ["gl12", "gl30", "gl42"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W8r", "kind": "cells", "prio": "must", "enabled": false, "why": "D157 (owner 09-30): the main grids' repetitions only at the knee points, chosen from the seed-1 results",
    "about": "the repetitions of W8 (seeds 2-3), right after its seed 1 (no engine switch; owner 09-29, D121)",
