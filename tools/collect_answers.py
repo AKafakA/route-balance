@@ -16,11 +16,12 @@ output_tokens, success, error, ...). A failed request or a failed instance fails
 lines are written.
 
 merge: a new scored corpus (analysis/quality.py) from an old one. Every row whose prompt every model answered keeps
-its prompt fields (request_id, prompt, input_len, dataset, source, is_harmful, reference_text); each model's
-response becomes the new text and output_length its output token count, and every field derived from the old
-text (its judge scores, similarity and reference scores, compression ratio, truncation flag) is dropped: the judge
-scores the new text. Rows no answer covers are left out and counted. A failed answer, an answer for a prompt or a
-model the corpus lacks, a prompt answered twice by one model, or a duplicate corpus prompt fails the merge.
+its prompt fields (request_id, prompt, input_len, dataset, source, is_harmful when the corpus has it,
+reference_text); each model's response becomes the new text and output_length its output token count, and every
+field derived from the old text (its judge scores, similarity and reference scores, compression ratio, truncation
+flag) is dropped: the judge scores the new text. Rows no answer covers are left out and counted. A failed answer,
+an answer for a prompt or a model the corpus lacks, a prompt answered twice by one model, or a duplicate corpus prompt
+fails the merge.
 """
 from __future__ import annotations
 
@@ -40,6 +41,7 @@ from tools import direct
 from tools.campaign import load_plan
 
 PROMPT_FIELDS = ("request_id", "prompt", "input_len", "dataset", "source", "is_harmful", "reference_text")
+OPTIONAL_FIELDS = {"is_harmful"}     # Qwen's corpora carry it, Gemma's do not (D144): copied when the corpus has it
 
 
 def by_model(fleet: Sequence[Instance]) -> dict[str, list[Instance]]:
@@ -93,6 +95,9 @@ def merge(corpus: Path, answers: Path, out: Path) -> tuple[int, int]:
         if rec["prompt"] in rows:
             raise ConfigError(f"{corpus}:{lineno}: a duplicate prompt")
         rows[rec["prompt"]] = rec
+    for k in OPTIONAL_FIELDS:                                   # a corpus has the field on every row or on none
+        if len({k in rec for rec in rows.values()}) > 1:
+            raise ConfigError(f"{corpus}: {k} on some rows only")
     new: dict[str, dict[str, dict]] = {}
     for lineno, a in read_jsonl(answers):
         where = f"{answers}:{lineno}"
@@ -112,7 +117,7 @@ def merge(corpus: Path, answers: Path, out: Path) -> tuple[int, int]:
             left_out += 1                                       # not every model answered this prompt
             continue
         got = new[prompt]
-        lines.append({**{k: rec[k] for k in PROMPT_FIELDS},
+        lines.append({**{k: rec[k] for k in PROMPT_FIELDS if k not in OPTIONAL_FIELDS or k in rec},
                       "models": {m: {"response": got[m]["text"], "output_length": got[m]["output_tokens"],
                                      "llm_judge_scores": {}}
                                  for m in rec["models"]}})

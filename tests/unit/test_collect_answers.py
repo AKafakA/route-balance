@@ -32,6 +32,31 @@ def test_merge_replaces_the_answers_and_drops_what_the_old_text_decided(tmp_path
                              "B": {"response": "b0", "output_length": 3, "llm_judge_scores": {}}}
 
 
+def test_merge_keeps_a_corpus_without_is_harmful_as_it_is(tmp_path):
+    """Gemma's corpora carry no is_harmful (D144): the merge copies it only when the corpus has it."""
+    row = {k: v for k, v in ROW.items() if k != "is_harmful"}
+    corpus = _jsonl(tmp_path / "c.jsonl", [row])
+    answers = _jsonl(tmp_path / "a.jsonl", [_answer("p0", "A", "a0"), _answer("p0", "B", "b0")])
+    assert ca.merge(corpus, answers, tmp_path / "new.jsonl") == (1, 0)
+    (new,) = [json.loads(x) for x in (tmp_path / "new.jsonl").read_text().splitlines()]
+    assert "is_harmful" not in new and {k: new[k] for k in row if k != "models"} == {k: row[k] for k in row if k != "models"}
+
+
+def test_merge_refuses_a_corpus_with_is_harmful_on_some_rows_only(tmp_path):
+    other = {k: v for k, v in dict(ROW, request_id="r1", prompt="p1").items() if k != "is_harmful"}
+    corpus = _jsonl(tmp_path / "c.jsonl", [ROW, other])
+    answers = _jsonl(tmp_path / "a.jsonl", [_answer(p, m) for p in ("p0", "p1") for m in ("A", "B")])
+    with pytest.raises(ConfigError, match="some rows only"):
+        ca.merge(corpus, answers, tmp_path / "new.jsonl")
+
+
+def test_merge_still_needs_every_other_prompt_field(tmp_path):
+    corpus = _jsonl(tmp_path / "c.jsonl", [{k: v for k, v in ROW.items() if k != "dataset"}])
+    answers = _jsonl(tmp_path / "a.jsonl", [_answer("p0", "A"), _answer("p0", "B")])
+    with pytest.raises(KeyError):
+        ca.merge(corpus, answers, tmp_path / "new.jsonl")
+
+
 @pytest.mark.parametrize("answers,match", [
     ([_answer("p0", "A", ok=False)], "failed answer"),
     ([_answer("zz", "A")], "not in"),
