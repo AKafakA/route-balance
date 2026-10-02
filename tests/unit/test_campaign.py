@@ -117,9 +117,9 @@ def test_the_tracked_files_dry_run_every_row():
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 39, "W2b": 20, "W2n": 48,
                      "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3, "W2y3": 4, "W2y4": 5, "W2y5": 1, "W2y6": 4, "W2y7": 2,
-                     "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8gp": 11, "W8g": 22, "W8gt": 3, "W9": 458,
-                     "W4r": 72, "W4lr": 6, "W5r": 54, "W7b": 9, "W14": 4, "W14r": 8, "W7br": 18}
-    # W8 (run at the old prices) and W8p disabled; W8gp (the probe), W8g, W8gt: Gemma's generality check (D209, D211);
+                     "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8gp": 11, "W8g": 22, "W8gt": 3, "W8r": 72,
+                     "W9": 458, "W4r": 72, "W4lr": 6, "W5r": 54, "W7b": 9, "W14": 4, "W14r": 8, "W7br": 18}
+    # W8 (old prices), W8p disabled; W8gp (the probe), W8g, W8gt: Gemma's generality check, W8r its seeds 2-3 (D209-D212);
     # W9: the Qwen repetitions written by tools/repetition_rows.py (D171, D178, D192, D203);
     # W4r without dead reckoning off and the LPT keys (D198); W4lr, W5r, W7br: the repetitions (D173, D191, D166
     # revised 10-02); W14, W14r: the vLLM-SR study's runs of ours at 6 and 9 req/s (D195, D207)
@@ -179,6 +179,11 @@ def test_gemmas_generality_check_runs_d209s_eleven_settings():
     (b,) = scope["W8gt"]["blocks"]                  # D211: BEST-Route at threshold 0, the main grid's named setting
     want_t = (["gemma.br.t00.lor"], ["gl12", "gl30", "gl42"], [1], "gemma")
     assert (b["configs"], b["traces"], b["seeds"], b["group"]) == want_t
+    r, br0 = scope["W8r"]["blocks"]                  # D212: the 12 settings at seeds 2 and 3
+    assert scope["W8r"]["enabled"] and (r["configs"], r["axes"]["w"], r["axes"]["pw"], r["axes"]["t"]) == (
+        scope["W8g"]["blocks"][0]["configs"], ["q50l30c20", "q80l10c10", "uniform"], ["pw053", "pw080"], ["t03", "t05"])
+    assert all((x["traces"], x["seeds"], x["group"]) == (["gl12", "gl30", "gl42"], [2, 3], "gemma") for x in (r, br0))
+    assert br0["configs"] == ["gemma.br.t00.lor"]
 
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
     for trace in ("sweep6-36", "sweep38-42"):                  # W1b and its 38-42 req/s extension W1c (D119, D120)
