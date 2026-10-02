@@ -113,12 +113,15 @@ def test_the_tracked_files_dry_run_every_row():
     assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2s", "W2b", "W2n", "W2p", "W2x", "W2y", "W2y2",
                           "W2y3", "W2y4", "W2y5", "W2y6", "W2y7", "W2y8", "W2z", "W4", "W4l", "W3", "W5", "W6", "W7",
                           "W8-cal", "W8", "W8p", "W8r", "W7r",
-                          "W9", "W4r", "W4lr", "W5r", "W7b", "W11", "W12", "W13", "W10"]
+                          "W14", "W9", "W14r", "W4r", "W4lr", "W5r", "W7b", "W7br", "W11", "W12", "W13", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 39, "W2b": 20, "W2n": 48,
                      "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3, "W2y3": 4, "W2y4": 5, "W2y5": 1, "W2y6": 4, "W2y7": 2,
-                     "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8": 90, "W8p": 81,
-                     "W7b": 9}   # D166; W8 and W8p: D191, D192
+                     "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8": 90, "W8p": 81, "W9": 458,
+                     "W4r": 72, "W4lr": 6, "W5r": 54, "W7b": 9, "W14": 4, "W14r": 8, "W7br": 18}
+    # W8 and W8p: D191, D192; W9: the Qwen repetitions written by tools/repetition_rows.py (D171, D178, D192, D203);
+    # W4r without dead reckoning off and the LPT keys (D198); W4lr, W5r, W7br: the repetitions (D173, D191, D166
+    # revised 10-02); W14, W14r: the vLLM-SR study's runs of ours at 6 and 9 req/s (D195, D207)
     # W8: the Qwen grid's baselines (D70); W4: D142's ablations with leave-out (15 configurations x 3 rates), W4l the
     # learned variant, its own row so W4 is not refused while the retrained heads' pin is pending;
     # D121: seed 1 of every main row first, their seeds 2-3 after (W4r, W5r); W3 and W11 disabled (D121); topology
@@ -289,7 +292,9 @@ def test_the_tracked_files_render_with_every_lease_input():
         by_block[c.block] = by_block.get(c.block, 0) + 1
     assert by_block["G1"] == 66 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 24   # seed 1, 3 rates (D142)
     assert (by_block["W4-latency"], by_block["W4-learned"], by_block["W4-leave-out"]) == (9, 3, 6)
-    assert by_block["W4-lpt-key"] == 6 and not any(b.startswith(("W4r-", "W5r")) for b in by_block)   # D166
+    assert by_block["W4-lpt-key"] == 6 and "W4r-lpt-key" not in by_block                          # D198
+    assert by_block["W4r-mechanisms"] == 7 * 6 and by_block["W5r"] == 2 * by_block["W5"]            # D198, D173
+    assert sum(n for b, n in by_block.items() if b.startswith("W9-")) == 458                         # D203
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():
         assert campaign.config_digest(parse_scheduler(doc)) == scope.configs[cid].config_digest
@@ -367,14 +372,35 @@ def _enabled(scope_file, *ids) -> dict:
     return raw
 
 
+# the placeholder W9 of 30 Sep (the full grid at seeds 2-3 by axes, fill over W3), kept as the fill fixture after
+# tools/repetition_rows.py wrote the lease's W9 as explicit points (10-02, D203)
+OLD_W9_BLOCKS = [
+    {"name": f"W9-{t}", "group": "qwen", "dataset": "eval_qwen",
+     "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "d": "$list:dispatchers", "dw": "$owner:decoupled_weights",
+              "arm": "$decision:rb_default", "darm": "$decision:decoupled_arm", "w": "$list:rb_weights"},
+     "configs": ["qwen.{arm}.{w}", "qwen.{darm}-dec.{dw}", "qwen.ap.{pw}.lor", "qwen.br.{t}.lor", "qwen.disp.{d}"],
+     "traces": [t], "seeds": [2, 3], "prompt_order": "per_seed", "fill": True, "alias": None,
+     "planned": {"arm": 1, "darm": 1}, "enabled": True, "why": None, "hold": None}
+    for t in ("l30", "l12", "l24", "l18", "l36", "l42")]
+
+
+def _old_w9(scope_file, *also) -> dict:
+    """The scope with the old placeholder W9 (and the rows `also`) enabled: the render's fill mechanics."""
+    raw = _enabled(scope_file, *also)
+    for r in raw["rows"]:
+        if r["id"] == "W9":
+            r.update(enabled=True, why=None, blocks=json.loads(json.dumps(OLD_W9_BLOCKS)))
+    return raw
+
+
 def _with_w3(scope_file) -> dict:
-    """The scope with W3 and W9 enabled again (disabled since D121 and D157): the one fill overlap, W9 over W3."""
-    return _enabled(scope_file, "W3", "W9")
+    """The scope with W3 and the old W9 enabled (W3 disabled since D121): the one fill overlap, W9 over W3."""
+    return _old_w9(scope_file, "W3")
 
 
 def test_fill_blocks_do_not_repeat_cells_and_plain_blocks_refuse_to():
     presets, scope_file = filled()
-    w9 = campaign.render(presets, parse(ScopeFile, _enabled(scope_file, "W9"), "scope"), pins=pins(presets),
+    w9 = campaign.render(presets, parse(ScopeFile, _old_w9(scope_file), "scope"), pins=pins(presets),
                          decisions=DECISIONS, fleets=FLEETS)
     cells = {c.cell_id: c for c in expected_cells(parse(Scope, w9.scope, "rendered"))}
     assert cells["qwen.rb.q50l30c20__l12__s2"].block == "W9-l12"               # D121: W3 merged into W9
@@ -467,6 +493,11 @@ def test_the_first_render_before_w1_gives_the_direct_rows(tmp_path):
 
 def test_rb_decoupled_follows_the_default_arm():
     presets, scope = filled()
+    raw = scope.model_dump(mode="json")
+    for r in raw["rows"]:                    # W9, W14, W14r list the lease's decided arm (rb-static) by id
+        if r["id"] in ("W9", "W14", "W14r"):
+            r.update(enabled=False, why="test: the explicit rows carry the lease's decided arm")
+    scope = parse(ScopeFile, raw, "scope")
     rb = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     static = campaign.render(presets, scope, pins=pins(presets),
                              decisions={**DECISIONS, "rb_default": "rb-static", "decoupled_arm": "rb-static"},
@@ -490,7 +521,7 @@ def test_rb_decoupled_follows_the_default_arm():
 def test_a_fill_block_waits_for_the_earlier_blocks_that_could_list_its_cells(tmp_path):
     presets, scope = filled()
     p = pins(presets)
-    w9 = parse(ScopeFile, _enabled(scope, "W9"), "scope")
+    w9 = parse(ScopeFile, _old_w9(scope), "scope")
     tracked = campaign.render(presets, w9, pins=p, decisions={"rb_default": "rb"}, fleets=FLEETS)
     assert "waits for W3" not in tracked.pending["W9/W9-l12"]           # D121: W3 disabled, W9 waits for no pick
     scope = parse(ScopeFile, _with_w3(scope), "scope")
@@ -616,7 +647,8 @@ def test_the_ablations_take_apart_the_decided_variant(arm, nv):
     """D142: W4's reference is rb_default's variant in the decided normalization (D140's winner, ablation_norm), and its
     variants are of that variant: latency weight 0, the static prior and the learned heads retrained on the new load
     sweep (their own pin, apart from the learned arm's), eight mechanisms, the two LPT keys and two leave-out indexes;
-    16 configurations x 3 rates, seed 1 in W4 and seeds 2-3 in W4r (disabled by D166 until the draft; enabled here).
+    16 configurations x 3 rates at seed 1 in W4; seeds 2-3 in W4r and W4lr without dead reckoning off and the two LPT
+    keys (D198): 13 configurations.
     """
     presets, scope = filled()
     scope = parse(ScopeFile, _enabled(scope, "W4r", "W4lr"), "scope")
@@ -625,7 +657,7 @@ def test_the_ablations_take_apart_the_decided_variant(arm, nv):
                              fleets=FLEETS)
     rendered = parse(Scope, result.scope, "rendered")
     w4 = [c for c in expected_cells(rendered) if c.block.startswith(("W4-", "W4r-"))]
-    assert len(w4) == 16 * 9 and rendered.groups["qwen-ablation"].reference == f"abl.qwen.{arm}{nv}.q50l30c20"
+    assert len(w4) == 16 * 3 + 13 * 6 and rendered.groups["qwen-ablation"].reference == f"abl.qwen.{arm}{nv}.q50l30c20"
     lat = {"rb": "latency.curve", "rb-static": "latency.static", "rb-learned": "latency.xgb"}[arm]
     want = campaign.Resolver(presets, distinct).resolve(f"$part:{lat}", "test", campaign.Needs(), {"family": "qwen"})
     h = "q50l30c20"
@@ -636,10 +668,15 @@ def test_the_ablations_take_apart_the_decided_variant(arm, nv):
         "W4-lpt-key": {f"abl.qwen.{arm}{nv}.abl-lpt-{k}.{h}" for k in ("min", "mean")},
         "W4-leave-out": {f"abl.qwen.{arm}{nv}.abl-lodo-{ds}.{h}" for ds in ("lmsys", "gsm8k")},
         "W4-learned": {f"abl.qwen.rb-learned-retrained{nv}.{h}"}}
+    dropped = {f"abl.qwen.{arm}{nv}.abl-{m}.{h}" for m in ("dr-off", "lpt-min", "lpt-mean")}   # D198
+    assert not any(c.block == "W4r-lpt-key" for c in w4)
     for name, ids in want_ids.items():
         for b in (name, name.replace("W4-", "W4r-")):
             got = [c for c in w4 if c.block == b]
-            assert {c.config_id for c in got} == ids, b
+            if b.startswith("W4r-") and not ids - dropped:
+                assert not got, b
+                continue
+            assert {c.config_id for c in got} == (ids - dropped if b.startswith("W4r-") else ids), b
             assert {(c.trace_id, c.seed) for c in got} == {(tr, s) for tr in ("l12", "l30", "l42")
                                                            for s in ((1,) if b.startswith("W4-") else (2, 3))}, b
     mechanisms = [c for c in w4 if c.block == "W4-mechanisms"]

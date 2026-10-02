@@ -320,5 +320,12 @@
    "decision": "D144",
    "owner": "D144: \"re-collect freshly same as qwen\"",
    "gpu_cost": "none: the Gemma scored corpus (scored_corpora.gemma) becomes the 2 Oct re-collection judged by the lease judges (test_gemma_scored_20261002.jsonl, 1,979 prompts x 4 models, every pair scored; 3 pairs of one prompt by v3's temperature backup, tagged, as Qwen's 3 of D114); no evaluation prompt drops (D114's rule), so datasets.eval_gemma, the gl12/gl30/gl42 traces and the Gemma rows' counts are unchanged; no run that ran changes"
+  },
+  {
+   "file": "configs/scope.json",
+   "sha256": "c97716330abffca0d1d8bb509075d71c78f9cff290f7772b7345c185fb73f2d5",
+   "decision": "D171, D173, D176, D178, D191, D192, D195, D198, D199, D203, D204, D207 (D166's hold on the repetitions lifted by the plan of record of 2 Oct)",
+   "owner": "plan of record 2 Oct: \"ok, just make this as plan\"; D203: \"rb-decoupled and rb rep should share the same points?\", \"ok, add this also\"; D198: \"yes, we can drop it as it will no be our paper stories\"; D195: \"instead, can we run vllm-sr under rate 6 to 12 (6, 9, 12) etc, and compare with the best-rb points as ablations and in the appendix\"; D207: \"make the vllm-sr running single seed first to finish the rep 1 to unlock us finish the paper drafting first, and only put it into the last slack time later\"",
+   "gpu_cost": "W9 the Qwen repetitions, 458 runs (~28.8 h; tools/repetition_rows.py on Qwen's complete seed-1 report: 229 points); W14 4 runs (~37 min) and W14r 8 (~75 min), the vLLM-SR study's runs of ours at 6 and 9 req/s with the new l9 trace; W4r 72 and W4lr 6 runs (~4.8 h) without dead reckoning off and the LPT keys; W5r 54 (~3.3 h); W7br 18 (~1.5 h): the 2 Oct plan of record's table; nothing that ran changes"
   }
 ]
