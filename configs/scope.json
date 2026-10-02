@@ -51,7 +51,7 @@
  },
  "scored_corpora": {
   "qwen": {"path": "test_qwen_scored_20260928_v3.jsonl", "sha256": "4b23fa3837609882241e29fbec29b78e12e78a8f3d1c1af86a76cd0c7757ecfd"},
-  "gemma": {"path": "gemma3_merged_test.jsonl", "sha256": "411904dbb6dac19540b56e07d76ed35a819fd0cbecf1d846aa60be0d3c47ce20"}
+  "gemma": {"path": "test_gemma_scored_20261002.jsonl", "sha256": "9caabc2707f2c991e0e179f687862715f252cd1b91980eb0bb55c2d4934e958d"}
  },
  "traces": {
   "l6": {"burstiness": 1.0, "segments": [{"n_requests": 3532, "rate": 6.0}]},
