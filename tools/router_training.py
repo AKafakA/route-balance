@@ -30,8 +30,8 @@ best-route-data (D71). v3's BEST-Route candidates format (its Qwen data converte
 output, candidates [text, model <base>_bo1, scores.armoRM_scores = the judge score, token_num_prompt,
 token_num_responses]) for the 4-way head (v3's train_best_route_wrapper.py --num-labels 4), which labels a prompt
 with its FIRST best candidate. The candidates are ordered by each model's mean per-token price (the mean of its
-input and output price), ties in --models order, so a tie goes to the cheapest model: for Qwen this is v3's order
-(price follows size); for Gemma it puts 4B first. labels.json records that order for --label-models. The
+input and output price), ties in --models order, so a tie goes to the cheapest model: for both families' fleets
+this is the size order (Qwen: v3's order; Gemma: D208's prices). labels.json records that order for --label-models. The
 validation set is 10% of the training prompts (seed 42), never test prompts (v3 took half of the test split).
 """
 from __future__ import annotations

@@ -148,7 +148,7 @@
   "br.threshold.t05": 0.5,
   "br.threshold.t07": 0.7,
   "br.fallback.qwen": "Qwen/Qwen2.5-3B",
-  "br.fallback.gemma": "google/gemma-3-4b-it",
+  "br.fallback.gemma": "google/gemma-3-1b-it",
   "br.router": {"type": "best_route_upstream", "kwargs": {"checkpoint": "$pin:br.{family}:path",
                 "threshold": "$part:br.threshold.{t}", "base_model": "microsoft/deberta-v3-small",
                 "base_revision": "a36c739020e01763fe789b4b85e2df55d6180012",

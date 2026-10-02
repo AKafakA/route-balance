@@ -112,14 +112,15 @@ def test_the_tracked_files_dry_run_every_row():
     rows = {r["id"]: r for r in summary["rows"]}
     assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2s", "W2b", "W2n", "W2p", "W2x", "W2y", "W2y2",
                           "W2y3", "W2y4", "W2y5", "W2y6", "W2y7", "W2y8", "W2z", "W4", "W4l", "W3", "W5", "W6", "W7",
-                          "W8-cal", "W8", "W8p", "W8r", "W7r",
+                          "W8-cal", "W8", "W8p", "W8gp", "W8g", "W8r", "W7r",
                           "W14", "W9", "W14r", "W4r", "W4lr", "W5r", "W7b", "W7br", "W11", "W12", "W13", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 39, "W2b": 20, "W2n": 48,
                      "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3, "W2y3": 4, "W2y4": 5, "W2y5": 1, "W2y6": 4, "W2y7": 2,
-                     "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8": 90, "W8p": 81, "W9": 458,
+                     "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8gp": 11, "W8g": 22, "W9": 458,
                      "W4r": 72, "W4lr": 6, "W5r": 54, "W7b": 9, "W14": 4, "W14r": 8, "W7br": 18}
-    # W8 and W8p: D191, D192; W9: the Qwen repetitions written by tools/repetition_rows.py (D171, D178, D192, D203);
+    # W8 (run at the old prices) and W8p disabled; W8gp (the probe), W8g: the generality check at D208's prices (D209);
+    # W9: the Qwen repetitions written by tools/repetition_rows.py (D171, D178, D192, D203);
     # W4r without dead reckoning off and the LPT keys (D198); W4lr, W5r, W7br: the repetitions (D173, D191, D166
     # revised 10-02); W14, W14r: the vLLM-SR study's runs of ours at 6 and 9 req/s (D195, D207)
     # W8: the Qwen grid's baselines (D70); W4: D142's ablations with leave-out (15 configurations x 3 rates), W4l the
@@ -149,10 +150,31 @@ def test_the_burst_sweep_and_the_three_rates():
         assert {t for b in rows[rid]["blocks"] for t in b["traces"]} == set(bursts)
     for rid, want in (("W4", {"l12", "l30", "l42"}), ("W4r", {"l12", "l30", "l42"}), ("W7", {"l12", "l30", "l42"}),
                       ("W7r", {"l12", "l30", "l42"}), ("W8", {"gl12", "gl30", "gl42"}), ("W8p", {"gl12", "gl30", "gl42"}),
-                      ("W8r", {"gl12", "gl30", "gl42"})):
+                      ("W8r", {"gl12", "gl30", "gl42"}), ("W8gp", {"gl30"}), ("W8g", {"gl12", "gl42"})):
         assert {t for b in rows[rid]["blocks"] if b["enabled"] for t in b["traces"]} == want, rid
     assert [traces[g]["segments"][0]["n_requests"] for g in ("gl12", "gl30", "gl42")] == [1979] * 3
 
+
+
+def test_gemmas_generality_check_runs_d209s_eleven_settings():
+    """D209: settings fixed on Qwen: RouteBalance and RB-decoupled at the knees and the default, each baseline at its
+    knee and at RouteBalance 80/10/10's quality, least outstanding; the probe (30 req/s) first, its own row."""
+    summary = campaign.dry_run(campaign.load_presets(campaign.PRESETS), campaign.load_scope_file(campaign.SCOPE))
+    rows = {r["id"]: r for r in summary["rows"]}
+    assert [r for r in rows if r.startswith("W8g")] == ["W8gp", "W8g"]
+    scope = {r["id"]: r for r in SCOPE_JSON["rows"]}
+    want = {"gemma.{darm}.q50l30c20", "gemma.{darm}.q80l10c10", "gemma.{darm}.uniform", "gemma.{darm}-dec.q50l30c20",
+            "gemma.{darm}-dec.q80l10c10", "gemma.{darm}-dec.uniform", "gemma.ap.pw053.lor", "gemma.ap.pw080.lor",
+            "gemma.br.t03.lor", "gemma.br.t05.lor", "gemma.disp.lor"}
+    for rid in ("W8gp", "W8g"):
+        (b,) = scope[rid]["blocks"]
+        got = set()
+        for t in b["configs"]:
+            for w in b["axes"]["w"]:
+                for pw in b["axes"]["pw"]:
+                    for th in b["axes"]["t"]:
+                        got.add(t.replace("{w}", w).replace("{pw}", pw).replace("{t}", th))
+        assert got == want and b["group"] == "gemma" and b["seeds"] == [1], (rid, sorted(got ^ want))
 
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
     for trace in ("sweep6-36", "sweep38-42"):                  # W1b and its 38-42 req/s extension W1c (D119, D120)
@@ -276,10 +298,10 @@ def test_the_baseline_knobs_are_the_plans():
                                                                                                 "random")
     br_g = doc("gemma.br.t05.lor")["pipeline"]["router"]                   # D70: Gemma gets BEST-Route too
     assert br_g["type"] == "best_route_upstream" and br_g["kwargs"]["checkpoint"] == "art/br.gemma"
-    # the owner's backup (D79): v3's 4-way recipe, with D71's fallbacks (4B for Gemma, 3B for Qwen)
+    # the owner's backup (D79): v3's 4-way recipe, D71's fallbacks the cheapest (Gemma 1B at D208's prices, Qwen 3B)
     v3 = {f: resolver.resolve("$part:br.router.v3", "test", campaign.Needs(), {"family": f, "t": "t05"})["kwargs"]
           for f in ("gemma", "qwen")}
-    assert (v3["gemma"]["fallback_model"], v3["qwen"]["fallback_model"]) == ("google/gemma-3-4b-it", "Qwen/Qwen2.5-3B")
+    assert (v3["gemma"]["fallback_model"], v3["qwen"]["fallback_model"]) == ("google/gemma-3-1b-it", "Qwen/Qwen2.5-3B")
     assert not any("shortest" in json.dumps(doc(pid)) for pid in ("qwen.disp.lor", "qwen.disp.rr"))
 
 
@@ -452,7 +474,7 @@ def test_missing_decisions_and_fleets_leave_blocks_pending():
     presets, scope = filled()
     result = campaign.render(presets, scope, pins=pins(presets), decisions={}, fleets={"qwen_std": FLEETS["qwen_std"]})
     assert "rb_default" in result.pending["W2/W2-rb-l30"] and "headline" in result.pending["W4/W4-latency"]
-    assert "fleet 'gemma' not given" in result.pending["W8/W8"]
+    assert "fleet 'gemma' not given" in result.pending["W8gp/W8gp"] and "W8/W8" not in result.pending   # D209
     assert "W2/W2-base-l30" not in result.pending and "G1/G1" not in result.pending
     assert result.blocked_rows["W8-cal"] == "fleet 'gemma' not given"
 

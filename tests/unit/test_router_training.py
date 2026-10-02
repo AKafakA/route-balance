@@ -31,8 +31,14 @@ def test_the_real_fleets_prices_and_gemmas_price_order():
     assert qwen["Qwen/Qwen2.5-72B"] == (3.8e-07, 4e-07) and set(qwen) == set(QWEN)
     assert rt.price_order(QWEN, qwen) == QWEN                        # Qwen: price follows size (v3's order)
     gemma = rt.fleet_prices("configs/fleet_gemma.json")
-    assert rt.price_order(GEMMA, gemma) == [GEMMA[1], GEMMA[0], GEMMA[2], GEMMA[3]]   # 4B first; 1B = 12B by mean
+    assert rt.price_order(GEMMA, gemma) == GEMMA                     # Gemma (D208's prices): size order too
 
+
+def test_the_price_order_reorders_by_mean_price_and_keeps_ties_in_the_given_order():
+    # a ladder whose prices do not follow size, with a tie (as v3's Gemma prices: 4B cheapest, 1B = 12B by mean)
+    prices = {GEMMA[0]: (1e-07, 1e-07), GEMMA[1]: (4e-08, 8e-08), GEMMA[2]: (5e-08, 1.5e-07), GEMMA[3]: (8e-08, 1.6e-07)}
+    assert rt.price_order(GEMMA, prices) == [GEMMA[1], GEMMA[0], GEMMA[2], GEMMA[3]]
+    assert rt.price_order([GEMMA[2], GEMMA[0], GEMMA[1], GEMMA[3]], prices) == [GEMMA[1], GEMMA[2], GEMMA[0], GEMMA[3]]
 
 def test_a_model_with_two_prices_or_models_not_the_fleets_are_refused(tmp_path):
     f = tmp_path / "fleet.json"
@@ -90,10 +96,10 @@ def test_the_best_route_candidates_put_the_cheapest_first_so_a_tie_labels_it():
     order = rt.price_order(GEMMA, gemma)
     row = _row(0, {GEMMA[0]: 0.9, GEMMA[1]: 0.9, GEMMA[2]: 0.4, GEMMA[3]: 0.9}, models=GEMMA)
     ex = rt.best_route_example(row, 0, order, GEMMA[-1], KEY)
-    assert [c["model"] for c in ex["candidates"]] == ["gemma-3-4b-it_bo1", "gemma-3-1b-it_bo1",
+    assert [c["model"] for c in ex["candidates"]] == ["gemma-3-1b-it_bo1", "gemma-3-4b-it_bo1",
                                                       "gemma-3-12b-it_bo1", "gemma-3-27b-it_bo1"]
     scores = [c["scores"]["armoRM_scores"] for c in ex["candidates"]]
-    assert max(range(len(scores)), key=lambda i: scores[i]) == 0   # v3's wrapper labels the first best: 4B
+    assert max(range(len(scores)), key=lambda i: scores[i]) == 0   # v3's wrapper labels the first best: 1B
     assert ex["output"] == f"{GEMMA[-1]}-0" and ex["instruction"] == "p0" and ex["input"] == ""
     assert ex["candidates"][0]["token_num_prompt"] == 10 and ex["candidates"][0]["token_num_responses"] == 5
 

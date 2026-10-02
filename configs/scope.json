@@ -1,6 +1,6 @@
 {
  "notes": {
-  "what": "Every row of the lease; the order is the plan of record (route-balance-paper mlsys_2027/lease/SCHEDULE_2026-09-30.md, D152-D158, D163): W1 -> G1 -> W1b -> W1c -> G1b -> G1c (day 1) -> W2 -> W2s -> W2b -> W2n -> W2p (the Qwen main rows) -> W2x, W2y (the extra presets, D167, D172, D177) -> W1b -> W1c (the new load sweep, D142, in the main grid's cells root; the stopped 30 Sep attempt of its first run holds no record, so it counts as new) -> W4, then W4l once the heads are retrained (the ablations) -> W5 (burst) -> W7b (budget, seed 1) -> vLLM-SR Qwen, seed 1 (vllm-sr-bench, outside this scope) -> W8-cal -> W8, W8p (Gemma, D191) -> vLLM-SR Gemma -> W10. Then (the 2 Oct plan of record, D195-D207): W8r (Gemma's repetitions at the points D171's rule picks with D192/D203's sets, written by tools/repetition_rows.py from its seed-1 report) -> the switch back to Qwen -> W14 (the vLLM-SR study's runs of ours, seed 1) -> the vLLM-SR study's seed 1 (vllm-sr-bench) -> W9, W14r (the Qwen repetitions) -> W4r (without D198's three), W4lr -> W5r -> W7br -> the vLLM-SR study's seeds 2-3 -> W10; vLLM-SR Gemma dropped (D195). Disabled, each with its reason: W3, W6, W7, W7r, W8r (until Gemma's seed-1 report), W11, W12, W13. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
+  "what": "Every row of the lease; the order is the plan of record (route-balance-paper mlsys_2027/lease/SCHEDULE_2026-09-30.md, D152-D158, D163): W1 -> G1 -> W1b -> W1c -> G1b -> G1c (day 1) -> W2 -> W2s -> W2b -> W2n -> W2p (the Qwen main rows) -> W2x, W2y (the extra presets, D167, D172, D177) -> W1b -> W1c (the new load sweep, D142, in the main grid's cells root; the stopped 30 Sep attempt of its first run holds no record, so it counts as new) -> W4, then W4l once the heads are retrained (the ablations) -> W5 (burst) -> W7b (budget, seed 1) -> vLLM-SR Qwen, seed 1 (vllm-sr-bench, outside this scope) -> W8-cal -> W8 (Gemma, D191; at the old prices: the price-sensitivity grid since D208), W8p (dropped, D209) -> W8gp, W8g (Gemma at D208's prices with D209's settings, cells-v8g) -> vLLM-SR Gemma -> W10. Then (the 2 Oct plan of record, D195-D207): W8r (Gemma's repetitions; D209: to be set for W8gp/W8g's points) -> the switch back to Qwen -> W14 (the vLLM-SR study's runs of ours, seed 1) -> the vLLM-SR study's seed 1 (vllm-sr-bench) -> W9, W14r (the Qwen repetitions) -> W4r (without D198's three), W4lr -> W5r -> W7br -> the vLLM-SR study's seeds 2-3 -> W10; vLLM-SR Gemma dropped (D195). Disabled, each with its reason: W3, W6, W7, W7r, W8r (until Gemma's seed-1 report), W11, W12, W13. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
   "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). D134 (owner: \"back to vllm bench\"): the client uses vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); max_connections only sizes the open-file check; a late send is counted per run, never a bound. Any failed request makes a run invalid, and it is rerun (owner 09-29: \"keep the gate 5\")",
   "server": "D134 (owner): the scheduler's engine and telemetry sessions use vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); torch's default thread count (as v3; torch_threads null, nothing set); max_connections is recorded only (no pool bound). The baselines' routers call their model one request at a time on a separate lane, as shipped routers do (D60)",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
@@ -13,7 +13,7 @@
   "fill": "A fill block's cells that an earlier block of its group lists are not run twice; a fill block renders only after every earlier block of its group that could list one of its cells, so no cell ever moves between blocks from one render to the next. No enabled row has a fill block now (W9, the one that had, is written as explicit points since 10-02, D203; its 30 Sep form is the fill fixture of tests/unit/test_campaign.py).",
   "decoupled": "RB-decoupled follows the decoupled_arm decision ('{darm}-dec'): the same predictors as rb_default, except that with the learned heads it uses the measured curve at an idle instance (it scores idle instances before load is visible). The Gemma rows (no learned heads) use decoupled_arm for RouteBalance too. G1 pairs RB-new with rb-dec.",
   "held": "A held block must run but cannot yet; it stays pending (so the campaign is never complete) until its support lands or the owner removes it. None is held now: W6 (the AvengersPro top-2 spillover router) is dropped and W7b's budgets are sent by the benchmark client (owner 09-25). W4's arm 3 and the D45 control are dropped (D142); W11's LPT keys run in W4 (their repetitions dropped, D198).",
-  "w8": "W8 renders 90 cells at seed 1 (its blocks list the systems: RouteBalance in-batch and RB-decoupled at the eight presets of D192, AvengersPro, BEST-Route from its Gemma checkpoint, pin br.gemma, both on least-outstanding, and the dispatchers); W8p 81 (the routers on round robin, power of two and lowest latency, D191). Gemma runs at 12, 30 and 42 req/s only (D191)."
+  "w8": "W8 renders 90 cells at seed 1 (its blocks list the systems: RouteBalance in-batch and RB-decoupled at the eight presets of D192, AvengersPro, BEST-Route from its Gemma checkpoint, pin br.gemma, both on least-outstanding, and the dispatchers); W8p 81 (the routers on round robin, power of two and lowest latency, D191). Gemma runs at 12, 30 and 42 req/s only (D191). D208/D209 (owner 10-02): W8 ran at v3's cheapest-listed prices and is kept as the price-sensitivity grid (render 30, cells-v8); W8p dropped; at D208's prices W8gp (the probe: 11 cells at 30 req/s) then W8g (22 cells at 12 and 42 req/s), D209's 11 settings fixed on Qwen, in cells-v8g."
  },
  "server": {"torch_threads": null, "max_connections": 4096, "request_timeout_s": 21600.0},
  "bench": {
@@ -390,26 +390,41 @@
    "fleet": "gemma", "dataset": "train_gemma",
    "levels": [1, 4, 16, 32, 64, 96],
    "requests_per_level": 128},
-  {"id": "W8", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W8", "kind": "cells", "prio": "must", "enabled": false, "why": "D208 (owner 10-02): run under v3's cheapest-listed Gemma prices (render 30, cells-v8, 90 runs, all valid); kept as the price-sensitivity grid; Gemma's comparisons rerun at D208's prices with D209's settings in W8gp and W8g",
    "about": "Gemma with the main Qwen grid's baselines (owner 09-26): RouteBalance in-batch and RB-decoupled at the eight presets of D192 (owner 10-01: \"same 8 preset for gemma\"), AvengersPro 5 pw and BEST-Route 4 t on least-outstanding, the five dispatchers x lambda{12, 30, 42} (D191: Gemma at these three rates only), seed 1 (its repetitions revised after the draft, D157, D166)",
    "plan": "90 cells (seed 1), ~3.8 h",
    "blocks": [
-    {"name": "W8", "group": "gemma", "dataset": "eval_gemma",
-     "axes": {"darm": "$decision:decoupled_arm", "w": "$owner:d192_weights", "dw": "$owner:d192_weights", "pw": "$list:ap_pw",
-              "t": "$list:br_t", "d": "$list:dispatchers"},
+    {"name": "W8", "group": "gemma", "dataset": "eval_gemma", "axes": {"darm": "$decision:decoupled_arm", "w": "$owner:d192_weights", "dw": "$owner:d192_weights", "pw": "$list:ap_pw", "t": "$list:br_t", "d": "$list:dispatchers"},
      "configs": ["gemma.{darm}.{w}", "gemma.{darm}-dec.{dw}", "gemma.ap.{pw}.lor", "gemma.br.{t}.lor", "gemma.disp.{d}"],
      "traces": ["gl12", "gl30", "gl42"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W8p", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W8p", "kind": "cells", "prio": "must", "enabled": false, "why": "D209 (owner 10-02): Gemma's router runs on round robin, power of two and lowest latency are dropped (the chain stopped before them)",
    "about": "D191 (owner 10-01: \"what if gemma also only test 3 rates\"; the Gemma routers on round robin, power of two and lowest latency at 12/30/42 in its plan): Gemma's trained routers on the three other dispatchers besides least-outstanding (W8), as Qwen's W2p (D156): AvengersPro's 5 settings and BEST-Route's 4 thresholds x {RR, Po2, lowest latency} x lambda{12, 30, 42}, seed 1, in W8's comparison group. Runs after W8",
    "plan": "81 cells (seed 1), ~3.4 h, after W8",
    "blocks": [
-    {"name": "W8p", "group": "gemma", "dataset": "eval_gemma",
-     "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "d": ["rr", "po2", "lowest-latency"]},
+    {"name": "W8p", "group": "gemma", "dataset": "eval_gemma", "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "d": ["rr", "po2", "lowest-latency"]},
      "configs": ["gemma.ap.{pw}.{d}", "gemma.br.{t}.{d}"],
      "traces": ["gl12", "gl30", "gl42"], "seeds": [1],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W8gp", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D209 (owner 10-02): Gemma, the generality check on a second family, at D208's prices (OpenRouter's; the 1B at $0.05/$0.05): settings fixed on Qwen's seed-1 results, nothing tuned on Gemma: RouteBalance and RB-decoupled at 50/30/20 and uniform (D171's knees on Qwen) and 80/10/10 (the ablations' default); AvengersPro 0.53 (its Qwen knee) and 0.80, BEST-Route 0.3 (its Qwen knee) and 0.5 (each the setting whose Qwen quality is closest to RouteBalance 80/10/10's); every router on least outstanding, and least outstanding alone; seed 1; in a new cells root, cells-v8g (W8's runs, at the old prices, hold the same cell ids in cells-v8); the probe: the 11 settings at 30 req/s, read before W8g (owner: \"give it quick probe ... and then check if this helps\")",
+   "plan": "11 cells (seed 1), ~22 min",
+   "blocks": [
+    {"name": "W8gp", "group": "gemma", "dataset": "eval_gemma", "axes": {"darm": "$decision:decoupled_arm", "w": ["q50l30c20", "q80l10c10", "uniform"], "pw": ["pw053", "pw080"], "t": ["t03", "t05"]},
+     "configs": ["gemma.{darm}.{w}", "gemma.{darm}-dec.{w}", "gemma.ap.{pw}.lor", "gemma.br.{t}.lor", "gemma.disp.lor"],
+     "traces": ["gl30"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W8g", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D209 (owner 10-02): Gemma, the generality check on a second family, at D208's prices (OpenRouter's; the 1B at $0.05/$0.05): settings fixed on Qwen's seed-1 results, nothing tuned on Gemma: RouteBalance and RB-decoupled at 50/30/20 and uniform (D171's knees on Qwen) and 80/10/10 (the ablations' default); AvengersPro 0.53 (its Qwen knee) and 0.80, BEST-Route 0.3 (its Qwen knee) and 0.5 (each the setting whose Qwen quality is closest to RouteBalance 80/10/10's); every router on least outstanding, and least outstanding alone; seed 1; in a new cells root, cells-v8g (W8's runs, at the old prices, hold the same cell ids in cells-v8); the 11 settings at 12 and 42 req/s, after the probe (W8gp), in its comparison group",
+   "plan": "22 cells (seed 1), ~45 min, after W8gp",
+   "blocks": [
+    {"name": "W8g", "group": "gemma", "dataset": "eval_gemma", "axes": {"darm": "$decision:decoupled_arm", "w": ["q50l30c20", "q80l10c10", "uniform"], "pw": ["pw053", "pw080"], "t": ["t03", "t05"]},
+     "configs": ["gemma.{darm}.{w}", "gemma.{darm}-dec.{w}", "gemma.ap.{pw}.lor", "gemma.br.{t}.lor", "gemma.disp.lor"],
+     "traces": ["gl12", "gl42"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"darm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W8r", "kind": "cells", "prio": "must", "enabled": false, "why": "D157 (owner 09-30): the main grids' repetitions only at the knee points, chosen from the seed-1 results",
    "about": "the repetitions of W8 (seeds 2-3), right after its seed 1 (no engine switch; owner 09-29, D121)",

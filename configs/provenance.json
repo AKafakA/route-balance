@@ -471,14 +471,14 @@
   {
    "path": "presets.parts.br.*",
    "source": "v3",
-   "ref": "BEST-Route as v3: the 4-way heads rebuilt fresh (D68, D70, D71), v3's thresholds, the cheapest model as fallback",
+   "ref": "BEST-Route as v3: the 4-way heads rebuilt fresh (D68, D70, D71), v3's thresholds, the cheapest model as fallback (Gemma's cheapest at D208's prices: the 1B)",
    "values": {
     "presets.parts.br.threshold.t00": 0.0,
     "presets.parts.br.threshold.t03": 0.3,
     "presets.parts.br.threshold.t05": 0.5,
     "presets.parts.br.threshold.t07": 0.7,
     "presets.parts.br.fallback.qwen": "Qwen/Qwen2.5-3B",
-    "presets.parts.br.fallback.gemma": "google/gemma-3-4b-it",
+    "presets.parts.br.fallback.gemma": "google/gemma-3-1b-it",
     "presets.parts.br.router.type": "best_route_upstream",
     "presets.parts.br.router.kwargs.checkpoint": "$pin:br.{family}:path",
     "presets.parts.br.router.kwargs.threshold": "$part:br.threshold.{t}",

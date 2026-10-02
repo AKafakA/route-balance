@@ -6,7 +6,9 @@ v3's launchers passed, translated to official vLLM: the fork-era deploy passed -
 --tensor-parallel-size = every visible GPU of the node, --trust-remote-code, --gpu-memory-utilization,
 --max-model-len and, where set, --enforce-eager; its `port` and `tensor-parallel-size` config keys had no
 reader (the engines listened on vLLM's default port 8000). The Gemma A100 instances were launched by the
-Gemma deploy script with a CUDA mask per instance, so their flags come from that script.
+Gemma deploy script with a CUDA mask per instance, so their flags come from that script. Gemma's prices are not
+v3's (D208, owner 10-02): OpenRouter's of 2 Oct 2026, the 1B (which OpenRouter does not list) at $0.05/$0.05 per
+1M tokens; its models, GPUs and placement are v3's.
 """
 from __future__ import annotations
 
@@ -28,6 +30,10 @@ V3_GEMMA_DEPLOY = ("model_deployment.json", "07907edec3a9b99e21bffa3fcd84f861")
 V3_GEMMA_SCHED = ("scheduler_config_gemma.json", "5020c3cd30bfb1404e6e9374a4a68783")
 V3_GEMMA_SCRIPT = ("gemma_deploy_v3.sh", "27bb91e49b2c53263453df98cd67527c")
 V3_HUB_PINS = ("RERUN_PINS.md", "dc849c902568c3cb85acdd362f0a07bf")   # "HF model revisions actually loaded"
+# D208 (owner 10-02): Gemma's prices per token (input, output), OpenRouter's on pricepertoken.com (2 Oct 2026 09:43
+# BST) and the owner's 1B; v3's were 1B 1e-07/1e-07, 4B 4e-08/8e-08, 12B 5e-08/1.5e-07, 27B 8e-08/1.6e-07
+GEMMA_D208_PRICES = {"gemma-3-1b_a30": (5e-08, 5e-08), "gemma-3-4b_a30": (5e-08, 1e-07),
+                     "gemma-3-12b_a100": (5e-08, 1.5e-07), "gemma-3-27b_a100": (8e-08, 4.5e-07)}
 V3_FLAGS = {"--dtype", "--tensor-parallel-size", "--trust-remote-code", "--gpu-memory-utilization",
             "--max-model-len", "--enforce-eager"}
 _HW = re.compile(r"^(?:[^@]+@)?([a-z0-9]+)-")      # CloudLab host name -> hardware type (v3's rule)
@@ -106,14 +112,15 @@ def _check_instances(fleet, ea, v3):
         sorted(map(sorted, map(Counter.elements, v3_by_host.values())))
 
 
-def _check_prices(fleet, sched: dict):
+def _check_prices(fleet, sched: dict, prices: dict | None = None):
+    """Each tier's model and GPU are v3's; its prices are v3's, or `prices` (D208 for Gemma)."""
     meta = sched["instance_metadata"]
     tiers = {i.tier.tier_id: i.tier for i in fleet}
     assert set(tiers) == set(meta)
     for tid, t in tiers.items():
         m = meta[tid]
-        assert (t.model, t.gpu, t.cost_in, t.cost_out) == \
-            (m["model_name"], m["gpu_type"], m["cost_per_input_token"], m["cost_per_output_token"]), tid
+        want = (m["cost_per_input_token"], m["cost_per_output_token"]) if prices is None else prices[tid]
+        assert (t.model, t.gpu, t.cost_in, t.cost_out) == (m["model_name"], m["gpu_type"], *want), tid
 
 
 def _check_revisions(fleet, ea, pins: dict):
@@ -165,7 +172,8 @@ def test_gemma_fleet_is_the_v3_gemma_ladder(oracle):
     assert Counter(v["tier"] for v in v3) == {"gemma-3-1b_a30": 3, "gemma-3-4b_a30": 5, "gemma-3-12b_a100": 4,
                                                "gemma-3-27b_a100": 2}
     _check_instances(fleet, ea, v3)
-    _check_prices(fleet, sched)
+    assert set(GEMMA_D208_PRICES) == set(sched["instance_metadata"])
+    _check_prices(fleet, sched, GEMMA_D208_PRICES)
     _check_revisions(fleet, ea, _hub_pins(oracle))
     # the A100 instances' launch line in the Gemma deploy script (TP = the GPUs of the instance's mask)
     (line,) = [ln for ln in script.splitlines() if "vllm.entrypoints.openai.api_server" in ln]
