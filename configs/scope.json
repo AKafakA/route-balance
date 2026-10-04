@@ -1,6 +1,6 @@
 {
  "notes": {
-  "what": "Every row of the lease; the order is the plan of record (route-balance-paper mlsys_2027/lease/SCHEDULE_2026-09-30.md, D152-D158, D163): W1 -> G1 -> W1b -> W1c -> G1b -> G1c (day 1) -> W2 -> W2s -> W2b -> W2n -> W2p (the Qwen main rows) -> W2x, W2y (the extra presets, D167, D172, D177) -> W1b -> W1c (the new load sweep, D142, in the main grid's cells root; the stopped 30 Sep attempt of its first run holds no record, so it counts as new) -> W4, then W4l once the heads are retrained (the ablations) -> W5 (burst) -> W7b (budget, seed 1) -> vLLM-SR Qwen, seed 1 (vllm-sr-bench, outside this scope) -> W8-cal -> W8 (Gemma, D191; at the old prices: the price-sensitivity grid since D208), W8p (dropped, D209) -> W8gp, W8g (Gemma at D208's prices with D209's settings, cells-v8g) -> vLLM-SR Gemma -> W10. Then (the 2 Oct plan of record, D195-D207): W8r (Gemma's repetitions: W8gp/W8g/W8gt's 12 settings at seeds 2 and 3, D212) -> the switch back to Qwen -> W14 (the vLLM-SR study's runs of ours, seed 1) -> the vLLM-SR study's seed 1 (vllm-sr-bench) -> W9, W14r (the Qwen repetitions) -> W4r (without D198's three), W4lr -> W5r -> W7br -> the vLLM-SR study's seeds 2-3 -> W10; vLLM-SR Gemma dropped (D195). Disabled, each with its reason: W3, W6, W7, W7r, W8 and W8p (D208, D209), W11, W12, W13. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
+  "what": "Every row of the lease; the order is the plan of record (route-balance-paper mlsys_2027/lease/SCHEDULE_2026-09-30.md, D152-D158, D163): W1 -> G1 -> W1b -> W1c -> G1b -> G1c (day 1) -> W2 -> W2s -> W2b -> W2n -> W2p (the Qwen main rows) -> W2x, W2y (the extra presets, D167, D172, D177) -> W1b -> W1c (the new load sweep, D142, in the main grid's cells root; the stopped 30 Sep attempt of its first run holds no record, so it counts as new) -> W4, then W4l once the heads are retrained (the ablations) -> W5 (burst) -> W7b (budget, seed 1) -> vLLM-SR Qwen, seed 1 (vllm-sr-bench, outside this scope) -> W8-cal -> W8 (Gemma, D191; at the old prices: the price-sensitivity grid since D208), W8p (dropped, D209) -> W8gp, W8g (Gemma at D208's prices with D209's settings, cells-v8g) -> vLLM-SR Gemma -> W10. Then (the 2 Oct plan of record, D195-D207): W8r (Gemma's repetitions: W8gp/W8g/W8gt's 12 settings at seeds 2 and 3, D212) -> the switch back to Qwen -> W14 (the vLLM-SR study's runs of ours, seed 1) -> the vLLM-SR study's seed 1 (vllm-sr-bench) -> W9, W14r (the Qwen repetitions) -> D222's three reruns -> W15, W15r (the per-request variant in the main grid at seeds 1-3, D225) -> the vLLM-SR study's seeds 2-3 -> W10; vLLM-SR Gemma dropped (D195). Disabled, each with its reason: W3, W4r, W4lr, W5r and W7br (D225), W6, W7, W7r, W8 and W8p (D208, D209), W11, W12, W13. tools/campaign.py documents the format; `python -m tools.campaign dry-run` lists every cell, the hours and what is still unset.",
   "bench": "Sampling as v3 (the v3 scheduler's defaults: temperature 0, repetition_penalty 1.0, frequency_penalty 1.2; the v3 serving cap of 1024 output tokens). D134 (owner: \"back to vllm bench\"): the client uses vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); max_connections only sizes the open-file check; a late send is counted per run, never a bound. Any failed request makes a run invalid, and it is rerun (owner 09-29: \"keep the gate 5\")",
   "server": "D134 (owner): the scheduler's engine and telemetry sessions use vLLM bench's stock connector (no connection limit, keep-alive) and its request timeout (6 h); torch's default thread count (as v3; torch_threads null, nothing set); max_connections is recorded only (no pool bound). The baselines' routers call their model one request at a time on a separate lane, as shipped routers do (D60)",
   "warmup": "Sent directly to every engine, never through the scheduler, before each cell and before W1 (scripts/run_cell.sh): a few short requests per instance, then a drain. drain.timeout_s bounds the wait for idle engines; it is a failure bound only.",
@@ -503,7 +503,25 @@
      "traces": ["l6", "l9"], "seeds": [2, 3],
      "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W4r", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W15", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D225 (owner 10-04: \"it could be just fill the per-request rb into the main grid\"; \"all eight presets at all six rates\"): the per-request variant (RouteBalance with one request per round, W4's abl-round1 template, in-batch) at D192's eight presets and W2's six rates, seed 1, in W2's comparison group; 80/10/10 at 12, 30 and 42 req/s runs here too (W4's copies are the ablation group's, alias abl), so its seeds 2-3 (W15r) pair with seed 1 under one id in one group; after the three reruns of D222",
+   "plan": "48 cells, ~2.1-3.5 h, after W14r and D222's reruns",
+   "blocks": [
+    {"name": "W15", "group": "qwen", "dataset": "eval_qwen", "axes": {"arm": "$decision:rb_default", "w": "$owner:d192_weights"},
+     "configs": ["qwen.{arm}.abl-round1.{w}"],
+     "traces": ["l30", "l12", "l24", "l18", "l36", "l42"], "seeds": [1],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W15r", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+   "about": "D225 (owner 10-04: \"we also need to add its rep 2 and 3 with the best preset, referring the rb-decouple and rb's rule\"): the repetitions of W15 (seeds 2-3) at the points D203 repeats RouteBalance in-batch and RB-decoupled at: the eight presets at all six rates, after W15",
+   "plan": "96 cells, ~4.2-7 h, after W15",
+   "blocks": [
+    {"name": "W15r", "group": "qwen", "dataset": "eval_qwen", "axes": {"arm": "$decision:rb_default", "w": "$owner:d192_weights"},
+     "configs": ["qwen.{arm}.abl-round1.{w}"],
+     "traces": ["l30", "l12", "l24", "l18", "l36", "l42"], "seeds": [2, 3],
+     "prompt_order": "per_seed", "fill": false, "alias": null, "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null}
+   ]},
+  {"id": "W4r", "kind": "cells", "prio": "must", "enabled": false, "why": "D225 (owner 10-04): \"drop others ablations rep 2 and 3 which seems not necessary for me\"",
    "about": "the repetitions of W4 (seeds 2-3) after every seed-1 row (D173), without dead reckoning off and the LPT key variants (D198, owner 10-02: \"we can drop it as it will no be our paper stories\")",
    "plan": "72 cells, ~4.4 h; the learned variant's are W4lr",
    "blocks": [
@@ -520,7 +538,7 @@
      "traces": ["l12", "l30", "l42"], "seeds": [2, 3],
      "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "arm": 1, "nv": 1}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W4lr", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W4lr", "kind": "cells", "prio": "must", "enabled": false, "why": "D225 (owner 10-04): \"drop others ablations rep 2 and 3 which seems not necessary for me\"",
    "about": "the repetitions of W4l (seeds 2-3), with W4r in D156's priority order",
    "plan": "6 cells, ~0.4 h",
    "blocks": [
@@ -529,7 +547,7 @@
      "traces": ["l12", "l30", "l42"], "seeds": [2, 3],
      "prompt_order": "per_seed", "fill": false, "alias": "abl", "planned": {"h": 1, "nv": 1}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W5r", "kind": "cells", "prio": "must", "enabled": true, "why": null,
+  {"id": "W5r", "kind": "cells", "prio": "must", "enabled": false, "why": "D225 (owner 10-04): \"no burst repeation and budget repeation any more\"",
    "about": "the repetitions of W5, the burst sweep (seeds 2-3), after every seed-1 row (owner 09-29, D121, D125)",
    "plan": "54 cells, ~3.3 h",
    "blocks": [
@@ -555,7 +573,7 @@
      "traces": ["l16"], "seeds": [1], "prompt_order": "per_seed", "fill": false, "alias": "b30",
      "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
-  {"id": "W7br", "kind": "cells", "prio": "should", "enabled": true, "why": null,
+  {"id": "W7br", "kind": "cells", "prio": "should", "enabled": false, "why": "D225 (owner 10-04): \"no burst repeation and budget repeation any more\"",
    "about": "the repetitions of W7b, the budget sweep (seeds 2-3; D191 restored them; the first cut if the lease runs short, D176); their served texts judged on dev-gpu (D200)",
    "plan": "18 cells, ~1.5 h",
    "blocks": [

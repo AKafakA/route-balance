@@ -112,17 +112,19 @@ def test_the_tracked_files_dry_run_every_row():
     rows = {r["id"]: r for r in summary["rows"]}
     assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2s", "W2b", "W2n", "W2p", "W2x", "W2y", "W2y2",
                           "W2y3", "W2y4", "W2y5", "W2y6", "W2y7", "W2y8", "W2z", "W4", "W4l", "W3", "W5", "W6", "W7",
-                          "W8-cal", "W8", "W8p", "W8gp", "W8g", "W8gt", "W8r", "W7r",
-                          "W14", "W9", "W14r", "W4r", "W4lr", "W5r", "W7b", "W7br", "W11", "W12", "W13", "W10"]
+                          "W8-cal", "W8", "W8p", "W8gp", "W8g", "W8gt", "W8r", "W7r", "W14", "W9", "W14r",
+                          "W15", "W15r", "W4r", "W4lr", "W5r", "W7b", "W7br", "W11", "W12", "W13", "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 39, "W2b": 20, "W2n": 48,
                      "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3, "W2y3": 4, "W2y4": 5, "W2y5": 1, "W2y6": 4, "W2y7": 2,
                      "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8gp": 11, "W8g": 22, "W8gt": 3, "W8r": 72,
-                     "W9": 458, "W4r": 72, "W4lr": 6, "W5r": 54, "W7b": 9, "W14": 4, "W14r": 8, "W7br": 18}
+                     "W9": 458, "W15": 48, "W15r": 96, "W7b": 9, "W14": 4, "W14r": 8}
     # W8 (old prices), W8p disabled; W8gp (the probe), W8g, W8gt: Gemma's generality check, W8r its seeds 2-3 (D209-D212);
     # W9: the Qwen repetitions written by tools/repetition_rows.py (D171, D178, D192, D203);
     # W4r without dead reckoning off and the LPT keys (D198); W4lr, W5r, W7br: the repetitions (D173, D191, D166
     # revised 10-02); W14, W14r: the vLLM-SR study's runs of ours at 6 and 9 req/s (D195, D207)
+    # W15, W15r: the per-request variant at the eight presets and six rates in the main group, seeds 1-3; W4r, W4lr,
+    # W5r and W7br dropped (D225)
     # W8: the Qwen grid's baselines (D70); W4: D142's ablations with leave-out (15 configurations x 3 rates), W4l the
     # learned variant, its own row so W4 is not refused while the retrained heads' pin is pending;
     # D121: seed 1 of every main row first, their seeds 2-3 after (W4r, W5r); W3 and W11 disabled (D121); topology
@@ -184,6 +186,37 @@ def test_gemmas_generality_check_runs_d209s_eleven_settings():
         scope["W8g"]["blocks"][0]["configs"], ["q50l30c20", "q80l10c10", "uniform"], ["pw053", "pw080"], ["t03", "t05"])
     assert all((x["traces"], x["seeds"], x["group"]) == (["gl12", "gl30", "gl42"], [2, 3], "gemma") for x in (r, br0))
     assert br0["configs"] == ["gemma.br.t00.lor"]
+
+def test_the_per_request_variant_fills_the_main_grid():
+    """D225: RouteBalance with one request per round at D192's eight presets and W2's six rates in the main group, seed 1
+    (W15) and seeds 2-3 (W15r, D203's points for RouteBalance's variants); W4's copies at 80/10/10 stay the ablation
+    group's (alias abl); the ablations', the burst's and the budget's repetitions (W4r, W4lr, W5r, W7br) are dropped."""
+    presets, scope = filled()
+    lease = {**DECISIONS, "rb_default": "rb-static", "decoupled_arm": "rb-static", "headline": "q80l10c10"}
+    result = campaign.render(presets, scope, pins=pins(presets), decisions=lease, fleets=FLEETS)
+    rows = {r["id"]: r for r in result.plan["rows"]}
+    eight = SCOPE_JSON["owner"]["d192_weights"]
+    rates = ["l12", "l18", "l24", "l30", "l36", "l42"]
+    for rid, seeds in (("W15", (1,)), ("W15r", (2, 3))):
+        want = {f"qwen.rb-static.abl-round1.{w}__{t}__s{x}" for w in eight for t in rates for x in seeds}
+        assert len(eight) == 8 and set(rows[rid]["cells"]) == want and len(want) == 48 * len(seeds), rid
+    assert {c for c in rows["W4"]["cells"] if ".abl-round1." in c} == {
+        f"abl.qwen.rb-static.abl-round1.q80l10c10__{t}__s1" for t in ("l12", "l30", "l42")}
+    assert all(not rows[r]["enabled"] and rows[r]["cells"] == [] for r in ("W4r", "W4lr", "W5r", "W7br"))
+    src = {r["id"]: r for r in SCOPE_JSON["rows"]}
+    assert {b["group"] for r in ("W15", "W15r") for b in src[r]["blocks"]} == {"qwen"}
+    # each is the in-batch RouteBalance at its preset with only the ablation's rounds (one request per round)
+    rounds = result.configs["abl.qwen.rb-static.abl-round1.q80l10c10"]["rounds"]
+    assert rounds["max_batch"] == 1 and rounds["adaptive"] is False
+    for w in eight:
+        base = result.configs[f"qwen.rb-static.{w}"]
+        assert result.configs[f"qwen.rb-static.abl-round1.{w}"] == {**base, "rounds": rounds}, w
+    # the main group's 80/10/10 is the ablation's configuration under another id: the same document and digest
+    assert result.configs["qwen.rb-static.abl-round1.q80l10c10"] == result.configs["abl.qwen.rb-static.abl-round1.q80l10c10"]
+    digest = {c: result.scope["configs"][c]["config_digest"] for c in ("qwen.rb-static.abl-round1.q80l10c10",
+                                                                        "abl.qwen.rb-static.abl-round1.q80l10c10")}
+    assert len(set(digest.values())) == 1, digest
+
 
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
     for trace in ("sweep6-36", "sweep38-42"):                  # W1b and its 38-42 req/s extension W1c (D119, D120)
@@ -324,7 +357,8 @@ def test_the_tracked_files_render_with_every_lease_input():
     assert by_block["G1"] == 66 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 24   # seed 1, 3 rates (D142)
     assert (by_block["W4-latency"], by_block["W4-learned"], by_block["W4-leave-out"]) == (9, 3, 6)
     assert by_block["W4-lpt-key"] == 6 and "W4r-lpt-key" not in by_block                          # D198
-    assert by_block["W4r-mechanisms"] == 7 * 6 and by_block["W5r"] == 2 * by_block["W5"]            # D198, D173
+    assert not {"W4r-mechanisms", "W4r-learned", "W5r", "W7br-75"} & set(by_block)                  # D225
+    assert (by_block["W15"], by_block["W15r"]) == (48, 96)                                          # D225
     assert sum(n for b, n in by_block.items() if b.startswith("W9-")) == 458                         # D203
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():
