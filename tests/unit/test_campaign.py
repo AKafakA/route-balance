@@ -113,12 +113,13 @@ def test_the_tracked_files_dry_run_every_row():
     assert list(rows) == ["W1", "G1", "W1b", "W1c", "G1b", "G1c", "W2", "W2s", "W2b", "W2n", "W2p", "W2x", "W2y", "W2y2",
                           "W2y3", "W2y4", "W2y5", "W2y6", "W2y7", "W2y8", "W2z", "W4", "W4l", "W3", "W5", "W6", "W7",
                           "W8-cal", "W8", "W8p", "W8gp", "W8g", "W8gt", "W8r", "W7r", "W14", "W9", "W14r",
-                          "W15", "W15r", "W15b", "W8s", "W4r", "W4lr", "W5r", "W7b", "W7br", "W11", "W12", "W13", "W10"]
+                          "W15", "W15r", "W15b", "W8s", "W5s", "W4r", "W4lr", "W5r", "W7b", "W7br", "W11", "W12", "W13",
+                          "W10"]
     cells = {k: r["cells"] for k, r in rows.items() if r["kind"] == "cells" and r["enabled"]}
     assert cells == {"G1": 66, "W1b": 24, "W1c": 6, "G1b": 6, "G1c": 16, "W2": 156, "W2s": 39, "W2b": 20, "W2n": 48,
                      "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3, "W2y3": 4, "W2y4": 5, "W2y5": 1, "W2y6": 4, "W2y7": 2,
                      "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8gp": 11, "W8g": 22, "W8gt": 3, "W8r": 72,
-                     "W9": 458, "W15": 48, "W15r": 96, "W15b": 9, "W8s": 27, "W7b": 9, "W14": 4, "W14r": 8}
+                     "W9": 458, "W15": 48, "W15r": 96, "W15b": 9, "W8s": 27, "W5s": 72, "W7b": 9, "W14": 4, "W14r": 8}
     # W8 (old prices), W8p disabled; W8gp (the probe), W8g, W8gt: Gemma's generality check, W8r its seeds 2-3 (D209-D212);
     # W9: the Qwen repetitions written by tools/repetition_rows.py (D171, D178, D192, D203);
     # W4r without dead reckoning off and the LPT keys (D198); W4lr, W5r, W7br: the repetitions (D173, D191, D166
@@ -240,6 +241,23 @@ def test_rb_single_runs_where_rb_decoupled_runs():
     for w in three:
         base = result.configs[f"gemma.rb-static.{w}"]
         assert result.configs[f"gemma.rb-static.abl-round1.{w}"] == {**base, "rounds": rounds}, w
+
+
+def test_the_burst_repetitions_before_the_release():
+    """D229: seeds 2-3 on the nine burst traces, in W5's group: RouteBalance 80/10/10 and AvengersPro 0.80 first, then
+    RB-decoupled and RB-single at 80/10/10."""
+    presets, scope = filled()
+    lease = {**DECISIONS, "rb_default": "rb-static", "decoupled_arm": "rb-static", "headline": "q80l10c10"}
+    result = campaign.render(presets, scope, pins=pins(presets), decisions=lease, fleets=FLEETS)
+    rows = {r["id"]: r for r in result.plan["rows"]}
+    traces = [f"ga{a}-l{r}" for a in ("025", "05", "2") for r in (12, 30, 42)]
+    first = ["qwen.rb-static.q80l10c10", "qwen.ap.pw080.lor"]
+    later = ["qwen.rb-static-dec.q80l10c10", "qwen.rb-static.abl-round1.q80l10c10"]
+    cells = rows["W5s"]["cells"]
+    def want(configs):
+        return {f"{c}__{t}__s{x}" for c in configs for t in traces for x in (2, 3)}
+    assert set(cells[:36]) == want(first) and set(cells[36:]) == want(later) and len(cells) == 72
+    assert rows["W5s"]["groups"] == ["qwen"] and not set(cells) & set(rows["W5"]["cells"])   # beside W5's seed 1
 
 
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
@@ -383,6 +401,7 @@ def test_the_tracked_files_render_with_every_lease_input():
     assert by_block["W4-lpt-key"] == 6 and "W4r-lpt-key" not in by_block                          # D198
     assert not {"W4r-mechanisms", "W4r-learned", "W5r", "W7br-75"} & set(by_block)                  # D225
     assert (by_block["W15"], by_block["W15r"], by_block["W15b"], by_block["W8s"]) == (48, 96, 9, 27)   # D225, D226
+    assert (by_block["W5s"], by_block["W5s-variants"]) == (36, 36)                                 # D229
     assert sum(n for b, n in by_block.items() if b.startswith("W9-")) == 458                         # D203
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():
