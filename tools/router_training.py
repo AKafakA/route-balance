@@ -1,4 +1,4 @@
-"""The routers' training inputs and the AvengersPro artifacts, built fresh for both families (D68-D72).
+"""The routers' training inputs and the AvengersPro artifacts, built fresh for both families.
 
     python -m tools.router_training filter --corpus SCORED.jsonl --fleet FLEET.json --judge-key KEY --out ROWS.jsonl
     python -m tools.router_training avengers-pro --corpus ROWS.jsonl --fleet FLEET.json --judge-key KEY --models M... \
@@ -10,11 +10,11 @@ The corpus is a family's DeepEval-scored training split (JSONL, one prompt per l
 model, response, output_length and llm_judge_scores.<judge key>). --models lists the fleet's models in ascending
 size; it is the order every tie below falls back to.
 
-filter (D69). A prompt stays only if every fleet model has a judge score on it: every builder needs all the
+filter. A prompt stays only if every fleet model has a judge score on it: every builder needs all the
 models' scores on a row (v3's KNN builder would store a missing score as 0.0, its BEST-Route converter too). The
 dropped prompts are listed. The output feeds v3's KNN builder unchanged and the two commands below.
 
-avengers-pro (D72). The prompts are embedded with the pinned MiniLM (normalized, as the router embeds them at route
+avengers-pro. The prompts are embedded with the pinned MiniLM (normalized, as the router embeds them at route
 time) and clustered once per family (k-means, 32 clusters, n_init 10, random_state 0, v3's settings); every pw
 shares the clustering. Each cluster's ranking is upstream AvengersPro's (balance_cluster_router.py,
 compute_balance_score), with the cost it uses: each model's average per-query cost over the cluster's prompts,
@@ -26,13 +26,14 @@ default and changes nothing. v3's builder used one number per model instead (its
 price), the same in every cluster. Output per pw: <out-root>/avengers_pro_<family>_pw<pw>/ with kmeans.joblib,
 cluster_rankings.json ({cluster id: [models, best first]}) and config.json, the files the router loads.
 
-best-route-data (D71). v3's BEST-Route candidates format (its Qwen data converter: instruction, input,
+best-route-data. v3's BEST-Route candidates format (its Qwen data converter: instruction, input,
 output, candidates [text, model <base>_bo1, scores.armoRM_scores = the judge score, token_num_prompt,
 token_num_responses]) for the 4-way head (v3's train_best_route_wrapper.py --num-labels 4), which labels a prompt
 with its FIRST best candidate. The candidates are ordered by each model's mean per-token price (the mean of its
 input and output price), ties in --models order, so a tie goes to the cheapest model: for both families' fleets
-this is the size order (Qwen: v3's order; Gemma: D208's prices). labels.json records that order for --label-models. The
-validation set is 10% of the training prompts (seed 42), never test prompts (v3 took half of the test split).
+this is the size order (Qwen: v3's order; Gemma: its OpenRouter prices). labels.json records that order for
+--label-models. The validation set is 10% of the training prompts (seed 42), never test prompts (v3 took half of the
+test split).
 """
 from __future__ import annotations
 
@@ -83,7 +84,7 @@ def score_of(row: dict, model: str, judge_key: str) -> Optional[float]:
     judged = md.get("llm_judge_scores") if isinstance(md, dict) else None
     s = judged.get(judge_key) if isinstance(judged, dict) else None
     if s is None:
-        return None                     # unscored: filter's escalation (D69) decides
+        return None                     # unscored: filter's escalation decides
     if isinstance(s, bool) or not isinstance(s, (int, float)):
         raise ConfigError(f"{model}: judge score {s!r} is not a number")
     v = float(s)
@@ -105,7 +106,7 @@ def response_of(row: dict, model: str, i: int) -> str:
     return text
 
 
-# ---------------------------------------------------------------- filter (D69)
+# ---------------------------------------------------------------- filter
 
 def keep_scored(rows: Sequence[dict], models: Sequence[str], judge_key: str) -> tuple[list[dict], list[str]]:
     """(the rows every model has a score on, the ids of the rest)."""
@@ -135,7 +136,7 @@ def _tokens(row: dict, model: str, i: int) -> tuple[int, int]:
     return int(p), int(o)
 
 
-# ---------------------------------------------------------------- avengers-pro (D72)
+# ---------------------------------------------------------------- avengers-pro
 
 def matrices(rows: Sequence[dict], models: Sequence[str], prices: Mapping[str, tuple[float, float]],
              judge_key: str) -> tuple[np.ndarray, np.ndarray]:
@@ -229,7 +230,7 @@ def build_avengers_pro(a: argparse.Namespace) -> None:
         print(f"{d}: top model per cluster {tops}")
 
 
-# ---------------------------------------------------------------- best-route-data (D71)
+# ---------------------------------------------------------------- best-route-data
 
 def price_order(models: Sequence[str], prices: Mapping[str, tuple[float, float]]) -> list[str]:
     """The models by mean per-token price, ties in the given (size) order."""

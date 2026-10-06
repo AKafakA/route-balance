@@ -14,20 +14,20 @@ publishes them with completed engine steps and they are scraped every poll_ms), 
 dispatch, or during a long first prefill, a scrape can still show an idle engine, and right after a
 completion it can still show the finished request; the in-flight count covers both without any
 timing assumption. Dead reckoning is RouteBalance's own mechanism; the baselines' views run with it off and their
-load-reading dispatchers read the engine's gauges (owner 09-25); only the appendix row W12 counts the in-flight
-requests themselves (Load.in_flight, the count production proxies keep; D84).
+load-reading dispatchers read the engine's gauges; only the appendix row W12 counts the in-flight
+requests themselves (Load.in_flight, the count production proxies keep).
 
-Three ways to read (config telemetry_read; D53, D55):
+Three ways to read (config telemetry_read):
   poll        the snapshot the background pollers keep, every poll_ms, as production balancers read a scraped
-              cache: the pipeline systems (router + dispatcher, deciding per request), and RouteBalance's D54 control;
+              cache: the pipeline systems (router + dispatcher, deciding per request), and RouteBalance's cache control;
   per_round   RouteBalance's own: every instance fetched once per batch, at each round's start (fetch_round), and
               the whole round scheduled from that fetch;
   per_request v3's baselines: each request fetches its candidates (fetch) and reads the engine's own counts.
 A fetch scrapes every instance it asks for; an instance whose scrape failed, timed out or was malformed is read from
-its last good snapshot (D133), and only an instance never read fails the round or the request.
+its last good snapshot, and only an instance never read fails the round or the request.
 
 Freshness is measured from when a scrape was SENT, so a slow reply cannot pass for fresh data. A failed, slow or
-malformed scrape leaves the last good snapshot in use, as a production balancer's scraped cache does (D133: v5's
+malformed scrape leaves the last good snapshot in use, as a production balancer's scraped cache does (v5's
 refusal of a snapshot older than 500 ms is removed; v2 used the last snapshot too). Every Load carries its
 snapshot's age and its last scrape's error, and every decision logs both. Nothing falls back to an idle default.
 """
@@ -127,7 +127,7 @@ class Load:
     in_flight: int                # requests dispatched and not yet completed or failed (scheduler-side)
     engine_waiting: int           # the engine's own waiting gauge, whatever dead reckoning says: requests
                                   # the engine has received but cannot run yet (the round-size busy signal)
-    error: Optional[str] = None   # the last scrape's failure when it is not this snapshot's (D133: counted)
+    error: Optional[str] = None   # the last scrape's failure when it is not this snapshot's (counted)
 
 
 @dataclass(eq=False)
@@ -194,7 +194,7 @@ class TelemetryView:
         entry = self._entries[inst.instance_id]
         try:
             snapshot = parse_metrics(inst.instance_id, await self._fetch(inst))
-        except InstanceStateUnavailable as e:     # a malformed reply: the last good snapshot stays in use (D133)
+        except InstanceStateUnavailable as e:     # a malformed reply: the last good snapshot stays in use
             if seq > entry.outcome_seq:
                 entry.outcome_seq, entry.error = seq, str(e)
             return
@@ -215,7 +215,7 @@ class TelemetryView:
     async def fetch(self, instance_ids: Sequence[str]) -> dict[str, Load]:
         """Scrape these instances now, concurrently, and return their loads: from this fetch's scrapes, or, for an
         instance whose scrape failed, timed out or was malformed, its last good snapshot, whose age and error the
-        Load carries (D133: counted, never refused). Only an instance never read fails the fetch. Each scrape is
+        Load carries (counted, never refused). Only an instance never read fails the fetch. Each scrape is
         bounded by the scrape timeout. Only without background pollers."""
         if self._state == "running":
             raise RuntimeError("fetch() with background pollers running: a view either polls or fetches")
@@ -224,7 +224,7 @@ class TelemetryView:
         return self._loads(instance_ids)
 
     async def fetch_round(self) -> dict[str, Load]:
-        """RouteBalance's per-batch load fetch (D53): every instance, at a round's start."""
+        """RouteBalance's per-batch load fetch: every instance, at a round's start."""
         return await self.fetch([i.instance_id for i in self._instances])
 
     async def _run_one(self, inst: Instance) -> None:
@@ -265,7 +265,7 @@ class TelemetryView:
     # ---------------------------------------------------------------- reads and updates
 
     def loads(self, instance_ids: Iterable[str]) -> dict[str, Load]:
-        """The loads from the current snapshots, whatever their age (each Load carries it; D133)."""
+        """The loads from the current snapshots, whatever their age (each Load carries it)."""
         return self._loads(instance_ids)
 
     def _loads(self, instance_ids: Iterable[str]) -> dict[str, Load]:

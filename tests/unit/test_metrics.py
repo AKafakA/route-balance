@@ -43,7 +43,7 @@ def _summary(outcomes=CELL, duration=4.0, corpus=CORPUS, prices=PRICES, problems
 
 
 def test_total_cost_prices_the_served_prompt_and_the_output():
-    """D117: prompt tokens (vLLM's served count) at the input price + output tokens at the output price."""
+    """prompt tokens (vLLM's served count) at the input price + output tokens at the output price."""
     cell = [_ok("p0", "small", 10, 0.5, served=7), _ok("p1", "large", 20, 1.5, served=9)]
     s = summarize("c1", cell, 4.0, CORPUS, PRICES, SLO, (), {"small": 2e-7, "large": 3e-7})
     assert s.cost_total_per_1k == pytest.approx((7 * 2e-7 + 10 * 1e-7 + 9 * 3e-7 + 20 * 4e-7) / 2 * 1000)
@@ -228,7 +228,7 @@ def test_a_second_template_on_the_serving_side_is_caught(tmp_path):
     assert s.prompt_token_mismatches == 12 and not s.valid
 
 
-# ---------------------------------------------------------------- the budget sweep's cells (D67)
+# ---------------------------------------------------------------- the budget sweep's cells
 
 def _budget_record(tmp_path, budgets):
     """The fake cell as a budget cell: request i carries budgets[i] (fake replies: 10 output tokens, "ok")."""

@@ -120,7 +120,7 @@ class HttpSchedulerClient:
     async def __aenter__(self) -> "HttpSchedulerClient":
         trace = aiohttp.TraceConfig()
         trace.on_connection_queued_start.append(self._on_queued)
-        # D134: vLLM bench's stock connector (no connection limit, keep-alive); max_connections sizes the open-file check
+        # vLLM bench's stock connector (no connection limit, keep-alive); max_connections sizes the open-file check
         self._session = aiohttp.ClientSession(connector=stock_connector(), trace_configs=[trace],
                                               timeout=aiohttp.ClientTimeout(total=self.timeout_s))
         return self

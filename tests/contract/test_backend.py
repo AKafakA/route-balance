@@ -45,7 +45,7 @@ def test_payload_sends_the_raw_prompt_once_and_the_fork_fields():
 
 
 def test_payload_carries_the_tiers_stop_tokens():
-    """D102: a tier's stop_token_ids go with every request to it (the Qwen2.5 base models' <|im_end|>)."""
+    """a tier's stop_token_ids go with every request to it (the Qwen2.5 base models' <|im_end|>)."""
     import dataclasses
     import tests.contract.test_metrics as tm
     state = FakeState()

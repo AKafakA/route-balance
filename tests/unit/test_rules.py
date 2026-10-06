@@ -20,7 +20,7 @@ FILLED = {
 
 
 def test_the_tracked_file_holds_the_owners_values():
-    """Set 09-25 (owner): equal quality within 0.005, 1000 paired resamples at 95%; the day-1 check's thresholds."""
+    """Set 09-25: equal quality within 0.005, 1000 paired resamples at 95%; the day-1 check's thresholds."""
     rules = load_rules(TRACKED)
     assert rules.equal_quality.model_dump() == {"tolerance": 0.005, "bootstrap_resamples": 1000, "confidence": 0.95,
                                                 "bootstrap_seed": 0}
@@ -78,7 +78,7 @@ def test_invalid_rules_fail(mutate):
 
 
 def test_the_tracked_slo_is_sola_by_model_size():
-    """D57: tight / loose k = 10 / 15 for models up to 14B, 5 / 10 for 27B and above; goodput at 90% and 99%."""
+    """tight / loose k = 10 / 15 for models up to 14B, 5 / 10 for 27B and above; goodput at 90% and 99%."""
     slo = json.loads(TRACKED.read_text())["slo"]
     fleets = [json.loads((TRACKED.parent / f).read_text()) for f in ("fleet_qwen.json", "fleet_gemma.json")]
     models = {t["model"] for f in fleets for t in f["tiers"].values()}

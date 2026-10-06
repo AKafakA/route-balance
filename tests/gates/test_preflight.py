@@ -112,7 +112,7 @@ SCHEDULER_FAIL = [
     (stats(lambda s: s.__setitem__("telemetry_age_ms", {"error": "S_0: no usable telemetry"})),
      "the pollers hold no snapshot for every instance"),
     (stats(lambda s: s["telemetry_age_ms"].popitem()), "the pollers hold no snapshot for every instance"),
-    # D133: an old snapshot is counted, never a preflight failure
+    # an old snapshot is counted, never a preflight failure
     (stats(lambda s: s.__setitem__("telemetry_age_ms", None)), "scheduler: /v1/stats"),     # poll without ages
     ({"/v1/stats": Reply(200, '{"active": 0}', None)}, "scheduler: /v1/stats"),
     ({"/v1/stats": Reply(200, "null", None)}, "/v1/stats: the reply is not a JSON object"),
@@ -147,7 +147,7 @@ def per_round_manifest(d):
 
 
 def test_a_per_round_system_needs_no_cache_ages():
-    """D53: RouteBalance fetches every engine at each round start and fails the round on a miss; preflight does not
+    """RouteBalance fetches every engine at each round start and fails the round on a miss; preflight does not
     ask it for cache ages (the engines are checked directly)."""
     config, fleet_d = expect()
     per_round = stats(lambda s: s.update(telemetry_read="per_round", telemetry_age_ms=None))
@@ -156,7 +156,7 @@ def test_a_per_round_system_needs_no_cache_ages():
 
 
 def test_a_per_request_probe_needs_no_cache_ages():
-    """D55: v3's probe arm fetches its candidates per request; like the per-round read it keeps no cache."""
+    """v3's probe arm fetches its candidates per request; like the per-round read it keeps no cache."""
     config, fleet_d = expect()
     probe = stats(lambda s: s.update(telemetry_read="per_request", telemetry_age_ms=None))
     probe_manifest = manifest(lambda d: (d["system"].update(telemetry_read="per_request"),

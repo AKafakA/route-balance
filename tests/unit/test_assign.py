@@ -63,7 +63,7 @@ def test_later_requests_see_earlier_assignments_in_the_round():
 
 
 def test_each_decision_is_handed_over_before_the_next_request_is_scored():
-    """D78: on_decision sees every decision, in order, as soon as it is made; the decisions are unchanged."""
+    """on_decision sees every decision, in order, as soon as it is made; the decisions are unchanged."""
     w = Weights(w_quality=0.0, w_latency=1.0, w_cost=0.0)
     lat = QueueLatency()
     seen = []
@@ -105,7 +105,7 @@ def test_a_missing_model_estimate_raises():
 
 
 def test_the_cost_term_prices_the_prompt_and_the_expected_output():
-    """D117: each candidate's cost is the prompt at the input price + the expected length at the output price."""
+    """each candidate's cost is the prompt at the input price + the expected length at the output price."""
     d = run_round([req("a")])[0]                           # prompt 50 tokens; S 100 tokens expected, L 80
     cost = {s.candidate.instance_id: s.candidate.cost for s in d.scored}
     assert cost == pytest.approx({"s0": 50 * 1e-7 + 100 * 1e-7, "s1": 50 * 1e-7 + 100 * 1e-7, "l0": 50 * 4e-7 + 80 * 4e-7})
@@ -206,7 +206,7 @@ def test_lpt_off_keeps_arrival_order_and_records_the_max_as_v3():
 
 
 def test_normalizing_over_the_round_uses_the_rounds_ranges_and_the_running_latency_maximum():
-    """D137: quality and cost are scaled by the round's range over every request x instance, latency (max_divide) by
+    """quality and cost are scaled by the round's range over every request x instance, latency (max_divide) by
     the largest latency the round has scored so far; each decision logs its scales."""
     from routebalance.schedule.score import EPS
     r1, r2 = req("a", s_len=100.0, l_len=80.0, qs=0.5, ql=0.9), req("b", s_len=40.0, l_len=30.0, qs=0.3, ql=0.6)
@@ -239,7 +239,7 @@ def test_an_empty_round_decides_nothing_under_either_normalization():
 
 
 def test_the_running_latency_maximum_grows_with_the_round():
-    """D137: in arrival order (lpt off) a later, longer request raises the maximum its own terms divide by; the
+    """in arrival order (lpt off) a later, longer request raises the maximum its own terms divide by; the
     earlier request's terms keep the smaller one."""
     short, long_ = req("a", s_len=10.0, l_len=10.0), req("b", s_len=400.0, l_len=400.0)
     d1, d2 = run_round([short, long_], normalize_over="round", lpt="off", pending_decode="lpt_key")
@@ -249,7 +249,7 @@ def test_the_running_latency_maximum_grows_with_the_round():
 
 
 def test_under_the_budget_filter_the_round_scales_cover_every_instance():
-    """D137 (v3's tracked context): the round's quality range and cost maximum are taken over every request x fleet
+    """v3's tracked context: the round's quality range and cost maximum are taken over every request x fleet
     instance when the round opens, before the budget filter keeps a subset of a request's candidates."""
     expensive = req("x", s_len=100.0, l_len=100.0, qs=0.2, ql=0.95, budget=1e-12)   # nothing fits: the cheapest remain
     ds = run_round([expensive, req("y")], normalize_over="round", admission=Admission())

@@ -1,4 +1,4 @@
-"""The engines a cell ran on, as each engine reports itself (D48, the first rule checked on execution).
+"""The engines a cell ran on, as each engine reports itself (the first rule checked on execution).
 
 For every instance of the cell's fleet, read from the engine itself:
   start_time_s   process_start_time_seconds from its /metrics (vLLM's one API server exposes the default
@@ -176,7 +176,7 @@ SERVED = {"requests": "vllm:request_success_total", "prompt_tokens": "vllm:promp
 
 
 def served(instance_id: str, text: str) -> dict:
-    """D132: the engine's cumulative serving counters, each summed over its series (request_success_total has one per
+    """the engine's cumulative serving counters, each summed over its series (request_success_total has one per
     finished_reason, abort and error included). The change over a cell must be the cell's own requests there."""
     got = {name: [] for name in SERVED.values()}
     for line in text.splitlines():

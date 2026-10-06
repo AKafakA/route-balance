@@ -27,7 +27,7 @@ def test_the_adaptive_limits_are_the_schedulers():
     assert ADAPTIVE_LIMITS == {(size, timeout) for _, size, timeout in ROUNDS_LIMITS}
     from gates.arm import BACKLOG_CAP
     from routebalance.schedule.rounds import BACKLOG_CAP as ROUNDS_CAP
-    assert BACKLOG_CAP == ROUNDS_CAP                                # D123
+    assert BACKLOG_CAP == ROUNDS_CAP                                # the largest round
 
 
 def lines(fn):
@@ -121,7 +121,7 @@ def more_engine_waits(d):
 
 
 MUST_FAIL = [
-    # a connection bound that was reached invalidates the cell (owner 09-25): rerun with a larger bound
+    # a connection bound that was reached invalidates the cell: rerun with a larger bound
     (LOR, stats_after(more_engine_waits), "engine connection pool made requests wait (1 waits)"),
     (RB_MAXDIV, stats_after(lambda d: d["connection_waits"].__setitem__("telemetry", 5)),
      "telemetry connection pool made"),
@@ -154,7 +154,7 @@ MUST_FAIL = [
      "fixed round limits are not the configured ones"),
     (RB_FIXEDREF, round_one(lambda ms: [m.__setitem__("round_max_batch", 33) for m in ms]),   # above the cap: never
      "not an adaptive pair widened to the round's backlog"),                                  # a valid limit
-    (RB_FIXEDREF, round_one(lambda ms: [m.__setitem__("round_backlog", 20) for m in ms]),        # D123: 20 waiting,
+    (RB_FIXEDREF, round_one(lambda ms: [m.__setitem__("round_backlog", 20) for m in ms]),        # 20 waiting,
      "not an adaptive pair widened to the round's backlog"),                                   # max_batch not 20
     (RB_FIXEDREF, round_one(lambda ms: [m.pop("round_backlog") for m in ms]), "decision line is malformed"),
     (RB_MAXDIV, round_one(lambda ms: ms[1].__setitem__("round_pos", ms[0]["round_pos"])), "distinct positions"),
@@ -198,12 +198,12 @@ MUST_FAIL = [
     (SWEEP, first(lambda ln: ln.__setitem__("decode_tokens", ln["feature_tokens"] + 1)),
      "decode_tokens do not follow pending_decode own_length"),
     (SWEEP, first(lambda ln: ln.pop("lengths")), "decision line is malformed"),
-    # D135: the router lane ran with the configuration's concurrency
+    # the router lane ran with the configuration's concurrency
     (DECOUPLED, lambda c: edit_manifests(c, lambda m: m["loaded"].__setitem__("router_lane_threads", 1)),
      "ran on another number of threads than the configuration's concurrency"),
     (RB_MAXDIV, lambda c: edit_manifests(c, lambda m: m["loaded"].__setitem__("router_lane_threads", 32)),
      "ran on another number of threads than the configuration's concurrency"),
-    # D137: the round's scales
+    # the round's scales
     (RB_ROUND, first(set_("scales", None)), "scales are logged exactly when the score normalizes over the round"),
     (RB_MAXDIV, first(set_("scales", {"q_min": 0.0, "q_max": 1.0, "c_max": 1.0, "l_max": 9.0})),
      "scales are logged exactly when the score normalizes over the round"),

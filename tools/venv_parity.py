@@ -1,7 +1,6 @@
 """The test venv a node runs the suite in (scripts/setup.sh --with-tests) must be the serving stack plus the dev
 extras: every package of the scheduler venv at the same version, and beyond it only the dev extras' packages. The
-test venv is built constrained to the scheduler venv's versions, then compared; the test suite compares again at
-run time (tests/equivalence/conftest.py), so a scheduler venv rebuilt later is caught too.
+test venv is built constrained to the scheduler venv's versions, then compared.
 
     python -m tools.venv_parity SCHED_FREEZE TEST_FREEZE     exit 1 with the differences if the stacks differ
     python -m tools.venv_parity --constraints SCHED_FREEZE   the scheduler venv's pins, as a pip constraints file

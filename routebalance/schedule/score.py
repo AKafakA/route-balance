@@ -6,7 +6,7 @@ For request r and candidate instance i (serving model m on GPU g), all three ter
 
     Q_i = (q_i - min_j q_j) / (max_j q_j - min_j q_j + eps)    predicted quality, min-max over the candidates
     C_i = 1 - c_i / (max_j c_j + eps)                          predicted cost: prompt tokens x input price
-                                                               + expected length x output price (D117)
+                                                               + expected length x output price
     L_i = 1 - l_i / (max_j l_j + eps)                          "max_divide" (the v3 normalization), or
     L_i = min_j l0_j / l_i                                     "fixed_ref": against the request's best UNLOADED latency
 
@@ -35,7 +35,7 @@ class Candidate:
     instance_id: str
     model: str
     quality: float                        # predicted quality of this request's answer on the model
-    cost: float                           # predicted cost, dollars: prompt at the input price + expected output (D117)
+    cost: float                           # predicted cost, dollars: prompt at the input price + expected output
     latency_s: float                      # load-aware latency estimate
     unloaded_latency_s: Optional[float]   # the same estimate on an idle instance; fixed_ref only
     queue_depth: int                      # running + waiting (tie-break)
@@ -44,7 +44,7 @@ class Candidate:
 
 @dataclass(frozen=True)
 class Scales:
-    """In-batch normalization (D137): the round's quality range and cost maximum over every request x fleet instance
+    """In-batch normalization: the round's quality range and cost maximum over every request x fleet instance
     (when the round opens, before any budget filter: v3's tracked context), and
     the largest load-aware latency of every candidate the round has scored so far (this request's included)."""
     q_min: float
@@ -74,7 +74,7 @@ def _check(c: Candidate, normalization: Normalization) -> None:
 
 def score(cands: Sequence[Candidate], *, w_quality: float, w_cost: float, w_latency: float,
           normalization: Normalization, scales: Optional[Scales] = None) -> list[Scored]:
-    """scales None: each term over this request's own candidates (v3); given: over the round (D137). fixed_ref's
+    """scales None: each term over this request's own candidates (v3); given: over the round. fixed_ref's
     latency term is a ratio to the request's own unloaded reference either way."""
     if not cands:
         raise ValueError("no candidates to score")

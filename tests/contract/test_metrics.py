@@ -63,14 +63,14 @@ def test_gauges_are_read_through_the_real_exposition_format():
     (FakeState(duplicate=("vllm:num_requests_running",)), "more than once"),
 ])
 def test_an_instance_that_never_answered_well_is_unavailable(state, match):
-    """No good snapshot at all: there is no load to read (the only case that fails, D133)."""
+    """No good snapshot at all: there is no load to read (the only case that fails)."""
     with pytest.raises(InstanceStateUnavailable, match=match):
         _read(state)
 
 
 @pytest.mark.parametrize("raw", [b"\xff\xfe", b"vllm:num_requests_running{a=\"b\"} NaN\n", b"no metrics here\n"])
 def test_a_malformed_body_after_a_good_snapshot_keeps_it_and_records_the_error(raw):
-    """D133 (owner: counted, never refused): the last good snapshot stays in use."""
+    """Counted, never refused: the last good snapshot stays in use."""
     def mutate(state):
         state.raw_body = raw
     load = _read(FakeState(running=1), mutate)

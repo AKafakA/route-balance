@@ -1,4 +1,4 @@
-"""The report (plan Part B): the lease's cells to the paper's numbers, with every input checked."""
+"""The report: the lease's cells to the paper's numbers, with every input checked."""
 import asyncio
 import hashlib
 import json
@@ -22,7 +22,7 @@ from analysis import manifest as _manifest
 
 @pytest.fixture(autouse=True)
 def _isolated(monkeypatch):
-    """These tests are about the report; the isolation evidence (D128/D132) has its own tests (tests/gates)."""
+    """These tests are about the report; the isolation evidence has its own tests (tests/gates)."""
     monkeypatch.setattr(_manifest, "isolation_problems", lambda d: [])
 
 CONFIGS = {"rb-a": ("RouteBalance", CONFIG_DIGEST), "ap-x": ("AvengersPro", "a" * 64)}
@@ -218,7 +218,7 @@ def test_the_dispatch_only_in_flight_row_is_appendix_only():
 
 
 def test_both_equal_quality_readings_are_written(env):
-    # D86: the same runs, read with one configuration for every metric and with each metric on its own frontier
+    # the same runs, read with one configuration for every metric and with each metric on its own frontier
     out = env["tmp"] / "r6"
     assert rp.main(_argv(env, out)) == 0
     report = json.loads((out / "report.json").read_text())
@@ -243,7 +243,7 @@ def test_a_value_read_at_higher_quality_is_marked():
 
 
 def test_a_higher_quality_read_is_marked_in_ranges_and_kept_out_of_the_strict_macros():
-    # the local reviewer's cases (D87): a seed read at higher quality inside a range, and a macro range across a
+    # the local reviewer's cases: a seed read at higher quality inside a range, and a macro range across a
     # higher-quality comparison and an equal-quality one
     d = {"at_higher_quality": False, "per_seed": [{"at_higher_quality": True}, {"at_higher_quality": False}],
          "higher_resamples": 0}

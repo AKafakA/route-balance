@@ -1,4 +1,4 @@
-"""The routers' training inputs and AvengersPro artifacts (D68-D72): the row filter, upstream AvengersPro's
+"""The routers' training inputs and AvengersPro artifacts: the row filter, upstream AvengersPro's
 per-cluster balance ranking with per-query costs, and the BEST-Route candidates ordered by price."""
 import json
 
@@ -31,7 +31,7 @@ def test_the_real_fleets_prices_and_gemmas_price_order():
     assert qwen["Qwen/Qwen2.5-72B"] == (3.8e-07, 4e-07) and set(qwen) == set(QWEN)
     assert rt.price_order(QWEN, qwen) == QWEN                        # Qwen: price follows size (v3's order)
     gemma = rt.fleet_prices("configs/fleet_gemma.json")
-    assert rt.price_order(GEMMA, gemma) == GEMMA                     # Gemma (D208's prices): size order too
+    assert rt.price_order(GEMMA, gemma) == GEMMA                     # Gemma (its OpenRouter prices): size order too
 
 
 def test_the_price_order_reorders_by_mean_price_and_keeps_ties_in_the_given_order():

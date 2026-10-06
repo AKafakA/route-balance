@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Restart the scheduler on its own node, as a fresh process, before a cell (D132, as v3's per-cell runner did).
+# Restart the scheduler on its own node, as a fresh process, before a cell (as v3's per-cell runner did).
 #
 #   scripts/restart_scheduler.sh RUN_DIR LOG_DIR
 #

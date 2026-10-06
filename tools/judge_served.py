@@ -1,4 +1,4 @@
-"""The judge loop for the budget sweep's served texts (D67): collect every text that has no score yet, and merge
+"""The judge loop for the budget sweep's served texts: collect every text that has no score yet, and merge
 the judge's scores back into the served-text score store (analysis/quality.py ScoreStore).
 
     python -m tools.judge_served collect --judge-key K --store STORE.jsonl... --cells ROOT... --render DIR
@@ -7,11 +7,11 @@ the judge's scores back into the served-text score store (analysis/quality.py Sc
                                        --judge-output JUDGE_OUTPUT.jsonl --out NEW_STORE.jsonl
 
 A budget cell's quality is the judged score of the text it actually served: a reply cut short by its budget is
-judged as served (every other cell's quality is the lookup of its prompt and model, D62). collect reads every
+judged as served (every other cell's quality is the lookup of its prompt and model). collect reads every
 successful request of every budget cell (a record with a budget table) under the cells roots
 (<root>/<cell_id>/<cell_id>.cell.json); other cells are skipped and counted. A text is a (prompt, model,
 sha256(text)) key; one already scored under the judge key is skipped, and each remaining key is written once. An
-empty text is not sent (the judge scores no empty response): the store scores it 0 (D67, as v2 and v3). The
+empty text is not sent (the judge scores no empty response): the store scores it 0 (as v2 and v3). The
 prompt's reference answer comes from the scored corpora the render's plan pins (scored_corpora.<family>: path
 under the data root and sha256, checked); the judge is reference-grounded, and a prompt without a reference
 answer fails the collection.
@@ -132,7 +132,7 @@ def collect(judge_key: str, store: Sequence[Path], cells: Sequence[Path],
             continue
         seen.add(key)
         if not text:
-            empty += 1                                   # scored 0 by the store (D67), never sent
+            empty += 1                                   # scored 0 by the store, never sent
             continue
         if prompt not in refs:
             missing_ref.append(where)

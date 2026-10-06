@@ -174,7 +174,7 @@ TPOT = {"Qwen/Qwen2.5-14B": 0.02, "Qwen/Qwen2.5-3B": 0.01, "Qwen/Qwen2.5-72B": 0
 
 def reference(est, tpot, w, normalization, tiers=TIER_LIST, prompt_tokens=12):
     q = [est[t.model].quality for t in tiers]
-    c = [prompt_tokens * t.cost_in + est[t.model].expected_len * t.cost_out for t in tiers]      # D117
+    c = [prompt_tokens * t.cost_in + est[t.model].expected_len * t.cost_out for t in tiers]      # prompt + expected output
     lat = [tpot[t.model] * est[t.model].expected_len for t in tiers]
     out = {}
     for t, qi, ci, li in zip(tiers, q, c, lat, strict=True):
@@ -195,11 +195,11 @@ def test_decoupled_is_the_argmax_of_the_objective_with_unloaded_latency(normaliz
     best = max(ref, key=ref.get)
     assert d.model == best and d.score == pytest.approx(ref[best], abs=1e-12)
     assert seen["thread"].startswith("router") and seen["prompts"] == ["hello"]
-    assert seen["prompt_tokens"] == {400}          # D118: every idle latency gets the request's prompt count
+    assert seen["prompt_tokens"] == {400}          # every idle latency gets the request's prompt count
 
 
 def test_decoupled_prices_the_prompt_and_refuses_a_request_without_its_count():
-    """D117: RB-decoupled's cost is RouteBalance's: the prompt at the input price + the expected output."""
+    """RB-decoupled's cost is RouteBalance's: the prompt at the input price + the expected output."""
     same = {m: Estimate(0.5, 10.0) for m in EST}
     cheap_in = Tier("in_a30", "Qwen/Qwen2.5-3B", "a30", 1e-9, 5e-7, 4, ())
     cheap_out = Tier("out_a30", "Qwen/Qwen2.5-7B", "a30", 5e-7, 1e-9, 4, ())
@@ -244,7 +244,7 @@ def test_decoupled_raises_on_missing_or_bad_estimates():
 # ---------------------------------------------------------------- construction from config
 
 def router(rtype, kwargs):
-    """A router config; every router that calls a model takes a concurrency (D135), passthrough none."""
+    """A router config; every router that calls a model takes a concurrency, passthrough none."""
     return Router(type=rtype, kwargs=kwargs, concurrency=None if rtype == "passthrough" else 1)
 
 
@@ -328,10 +328,10 @@ def test_build_rb_decoupled_needs_its_inputs():
         build("rb_decoupled", {"k": 1}, decoupled=inputs)
 
 
-# ---------------------------------------------------------------- the router lane (owner 09-25)
+# ---------------------------------------------------------------- the router lane
 
 def test_the_router_lane_runs_as_many_model_calls_at_once_as_its_concurrency():
-    """D135: concurrency 1 is the shipped pattern (RouteLLM, NVIDIA's LLM Router: requests queue at the router, one call
+    """concurrency 1 is the shipped pattern (RouteLLM, NVIDIA's LLM Router: requests queue at the router, one call
     at a time); 32, the main setting, lets a burst's calls overlap (up to RouteBalance's largest round)."""
     from routebalance.baselines.routers import router_lane
     for threads, want_peak in ((1, 1), (32, 6)):
@@ -360,7 +360,7 @@ def test_the_router_lane_runs_as_many_model_calls_at_once_as_its_concurrency():
         assert elapsed >= 6 * 0.05 if threads == 1 else elapsed < 6 * 0.05
 
 
-# ---------------------------------------------------------------- BEST-Route as its authors ship it (D79)
+# ---------------------------------------------------------------- BEST-Route as its authors ship it
 
 QWEN = ["Qwen/Qwen2.5-3B", "Qwen/Qwen2.5-7B", "Qwen/Qwen2.5-14B", "Qwen/Qwen2.5-72B"]
 
@@ -391,7 +391,7 @@ def test_the_cheapest_first_order_is_the_fleets_price_order_not_the_rankers():
     gemma = ["g-1b", "g-4b", "g-12b", "g-27b"]                    # the ranker's order: ascending size, reference last
     prices = {"g-1b": 1e-7, "g-4b": 6e-8, "g-12b": 1e-7, "g-27b": 1.2e-7}
     order = price_order(gemma, prices)
-    assert order == ["g-4b", "g-1b", "g-12b", "g-27b"]            # D71: 1B and 12B tie, the smaller first
+    assert order == ["g-4b", "g-1b", "g-12b", "g-27b"]            # 1B and 12B tie, the smaller first
     r = upstream([0.5, 0.1, 0.4, 1.0], 0.3, candidates=gemma, by_price=order)
     assert choose(r, pool=gemma).model == "g-1b"                  # 4B (0.1) is cheaper but misses t = 0.3
     assert choose(upstream([0.5, 0.1, 0.4, 1.0], 0.0, candidates=gemma, by_price=order), pool=gemma).model == "g-4b"

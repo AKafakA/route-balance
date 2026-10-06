@@ -1,6 +1,6 @@
 """Does vLLM stop at Qwen's <|im_end|> when it is sent as the standard OpenAI `stop` string instead of vLLM's
-`stop_token_ids`? (owner 09-30: "a then b and stated in the appendix": test (a), the standard field; if it does not
-stop, (b) omit it.) vLLM-SR v0.4.0 accepts only the OpenAI chat fields, so `stop_token_ids` [151645] (D102) cannot pass.
+`stop_token_ids`? (test (a), the standard field; if it does not
+stop, (b) omit it.) vLLM-SR v0.4.0 accepts only the OpenAI chat fields, so `stop_token_ids` [151645] cannot pass.
 
 Sends each prompt three times to one vLLM engine, with the campaign's sampling (temperature 0, repetition_penalty 1.0,
 frequency_penalty 1.2, max_completion_tokens 1024):

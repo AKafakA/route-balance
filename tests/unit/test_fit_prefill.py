@@ -1,4 +1,4 @@
-"""The prefill table's fit (tools/fit_prefill.py, D118): a least-squares line per tier on the calibration's
+"""The prefill table's fit (tools/fit_prefill.py): a least-squares line per tier on the calibration's
 single-request level, refused when it is not a usable prefill line."""
 import json
 

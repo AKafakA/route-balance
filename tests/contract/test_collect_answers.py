@@ -1,4 +1,4 @@
-"""D102: every model answers every prompt once, directly on the engines, with the serving payload."""
+"""every model answers every prompt once, directly on the engines, with the serving payload."""
 import asyncio
 import dataclasses
 import json

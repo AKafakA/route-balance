@@ -97,7 +97,7 @@ def test_least_outstanding_reads_the_views_queue():
 
 
 def test_in_flight_least_outstanding_counts_the_schedulers_own_requests():
-    """D82 (Envoy / NGINX least_conn): the count is the requests the scheduler sent and has not seen complete,
+    """Envoy / NGINX least_conn: the count is the requests the scheduler sent and has not seen complete,
     whatever the lagging gauges say (i1's gauge still shows an idle engine right after 40 dispatches)."""
     loads = loads_for(SEVEN, i0=load(running=3, in_flight=3), i1=load(in_flight=40), i2=load(waiting=1, in_flight=2),
                       i3=load(running=1, in_flight=1), i4=load(running=5, in_flight=5))
@@ -121,7 +121,7 @@ def test_an_unknown_count_is_refused():
 
 def test_under_dead_reckoning_the_queue_is_the_in_flight_count():
     """On a dead-reckoned view (RouteBalance's own, and the latency sweep's) running + waiting is the in-flight
-    count whatever the gauges say, so one queue rule serves every view (D40)."""
+    count whatever the gauges say, so one queue rule serves every view."""
     import asyncio
     from routebalance.telemetry import TelemetryView
     gauges = {"a": (0, 0), "b": (7, 3)}
@@ -286,7 +286,7 @@ def test_build_dispatcher_passes_the_count(count):
 
 def test_shortest_queue_is_not_a_dispatcher():
     with pytest.raises(ValidationError, match="least_outstanding"):
-        Dispatch(type="shortest_queue", seed=1)                  # merged into least_outstanding (D40)
+        Dispatch(type="shortest_queue", seed=1)                  # merged into least_outstanding
 
 
 def test_build_lowest_latency_takes_the_configured_window():

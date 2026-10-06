@@ -21,8 +21,8 @@
 #              (tokenizer files only; configs/scheduler_hub.json lists both). No driver: the scheduler is CPU-only.
 #              --with-tests also builds $TEST_VENV: this repository with the dev extras (pytest), for running the
 #              test suite on the node against the same pins and Hub snapshots; nothing serves from it.
-#   vsr        (the scheduler's node, after its scheduler role; D146, D150) Docker from Ubuntu's archive (docker.io
-#              $DOCKER_IO_VERSION, the owner's choice), the lease user in the docker group, $VSR_VENV with vllm-sr and
+#   vsr        (the scheduler's node, after its scheduler role) Docker from Ubuntu's archive (docker.io
+#              $DOCKER_IO_VERSION), the lease user in the docker group, $VSR_VENV with vllm-sr and
 #              the versions it was tested with (vllm-sr-bench/requirements-vsr.txt), the four images vLLM-SR 0.4.0 runs,
 #              pulled by their pinned digests and tagged as its CLI names them (vllm-sr-bench/vsrbench/constants.py),
 #              and the router's classifier weights at --vsr-models checked file by file (vllm-sr-bench/models.sha256).
@@ -32,7 +32,7 @@
 # Exit status: 0 ready; 1 failed; 3 REBOOT REQUIRED (the driver needs a reboot: reboot the node, then run
 # the same command again; it continues where it stopped). A node with the scheduler runs both roles.
 # The token file is read by Python only; the token is never printed, logged or put on a command line.
-# Nothing is ever installed into the system Python or into a virtualenv this script did not create (R1).
+# Nothing is ever installed into the system Python or into a virtualenv this script did not create.
 # Log: ~/.rb-setup/setup.<role>.<UTC time>.log (the root disk: it exists before /mydata does).
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -52,7 +52,7 @@ AP_FILE=simple_cluster_router.py
 AP_UPSTREAM_MD5=a845b36763db4ba4c22f87d78753c4bb  # $AP_FILE at $AP_COMMIT
 AP_PATCHED_MD5=658d5d1a874d71a6dcb77700e1f2a2c4   # after the local patch below (the copy v3 served)
 BR_URL=https://github.com/microsoft/best-route-llm.git
-BR_COMMIT=fc9b896a814acf7c00565fbea0803a8c20812702  # BEST-Route's authors' code, unpatched (D79)
+BR_COMMIT=fc9b896a814acf7c00565fbea0803a8c20812702  # BEST-Route's authors' code, unpatched
 LLM_BLENDER_COMMIT=33204d2712944b6b17996f7c079e74cd963ccc7c   # == the pyproject pin (tests check)
 SPEC_RE='^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*@[0-9a-f]{40}$'
 
@@ -80,7 +80,7 @@ step() { echo; echo "===== [$(ts)] $* ====="; }
 die() { echo "[$(ts)] SETUP FAILED: $*" >&2; exit 1; }
 
 ROLE="" TOKEN_FILE="" MODELS=() TOKENIZERS=() DATA_DISK="" WITH_TESTS=0 VSR_MODELS_SRC=""
-# Ubuntu 22.04's docker.io (jammy-updates) as the lease nodes' archive offered it on 30 Sep (owner: "Ubuntu's docker.io")
+# Ubuntu 22.04's docker.io (jammy-updates) as the lease nodes' archive offered it on 30 Sep
 DOCKER_IO_VERSION="29.1.3-0ubuntu3~22.04.2"
 
 parse_args() {
@@ -291,7 +291,7 @@ mig_off() {
   fi
 }
 
-# ---------------------------------------------------------------- virtualenvs (R1: only ones made here)
+# ---------------------------------------------------------------- virtualenvs (only ones made here)
 
 # new_venv DIR SPEC: create DIR for SPEC, or accept it if this script completed it for the same SPEC.
 # Returns 0 when the caller must install into it, 1 when it is complete already.
@@ -378,13 +378,13 @@ docker_engine() {
   have=$(dpkg-query -W -f '${Version}' docker.io 2>/dev/null || true)
   [ -z "$have" ] || installed docker.io || die "docker.io $have is not fully installed (unpacked or half-configured): R1"
   # v2's vLLM-SR deployment guide (2026-05-03: "Always set data-root: /mydata/docker before starting Docker"; the root
-  # disk is 63 GB), written before the package's first start of the daemon; D168 (owner: "v2's storage"): Docker 29's
+  # disk is 63 GB), written before the package's first start of the daemon; as v2's storage: Docker 29's
   # containerd image store off, so images and layers stay under the data root in Docker's classic store, as v2 ran
   conf='{"data-root":"'"$DOCKER_ROOT"'","features":{"containerd-snapshotter":false}}'
   if [ "$have" != "$DOCKER_IO_VERSION" ]; then
     [ -z "$have" ] || die "docker.io $have is installed, not $DOCKER_IO_VERSION: it is never replaced here (R1)"
     sudo apt-get update || die "apt-get update"
-    # R1, nothing installed is changed here: apt's own dry run first (before anything is written), refused if it would
+    # nothing installed is changed here: apt's own dry run first (before anything is written), refused if it would
     # upgrade, downgrade or remove any installed package ("Inst <pkg> [<installed version>] ..." or "Remv")
     sim=$(apt-get -s install --no-remove "docker.io=$DOCKER_IO_VERSION") || die "apt-get -s install docker.io"
     changed=$(printf '%s\n' "$sim" | grep -E '^(Inst [^ ]+ \[|Remv )' || true)
@@ -400,7 +400,7 @@ docker_engine() {
       "docker.io=$DOCKER_IO_VERSION" || die "apt-get install docker.io"
   fi
   [ "$(cat /etc/docker/daemon.json)" = "$conf" ] || die "/etc/docker/daemon.json is not $conf"
-  # D165 (owner): Docker runs only during the vLLM-SR blocks, so never at boot: started here, its units disabled (and
+  # Docker runs only during the vLLM-SR blocks, so never at boot: started here, its units disabled (and
   # ubuntu-fan's, a package apt's default install brings with docker.io, as v2's install did)
   local u
   for u in docker.service docker.socket containerd.service ubuntu-fan.service; do
@@ -463,7 +463,7 @@ self_check_vsr() {
   [ "$(sudo docker info --format '{{.DockerRootDir}}')" = "$DOCKER_ROOT" ] || { say "Docker's data root is not $DOCKER_ROOT"; fail=1; }
   [ "$(sudo docker info --format '{{.Driver}}')" = overlay2 ] || { say "Docker's storage is not overlay2 under $DOCKER_ROOT (D168)"; fail=1; }
   local u state
-  for u in docker.service docker.socket containerd.service ubuntu-fan.service; do     # D165: never started at boot
+  for u in docker.service docker.socket containerd.service ubuntu-fan.service; do     # never started at boot
     state=$(systemctl is-enabled "$u" 2>&1) || :      # disabled (and a missing unit) exit nonzero; the case reads it
     case "$state" in
       disabled) ;;

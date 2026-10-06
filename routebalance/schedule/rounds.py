@@ -11,7 +11,7 @@ loads and sets the limits of the rounds after it:
 A run starts at the idle limits (v3 used a configured 8 / 100 ms until its first adaptation). With
 adaptive off, the configured max_batch and timeout_ms apply to every round (the round-size ablations).
 
-The scheduler's own backlog (D123): an adaptive round may also take every request already waiting in the
+The scheduler's own backlog: an adaptive round may also take every request already waiting in the
 scheduler when it opens, up to the largest adaptive size (32); its time window stays the ratio's. The engines'
 ratio sees only work the engines hold, so when requests queue at the scheduler instead (at 42 req/s every round
 was full at 4 while the engines had none waiting, and requests waited 2.2 s for a round), the round size now
@@ -29,7 +29,7 @@ from routebalance.telemetry import Load
 T = TypeVar("T")
 
 ADAPTIVE_LIMITS = ((0.3, 4, 50.0), (0.7, 16, 100.0), (math.inf, 32, 200.0))   # (ratio below, size, timeout ms)
-BACKLOG_CAP = ADAPTIVE_LIMITS[-1][1]      # D123: a round takes the scheduler's backlog up to the largest size
+BACKLOG_CAP = ADAPTIVE_LIMITS[-1][1]      # a round takes the scheduler's backlog up to the largest size
 
 
 def busy_ratio(loads: Mapping[str, Load]) -> float:

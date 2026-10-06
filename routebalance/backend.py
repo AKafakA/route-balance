@@ -1,4 +1,4 @@
-"""Client for official vLLM's streaming chat endpoint (D24).
+"""Client for official vLLM's streaming chat endpoint.
 
 Every system (RouteBalance and each baseline) sends requests through this one client, over one
 pooled, bounded aiohttp session owned by the server. The raw user prompt goes in a single chat
@@ -63,7 +63,7 @@ class GenerationResult:
 
 def stock_connector() -> aiohttp.TCPConnector:
     """vLLM bench's connector, as shipped (vllm 0.18.1 benchmarks/serve.py:641-650): no connection limit, keep-alive,
-    DNS cache. Every HTTP client of the lease uses it (D134, owner: "back to vllm bench"): the scheduler's engine and
+    DNS cache. Every HTTP client of the lease uses it, as vLLM bench: the scheduler's engine and
     telemetry sessions and the benchmark client."""
     return aiohttp.TCPConnector(limit=0, limit_per_host=0, ttl_dns_cache=300, use_dns_cache=True,
                                 keepalive_timeout=60, enable_cleanup_closed=True, force_close=False)
@@ -77,7 +77,7 @@ def _chat_payload(inst: Instance, req: GenerationRequest) -> dict:
         "repetition_penalty": req.repetition_penalty,
         "frequency_penalty": req.frequency_penalty,
         "max_completion_tokens": req.max_tokens,
-        "stop_token_ids": list(inst.tier.stop_token_ids),      # the tier's end-of-turn stops (D102)
+        "stop_token_ids": list(inst.tier.stop_token_ids),      # the tier's end-of-turn stops
         "stream": True,
         # continuous usage stats: every chunk carries the cumulative completion_tokens, because vLLM may merge
         # several tokens into one content delta when the engine runs ahead of the API server

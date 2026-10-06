@@ -4,7 +4,7 @@ Every metric is over the cell's successful requests. A cell with a failed reques
 counted, but it carries a problem and is invalid (analysis/validity.py adds the execution checks).
   quality     zero-safe mean judged score of the successful requests, looked up by (prompt, served model) in
               the scored corpus (analysis/quality.py, as v2 and v3); a 0.0 counts. A budget cell's quality is
-              the judged score of each text actually served, from the score store (D67; an empty text scores
+              the judged score of each text actually served, from the score store (an empty text scores
               0): one text without a score makes the cell's quality unavailable (None, and a problem), never a
               mean over the rest. `quality_zeros_excluded` (mean over the non-zero scores) is a labelled
               secondary scale kept only to compare with older numbers; it is never used for a claim
@@ -13,7 +13,7 @@ counted, but it carries a problem and is invalid (analysis/validity.py adds the 
   budget_exhausted   budget cells only: the successful requests whose budget ran out, as v3 counted them (its
               budget could not pay for the prompt on the served tier, or the served reply's cost, prompt
               included, reached the budget to within 1e-9 USD); None for every other cell
-  cost_total  the report's Cost (D117): sum(prompt_tokens * input price + output_tokens * output price of the served
+  cost_total  the report's Cost: sum(prompt_tokens * input price + output_tokens * output price of the served
               model) / successful * 1000, USD per 1k successful requests (as v2 priced it; the objective prices the
               prompt the same way)
   cost        DecodeCost, beside it: sum(output_tokens * output price of the served model) / successful * 1000, as
@@ -99,8 +99,8 @@ class CellSummary:
     off_instance_ms: Optional[Spread]
     prompt_token_mismatches: Optional[int]    # sent count != vLLM's count; None when not recorded
     problems: tuple[str, ...]
-    cost_total_per_1k: Optional[float] = None  # D117: the prompt at the input price + the output at the output price
-    max_send_lag_ms: Optional[float] = None    # D134: the latest start after a scheduled arrival (counted, never a gate)
+    cost_total_per_1k: Optional[float] = None  # the prompt at the input price + the output at the output price
+    max_send_lag_ms: Optional[float] = None    # the latest start after a scheduled arrival (counted, never a gate)
 
     @property
     def valid(self) -> bool:
@@ -121,7 +121,7 @@ class RequestValues:
     cost: np.ndarray
     met_tight: np.ndarray
     met_loose: np.ndarray
-    cost_total: Optional[np.ndarray] = None   # D117: prompt + output cost (USD); None without input prices
+    cost_total: Optional[np.ndarray] = None   # prompt + output cost (USD); None without input prices
 
     def at(self, draws: np.ndarray) -> dict[str, np.ndarray]:
         """Each metric of analysis/frontier.py, and quality, on each row of `draws` (resamples x positions)."""
@@ -171,7 +171,7 @@ def request_values(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
 
 
 def input_prices(tiers: Iterable[Tier]) -> dict[str, float]:
-    """Input price (USD per prompt token) of each served model name, from the fleet's tiers (D117)."""
+    """Input price (USD per prompt token) of each served model name, from the fleet's tiers."""
     prices: dict[str, float] = {}
     for t in tiers:
         if t.model in prices and prices[t.model] != t.cost_in:
@@ -216,7 +216,7 @@ def outcomes_of(cell: CellRecord) -> list[Outcome]:
 def summarize_cell(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: Sequence[Instance],
                    slo: CellSlo) -> CellSummary:
     """A campaign cell, summarised against the fleet it ran on: a budget cell's quality from the served-text
-    score store (D67), every other cell's from the scored corpus (D62)."""
+    score store, every other cell's from the scored corpus."""
     budgeted = cell.budgets_sha256 is not None
     if budgeted != isinstance(quality, ScoreStore) or not isinstance(quality, (ScoredCorpus, ScoreStore)):
         raise ConfigError(f"cell {cell.cell_id}: a budget cell's quality comes from the served-text score store, "
@@ -226,7 +226,7 @@ def summarize_cell(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
         problems.append("the fleet given to the analysis is not the fleet the cell ran on")
     summary = summarize(cell.cell_id, outcomes_of(cell), cell.duration_s, quality,
                         decode_prices(i.tier for i in fleet), slo, problems, input_prices(i.tier for i in fleet))
-    lags = [r.sent_s - r.arrival_s for r in cell.requests]            # D134: a late send is counted, never a gate
+    lags = [r.sent_s - r.arrival_s for r in cell.requests]            # a late send is counted, never a gate
     summary = replace(summary, max_send_lag_ms=max(lags) * 1000 if lags else None)
     if not budgeted:
         return summary
@@ -304,7 +304,7 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
         cost = None
     else:
         cost = math.fsum(o.output_tokens * prices[o.model] for o in ok) / len(ok) * 1000 if ok else None
-    # D117: the prompt at its input price as well (vLLM's served count), when the caller gives input prices
+    # the prompt at its input price as well (vLLM's served count), when the caller gives input prices
     total = None
     if (input_prices is not None and ok and not unpriced and all(o.model in input_prices for o in ok)
             and all(o.prompt_tokens_served is not None for o in ok)):

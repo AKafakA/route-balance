@@ -1,4 +1,4 @@
-"""The prefill table (D118): each tier's time to first token as a line in the prompt's token count, fitted on the
+"""The prefill table: each tier's time to first token as a line in the prompt's token count, fitted on the
 single-request level of the latency calibration (tools/calibrate_driver.py's requests.jsonl, level 1: one request in
 flight on the instance), where the time to first token is the prompt's prefill and the fixed cost of a request. Only
 requests of a held instance-level are used, as for the TPOT table (calibrate_driver.calibration_records): an

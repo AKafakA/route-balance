@@ -44,7 +44,7 @@ class Reply(Strict):
     server_latency_s: float = Field(ge=0)
     timings_ms: dict[str, float]
     # the scheduler's clock, from the request's arrival to the first backend token (its wait, routing and scheduling,
-    # then the engine's first token), as v2's client_ttft; the SLO's TTFT (D57). None in records made before it
+    # then the engine's first token), as v2's client_ttft; the SLO's TTFT. None in records made before it
     first_token_s: Optional[float] = Field(default=None, ge=0)
 
     @field_validator("timings_ms")

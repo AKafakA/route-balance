@@ -12,10 +12,10 @@ The cell directory holds (the layout the gates read):
   warmup.json                         the direct warm-up requests
   stats_before.json, stats_after.json, manifest_before.json, manifest_after.json
   decisions.jsonl                     the decision-log lines of this cell's window, all with the cell's digest
-  latency.jsonl                       the latency-sweep lines of the window (the D38 sweep configuration only)
+  latency.jsonl                       the latency-sweep lines of the window (the latency sweep configuration only)
   window.json                         the byte offsets of the two logs that bound the window
   engines_before.json, engines_after.json   each engine as it reports itself (start time, KV cache config,
-                                      model, context) with its deploy.sh launch command (D48); a change
+                                      model, context) with its deploy.sh launch command; a change
                                       between the two, a restart, makes the cell invalid
   gates/<gate>.log, gates/verdict.json
 Exit codes of every subcommand: 0 done, 1 refused or failed (the message says why).
@@ -71,7 +71,7 @@ def fleet_of(plan: dict, group: str, fleet: Path, hosts: Path):
 
 
 def sweep(config: dict) -> bool:
-    """The D38 latency sweep: the configuration for which the server writes latency.<digest16>.jsonl."""
+    """The latency sweep: the configuration for which the server writes latency.<digest16>.jsonl."""
     return config["mode"] == "pipeline" and config["pending_decode"] == "own_length"
 
 
@@ -154,7 +154,7 @@ async def drain(render: Path, cell: str, fleet: Path, hosts: Path, url: str) -> 
 
 
 async def fresh(url: str) -> None:
-    """D132: a cell runs only on a fresh scheduler process (one that has logged no decision); refused before the cell
+    """a cell runs only on a fresh scheduler process (one that has logged no decision); refused before the cell
     runs, so a forgotten run_scope.sh --fresh-scheduler costs no run (the verdict checks it again)."""
     logged = (await _get(url, "/v1/stats"))["logged"]
     seen = logged["decisions"] + logged["decisions_buffered"]     # flushed or not yet (Codex review 09-29)
@@ -182,7 +182,7 @@ async def engines_snapshot(render: Path, cell: str, fleet: Path, hosts: Path, re
 
 
 def engine_problems(d: Path) -> list[str]:
-    """D48: every engine of the cell's fleet served the whole cell as one process with one launch."""
+    """every engine of the cell's fleet served the whole cell as one process with one launch."""
     try:
         cell = open_cell(d)
         before = cell.engines("before")
@@ -192,7 +192,7 @@ def engine_problems(d: Path) -> list[str]:
         return [f"the engine record is missing or malformed: {str(e)[:300]}"]
     return ([f"the engine record does not cover the cell's fleet: {gap}" for gap in uncovered]
             + ([f"an engine restarted or changed during the cell: {changed}"] if changed else [])
-            + isolation_problems(d))           # D128/D132: the proven cache reset, no traffic but the cell's own
+            + isolation_problems(d))           # the proven cache reset, no traffic but the cell's own
 
 
 async def warm_up(render: Path, cell: str, fleet: Path, hosts: Path, attempt: Path) -> None:
@@ -201,7 +201,7 @@ async def warm_up(render: Path, cell: str, fleet: Path, hosts: Path, attempt: Pa
     scope, plan, exp, instances = cell_context(render, cell, fleet, hosts)
     w, sampling = plan["warmup"], Sampling.model_validate(scope.bench.sampling.model_dump())
     async with direct.session(len(instances)) as sess:
-        backend = BackendClient(sess, plan["drain"]["timeout_s"])   # the owner's kept pre-run bound (D134 item 10)
+        backend = BackendClient(sess, plan["drain"]["timeout_s"])   # the kept pre-run bound
         lines = await direct.warm_up(sess, backend, instances, requests_per_instance=w["requests_per_instance"],
                                      max_tokens=w["max_tokens"], prompt=w["prompt"], sampling=sampling,
                                      run_id=attempt.parent.name)
@@ -327,7 +327,7 @@ def check_code(manifest: dict) -> list[str]:
 
 
 def check_launch(plan: dict, manifest: dict) -> list[str]:
-    """The scheduler's launch values against the scope's (D44)."""
+    """The scheduler's launch values against the scope's."""
     server, launch = plan["server"], manifest["launch"]
     if server is None:
         return ["the scope's server launch values are still OWNER-MUST-SET"]
@@ -375,7 +375,7 @@ def status(scope: Scope, exp: ExpectedCell, root: Path) -> str:
         raise ConfigError(f"{v}: 'valid' must be a boolean, got {valid!r}")
     if not valid:
         return "invalid"
-    # D128/D132: the isolation evidence is rechecked on every resume, not trusted from the saved verdict
+    # the isolation evidence is rechecked on every resume, not trusted from the saved verdict
     return "invalid" if record_problems(scope, exp, d) or isolation_problems(d) else "done"
 
 
@@ -399,7 +399,7 @@ def _gated_valid(root: Path, exp: ExpectedCell) -> bool:
     if not isinstance(valid, bool):
         raise ConfigError(f"{v}: 'valid' must be a boolean, got {valid!r}")
     return valid     # the verdict only (this runs after every cell); status(), which group_ready calls next and resume
-                     # plans with, rechecks the record and the isolation evidence (D128/D132)
+                     # plans with, rechecks the record and the isolation evidence
 
 
 def group_ready(render: Path, root: Path, group: str) -> list[str]:

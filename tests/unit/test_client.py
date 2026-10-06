@@ -77,7 +77,7 @@ def test_one_pooled_session_reuses_connections():
 
 
 def test_the_client_uses_vllm_benchs_connector_so_no_request_waits_for_a_connection():
-    """D134 (owner: "back to vllm bench"): no connection limit and keep-alive, as vLLM bench's connector; the
+    """As vLLM bench: no connection limit and keep-alive, as vLLM bench's connector; the
     max_connections value only sizes the open-file check, so six concurrent requests never queue."""
     async def go(url):
         async with HttpSchedulerClient(url, max_connections=2, timeout_s=10.0) as client:

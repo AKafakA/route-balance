@@ -112,7 +112,7 @@ def test_levels_are_six_distinct_and_within_the_engine_batch():
 
 @pytest.mark.parametrize("level,median,held", [
     (1, 1, True), (16, 16, True), (16, 15, False), (31, 30, False),     # exact below 32
-    (32, 31, True), (32, 30, False), (64, 62, True), (64, 61, False),   # floor(c / 32) below (owner 09-25)
+    (32, 31, True), (32, 30, False), (64, 62, True), (64, 61, False),   # floor(c / 32) below
     (96, 93, True), (96, 92, False), (64, 65, False),
 ])
 def test_a_level_holds_within_floor_c_over_32_of_its_batch(level, median, held):

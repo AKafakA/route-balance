@@ -10,9 +10,10 @@
                          artifact md5s); gates/parity.py diffs it across the systems of a comparison group
   GET  /health
 
-What every system shares, by construction: one bounded HTTP session to the engines, one telemetry view (dead
-reckoning, read per round, per request or from background pollers: telemetry.py), one backend client, one
-thread pool for every model call (router models, the estimator, the scheduling round), and one dispatch path:
+What every system shares, by construction: one HTTP session to the engines (vLLM bench's stock connector), one
+telemetry view (dead reckoning, read per round, per request or from background pollers: telemetry.py), one
+backend client, one thread pool for RouteBalance's model calls (the estimator, the scheduling round) beside the
+pipeline routers' own lane (baselines/routers.py), and one dispatch path:
 record the dispatch in the view, clamp max_tokens to the request's budget, stream from the engine reporting
 progress to the view, close the dispatch. RouteBalance schedules requests in rounds (schedule/); a pipeline
 system (a router, then a dispatcher) places each request as it arrives (baselines/pipeline.py).
@@ -20,7 +21,7 @@ system (a router, then a dispatcher) places each request as it arrives (baseline
 Evidence under --log-dir: decisions.jsonl, one line per request of every configuration (what was chosen,
 the state it was chosen on, the stage timings, the outcome, the config digest; RouteBalance lines also carry
 the round, the request's position in it and the limits it was collected under, every scored candidate and
-the estimator's expected length per model); and, for the D38 latency
+the estimator's expected length per model); and, for the latency
 sweep only (a pipeline configuration with pending_decode own_length), latency.<config digest>.jsonl in the
 format tools/tpot_sweep.py reads. Its features are exactly the learned heads' serving inputs: the state the
 decision read and, as the latency model feeds every head, the largest expected length over the models.
@@ -147,7 +148,7 @@ def load_components(cfg: SchedulerConfig, fleet: list[Instance], *, artifact_roo
                     best_route_repo: Optional[Path] = None) -> Components:
     """Loads models and tables (seconds): call it off the event loop. A pipeline router makes its model calls on
     router_lane, sized by the configuration's router concurrency (baselines/routers.py router_lane: 1 as shipped,
-    32 the main setting, D135); RouteBalance's own calls use the shared pool."""
+    32 the main setting); RouteBalance's own calls use the shared pool."""
     from routebalance.estimate.knn import INDEX_FILE, load_knn
     from routebalance.estimate.latency import load_latency_model
     need_est, need_lat = needs(cfg)
@@ -253,11 +254,11 @@ def native_threadpools() -> dict[str, int]:
     return out
 
 
-NOFILE_SOFT = 65535          # v3's open-file target (its set_ulimit, as vLLM's); owner 09-30: "yes" (D141)
+NOFILE_SOFT = 65535          # v3's open-file target (its set_ulimit, as vLLM's)
 
 
 def set_ulimit(target_soft_limit: int = NOFILE_SOFT) -> None:
-    """v3's set_ulimit (Block, tag v3-campaign, block/global_scheduler/.../utils.py), as vLLM's: the soft open-file
+    """v3's set_ulimit, as vLLM's: the soft open-file
     limit raised to the target when it is lower, the hard limit unchanged; a refusal is logged as v3 logged it, and
     the manifest records the limit the process runs with."""
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
@@ -277,7 +278,7 @@ def open_files_limit() -> dict[str, int]:
 
 def tcp_listen_counters() -> dict[str, int]:
     """The node's kernel counters of connections a full listen queue turned away (TcpExt ListenOverflows and
-    ListenDrops in /proc/net/netstat), cumulative since boot; stats_before/after bracket a run (D141). Recorded only."""
+    ListenDrops in /proc/net/netstat), cumulative since boot; stats_before/after bracket a run. Recorded only."""
     lines = Path("/proc/net/netstat").read_text().splitlines()
     for head, values in zip(lines[::2], lines[1::2], strict=True):
         if head.startswith("TcpExt:"):
@@ -332,13 +333,13 @@ class _Round:
     number: int
     size: int
     limits: tuple
-    backlog: int       # requests already waiting in the scheduler when the round opened (D123)
+    backlog: int       # requests already waiting in the scheduler when the round opened
     closed: float
     estimated: float
     fetched: float
     waiting: dict
     dispatched: int = 0   # default-ok: counts the round's dispatches as they happen
-    ages: Optional[dict] = None   # default-ok: instance -> age (ms) of the snapshot the round read (D133: counted)
+    ages: Optional[dict] = None   # default-ok: instance -> age (ms) of the snapshot the round read (counted)
     errors: Optional[dict] = None   # default-ok: instance -> its last scrape's failure, when the round used an older one
 
 
@@ -366,9 +367,9 @@ class RouteBalance:
                 ests = await loop.run_in_executor(self._executor, self._c.estimator.estimate_batch,
                                                   [c.prompt for c, _, _ in batch], P_UNDER_BUDGET_TOKENS)
                 estimated = time.perf_counter()
-                if self._cfg.telemetry_read == "per_round":   # the per-batch load fetch (D53); raises if any scrape failed
+                if self._cfg.telemetry_read == "per_round":   # the per-batch load fetch; raises if any scrape failed
                     loads = await self._view.fetch_round()
-                else:                                          # the D54 control: the pollers' cache
+                else:                                          # the cache control: the pollers' cache
                     loads = self._view.loads([i.instance_id for i in self._fleet])
                 fetched = time.perf_counter()
                 self.collector.adapt(loads)
@@ -384,7 +385,7 @@ class RouteBalance:
                              errors={i: ld.error for i, ld in loads.items() if ld.error is not None})
 
                 def decided(d: Decision, rnd: _Round = rnd) -> None:
-                    """On the pool's thread, right after each decision: dispatch it on the loop now (D78, v3's
+                    """On the pool's thread, right after each decision: dispatch it on the loop now (v3's
                     per-pick dispatch), while the rest of the round is still being scored."""
                     n_feature = longest(d.request.estimates)   # may raise: this request is then not dispatched
                     loop.call_soon_threadsafe(self._dispatch, rnd, d, n_feature, time.perf_counter())
@@ -405,7 +406,7 @@ class RouteBalance:
 
     def _dispatch(self, rnd: "_Round", d: Decision, n_feature: int, decided: float) -> None:
         """On the loop: record the dispatch in the view and hand the request its instance. A failure here fails
-        the request and then the round loop (run() re-raises it), as the dispatch loop did before D78."""
+        the request and then the round loop (run() re-raises it), as the dispatch loop did before per-pick dispatch."""
         fut, arrived = rnd.waiting[id(d.request)]          # by object: duplicate request ids cannot collide
         try:
             pos = rnd.dispatched
@@ -422,7 +423,7 @@ class RouteBalance:
                         "candidates": [{"inst": s.candidate.instance_id, "score": s.score,
                                         "q": s.quality_term, "c": s.cost_term, "l": s.latency_term,
                                         "lat_s": s.candidate.latency_s} for s in d.scored],
-                        "scales": None if d.scales is None else asdict(d.scales)}    # D137: the round's scales
+                        "scales": None if d.scales is None else asdict(d.scales)}    # the round's scales
             ms = 1000.0
             timings = {"round_wait_ms": (rnd.closed - arrived) * ms, "estimator_ms": (rnd.estimated - rnd.closed) * ms,
                        "stats_fetch_ms": (rnd.fetched - rnd.estimated) * ms, "schedule_ms": (decided - rnd.fetched) * ms}
@@ -463,7 +464,7 @@ class Service:
         self.router_lane: Optional[Executor] = None   # built per configuration (apply): its router's concurrency
         self._log_dir = log_dir
         self.decisions = JsonlLog(log_dir / "decisions.jsonl", FLUSH_S)
-        self.latency_log: Optional[JsonlLog] = None      # the D38 sweep configurations only
+        self.latency_log: Optional[JsonlLog] = None      # the latency sweep's configurations only
         self._latency_logs: dict[str, JsonlLog] = {}
         self.lag = LagProbe()
         self.cfg: Optional[SchedulerConfig] = None
@@ -476,14 +477,14 @@ class Service:
         self._active = 0
         self._swapping = False
         self.failure: Optional[str] = None
-        # D134 (owner: no refusal of my own): a failure to write the evidence (decision, latency or lag logs) is
+        # no refusal: a failure to write the evidence (decision, latency or lag logs) is
         # recorded here and makes the run invalid (gates/cell.py isolation_problems); requests keep being served
         self.evidence_failure: Optional[str] = None
         self.connection_waits = {"engine": 0, "telemetry": 0}   # waits for a pooled connection (a requeued one counts again)
         self.http: Optional[uvicorn.Server] = None                # the server this service is served by (the manifest)
 
     async def start(self, cfg: SchedulerConfig) -> None:
-        # D134 (owner: "back to vllm bench"): the engine streams and the telemetry scrapes each get vLLM bench's stock
+        # as vLLM bench: the engine streams and the telemetry scrapes each get vLLM bench's stock
         # connector (no connection limit, keep-alive); a wait for a connection is still counted (none can happen)
         self._session = aiohttp.ClientSession(connector=stock_connector(),
                                               trace_configs=[self._wait_counter("engine")])
@@ -507,7 +508,7 @@ class Service:
         def done(t: asyncio.Task):
             if not t.cancelled() and t.exception() is not None:
                 what = f"{t.get_coro().__qualname__}: {t.exception()!r}"
-                if evidence:                     # a log writer: counted, never a reason to refuse a request (D134)
+                if evidence:                     # a log writer: counted, never a reason to refuse a request
                     if self.evidence_failure is None:          # the first failure is the evidence
                         self.evidence_failure = what
                     log.error("an evidence writer failed; requests are still served, the run is invalid: %s", what)
@@ -541,9 +542,9 @@ class Service:
                 view = TelemetryView(self.fleet, lambda i: fetch_metrics(self._telemetry_session, i, t.timeout_s),
                                      poll_ms=t.poll_ms, dead_reckoning=cfg.dead_reckoning)
                 # every instance answers once, or this raises and the old config stays live
-                if cfg.telemetry_read == "poll":  # the pollers' cache (D19)
+                if cfg.telemetry_read == "poll":  # the pollers' cache
                     await view.start()
-                else:                             # fetched per round (D53) or per request (D55): no pollers
+                else:                             # fetched per round or per request: no pollers
                     await view.fetch_round()
             except BaseException:
                 if lane is not None:
@@ -560,7 +561,7 @@ class Service:
             self.router_lane = lane
             self.view, self._comps, self.cfg = view, comps, cfg
             self.digest = config_digest(cfg)
-            # D103: the models and indexes just loaded, and the server's state, are long-lived; a full collection over
+            # the models and indexes just loaded, and the server's state, are long-lived; a full collection over
             # them paused the event loop 170-470 ms once per run. Collected once here (between cells, idle) and
             # frozen, a collection during a run scans only the requests' own objects
             gc.collect()
@@ -609,7 +610,7 @@ class Service:
             raise
 
     async def _select(self, c: Completion) -> Assignment:
-        if self.cfg.pending_decode == "own_length":     # the D38 sweep: record the estimator's length per model
+        if self.cfg.pending_decode == "own_length":     # the latency sweep: record the estimator's length per model
             (est,) = await asyncio.get_running_loop().run_in_executor(
                 self.executor, self._comps.estimator.estimate_batch, [c.prompt], P_UNDER_BUDGET_TOKENS)
             decode = {m: max(1, int(est[m].length)) for m in self._models}
@@ -712,7 +713,7 @@ class Service:
         if self._swapping or self.cfg is None:
             raise Busy("a configuration is being applied")
         cfg, view, comps, rb = self.cfg, self.view, self._comps, self._rb       # one consistent snapshot
-        lane = self.router_lane                                                  # with it (Codex review, D135)
+        lane = self.router_lane                                                  # with it (Codex review)
         pollers = view.polling
         loop = asyncio.get_running_loop()
         torch = sys.modules.get("torch")      # imported by main() before serving; measured on a pool thread
@@ -767,7 +768,7 @@ class Service:
         for lg in (self.decisions, *self._latency_logs.values()):
             try:
                 await lg.flush()
-            except OSError as e:          # the evidence is incomplete (recorded, D134); the shutdown still completes
+            except OSError as e:          # the evidence is incomplete (recorded); the shutdown still completes
                 if self.evidence_failure is None:
                     self.evidence_failure = f"final flush of {lg.path.name}: {e!r}"
                 log.error("the final flush of %s failed: %r", lg.path, e)
@@ -785,8 +786,8 @@ class ServeError(RuntimeError):
 
 
 # ---------------------------------------------------------------- HTTP
-# v3's scheduler served FastAPI through uvicorn (Block, tag v3-campaign: its run_server -> block/server_utils_lite.py
-# serve_http, a copy of vLLM's launcher), as vLLM's own server does (D141): uvicorn.Config with the host, the port and v3's
+# v3's scheduler served FastAPI through uvicorn (its run_server -> serve_http, a
+# copy of vLLM's launcher), as vLLM's own server does: uvicorn.Config with the host, the port and v3's
 # keep-alive; every other setting is uvicorn's stock (a 2048 listen backlog, httptools, the access log).
 TIMEOUT_KEEP_ALIVE_S = 600    # v3's (its TIMEOUT_KEEP_ALIVE: "Was 5 -- caused localhost RST race vs bench keepalive=60s")
 
@@ -796,7 +797,7 @@ def http_server(app: FastAPI, host: str, port: int) -> uvicorn.Server:
 
 
 async def serve_http(server: uvicorn.Server) -> None:
-    """v3's launcher (block/server_utils_lite.py serve_http, a copy of vLLM's): SIGINT and SIGTERM cancel the serving
+    """v3's launcher (its serve_http, a copy of vLLM's): SIGINT and SIGTERM cancel the serving
     task, and the server then shuts down gracefully, so the caller's cleanup runs (v3's debug-only report of the
     process holding the port is left out)."""
     loop = asyncio.get_running_loop()
@@ -812,7 +813,7 @@ async def serve_http(server: uvicorn.Server) -> None:
 
 async def _body(request: Request) -> str:
     """The body in its declared charset, UTF-8 when none (or an empty one) is declared, as aiohttp's request.text()
-    read it before (D141 reviews). A body that does not decode is a ValueError: a bad request; an unknown charset
+    read it before. A body that does not decode is a ValueError: a bad request; an unknown charset
     name raises LookupError: a server error, as before."""
     header, content_type = email.message.Message(), request.headers.get("content-type")
     if content_type is not None:
@@ -899,8 +900,8 @@ def main(argv=None) -> None:
             or (a.torch_threads is not None and a.torch_threads < 1):
         p.error("timeouts, connection bound and thread count must be positive")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    set_ulimit()                      # v3's, before anything opens a file (D141)
-    if a.torch_threads is not None:   # unset (D134): torch's default, as v3; the manifest records the effective count
+    set_ulimit()                      # v3's, before anything opens a file
+    if a.torch_threads is not None:   # unset: torch's default, as v3; the manifest records the effective count
         import torch
         torch.set_num_threads(a.torch_threads)
     import uvloop

@@ -90,7 +90,7 @@ def test_no_snapshot_raises_with_the_error():
 
 
 def test_a_malformed_reply_keeps_the_last_good_snapshot_and_records_the_error():
-    """D133 (owner: counted, never refused): the last good snapshot stays in use; the Load carries the error."""
+    """Counted, never refused: the last good snapshot stays in use; the Load carries the error."""
     bodies = {"a": metrics(), "b": metrics()}
     view = view_with(static_fetch(bodies), dead_reckoning=False)
     run(view.refresh())
@@ -101,7 +101,7 @@ def test_a_malformed_reply_keeps_the_last_good_snapshot_and_records_the_error():
 
 
 def test_a_network_failure_keeps_the_last_snapshot_whatever_its_age():
-    """D133: no age bound; the snapshot is used, its age and the failure are counted."""
+    """no age bound; the snapshot is used, its age and the failure are counted."""
     bodies = {"a": metrics(), "b": metrics()}
     clock = Clock()
     view = view_with(static_fetch(bodies), clock=clock, dead_reckoning=False)
@@ -127,7 +127,7 @@ def test_age_is_measured_from_when_the_scrape_was_sent():
 
 
 def test_a_fetch_carries_its_scrapes_age_and_is_never_refused_for_it():
-    """D133: a fetch's scrape is bounded by its timeout only; the same snapshot read as a cache carries its age."""
+    """a fetch's scrape is bounded by its timeout only; the same snapshot read as a cache carries its age."""
     clock = Clock()
 
     async def slow_fetch(inst):
@@ -298,7 +298,7 @@ def test_one_slow_instance_does_not_starve_the_others():
         await asyncio.sleep(0.3)
         try:
             loads = view.loads(["a", "b"])
-            a_ok = loads["a"].age_ms < 100.0 and loads["b"].age_ms > 250.0   # b's age is counted (D133), a stays fresh
+            a_ok = loads["a"].age_ms < 100.0 and loads["b"].age_ms > 250.0   # b's age is counted, a stays fresh
         finally:
             await view.stop()
         return a_ok
@@ -402,13 +402,13 @@ def test_fetch_round_returns_this_scrapes_loads_only():
     loads = run(view.fetch_round())
     assert loads["a"].stats.num_running == 3 and loads["b"].stats.num_running == 1
     bodies["a"] = RuntimeError("connection refused")          # a failed scrape: the round uses the last snapshot,
-    loads = run(view.fetch_round())                           # with the failure counted (D133), never refused
+    loads = run(view.fetch_round())                           # with the failure counted, never refused
     assert loads["a"].stats.num_running == 3 and "connection refused" in loads["a"].error
     assert loads["b"].error is None
 
 
 def test_fetch_scrapes_only_the_instances_asked_for():
-    """D55's per-request probe: a request fetches its candidates, not the fleet."""
+    """v3's per-request probe: a request fetches its candidates, not the fleet."""
     scraped = []
 
     async def fetch(inst):
@@ -422,7 +422,7 @@ def test_fetch_scrapes_only_the_instances_asked_for():
 
 def test_a_concurrent_fetchs_newer_scrape_counts_and_a_failed_one_keeps_the_last_snapshot():
     """Two requests probing one instance at once: the later scrape's outcome serves both; a fetch whose own scrape
-    fails uses the last good snapshot, with the failure counted (D133), never refused."""
+    fails uses the last good snapshot, with the failure counted, never refused."""
     clock = Clock()
     slow = asyncio.Event()
     replies = ["slow failure", metrics(running=5), RuntimeError("refused")]

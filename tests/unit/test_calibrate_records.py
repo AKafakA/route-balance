@@ -28,7 +28,7 @@ def test_tpot_records_give_the_curve_and_the_constant_over_all_samples(tmp_path)
     records, method = cal.read_records(_write(tmp_path, rows))
     assert "(e2e - ttft) / (output_tokens - 1)" in method
     table = cal.build_table(records, [tmp_path / "records.jsonl"], method)
-    every = [r["tpot_s"] for r in rows]                     # D37: every sample, short requests included
+    every = [r["tpot_s"] for r in rows]                     # every sample, short requests included
     assert table["constant"]["t_a30"] == pytest.approx(1000.0 * float(np.median(every)))
     assert [b for b, _ in table["curve"]["t_a30"]] == [1, 2, 4, 8, 16, 32]
     b32 = [r["tpot_s"] for r in rows if r["b"] == 32]
@@ -79,7 +79,7 @@ def test_the_command_line_writes_a_table_the_scheduler_accepts(tmp_path):
 
 
 def test_a_dip_in_the_measured_medians_is_held_at_the_running_max(tmp_path):
-    """D47: the curve never decreases in b; the measured medians stay in the provenance."""
+    """the curve never decreases in b; the measured medians stay in the provenance."""
     medians = {1: 0.012, 2: 0.011, 4: 0.013, 8: 0.0125, 16: 0.02}
     rows = [{"tier": "t_a30", "b": b, "tpot_s": s, "output_tokens": 50} for b, s in medians.items() for _ in range(31)]
     records, method = cal.read_records(_write(tmp_path, rows))

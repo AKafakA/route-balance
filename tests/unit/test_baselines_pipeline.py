@@ -118,7 +118,7 @@ def test_dispatcher_gets_the_views_loads():
 
 
 def test_a_probe_fetches_the_routers_candidates_only():
-    """D55: v3's per-request arm fetches the chosen model's instances, then dispatches on that fetch."""
+    """v3's per-request arm fetches the chosen model's instances, then dispatches on that fetch."""
     seven = of_model("7B")
     loads = {i.instance_id: load(running=5) for i in FLEET} | {seven[2].instance_id: load(running=1)}
     probed, cached = FakeView(loads), FakeView(loads)
@@ -129,7 +129,7 @@ def test_a_probe_fetches_the_routers_candidates_only():
 
 
 def test_a_power_of_two_probe_fetches_its_drawn_pair_with_the_cache_forms_draws():
-    """D59: po2-probe fetches only the two instances it compares, drawn as the cache form draws them."""
+    """po2-probe fetches only the two instances it compares, drawn as the cache form draws them."""
     loads = {i.instance_id: load(running=n) for n, i in enumerate(FLEET)}
     cached, probed = FakeView(loads), FakeView(loads)
     a, b = PowerOfTwo(seed=1, count="engine"), PowerOfTwo(seed=1, count="engine")
@@ -177,7 +177,7 @@ def test_empty_fleet_raises():
 # ---------------------------------------------------------------- the real shared view
 
 def real_view(gauges=None):
-    """A baseline's view: the engines' own counts (dead reckoning is RouteBalance's own, owner 09-25)."""
+    """A baseline's view: the engines' own counts (dead reckoning is RouteBalance's own)."""
     gauges = gauges if gauges is not None else {}
 
     async def fetch(inst):
@@ -206,7 +206,7 @@ def test_each_selection_is_recorded_before_the_next_one_reads_the_view():
 
 
 def test_in_flight_counts_see_every_earlier_selection_whatever_the_gauges_say():
-    """D82: with the in-flight count, a burst on frozen gauges that show one engine busy still spreads by the
+    """with the in-flight count, a burst on frozen gauges that show one engine busy still spreads by the
     dispatches recorded so far (Envoy counts its own active requests); the gauge form sends the whole burst to the
     engines its stale gauge shows empty."""
     three = of_model("3B")

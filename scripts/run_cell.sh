@@ -8,7 +8,7 @@
 #
 #   --render             a campaign render (python -m tools.campaign render): scope.json, configs/, plan.json
 #   --scheduler-log-dir  the running scheduler's --log-dir (decisions.jsonl, latency.<digest>.jsonl)
-#   --engines-record     the --record file of the deploy.sh engines run that launched the fleet (D48)
+#   --engines-record     the --record file of the deploy.sh engines run that launched the fleet
 #   --cells-root         the first location (this node); DEST (rsync syntax, local or host:path) the second
 #
 # Order: drain the engines and the scheduler; POST the cell's configuration (every cell: it resets the
@@ -68,9 +68,9 @@ drv post-config --scheduler "$URL" --attempt "$ATTEMPT" --config-digest "$CONFIG
     --expect-config-digest "$CONFIG_DIGEST" --expect-fleet-digest "$FLEET_DIGEST" > "$ATTEMPT/gates/preflight.log" 2>&1 \
   || { cat "$ATTEMPT/gates/preflight.log"; fail "preflight failed"; }
 
-# ---- 4. the engines as they report themselves (D48), with their serving counters, BEFORE the warm-up, so the
-#         traffic check covers the reset, its proof and the whole run (D132); then the warm-up straight to the
-#         engines (the proven cache reset, D128), then drain
+# ---- 4. the engines as they report themselves, with their serving counters, BEFORE the warm-up, so the
+#         traffic check covers the reset, its proof and the whole run; then the warm-up straight to the
+#         engines (the proven cache reset), then drain
 drv engines --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --engines-record "$ENGINES" \
     --out "$ATTEMPT/engines_before.json" || fail "the engines could not be read"
 drv warmup --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --attempt "$ATTEMPT" || fail "warm-up"

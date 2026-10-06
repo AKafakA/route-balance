@@ -32,7 +32,7 @@ def test_the_block_runs_seed_1_first_on_the_round_robin_templates():
 
 
 def test_another_seed_sends_what_the_main_grid_sends_at_that_seed():
-    """D157 renders the main grid's seeds 2-3 only at the knee points: a run at seed 2 sends the seed-1 template's trace
+    """The scope renders the main grid's seeds 2-3 only at the knee points: a run at seed 2 sends the seed-1 template's trace
     at seed 2, the arrivals and prompt order of the main grid's seed-2 run at that rate (render 15 still has one)."""
     scope, _ = cell_driver.load(RENDER)
     got = block.expected(scope, "qwen", "qwen.disp.rr__l30__s1", 2, "0" * 64)

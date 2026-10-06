@@ -185,7 +185,7 @@ def test_a_clean_record_with_every_gate_passed_is_valid(lease, monkeypatch):
 
 
 def test_an_engine_restart_during_the_cell_invalidates_it(lease, monkeypatch):
-    """D48: the engines are read before and after; any change, a restart first, makes the cell invalid."""
+    """the engines are read before and after; any change, a restart first, makes the cell invalid."""
     render, root, fleet, hosts, _ = lease
     attempt = cd.Path(cd.prepare(render, CELL, root, fleet, hosts)["ATTEMPT"])
     (attempt / "gates").mkdir()
@@ -346,7 +346,7 @@ def test_a_row_selection_that_names_no_row_is_refused(lease, cmd, rows):
 
 
 def test_a_cell_is_refused_before_it_runs_on_a_scheduler_that_has_served_requests():
-    """D132 (local review 09-29): a forgotten --fresh-scheduler must cost no run, so the driver refuses up front."""
+    """A forgotten --fresh-scheduler must cost no run, so the driver refuses up front."""
     async def scenario():
         async with Scheduler() as s:
             s.stats["logged"]["decisions"] = 0

@@ -1,4 +1,4 @@
-"""What the running stack executes, read from the stack itself (owner 09-30, the P100 rule: a check reads the live
+"""What the running stack executes, read from the stack itself (a check reads the live
 system, never the file used to deploy it).
 
   the router     its management API: /api/v1/status (the active configuration's hash, converged), /api/v1/config
@@ -184,7 +184,7 @@ def store_problems(state: dict, replays: int, *, at_start: bool) -> list[str]:
 
 def envoy_problems(clusters: dict, dump: dict, models: list[Model]) -> list[str]:
     """Envoy sends each model's requests to exactly its fleet replicas, by round robin (upstream's default), with the
-    owner's timeouts and circuit breakers (D146, D150) on every listener, route and cluster."""
+    owner's timeouts and circuit breakers on every listener, route and cluster."""
     out = []
     live = {c["name"]: sorted((h["address"]["socket_address"]["address"], h["address"]["socket_address"]["port_value"])
                               for h in c.get("host_statuses", []))

@@ -49,7 +49,7 @@ evaluation:
   - id: routebalance/deepeval-train@1.0.0
     display_name: DeepEval on the training split
     domain: general_reasoning
-    source: https://github.com/AKafakA/route-balance
+    source: https://example.invalid/route-balance
     default_profile: train-split
     profiles:
     - id: train-split

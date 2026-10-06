@@ -14,7 +14,7 @@ class Tier:
     cost_in: float
     cost_out: float
     max_num_seqs: int      # vLLM's --max-num-seqs for this tier (the engine's concurrent-sequence limit)
-    stop_token_ids: tuple[int, ...]   # every request to this tier also stops at these token ids (D102)
+    stop_token_ids: tuple[int, ...]   # every request to this tier also stops at these token ids
 
 
 @dataclass(frozen=True)
@@ -26,7 +26,7 @@ class Instance:
     address: str                   # the node's name for deploys and ssh (hosts.json address)
     port: int
     service_address: Optional[str] = None   # where the engine is served to the scheduler and the drivers, when not
-    # `address` (D131: the experiment network); every HTTP request to the engine goes there
+    # `address` (the experiment network); every HTTP request to the engine goes there
 
     @property
     def model(self) -> str:

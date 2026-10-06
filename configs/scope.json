@@ -361,7 +361,7 @@
      "prompt_order": "per_seed", "fill": true, "alias": null, "planned": {"c": 6}, "enabled": false, "why": "owner 09-29 (D121): merged into W9, the full grid at seeds 2-3 after every seed-1 row, so no seed picks", "hold": null}
    ]},
   {"id": "W5", "kind": "cells", "prio": "must", "enabled": true, "why": null,
-   "about": "D125: the burst sweep, as the Astrolabe paper's (vLLM bench's burstiness: gamma inter-arrival times, shape alpha, mean rate fixed; alpha 1 is Poisson): alpha 0.25, 0.5 and 2.0 at 12, 30 and 42 req/s; alpha 1.0 is the main grid's run of that configuration at each rate (W2, W2b, W2n, W2p or W2x, seed 1); 3 systems (w5_systems) x 9 traces; seed 1 (its repetitions W5r revised after the draft, D166); replaces v2's time-varying patterns",
+   "about": "D125: the burst sweep (vLLM bench's burstiness: gamma inter-arrival times, shape alpha, mean rate fixed; alpha 1 is Poisson): alpha 0.25, 0.5 and 2.0 at 12, 30 and 42 req/s; alpha 1.0 is the main grid's run of that configuration at each rate (W2, W2b, W2n, W2p or W2x, seed 1); 3 systems (w5_systems) x 9 traces; seed 1 (its repetitions W5r revised after the draft, D166); replaces v2's time-varying patterns",
    "plan": "27 cells (seed 1), ~1.6 h",
    "blocks": [
     {"name": "W5", "group": "qwen", "dataset": "eval_qwen", "axes": {"c": "$decision:w5_systems"},

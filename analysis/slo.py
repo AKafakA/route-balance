@@ -1,4 +1,4 @@
-"""The SLO (D57, after SOLA): per-request attainment against each tier's single-request latency, and goodput.
+"""The SLO (after SOLA): per-request attainment against each tier's single-request latency, and goodput.
 
 A request meets its SLO at a level ("tight" or "loose") when
   TTFT <= k * its tier's single-request TTFT   and   TPOT <= k * its tier's single-request TPOT,

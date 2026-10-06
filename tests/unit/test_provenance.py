@@ -1,4 +1,4 @@
-"""D134 (owner 09-29: "manual set the default value ... should never never never allowed"): every configured value in
+"""No value of our own: every configured value in
 the scope and the presets, and every numeric constant of the serving code, has its source in configs/provenance.json
 (the owner's decision, the upstream system's stock default, or v2/v3's accepted value) and still has the recorded value.
 A new, removed or changed value fails here until the table records it with its source."""

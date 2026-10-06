@@ -1,5 +1,4 @@
-"""Equal-quality comparison: every baseline configuration against the treatment at the same quality (D80, D81, D86,
-D87).
+"""Equal-quality comparison: every baseline configuration against the treatment at the same quality.
 
 For a baseline configuration B at one trace of one comparison group (bench/scope.py; the treatment presets
 come from the same group and trace, never from another fleet, dataset or order), over B's seeds S (paired: a
@@ -8,8 +7,8 @@ seed fixes the arrivals, and with per_seed order also the prompt order, for ever
   2. The treatment presets used are those with a cell for every seed in S (the rest are listed as excluded);
      each preset's point is its mean over S.
   3. The treatment's value of each metric (mean and p99 E2E, decode cost, the tight and loose SLO miss shares) at
-     q_B, by one of two readings (D86: both are reported, the framing is chosen after the runs):
-       one_config  one treatment configuration for every metric (D80): the treatment's frontier is its presets
+     q_B, by one of two readings (both are reported, the framing is chosen after the runs):
+       one_config  one treatment configuration for every metric: the treatment's frontier is its presets
                    that are Pareto-efficient in quality (up) and mean E2E latency (down), by increasing quality;
                    at q_B the configuration lies between the two frontier presets around q_B, at weight
                    w = (q_B - q_lo) / (q_hi - q_lo), and every metric is read there: m_lo + w (m_hi - m_lo);
@@ -17,16 +16,16 @@ seed fixes the arrivals, and with per_seed order also the prompt order, for ever
                    in quality up and that metric down), read the same way at q_B.
      Past the high end of a frontier the end preset is used if its quality is within the tolerance of q_B;
      otherwise there is no equal-quality point (never extrapolated). Past the low end the lowest-quality frontier
-     preset is used (D87): within the tolerance as at the high end; further below, the treatment is compared at
+     preset is used: within the tolerance as at the high end; further below, the treatment is compared at
      higher quality than the baseline's, as v3's dominance reading counted it, and the value is marked
      `at_higher_quality` (per seed too; `higher_resamples` counts such resamples; the tables mark them).
   4. delta = treatment - baseline (negative: the treatment is faster or cheaper); relative = treatment/baseline - 1.
-  5. The range over the seeds (D81, the main text): steps 3-4 on each seed of S alone, B's cell at that seed
+  5. The range over the seeds (the main text): steps 3-4 on each seed of S alone, B's cell at that seed
      against the frontier of the presets' cells at that seed. `per_seed` holds each seed's delta and relative
      change; `range` and `range_relative` are their minimum and maximum, when S has >= 2 seeds and every seed
      has the value. `outside_range` marks a main value outside its range (the frontier of the means is not the
      mean of the seeds' frontiers).
-  6. The confidence interval (D80, the appendix): a percentile bootstrap over requests within the paired seeds.
+  6. The confidence interval (the appendix): a percentile bootstrap over requests within the paired seeds.
      A resample draws, in each seed, as many requests as the seed's cells have, with replacement, by send
      position, the same draw for B and every preset: the same position is the same prompt and arrival in every
      system's cell (checked). Each cell's metrics are recomputed on the drawn requests
@@ -65,7 +64,7 @@ class SeedValue:
     seed: int
     delta: Optional[float]                   # None: no equal-quality point on this seed
     relative: Optional[float]
-    at_higher_quality: bool                  # read at the frontier's low end, above the baseline's quality (D87)
+    at_higher_quality: bool                  # read at the frontier's low end, above the baseline's quality
 
 
 @dataclass(frozen=True)
@@ -83,7 +82,7 @@ class MetricDelta:
     ci_relative: Optional[tuple[float, float]]
     undefined_resamples: int
     at_higher_quality: bool                  # the value at the means is the low end, above q_B beyond the tolerance
-    higher_resamples: int                    # resamples read at the low end, above their baseline's quality (D87)
+    higher_resamples: int                    # resamples read at the low end, above their baseline's quality
     frontier_presets: Optional[tuple[str, str]] = None   # this metric's two frontier presets, and the weight
     weight: Optional[float] = None
 
@@ -108,7 +107,7 @@ Position = tuple[int, int, float, bool]     # (i, j, w, at higher quality)
 
 def position_at(quality: float, qualities: Sequence[float], tolerance: float) -> Optional[Position]:
     """(i, j, w, higher): `quality` lies between the i-th and j-th of `qualities` (increasing) at weight w; below
-    them all, the lowest one, with higher = True when it lies further above `quality` than the tolerance (D87)."""
+    them all, the lowest one, with higher = True when it lies further above `quality` than the tolerance."""
     if math.isnan(quality) or any(math.isnan(q) for q in qualities):
         raise ConfigError("an equal-quality reading was given a quality that is not a number")
     if not qualities:

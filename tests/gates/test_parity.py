@@ -80,7 +80,7 @@ SHARED = [
 @pytest.mark.parametrize("path,value,key", SHARED, ids=[k for _, _, k in SHARED])
 def test_an_undeclared_difference_fails_in_a_main_group(tmp_path, path, value, key):
     cells = group(tmp_path, G1)
-    for c in cells:   # g1 declares dead reckoning (v3's probe arm, D55); a group that does not must fail on it
+    for c in cells:   # g1 declares dead reckoning (v3's probe arm); a group that does not must fail on it
         spec(c, lambda s: s.__setitem__("intended_differences", ["system.*"]))
     edit_manifests(cells[0], setter(*path, value=value))
     found, _ = problems(cells)
@@ -336,7 +336,7 @@ def _engines(cell, fn, whens=("before", "after")):
 
 
 def test_an_engine_launched_differently_in_one_cell_fails_the_group(tmp_path):
-    """D48: every cell of a group ran on the same engine launches, whatever the group declares."""
+    """every cell of a group ran on the same engine launches, whatever the group declares."""
     cells = group(tmp_path, G1)
     _engines(cells[1], lambda d: d["instances"]["L_2"]["cache_config"].update(num_gpu_blocks="7000"))
     found, _ = problems(cells)
@@ -367,7 +367,7 @@ def test_a_cell_without_its_engine_record_fails(tmp_path, capsys):
 
 
 def test_an_engine_missing_from_every_cells_record_fails(tmp_path):
-    """D48: each cell's record reads every engine of its fleet, even when all the cells miss the same one."""
+    """each cell's record reads every engine of its fleet, even when all the cells miss the same one."""
     cells = group(tmp_path, G1)
     for c in cells:
         _engines(c, lambda d: d["instances"].pop("L_2"))

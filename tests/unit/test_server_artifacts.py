@@ -65,7 +65,7 @@ def load(cfg: dict, root):
 
 
 def pipeline(router: dict, **kw) -> dict:
-    router = router if router["type"] == "passthrough" else {"concurrency": 1} | router   # D135
+    router = router if router["type"] == "passthrough" else {"concurrency": 1} | router   # a model-calling router's lane
     cfg = copy.deepcopy(BASE)
     cfg.update(mode="pipeline", normalize_over=None,
                weights=None, pending_decode=None, dead_reckoning=False, telemetry_read="poll",
@@ -74,7 +74,7 @@ def pipeline(router: dict, **kw) -> dict:
 
 
 def test_the_prefill_table_is_verified_and_recorded(tmp_path, fake_knn):
-    """D118: the prefill table is pinned by md5 like the TPOT table and listed with the files the latency model read."""
+    """the prefill table is pinned by md5 like the TPOT table and listed with the files the latency model read."""
     cfg = copy.deepcopy(BASE)
     cfg["latency"]["table_md5"] = write_table(tmp_path)
     data = json.dumps({"unit": "ms", "prefill": {"small_a30": {"intercept_ms": 20.0, "per_token_ms": 0.05, "n": 64,
@@ -117,12 +117,12 @@ def test_avengers_pro_records_its_artifact_dir_and_its_embedder(tmp_path, monkey
     (tmp_path / "ap/kmeans.joblib").write_bytes(b"km")
     cfg = pipeline({"type": "avengers_pro", "kwargs": {"artifact_dir": "ap", "beta": 5.0, "top_k": 4,
                                                        "embedder": ENCODER, "embedder_revision": "e" * 40}})
-    # the embedder is hashed at its pinned revision (D49), never the cached main
+    # the embedder is hashed at its pinned revision, never the cached main
     assert load(cfg, tmp_path).artifacts == {"ap/kmeans.joblib": md5(b"km"), f"avengers_pro@{ENCODER}@{'e' * 40}": "9" * 32}
 
 
 def test_upstream_best_route_records_its_checkpoint_modules_and_backbone(tmp_path, monkeypatch, fake_knn):
-    """D79: the checkpoint file by file, each upstream module the router imports, and the backbone at its revision."""
+    """the checkpoint file by file, each upstream module the router imports, and the backbone at its revision."""
     from routebalance.baselines.routers import BEST_ROUTE_MODULES
     seen = {}
     monkeypatch.setattr(server, "build_router", lambda *a, **kw: seen.update(kw) or PassthroughRouter())
@@ -222,7 +222,7 @@ def test_a_failed_append_stays_buffered(tmp_path):
 
 
 def test_load_components_hands_every_pipeline_router_the_lane(tmp_path, monkeypatch, fake_knn):
-    """build_router gets the one-at-a-time lane, not RouteBalance's shared pool (owner 09-25)."""
+    """build_router gets the one-at-a-time lane, not RouteBalance's shared pool."""
     got = []
     monkeypatch.setattr(server, "build_router", lambda *a, **kw: got.append(kw["executor"]) or PassthroughRouter())
     (tmp_path / "br/ckpt").mkdir(parents=True)

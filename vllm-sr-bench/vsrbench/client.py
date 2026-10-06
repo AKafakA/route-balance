@@ -2,12 +2,12 @@
 
 bench.runner hands complete() the scheduler request body it sends every system (bench.client.request_body); this
 client sends the same prompt and sampling as one streaming chat request to the router's entrypoint, with only the
-fields vLLM-SR v0.4.0 accepts (constants.REQUEST_FIELDS; D151: no stop), the request id in the x-request-id header
+fields vLLM-SR v0.4.0 accepts (constants.REQUEST_FIELDS: no stop), the request id in the x-request-id header
 (Envoy keeps it, logs it and vLLM uses it), and returns the reply in the scheduler contract's shape:
   model             the router's choice (x-vsr-selected-model), which must be the model the stream reports
   instance_id       joined after the run from Envoy's access log (join.py); "" until then
   ttft_s                   the client's clock from the send to the first streamed token
-  first_token_s            the SLO's TTFT (D57, D161): set by the join, from Envoy's own request start (vLLM-SR's front
+  first_token_s            the SLO's TTFT: set by the join, from Envoy's own request start (vLLM-SR's front
                            door) to this first token, as our scheduler's runs from its handler; the client's send-to-first
                            value until then, and the first token's wall-clock time is kept (self.first_wall)
 The stream is parsed chunk by chunk as it arrives, as routebalance/backend.py parses vLLM's and as vLLM bench's own client
@@ -51,7 +51,7 @@ def chat_body(request: dict) -> dict:
 
 
 class VsrClient:
-    """One aiohttp session on vLLM bench's stock connector (D134), as HttpSchedulerClient; a request that waits for a
+    """One aiohttp session on vLLM bench's stock connector, as HttpSchedulerClient; a request that waits for a
     pooled connection is counted (a cell with any wait is not open loop)."""
 
     def __init__(self, base_url: str, max_connections: int, timeout_s: float, identity):
@@ -103,7 +103,7 @@ class VsrClient:
                 for event in events:
                     state.event(event, now)
                 if not had_first and state.first is not None:
-                    self.first_wall[rid] = wall             # for the Envoy join (D161)
+                    self.first_wall[rid] = wall             # for the Envoy join
             for event in state.parser.finish():
                 state.event(event, time.perf_counter())
             end = time.perf_counter() - start

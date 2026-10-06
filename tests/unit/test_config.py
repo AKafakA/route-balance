@@ -45,14 +45,14 @@ LOAD_READING = ("least_outstanding", "po2")
 
 
 def _pipeline(router="best_route", dispatch="least_outstanding", count=None):
-    """A pipeline system; a load-reading dispatcher reads the engines' gauges (the main grid, D84) unless told otherwise."""
+    """A pipeline system; a load-reading dispatcher reads the engines' gauges (the main grid) unless told otherwise."""
     d = copy.deepcopy(RB)
     d["mode"] = "pipeline"
-    d["normalize_over"] = None             # RouteBalance's round only (D137)
+    d["normalize_over"] = None             # RouteBalance's round only
     d["weights"] = None
     d["pending_decode"] = None
     d["telemetry_read"] = "poll"
-    d["dead_reckoning"] = False            # RouteBalance's mechanism only (owner 09-25)
+    d["dead_reckoning"] = False            # RouteBalance's mechanism only
     if count is None and dispatch in LOAD_READING:
         count = "engine"
     d["pipeline"] = {"router": {"type": router, "kwargs": {}} | ({} if router == "passthrough" else {"concurrency": 1}),
@@ -123,7 +123,7 @@ def test_valid_configs_parse():
     lambda d: d["estimator"].update(index_md5="abc"),                # malformed md5
     lambda d: d["latency"].update(table_md5="0" * 31),               # malformed table md5
     lambda d: d["latency"].pop("table_md5"),                         # the table is pinned like the index
-    lambda d: d["latency"].pop("prefill"),                           # on or off is stated, never assumed (D118)
+    lambda d: d["latency"].pop("prefill"),                           # on or off is stated, never assumed
     lambda d: d["latency"]["prefill"].pop("table_md5"),              # the prefill table is pinned too
     lambda d: d["latency"]["prefill"].update(table="/abs/prefill.json"),   # an artifact path is relative
     lambda d: d["estimator"].update(encoder_revision="main"),        # a branch name is not a pinned commit
@@ -150,7 +150,7 @@ def test_pending_decode_is_required_exactly_in_routebalance_mode():
     d["pending_decode"] = "lpt_key"
     with pytest.raises(ConfigError, match="lpt_key is RB-only"):
         parse_scheduler(d)
-    d["pending_decode"] = "own_length"                      # the D38 sweep
+    d["pending_decode"] = "own_length"                      # the latency sweep
     with pytest.raises(ConfigError, match="it runs with dead reckoning"):
         parse_scheduler(d)                                  # its logged features must be RouteBalance's view
     d["dead_reckoning"] = True
@@ -159,11 +159,11 @@ def test_pending_decode_is_required_exactly_in_routebalance_mode():
 
 @pytest.mark.parametrize("mode,read,dr,dispatch,msg", [
     ("routebalance", "per_round", True, None, None),
-    ("routebalance", "poll", True, None, None),                      # the D54 control
+    ("routebalance", "poll", True, None, None),                      # the cache control
     ("routebalance", "per_round", False, None, None),                # W4's dead-reckoning ablation
     ("routebalance", "per_request", True, None, "never per request"),
     ("pipeline", "poll", False, "least_outstanding", None),           # the engines' counts from the cache (llm-d)
-    ("pipeline", "per_request", False, "least_outstanding", None),   # v3's probe arm (D55)
+    ("pipeline", "per_request", False, "least_outstanding", None),   # v3's probe arm
     ("pipeline", "per_request", False, "po2", None),
     ("pipeline", "poll", True, "least_outstanding", "RouteBalance's own mechanism"),
     ("pipeline", "per_request", True, "least_outstanding", "RouteBalance's own mechanism"),
@@ -191,7 +191,7 @@ def test_the_engine_gauge_controls_parse(read, dispatch):
 
 @pytest.mark.parametrize("dispatch", ["least_outstanding", "po2"])
 def test_the_in_flight_count_parses_from_the_cache_and_needs_no_fetch(dispatch):
-    d = _pipeline(dispatch=dispatch, count="in_flight")                  # the appendix row W12 (D84)
+    d = _pipeline(dispatch=dispatch, count="in_flight")                  # the appendix row W12
     assert parse_scheduler(d).pipeline.dispatch.count == "in_flight"
     d["telemetry_read"] = "per_request"
     with pytest.raises(ConfigError, match="an in-flight count needs no fetch"):
@@ -523,7 +523,7 @@ def test_supported_latency_pairs_parse(source, envelope):
     assert (cfg.latency.source, cfg.latency.envelope) == (source, envelope)
 
 
-# ---- D131: the engines are served to the scheduler on the experiment network (hosts.json service_address)
+# ---- the engines are served to the scheduler on the experiment network (hosts.json service_address)
 
 def _lan_hosts():
     hosts = copy.deepcopy(HOSTS)
@@ -557,7 +557,7 @@ def test_a_malformed_or_shared_service_address_is_refused(tmp_path):
 
 
 def test_a_router_that_calls_a_model_needs_a_concurrency_and_passthrough_takes_none():
-    """D135: the router lane's size is part of the configuration (1 as shipped, 32 the main setting)."""
+    """the router lane's size is part of the configuration (1 as shipped, 32 the main setting)."""
     from routebalance.config import Router
     assert Router(type="avengers_pro", kwargs={}, concurrency=32).concurrency == 32
     assert Router(type="passthrough", kwargs={}).concurrency is None

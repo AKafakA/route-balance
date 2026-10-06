@@ -2,7 +2,7 @@
 
 {
   "bench":    {"sampling": {...Sampling}, "max_connections": int, "request_timeout_s": float,
-               "max_send_lag_ms": float (optional; no longer a bound, D134)},
+               "max_send_lag_ms": float (optional; no longer a bound)},
   "datasets": {"<name>": {"path": "<relative to the data root>", "sha256": "<hex>", "rows": int,
                           "tokenizer_id": "<HF id of the reference tokenizer>",
                           "budgets": null | {"path": "<relative to the data root>", "sha256": "<hex>"}}},
@@ -31,7 +31,7 @@ the subtree under a) in which that configuration's cells may differ. In a compar
 every configuration lists the same system-defining paths; in an ablation group each one lists what it changes
 from the group's reference configuration, and the reference itself lists nothing. Everything else the
 manifest records must be identical (the parity gate reads each cell's group.json, scripts/run_cell.sh).
-max_send_lag_ms is no longer a bound (D134, owner: a late send is counted, never a gate); the report gives each
+max_send_lag_ms is no longer a bound (a late send is counted, never a gate); the report gives each
 cell's latest start after its scheduled arrival. Scopes made before it may still carry a value, which nothing reads.
 """
 from __future__ import annotations
@@ -57,7 +57,7 @@ class BenchParams(Strict):
     sampling: Sampling
     max_connections: int = Field(ge=1)
     request_timeout_s: float = Field(gt=0)
-    max_send_lag_ms: Optional[float] = Field(default=None, gt=0)   # D134: no longer a bound (scopes before it carry one)
+    max_send_lag_ms: Optional[float] = Field(default=None, gt=0)   # no longer a bound (scopes before it carry one)
 
 
 def _relative_path(v: str) -> str:
@@ -90,7 +90,7 @@ class ConfigEntry(Strict):
     config_digest: str = Field(pattern=_SHA256)
 
 
-class Block(Strict):
+class ScopeBlock(Strict):
     name: str = Field(min_length=1)
     group: str = Field(min_length=1)
     dataset: str
@@ -117,7 +117,7 @@ class Scope(Strict):
     datasets: dict[str, DatasetEntry]
     traces: dict[str, Trace]
     configs: dict[str, ConfigEntry]
-    blocks: list[Block] = Field(min_length=1)
+    blocks: list[ScopeBlock] = Field(min_length=1)
     groups: dict[str, GroupSpec]
     accounted: dict[str, str]
     pending: dict[str, str]

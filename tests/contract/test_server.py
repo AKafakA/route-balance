@@ -1,7 +1,7 @@
 """The scheduler server over real HTTP: bench-client contract, both modes, config swaps, failures.
 
 Engines are fake vLLM servers (fake_vllm.py); model components are small stand-ins injected through the
-Service factory (the real ones load artifacts; their equivalence is tested elsewhere).
+Service factory (the real ones load artifacts).
 """
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
@@ -48,7 +48,7 @@ RB = {
 
 
 def pipeline_cfg(dispatch="round_robin", count=None):
-    """A passthrough baseline; a load-reading dispatcher reads the engines' gauges (the main grid, D84) unless told
+    """A passthrough baseline; a load-reading dispatcher reads the engines' gauges (the main grid) unless told
     otherwise."""
     if count is None and dispatch in ("least_outstanding", "po2"):
         count = "engine"
@@ -162,7 +162,7 @@ def test_pipeline_replies_follow_the_bench_contract_and_logs_are_written(tmp_pat
     decisions = read_jsonl(tmp_path / "logs/decisions.jsonl")
     assert len(decisions) == 3 and all(d["decode_tokens"] == 64 and d["success"] for d in decisions)   # max_tokens
     assert all(d["config_digest"] == ident["config_digest"] for d in decisions)
-    assert not list((tmp_path / "logs").glob("latency*"))          # only the D38 sweep writes training rows
+    assert not list((tmp_path / "logs").glob("latency*"))          # only the latency sweep writes training rows
 
 
 def test_routebalance_serves_concurrent_requests_in_rounds(tmp_path):
@@ -201,7 +201,7 @@ def test_a_config_swap_is_refused_while_serving_and_applied_when_idle(tmp_path):
 
 
 def test_each_applied_configuration_is_frozen_out_of_the_collector(tmp_path, monkeypatch):
-    """D103: the loaded configuration is collected once and frozen when it is applied, so a collection during a
+    """the loaded configuration is collected once and frozen when it is applied, so a collection during a
     cell scans only the requests' objects; the next apply unfreezes first, so the old configuration can be freed."""
     import gc
     import types
@@ -290,7 +290,7 @@ def test_a_body_that_is_not_utf8_is_a_bad_request(tmp_path):
 
 
 def test_a_body_in_its_declared_charset_is_read_as_before(tmp_path):
-    """Codex review (D141): a declared charset is honoured, as aiohttp's request.text() did."""
+    """Codex review: a declared charset is honoured, as aiohttp's request.text() did."""
     async def scenario():
         async with Harness(tmp_path, fleet_states()) as h:
             await h.start(pipeline_cfg())
@@ -314,7 +314,7 @@ print(json.dumps(resource.getrlimit(resource.RLIMIT_NOFILE)))
 
 
 def test_set_ulimit_raises_a_lower_soft_limit_to_v3s_65535_and_keeps_a_higher_one(tmp_path):
-    """v3's set_ulimit (D141): the soft open-file limit raised to 65535 when lower, the hard limit unchanged."""
+    """v3's set_ulimit: the soft open-file limit raised to 65535 when lower, the hard limit unchanged."""
     script = tmp_path / "ulimit_check.py"
     script.write_text(ULIMIT_SCRIPT)
     repo = Path(__file__).resolve().parents[2]
@@ -351,7 +351,7 @@ asyncio.run(main())
 
 
 def test_sigterm_stops_the_server_gracefully_and_the_cleanup_runs(tmp_path):
-    """v3's launcher (local review, D141): SIGTERM cancels the serving task, the server shuts down, and the caller's
+    """v3's launcher (local review): SIGTERM cancels the serving task, the server shuts down, and the caller's
     cleanup (the scheduler's service.stop, its final log flush) runs; the process exits 0."""
     port, marker = free_port(), tmp_path / "marker"
     script = tmp_path / "launch.py"
@@ -502,7 +502,7 @@ def test_a_non_finite_estimate_fails_the_round_before_any_dispatch(tmp_path):
 
 
 def test_routebalance_fetches_load_per_round_and_pipelines_poll(tmp_path):
-    """D53: RouteBalance scrapes every engine once per round, with no background pollers; a pipeline system reads the
+    """RouteBalance scrapes every engine once per round, with no background pollers; a pipeline system reads the
     pollers' cache."""
     async def scenario():
         async with Harness(tmp_path, fleet_states()) as h:
@@ -543,7 +543,7 @@ def test_a_switch_from_the_cache_to_per_round_stops_the_pollers(tmp_path):
 
 
 def test_a_failed_scrape_keeps_the_last_snapshot_and_every_request_is_served(tmp_path):
-    """D133 (owner: counted, never refused): the round uses the engine's last snapshot; its age and error are logged."""
+    """Counted, never refused: the round uses the engine's last snapshot; its age and error are logged."""
     states = fleet_states()
 
     async def scenario():
@@ -575,7 +575,7 @@ def test_an_rb_config_is_refused_while_an_engine_cannot_be_fetched(tmp_path):
 
 
 def test_routebalance_on_the_pollers_cache_never_fetches_per_round(tmp_path):
-    """D54's control: the same round loop, its loads read from the background pollers' cache."""
+    """The cache control: the same round loop, its loads read from the background pollers' cache."""
     async def scenario():
         async with Harness(tmp_path, fleet_states()) as h:
             await h.start(RB | {"telemetry_read": "poll"})
@@ -587,7 +587,7 @@ def test_routebalance_on_the_pollers_cache_never_fetches_per_round(tmp_path):
 
 
 def test_the_probe_arm_fetches_the_candidates_per_request_and_reads_engine_counts(tmp_path):
-    """D55, v3's per-request baseline: every request scrapes its candidates once, with no pollers, and least
+    """v3's per-request baseline: every request scrapes its candidates once, with no pollers, and least
     outstanding reads the engines' own queues (dead reckoning off), so it follows the gauges, not the in-flight count."""
     states = fleet_states()
     probe = pipeline_cfg("least_outstanding") | {"telemetry_read": "per_request", "dead_reckoning": False}
@@ -609,7 +609,7 @@ def test_the_probe_arm_fetches_the_candidates_per_request_and_reads_engine_count
 
 
 def test_the_engine_and_telemetry_sessions_use_vllm_benchs_connector(tmp_path):
-    """D134 (owner: "back to vllm bench"): no connection limit and keep-alive, so no stream or scrape ever waits for a
+    """As vLLM bench: no connection limit and keep-alive, so no stream or scrape ever waits for a
     connection (the waits are still counted), whatever max_connections says."""
     states = [(SMALL, FakeState(chat_delay_s=0.05)), (SMALL, FakeState(chat_delay_s=0.05)),
               (LARGE, FakeState(chat_delay_s=0.05))]
@@ -625,7 +625,7 @@ def test_the_engine_and_telemetry_sessions_use_vllm_benchs_connector(tmp_path):
 
 
 def test_a_pipeline_router_is_built_on_a_lane_of_its_configured_concurrency(tmp_path):
-    """D135: the routers' model calls run on a lane (never on RouteBalance's shared pool) with as many threads as the
+    """the routers' model calls run on a lane (never on RouteBalance's shared pool) with as many threads as the
     configuration's router concurrency; a swap replaces the lane; passthrough calls no model and gets none."""
     seen = []
 
@@ -678,7 +678,7 @@ class GatedLatency:
 
 
 def test_a_request_is_dispatched_as_soon_as_it_is_scored(tmp_path):
-    """D78 (v3's per-pick dispatch): the first request of a round reaches its engine while the rest of the round
+    """v3's per-pick dispatch: the first request of a round reaches its engine while the rest of the round
     is still being scored; nothing waits for the whole round."""
     import threading
     gate = threading.Event()
@@ -712,7 +712,7 @@ def test_a_request_is_dispatched_as_soon_as_it_is_scored(tmp_path):
 
 
 def test_a_failed_log_writer_is_recorded_and_requests_are_still_served(tmp_path):
-    """D134 (owner: no refusal of my own): an evidence writer that fails is recorded in /v1/stats (the cell is then
+    """No refusal: an evidence writer that fails is recorded in /v1/stats (the cell is then
     invalid, gates/cell.py scheduler_problems); the scheduler keeps serving every request."""
     async def scenario():
         async with Harness(tmp_path, fleet_states()) as h:
@@ -731,7 +731,7 @@ def test_a_failed_log_writer_is_recorded_and_requests_are_still_served(tmp_path)
 
 
 def test_a_failed_apply_drops_its_new_lane_and_keeps_the_old_one(tmp_path, monkeypatch):
-    """D135 (local review): until the swap, a failure leaves the old configuration live; the lane built for the new
+    """Until the swap, a failure leaves the old configuration live; the lane built for the new
     one is shut down, and the old lane keeps serving."""
     import routebalance.server as server_mod
     made = []

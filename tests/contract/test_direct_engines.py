@@ -180,7 +180,7 @@ def test_a_failed_warm_up_stops_the_run(tmp_path):
         asyncio.run(scenario())
 
 
-# ---- D128: the warm-up empties every engine's prefix cache and proves it
+# ---- the warm-up empties every engine's prefix cache and proves it
 
 def _with_engines(tiers, setup, n=2):
     async def scenario():

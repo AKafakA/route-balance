@@ -1,25 +1,25 @@
-"""A family's repetition row (seeds 2-3) from its complete seed-1 grid (D171, D178, D192, D199, D203).
+"""A family's repetition row (seeds 2-3) from its complete seed-1 grid.
 
     python -m tools.repetition_rows --report REPORT.json --scope configs/scope.json --family qwen|gemma --out SCOPE.json
 
 At each of the family's main rates the row repeats:
   (b) every configuration that no configuration of any system dominates on (quality, mean E2E, total cost per 1,000
-      requests): at least its quality, at most its latency and cost, and better in one (D171);
+      requests): at least its quality, at most its latency and cost, and better in one;
   (c) each system's knee: its configuration on its own frontier closest to its best corner, each axis scaled to [0, 1]
       over that system's configurations at that rate (Euclidean distance to the best quality, the lowest mean E2E and
-      the lowest cost); a system with one configuration is its own knee (D171);
-  RouteBalance's variants at all eight presets (D192 (1) for in-batch on Qwen; D203 for per request on Qwen and
-  RB-decoupled on both, and for in-batch on Gemma), and D178's thesis points (RB-decoupled at 50/30/20 and uniform at
+      the lowest cost); a system with one configuration is its own knee;
+  RouteBalance's variants at all eight presets (in-batch on both families, per request on Qwen and RB-decoupled
+  on both), and the thesis points (RB-decoupled at 50/30/20 and uniform at
   12, 30 and 42 req/s, Qwen). A system is a router on a dispatcher, a dispatcher alone, RB-decoupled, RouteBalance
-  in-batch, or RouteBalance per request. RouteBalance's configurations outside the eight presets (D192) and the as-shipped
-  copies (D169) are neither candidates nor dominators.
+  in-batch, or RouteBalance per request. RouteBalance's configurations outside the eight presets and the as-shipped
+  copies are neither candidates nor dominators.
 
 The report is analysis.report's report.json (its "configs": one point per configuration and rate, the seed-1 values).
 No seed-1 cell of the family's main group at a main rate may be missing, invalid, failed or left out, no block of
 that grid pending (a pending "row/block" is resolved against the scope's blocks), and every point must be seed 1 alone
 (a grid not yet complete, or a report that averages seeds, is refused, not read). The row (FAMILIES[family]["row"],
 disabled until now) gets one block per rate with the chosen configuration ids, seeds 2 and 3, and is enabled; nothing
-else in the scope changes. The chosen points are printed per rate, by system, for the owner (D199).
+else in the scope changes. The chosen points are printed per rate, by system, for review.
 """
 from __future__ import annotations
 
@@ -30,8 +30,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-EIGHT = ("uniform", "q60l20c20", "q80l10c10", "q90l05c05", "q05l25c70", "q22l18c60", "q25l05c70", "q50l30c20")  # D192
-THESIS = ("q50l30c20", "uniform")                                                                                # D178
+EIGHT = ("uniform", "q60l20c20", "q80l10c10", "q90l05c05", "q05l25c70", "q22l18c60", "q25l05c70", "q50l30c20")  # 8 presets
+THESIS = ("q50l30c20", "uniform")                                                                                # thesis
 FAMILIES = {
     "qwen": {"row": "W9", "group": "qwen", "dataset": "eval_qwen",
              "traces": ("l12", "l18", "l24", "l30", "l36", "l42"),
@@ -48,7 +48,7 @@ class RowError(Exception):
 
 
 def system(family: str, cid: str) -> str:
-    """The D171 system of a configuration id: rb, rb-reqnorm, rb-dec, disp.<d>, or <router>.<dispatcher>."""
+    """The system of a configuration id: rb, rb-reqnorm, rb-dec, disp.<d>, or <router>.<dispatcher>."""
     c = cid[len(family) + 1:] if cid.startswith(family + ".") else None
     if c is None:
         raise RowError(f"{cid}: not a {family} configuration")

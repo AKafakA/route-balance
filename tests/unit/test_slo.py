@@ -1,4 +1,4 @@
-"""The SLO of D57: TTFT and TPOT against k times the tier's single-request values, attainment, and goodput."""
+"""The SLO: TTFT and TPOT against k times the tier's single-request values, attainment, and goodput."""
 import json
 
 import pytest

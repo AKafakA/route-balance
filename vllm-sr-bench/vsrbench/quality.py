@@ -1,4 +1,4 @@
-"""Each model's quality evidence for vLLM-SR: its mean judged score on the training split (D150), the labels
+"""Each model's quality evidence for vLLM-SR: its mean judged score on the training split, the labels
 RouteBalance's estimator and the other baselines train on."""
 from __future__ import annotations
 

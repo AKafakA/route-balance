@@ -1,11 +1,11 @@
-"""tools/repetition_rows.py: D171's points (frontier, knees), D192/D203's all-eight sets, D178's thesis points, refusals."""
+"""tools/repetition_rows.py: the points (frontier, knees), the all-eight sets, the thesis points, refusals."""
 import json
 
 import pytest
 
 from tools import repetition_rows as rr
 
-# D192's eight presets, written out here so that a wrong preset in the tool is caught
+# the eight presets, written out here so that a wrong preset in the tool is caught
 EIGHT = ("uniform", "q60l20c20", "q80l10c10", "q90l05c05", "q05l25c70", "q22l18c60", "q25l05c70", "q50l30c20")
 QT = ("l12", "l18", "l24", "l30", "l36", "l42")
 
@@ -81,11 +81,11 @@ def test_build_qwen_points_and_row():
     l12 = next(b for b in row["blocks"] if b["traces"] == ["l12"])
     assert l12["traces"] == ["l12"] and l12["seeds"] == [2, 3] and l12["axes"] == {} and not l12["fill"]
     ids = set(l12["configs"])
-    assert {f"qwen.rb-static.{w}" for w in EIGHT} <= ids                  # D192 (1)
-    assert {f"qwen.rb-static-dec.{w}" for w in EIGHT} <= ids              # D203
-    assert {f"qwen.rb-static-reqnorm.{w}" for w in EIGHT} <= ids          # D203
-    assert "qwen.rb-static.q10l80c10" not in ids                          # outside the eight (D192)
-    assert not any("shipped" in i for i in ids)                           # D169
+    assert {f"qwen.rb-static.{w}" for w in EIGHT} <= ids                  # in-batch on Qwen
+    assert {f"qwen.rb-static-dec.{w}" for w in EIGHT} <= ids              # RB-decoupled
+    assert {f"qwen.rb-static-reqnorm.{w}" for w in EIGHT} <= ids          # per request
+    assert "qwen.rb-static.q10l80c10" not in ids                          # outside the eight
+    assert not any("shipped" in i for i in ids)                           # no as-shipped copy
     assert "qwen.ap.pw025.lor" in ids and "qwen.ap.pw080.lor" not in ids   # frontier vs dominated, not the knee
     assert "qwen.br.t00.lor" in ids and "qwen.disp.rr" in ids             # one configuration: its own knee
     # the overall frontier, exactly: the eight in-batch presets (nothing beats their latency at their cost) and
@@ -97,7 +97,7 @@ def test_build_qwen_points_and_row():
     # each dispatcher is its own system: AvengersPro on power of two has its own knee
     assert "qwen.ap.pw053.po2" in ids and "qwen.ap.pw053.po2" in chosen["l12"]["knee"]
     assert chosen["l12"]["thesis"] == {"qwen.rb-static-dec.q50l30c20", "qwen.rb-static-dec.uniform"}
-    assert chosen["l18"]["thesis"] == set()                               # D178: 12, 30 and 42 only
+    assert chosen["l18"]["thesis"] == set()                               # 12, 30 and 42 only
     assert row["plan"] == f"{sum(2 * len(b['configs']) for b in row['blocks'])} cells"
     assert [r for r in new["rows"] if r["id"] != "W9"] == [r for r in scope()["rows"] if r["id"] != "W9"]
 

@@ -1,4 +1,4 @@
-"""D128/D132: a cell counts only when every engine's warm-up proved the prefix-cache reset and, between the two engine
+"""a cell counts only when every engine's warm-up proved the prefix-cache reset and, between the two engine
 readings, only the cell's own requests reached the engines (gates/cell.py isolation_problems)."""
 import json
 import shutil
@@ -44,7 +44,7 @@ def cell(tmp_path):
                            "prefix_queries": 90000 + p, "prefix_hits": 5000}
         (d / f"engines_{when}.json").write_text(json.dumps(e))
     (d / "warmup.json").write_text(json.dumps(_warmup(sorted(e["instances"]))))
-    _edit(d / "stats_before.json", lambda st: st["logged"].update(decisions=0))    # a fresh scheduler (D132)
+    _edit(d / "stats_before.json", lambda st: st["logged"].update(decisions=0))    # a fresh scheduler
     return d
 
 

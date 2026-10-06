@@ -10,7 +10,7 @@ weight w_i = 1 / (d_i + 1e-6) with d = 1 - s, normalised to sum to 1, and then f
   bucket_probs    the weights histogrammed by length into 64-token buckets, the 16th open-ended
   p_under_budget  the share of the weight on neighbours with len_i <= budget_tokens
 Each float32/float64 step follows v3 operation by operation, so for the same query embeddings the
-results are bitwise equal to v3 (tests/equivalence).
+results are bitwise equal to v3's.
 
 The index artifact is the v3 pickle <index_dir>/knn_estimator.pkl. Its md5 is checked before it is
 unpickled, its baked k must equal the configured k, and every model must carry DeepEval labels. The v3
@@ -109,7 +109,7 @@ def _column(a: object, n: int, what: str, low: float, high: float) -> np.ndarray
 
 
 class KnnEstimator:
-    """estimate_batch is safe to call from worker threads, and concurrent calls run in parallel (D135: RB-decoupled's
+    """estimate_batch is safe to call from worker threads, and concurrent calls run in parallel (RB-decoupled's
     lane); RouteBalance calls it once per round."""
 
     def __init__(self, index: KnnIndex, encoder: Encoder, *, k: int, prior: Prior):
@@ -135,10 +135,10 @@ class KnnEstimator:
     def search(self, prompts: Sequence[str]) -> tuple[np.ndarray, np.ndarray]:
         """Neighbour indices (n, k) int64 and distances 1 - similarity (n, k) float64, in rank order."""
         texts = [unwrap_chat_prompt(p) for p in prompts]
-        with self._lock:     # the counter only: RB-decoupled calls in parallel on its lane (D135)
+        with self._lock:     # the counter only: RB-decoupled calls in parallel on its lane
             self.batch_calls += 1
         # concurrent calls run in parallel: sentence-transformers' encode with fixed settings after the load-time call
-        # (32 AvengersPro calls at once on the same MiniLM routed exactly as one at a time, D135's check) and a flat
+        # (32 AvengersPro calls at once on the same MiniLM routed exactly as one at a time) and a flat
         # FAISS index's search, which only reads
         emb = self._encoder.encode(texts, normalize_embeddings=True, batch_size=max(len(texts), _MIN_ENCODE_BATCH))
         queries = np.ascontiguousarray(np.asarray(emb, dtype=np.float32)).reshape(len(texts), -1)

@@ -1,4 +1,4 @@
-"""The judge loop for the budget sweep (D67): every unscored text a budget cell served goes to the judge once, in
+"""The judge loop for the budget sweep: every unscored text a budget cell served goes to the judge once, in
 the judge's own input format, and only the judge's scores for exactly those texts enter a new store file."""
 import asyncio
 import hashlib
@@ -92,7 +92,7 @@ def test_an_empty_served_text_is_not_sent_and_scores_zero(tmp_path):
     root, prompts = _cell(tmp_path, texts={0: ""})
     lines, empty, _ = js.collect(KEY, [], [root], [_refs(tmp_path, prompts)])
     assert empty == 1 and all(ln["models"][js.SLOT]["response"] for ln in lines) and len(lines) == 2
-    assert ScoreStore({}).lookup(prompts[0], "m-small", "") == ("matched", 0.0)       # D67: as v2 and v3
+    assert ScoreStore({}).lookup(prompts[0], "m-small", "") == ("matched", 0.0)       # as v2 and v3
 
 
 def test_merge_returns_exactly_the_judged_texts(tmp_path):

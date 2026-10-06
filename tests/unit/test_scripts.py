@@ -101,7 +101,7 @@ def test_setup_token_file_must_be_private(tmp_path):
 
 
 def test_setup_never_installs_outside_its_own_venvs():
-    """R1: every pip call goes through a venv this script made; nothing uses the system pip or sudo pip."""
+    """Every pip call goes through a venv this script made; nothing uses the system pip or sudo pip."""
     code = "\n".join(ln for ln in SETUP.read_text().splitlines() if not ln.lstrip().startswith("#"))
     pythons = re.findall(r"(\S+) -m pip ", code)
     assert len(pythons) >= 5, pythons                       # pip itself, vllm, the repo, check, freeze
@@ -217,7 +217,7 @@ http.server.HTTPServer(("127.0.0.1", int(sys.argv[1])), H).serve_forever()
 
 
 def test_node_ctl_started_reports_what_the_recorded_engine_process_executes(tmp_path):
-    """D48: the start time on the engine's port must be the recorded pid's, and the record gets its GPUs and
+    """the start time on the engine's port must be the recorded pid's, and the record gets its GPUs and
     command line from /proc; another process answering on the port is refused."""
     import socket
     with socket.socket() as s:
@@ -241,12 +241,12 @@ cmd_started E {port}
     lines = r.stdout.strip().splitlines()
     fields = lines[0].split("\t")
     assert fields[:2] == ["started", "E"] and float(fields[2]) > 1.7e9 and fields[3] == "2,3", r.stdout + r.stderr
-    assert fields[4] == f"VLLM_HTTP_TIMEOUT_KEEP_ALIVE=600 {sys.executable} {tmp_path}/srv.py {port}"   # D138
+    assert fields[4] == f"VLLM_HTTP_TIMEOUT_KEEP_ALIVE=600 {sys.executable} {tmp_path}/srv.py {port}"   # keep-alive
     assert "another process answers" in lines[-1]
 
 
 def test_the_best_route_pins_agree_across_setup_pyproject_hub_and_presets():
-    """D79: setup.sh's LLM-Blender commit is pyproject's; the backbone revision the presets load is the one the
+    """setup.sh's LLM-Blender commit is pyproject's; the backbone revision the presets load is the one the
     scheduler's Hub pins fetch; the checkout setup.sh clones is the one the presets pin by digest (the digest of
     fc9b896's modules was computed from that checkout, 09-26)."""
     setup = SETUP.read_text()
@@ -277,7 +277,7 @@ def test_setup_never_reads_an_unread_mig_mode_as_off(tmp_path, modes, rc, messag
 
 
 def test_every_engine_starts_with_the_raised_keep_alive():
-    """D138 (owner 09-29): vLLM's VLLM_HTTP_TIMEOUT_KEEP_ALIVE above the clients' 60 s keep-alive, in the environment the
+    """vLLM's VLLM_HTTP_TIMEOUT_KEEP_ALIVE above the clients' 60 s keep-alive, in the environment the
     engine runs with and in the launch command recorded for it (the parity gate compares engine launches)."""
     layout = subprocess.run(["bash", "-c", "source scripts/node_layout.sh; echo $ENGINE_KEEP_ALIVE_S"],
                             capture_output=True, text=True, check=True, cwd=REPO).stdout.strip()
@@ -293,7 +293,7 @@ def test_every_engine_starts_with_the_raised_keep_alive():
 @pytest.mark.parametrize("enabled, rc, text", [("disabled", 0, "self-check (vsr) OK"),
                                                ("enabled", 1, "is not disabled at boot (enabled)")])
 def test_the_vsr_self_check_reads_the_units_boot_state_under_set_e(tmp_path, enabled, rc, text):
-    """D165 (local and Codex reviews 09-30): systemctl is-enabled exits 1 for a disabled unit and for a missing one; the
+    """systemctl is-enabled exits 1 for a disabled unit and for a missing one; the
     self-check runs under main's set -euo pipefail and must read those states, not stop on the exit status. Every
     command it runs is stubbed here: nothing on the machine is touched."""
     stub = f"""

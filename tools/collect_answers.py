@@ -1,5 +1,5 @@
 """Every model's answer to every prompt of a prompt set, directly on the engines, and the scored corpus rebuilt from
-them (D102: the Qwen answers re-collected once every request stops at the end of its turn).
+them (the Qwen answers re-collected once every request stops at the end of its turn).
 
     python -m tools.collect_answers collect --render DIR --fleet-name NAME --fleet FLEET.json --hosts HOSTS.json
                                             --data-root DIR --dataset NAME --concurrency C --out ANSWERS.jsonl
@@ -41,7 +41,7 @@ from tools import direct
 from tools.campaign import load_plan
 
 PROMPT_FIELDS = ("request_id", "prompt", "input_len", "dataset", "source", "is_harmful", "reference_text")
-OPTIONAL_FIELDS = {"is_harmful"}     # Qwen's corpora carry it, Gemma's do not (D144): copied when the corpus has it
+OPTIONAL_FIELDS = {"is_harmful"}     # Qwen's corpora carry it, Gemma's do not: copied when the corpus has it
 
 
 def by_model(fleet: Sequence[Instance]) -> dict[str, list[Instance]]:
@@ -66,7 +66,7 @@ async def collect(plan: dict, fleet: Sequence[Instance], prompts: Sequence[direc
         backend = BackendClient(sess, plan["bench"]["request_timeout_s"])
         await direct.drain(sess, fleet, timeout_s=plan["drain"]["timeout_s"])
         w = plan["warmup"]
-        warm = BackendClient(sess, plan["drain"]["timeout_s"])   # the owner's kept pre-run bound (D134 item 10)
+        warm = BackendClient(sess, plan["drain"]["timeout_s"])   # the kept pre-run bound
         await direct.warm_up(sess, warm, fleet, requests_per_instance=w["requests_per_instance"],
                              max_tokens=w["max_tokens"], prompt=w["prompt"], sampling=sampling, run_id=run_id)
 

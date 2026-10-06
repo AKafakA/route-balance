@@ -8,14 +8,14 @@ MYDATA=/mydata
 RB_ROOT=$MYDATA/rb
 RB_HF_HOME=$MYDATA/hf                 # HF_HOME of every process: weights, tokenizers, encoders
 ENGINE_VENV=$RB_ROOT/venv-engine      # official vLLM (its own torch); never shared with the scheduler
-# D141: new venvs for the uvicorn scheduler (the pyproject gained v3's web stack); the aiohttp-era venv-scheduler and
-# venv-test are left as they are (R1), their sibling names below keep the test venv's parity check pairing them
+# new venvs for the uvicorn scheduler (the pyproject gained v3's web stack); the aiohttp-era venv-scheduler and
+# venv-test are left as they are, their sibling names below keep the test venv's parity check pairing them
 SCHED_VENV=$RB_ROOT/venv-scheduler-uvicorn   # this repository, pip install -e (its own torch)
 TEST_VENV=$RB_ROOT/venv-test-uvicorn         # setup.sh --with-tests: the same pins plus the dev extras, for the test suite only
 VSR_VENV=$RB_ROOT/venv-vsr           # setup.sh --role vsr: the vLLM Semantic Router CLI (vllm-sr-bench/requirements-vsr.txt)
 DOCKER_ROOT=/mydata/docker          # setup.sh --role vsr: Docker's data root, as v2 deployed vLLM-SR (the root disk is 63 GB)
 AP_DIR=$RB_ROOT/AvengersPro           # the pinned upstream AvengersPro checkout (scheduler only)
-BR_DIR=$RB_ROOT/best-route-llm        # the pinned upstream BEST-Route checkout (scheduler only, D79)
+BR_DIR=$RB_ROOT/best-route-llm        # the pinned upstream BEST-Route checkout (scheduler only)
 RB_TIKTOKEN=$RB_ROOT/tiktoken         # TIKTOKEN_CACHE_DIR of the scheduler (upstream AvengersPro's cl100k_base)
 RB_LOGS=$RB_ROOT/logs                 # engine and scheduler stdout/stderr, one file per launch
 RB_RUN=$RB_ROOT/run                   # pid files, launch commands, the scheduler's copied inputs
@@ -24,8 +24,7 @@ CUDA_DIR=/usr/local/cuda-12.8
 DRIVER_VERSION=570.86.10
 VLLM_VERSION=0.18.1                   # == the pyproject `serve` extra and every engine args file (tests check)
 # vLLM's VLLM_HTTP_TIMEOUT_KEEP_ALIVE for every engine (stock 5 s): above the clients' 60 s keep-alive (vLLM bench's stock
-# connector), as v3 set its scheduler's server (600 s, "Was 5 — caused localhost RST race vs bench keepalive=60s");
-# owner 09-29, D138
+# connector), as v3 set its scheduler's server (600 s, "Was 5 — caused localhost RST race vs bench keepalive=60s")
 ENGINE_KEEP_ALIVE_S=600
 # the environment every engine and the scheduler start with (env -i: nothing inherited from login files)
 RB_PATH=$CUDA_DIR/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin

@@ -2,9 +2,9 @@
 
   passthrough   no model choice: the dispatcher sees every instance (the v3 "__ALL__" sentinel)
   best_route    v3's 4-way DeBERTa classifier for BEST-Route: argmax, with an optional confidence floor (the
-                backup of D79)
+                backup of best_route_upstream)
   best_route_upstream  BEST-Route as its authors ship it (microsoft/best-route-llm): upstream's ranker and
-                its routing rule, loaded from the pinned checkout (D79)
+                its routing rule, loaded from the pinned checkout
   avengers_pro  the upstream AvengersPro cluster router, wrapped as v3 wrapped it
   rb_decoupled  RouteBalance's own predictors pick the model from UNLOADED latency (no telemetry),
                 so a dispatcher places it afterwards: "router in front of a load balancer"
@@ -51,9 +51,9 @@ def router_executor() -> ThreadPoolExecutor:
 # router server), so a queue forms at the router while streaming and telemetry keep running. How many calls run at
 # once is the configuration's router concurrency (config.Router.concurrency):
 #   1   as shipped: one request at a time (RouteLLM's server calls router.route() synchronously in its request
-#       handler; NVIDIA's LLM Router sends each prompt to one Triton instance with no dynamic batching; owner 09-25)
-#   32  the main setting since D135: as many calls at once as RouteBalance's largest round
-#       (schedule/rounds.py ADAPTIVE_LIMITS; owner 09-29 "i mean the max batch size"), also v2's concurrent-scoring
+#       handler; NVIDIA's LLM Router sends each prompt to one Triton instance with no dynamic batching)
+#   32  the main setting: as many calls at once as RouteBalance's largest round
+#       (schedule/rounds.py ADAPTIVE_LIMITS), also v2's concurrent-scoring
 #       variant (asyncio's default pool, 32 threads on the 96-CPU scheduler node)
 def router_lane(threads: int) -> ThreadPoolExecutor:
     return ThreadPoolExecutor(max_workers=threads, thread_name_prefix="router-lane")
@@ -64,7 +64,7 @@ class RouterRequest:
     prompt: str          # the user's text (estimate.prompt.unwrap_chat_prompt), as v3 handed it to routers
     request_id: str
     prompt_tokens: Optional[int] = None   # the templated prompt's tokens as the client counted them (= vLLM's);
-    #                                       RB-decoupled's cost needs them (D117), the other routers ignore them
+    #                                       RB-decoupled's cost needs them, the other routers ignore them
 
 
 @dataclass(frozen=True)
@@ -171,7 +171,7 @@ def load_best_route(checkpoint: Path, max_length: int) -> tuple[Classify, dict[i
     return classify, {int(k): str(v) for k, v in label_to_model.items()}
 
 
-# ---------------------------------------------------------------- BEST-Route, as its authors ship it (D79)
+# ---------------------------------------------------------------- BEST-Route, as its authors ship it
 
 # The upstream modules the router imports, relative to the checkout; their digest pins the checkout.
 BEST_ROUTE_MODULES = ("hybrid_llm/__init__.py", "hybrid_llm/pair_ranker/__init__.py", "hybrid_llm/pair_ranker/ranker.py",
@@ -187,7 +187,7 @@ class BestRouteUpstreamRouter(Router):
     two-way head per candidate but the last, the reference model; head i estimates the probability that candidate
     i's answer is at least as good as the reference's. A candidate's score is that probability minus its
     complement, the reference's is 1, and the request goes to the cheapest candidate whose score is at least the
-    threshold, so the reference always qualifies. Cheapest is the fleet's per-token price order (D71): upstream
+    threshold, so the reference always qualifies. Cheapest is the fleet's per-token price order: upstream
     ranks by each test response's own cost, which a deployed router cannot know before the response exists."""
 
     def __init__(self, scores: Scores, candidates: Sequence[str], by_price: Sequence[str], *, threshold: float,
@@ -325,7 +325,7 @@ class AvengersProRouter(Router):
 
 class _LocalEmbedder:
     """Stands in for upstream's HTTP embedding client: a local sentence-transformers model pinned to
-    the CPU and to one Hub revision, with the one method upstream calls, get(text) -> 1-D embedding (v3 D9)."""
+    the CPU and to one Hub revision, with the one method upstream calls, get(text) -> 1-D embedding (as v3)."""
 
     def __init__(self, name: str, revision: str):
         from sentence_transformers import SentenceTransformer
@@ -497,7 +497,7 @@ class RBDecoupledRouter(Router):
                                f"{quality} / {lens} / {latency}")
         # RouteBalance's own objective (schedule/score.py) over tiers, every latency that of an idle instance;
         # no queue or recency: the first tier in fleet order wins exact ties
-        cost = [prompt_tokens * t.cost_in + n * t.cost_out for t, n in zip(tiers, lens, strict=True)]   # as RB (D117)
+        cost = [prompt_tokens * t.cost_in + n * t.cost_out for t, n in zip(tiers, lens, strict=True)]   # as RB
         cands = [Candidate(t.tier_id, t.model, q, c, lat, lat, 0, 0.0)
                  for t, q, c, lat in zip(tiers, quality, cost, latency, strict=True)]
         w = self._in.weights
@@ -569,7 +569,7 @@ def validate_options(cfg: RouterConfig) -> None:
 
 
 def price_order(models: Sequence[str], prices: Mapping[str, float]) -> list[str]:
-    """Cheapest first by the mean of input and output price per token; equal prices keep `models`' order (D71)."""
+    """Cheapest first by the mean of input and output price per token; equal prices keep `models`' order."""
     missing = [m for m in models if m not in prices]
     if missing:
         raise ConfigError(f"no price for {missing}")

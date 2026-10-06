@@ -62,7 +62,7 @@ def test_malformed_records_fail(tmp_path, record):
         ScoredCorpus.load([_corpus(tmp_path, record)], KEY)
 
 
-# ---------------------------------------------------------------- the budget sweep's served-text store (D67)
+# ---------------------------------------------------------------- the budget sweep's served-text store
 
 def _line(prompt, model, text, **scores):
     from analysis.quality import text_sha256

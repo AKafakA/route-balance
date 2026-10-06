@@ -9,7 +9,7 @@ on the instance during this request's decode, itself included:
 
 One sample per request: the mean of its inter-token latencies after the first (requests with fewer than 4
 are skipped), or its tpot_s (every record: defined from 2 output tokens on). The
-constant is the median over ALL of a tier's samples, every batch size included (D37); for W1 that is all six
+constant is the median over ALL of a tier's samples, every batch size included; for W1 that is all six
 concurrency levels with a fixed number of requests each. Output (--out), the table
 routebalance.estimate.latency reads:
   {"unit": "ms_per_token",
@@ -18,7 +18,7 @@ routebalance.estimate.latency reads:
    "provenance": {"tool", "method", "min_samples", "sources": [{"file", "md5"}], "constant_samples": {tier: n},
                   "curve_samples": {tier: [[b, n], ...]}, "b0_samples": {tier: n},
                   "curve_measured": {tier: [[b, median of the samples at b], ...]}, "curve_rule"}}
-A TPOT curve never decreases in b (D47): the median at a batch size can dip below a smaller batch's by sampling
+A TPOT curve never decreases in b: the median at a batch size can dip below a smaller batch's by sampling
 noise, and the scheduler rejects such a curve, so the curve holds the running max of the medians and the
 measured medians stay in the provenance.
 A request counts itself, so b = 0 only arises from a malformed record; such samples enter the constant but not
@@ -60,7 +60,7 @@ def sample_s(itl: list) -> float | None:
 
 def record_sample(rec: dict) -> float | None:
     """The sample of one record of either shape. A tpot_s record is defined from 2 output tokens on (the reader
-    refuses fewer), so every one is a sample (D37: the median over all samples)."""
+    refuses fewer), so every one is a sample (the median over all samples)."""
     if set(rec) == TPOT_KEYS:
         return float(rec["tpot_s"])
     return sample_s(rec["itl"])
@@ -97,7 +97,7 @@ def read_records(path: Path) -> tuple[list[dict], str]:
 
 
 def non_decreasing(points: list[list]) -> list[list]:
-    """[[b, ms], ...] by increasing b, each ms raised to the largest ms at a smaller or equal b (D47)."""
+    """[[b, ms], ...] by increasing b, each ms raised to the largest ms at a smaller or equal b."""
     out, top = [], -math.inf
     for b, ms in points:
         top = max(top, ms)

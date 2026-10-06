@@ -12,7 +12,7 @@ when the round is scheduled. Every instance of the fleet is a candidate.
      request's predicted decode tokens. So later requests in the round see earlier ones; later rounds see
      them through the telemetry view (record_dispatch).
   4. on_decision, if given, is called with each decision as soon as it is made, before the next request is
-     scored: the server dispatches the request then, as v3 did (D78), so no request waits for the rest of its
+     scored: the server dispatches the request then, as v3 did, so no request waits for the rest of its
      round to be scored. The decisions are the same with or without it.
 
 The decode tokens recorded for an assignment are, with pending_decode="own_length", the expected length
@@ -33,7 +33,7 @@ from routebalance.telemetry import InstanceStats, Load
 from routebalance.types import Instance
 
 PendingDecode = Literal["own_length", "lpt_key"]
-NormalizeOver = Literal["request", "round"]   # D137: config.SchedulerConfig.normalize_over
+NormalizeOver = Literal["request", "round"]   # config.SchedulerConfig.normalize_over
 NEVER = 0.0   # the last-assigned time of an instance that has not won a request yet (v3), before any clock value
 
 
@@ -65,13 +65,12 @@ class RoundRequest:
 
 @dataclass(frozen=True)
 class Admission:
-    """v3's budget filter, as its budget sweep ran it (owner 09-26; the tiered CDF filter of v3's June code): a
+    """v3's budget filter, as its budget sweep ran it (the tiered CDF filter of v3's June code): a
     candidate is admitted when its expected cost is within the request's budget, the expected cost being the
     prompt at the tier's input price plus the model's expected length, capped at max_tokens, at its output
     price. When none is admitted, only the cheapest candidates by worst-case cost (the prompt plus max_tokens)
     remain, v3's fallback for a budget rejection. Each model's own expected length is used, every cheapest
-    instance is kept, and an expected length that truncates to 0 stays 0 (v3 used 100; its other differences
-    are logged in D66 and D73)."""
+    instance is kept, and an expected length that truncates to 0 stays 0 (v3 used 100)."""
 
 
 @dataclass(frozen=True)
@@ -83,7 +82,7 @@ class Decision:
     lpt_key: float                      # the request's LPT key under the configured statistic
     scored: tuple[Scored, ...]          # every scored candidate (the decision log's evidence)
     admitted_all: bool                  # False only if a budget filter ran and rejected every candidate
-    scales: Optional[Scales] = None     # the round's scales when normalizing over the round (D137), else None
+    scales: Optional[Scales] = None     # the round's scales when normalizing over the round, else None
 
 
 Lpt = Literal["max", "min", "mean", "off"]
@@ -142,7 +141,7 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
     if not requests:
         return decisions
     round_q = round_c = None
-    if normalize_over == "round":     # D137: the round's quality range and cost maximum, every request x instance
+    if normalize_over == "round":     # the round's quality range and cost maximum, every request x instance
         qs = [req.estimates[inst.model].quality for req in requests for inst in instances]
         round_q = (min(qs), max(qs))
         round_c = max(req.num_prompt_tokens * inst.tier.cost_in + req.estimates[inst.model].length * inst.tier.cost_out
@@ -155,7 +154,7 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
         base = (latency.latencies(instances, [_idle(s) for s in now], lengths, req.num_prompt_tokens)
                 if normalization == "fixed_ref" else [None] * len(instances))
         cands = [Candidate(inst.instance_id, inst.model, req.estimates[inst.model].quality,
-                           # D117: the prompt at the input price + the expected output at the output price
+                           # the prompt at the input price + the expected output at the output price
                            req.num_prompt_tokens * inst.tier.cost_in + lengths[inst.model] * inst.tier.cost_out,
                            lt, l0, s.num_running + s.num_waiting,
                            last_assigned[inst.instance_id] if inst.instance_id in last_assigned else NEVER)

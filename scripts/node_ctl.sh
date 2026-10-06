@@ -114,11 +114,11 @@ cmd_launch() {
   printf '%s\n' "CUDA_VISIBLE_DEVICES=$gpus VLLM_SERVER_DEV_MODE=1 VLLM_HTTP_TIMEOUT_KEEP_ALIVE=$ENGINE_KEEP_ALIVE_S $ENGINE_VENV/bin/python -u -m vllm.entrypoints.openai.api_server $*" \
     > "$RB_RUN/engine.$id.cmd"
   # VLLM_SERVER_DEV_MODE=1 serves vLLM's POST /reset_prefix_cache (routes only; the serving path is unchanged), which every
-  # run's warm-up calls to start from an empty prefix cache (D128; tools/direct.py).
+  # run's warm-up calls to start from an empty prefix cache (tools/direct.py).
   # VLLM_HTTP_TIMEOUT_KEEP_ALIVE (vLLM's own setting, stock 5 s) above the clients' keep-alive (vLLM bench's stock
   # connector, 60 s): at 5 s an engine could close an idle connection just as the scheduler reused it ("Can not write
   # request body", 2 of 4 runs at the 32-call setting); v3 met the same race on its scheduler's inbound hop and raised
-  # that server's keep-alive to 600 s. Owner 09-29 (D138): "Raise the engines' keep-alive".
+  # that server's keep-alive to 600 s, and the engines' is raised to 600 s too.
   # A new session per engine: its pid is its process group, which holds every worker it spawns.
   # (SC2016: the inner script expands in the child; SC2094: $log is recorded in the pid file, not read.)
   # shellcheck disable=SC2016,SC2094
@@ -149,7 +149,7 @@ $(tail -30 "$log")"
   note "$id healthy after $(( $(date +%s) - t0 ))s, serving $model on port $port"
 }
 
-# What a healthy engine executes (D48), one line for deploy.sh's record:
+# What a healthy engine executes, one line for deploy.sh's record:
 #   started <id> <process_start_time_seconds> <CUDA_VISIBLE_DEVICES> <command line>
 # read from the recorded process (its /proc environment and command line) and from the engine answering on the
 # port (its /metrics start time), which must be that process: its /proc start time in epoch seconds (btime +
@@ -166,7 +166,7 @@ cmd_started() {
     || fail "$id: the engine on port $port started at $start, its recorded pid $pid at $own: another process answers"
   cuda=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^CUDA_VISIBLE_DEVICES=//p')
   [ -n "$cuda" ] || fail "$id: pid $pid has no CUDA_VISIBLE_DEVICES"
-  # D138: the keep-alive the process runs with, checked and recorded ahead of its command line (tools/engines.py checks
+  # the keep-alive the process runs with, checked and recorded ahead of its command line (tools/engines.py checks
   # the record's command line ends with the planned arguments; the parity gate compares the whole of it)
   ka=$(tr '\0' '\n' < "/proc/$pid/environ" | sed -n 's/^VLLM_HTTP_TIMEOUT_KEEP_ALIVE=//p')
   [ "$ka" = "$ENGINE_KEEP_ALIVE_S" ] || fail "$id: pid $pid runs with VLLM_HTTP_TIMEOUT_KEEP_ALIVE='$ka', not $ENGINE_KEEP_ALIVE_S"
@@ -233,9 +233,9 @@ cmd_sched_start() {
   local argv=(--fleet "$run/fleet.json" --hosts "$run/hosts.json" --config "$run/scheduler.json"
               --artifacts "$art" --avengers-repo "$AP_DIR" --best-route-repo "$BR_DIR" --host "$host" --port "$port"
               --request-timeout-s "$timeout" --max-connections "$conns" --log-dir "$logdir")
-  [ "$threads" = none ] || argv+=(--torch-threads "$threads")   # none: torch's default thread count (D134, v3)
+  [ "$threads" = none ] || argv+=(--torch-threads "$threads")   # none: torch's default thread count (v3)
   printf '%s\n' "CUDA_VISIBLE_DEVICES= $SCHED_VENV/bin/python -u -m routebalance.server ${argv[*]}" > "$run/scheduler.cmd"
-  # the open-file limit: the scheduler raises its own soft limit at start as v3's did (set_ulimit, 65535; D141)
+  # the open-file limit: the scheduler raises its own soft limit at start as v3's did (set_ulimit, 65535)
   # shellcheck disable=SC2016,SC2094
   (cd "$tree" && setsid --fork bash -c "$RECORD_AND_EXEC"'; exec "$@"' _ "$pidf" "$log" "$BOOT_ID" \
     env -i HOME="$HOME" PATH="$RB_PATH" LANG=C.UTF-8 CUDA_VISIBLE_DEVICES= HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 \
@@ -244,7 +244,7 @@ cmd_sched_start() {
   local i
   for i in $(seq 1 20); do [ -s "$pidf" ] && break; sleep 0.25; done
   alive "$(pid_of "$pidf")" || fail "the scheduler did not start; log $log: $(tail -5 "$log" 2>/dev/null | tr '\n' ' ')"
-  note "scheduler launched: pid $(pid_of "$pidf") port $port log $log"   # its open-file limit: the manifest (D141)
+  note "scheduler launched: pid $(pid_of "$pidf") port $port log $log"   # its open-file limit: the manifest
 }
 
 cmd_sched_wait() {

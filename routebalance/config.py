@@ -63,7 +63,7 @@ class _TierSpec(_Strict):
     max_num_seqs: int = Field(ge=1, le=4096)   # passed to vLLM as --max-num-seqs; the telemetry view reads it here
     # token ids every request to this tier also stops at (vLLM's stop_token_ids), besides the model's own
     # end-of-sequence tokens: the Qwen2.5 base models stop only at <|endoftext|>, so under the chat template an answer
-    # could end its turn (<|im_end|>) and run on into a further turn (D102); [] where the model's own tokens suffice
+    # could end its turn (<|im_end|>) and run on into a further turn; [] where the model's own tokens suffice
     stop_token_ids: list[Annotated[int, Field(ge=0)]]
 
 
@@ -82,7 +82,7 @@ class _FleetSpec(_Strict):
 class _HostSpec(_Strict):
     address: str
     hw: str
-    service_address: Optional[str] = None   # D131: the engines are served to the scheduler here (the experiment network)
+    service_address: Optional[str] = None   # the engines are served to the scheduler here (the experiment network)
 
     @field_validator("address", "service_address")
     @classmethod
@@ -252,7 +252,7 @@ class Latency(_Strict):
     normalization: Literal["fixed_ref", "max_divide"]
     table: ArtifactPath  # calibration table (curve or constants) or XGBoost dir
     table_md5: str = Field(pattern=r"^[0-9a-f]{32}$")   # of the table file, or of the XGBoost dir's md5s.json
-    # the prompt's prefill, added to every envelope (D118); null: no prefill term (v2 and v3)
+    # the prompt's prefill, added to every envelope; null: no prefill term (v2 and v3)
     prefill: Optional[Prefill]
 
     @model_validator(mode="after")
@@ -279,8 +279,8 @@ class Budget(_Strict):
 class Telemetry(_Strict):
     poll_ms: float = Field(gt=0)
     timeout_s: float = Field(gt=0)
-    # D133 (owner: "we should only mark this, not means we have to refuse the request just because of stale load"):
-    # no age bound any more; the configurations of records made before it carry one, which nothing reads
+    # no age bound: a stale snapshot is counted, never a reason to refuse a request; the configurations of older
+    # records carry one, which nothing reads
     max_age_ms: Optional[float] = Field(default=None, gt=0)
 
 
@@ -289,7 +289,7 @@ class Router(_Strict):
     # flat, finite scalars; stored as sorted (key, value) pairs so the frozen config is truly immutable and hashable
     kwargs: tuple[tuple[str, Scalar], ...]
     # how many of the router's model calls run at once (baselines/routers.py router_lane: 1 as shipped, 32 the main
-    # setting, D135); required by every router that calls a model, taken by no other (passthrough calls none)
+    # setting); required by every router that calls a model, taken by no other (passthrough calls none)
     concurrency: Optional[int] = Field(default=None, ge=1)
 
     @model_validator(mode="after")
@@ -323,12 +323,13 @@ LOAD_READING_DISPATCHERS = ("least_outstanding", "po2")    # the dispatchers who
 
 
 class Dispatch(_Strict):
-    type: Literal["round_robin", "po2", "least_outstanding", "random", "lowest_latency"]   # no shortest_queue: D40
+    # no shortest_queue: v3's shortest queue is least_outstanding on the engines' counts
+    type: Literal["round_robin", "po2", "least_outstanding", "random", "lowest_latency"]
     seed: int = Field(ge=0, lt=2**32)
     # lowest_latency only (required there, rejected elsewhere): latency samples kept per instance
     latency_window: Optional[int] = Field(default=None, ge=1)
     # the load-reading dispatchers only (required there, rejected elsewhere): "engine" or "in_flight", as
-    # baselines/dispatch.py describes (D84)
+    # baselines/dispatch.py describes
     count: Optional[Literal["in_flight", "engine"]] = Field(default=None)
 
     @model_validator(mode="after")
@@ -350,15 +351,15 @@ class SchedulerConfig(_Strict):
     mode: Literal["routebalance", "pipeline"]
     weights: Optional[Weights]
     rounds: Rounds
-    lpt: Literal["max", "min", "mean", "off"]     # LPT key statistic over the models' expected lengths (D41)
+    lpt: Literal["max", "min", "mean", "off"]     # LPT key statistic over the models' expected lengths
     # decode tokens an assignment adds to its instance's pending decode (schedule/assign.py): required for
-    # RouteBalance; a pipeline system records max_tokens (None) or, for the D38 sweep, own_length
+    # RouteBalance; a pipeline system records max_tokens (None) or, for the latency sweep, own_length
     pending_decode: Optional[Literal["own_length", "lpt_key"]]
     dead_reckoning: bool
-    # how load is read (D53, D55, D84; telemetry.py describes the three ways): RouteBalance per round, with dead
+    # how load is read (telemetry.py describes the three ways): RouteBalance per round, with dead
     # reckoning; the pipeline systems from the pollers' cache or per request
     telemetry_read: Literal["per_round", "per_request", "poll"]
-    # D137 (owner 09-29): what RouteBalance's score normalizes over. "round": quality and cost by the round's range
+    # what RouteBalance's score normalizes over. "round": quality and cost by the round's range
     # over every request x instance (known when the round opens), latency (max_divide) by the round's running
     # maximum; "request": each request's own candidates (v3's scoring). Required in routebalance mode, taken by no
     # pipeline system (they score one request at a time)
@@ -392,7 +393,7 @@ class SchedulerConfig(_Strict):
             raise ValueError("RouteBalance reads load per round or from the pollers' cache, never per request")
         if self.mode != "routebalance" and self.telemetry_read == "per_round":
             raise ValueError("a pipeline system decides per request: it reads the pollers' cache or probes per request")
-        sweep = self.mode != "routebalance" and self.pending_decode == "own_length"   # the D38 latency sweep
+        sweep = self.mode != "routebalance" and self.pending_decode == "own_length"   # the latency sweep
         if self.mode != "routebalance" and self.dead_reckoning and not sweep:
             raise ValueError("dead reckoning is RouteBalance's own mechanism: a pipeline system's dispatcher reads "
                              "the engines' own gauges or counts in-flight requests (owner 09-25, D84)")
@@ -447,4 +448,4 @@ def fleet_digest(instances: list[Instance]) -> str:
     """Identity of the deployment in order (order is behaviour), including tiers and prices."""
     return _digest([[i.instance_id, i.tier.tier_id, i.tier.model, i.tier.gpu, i.tier.cost_in, i.tier.cost_out,
                      i.tier.max_num_seqs, list(i.tier.stop_token_ids), i.node, i.address, i.port]
-                    + ([i.service_address] if i.service_address else []) for i in instances])   # D131: the path used
+                    + ([i.service_address] if i.service_address else []) for i in instances])   # the path used

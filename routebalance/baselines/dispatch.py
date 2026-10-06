@@ -1,7 +1,7 @@
 """Baseline dispatchers: pick one instance among the router's candidates.
 
 A dispatcher reads only the loads the pipeline hands it, taken from the shared TelemetryView. The two
-load-reading dispatchers count, per instance (config `count`, D84):
+load-reading dispatchers count, per instance (config `count`):
   engine     the engines' own num_running + num_waiting gauges, from the pollers' 50 ms cache (as llm-d's
              endpoint picker reads them; the main grid) or fetched for the request (v3's per-request probe);
   in_flight  the requests this scheduler has sent to it and not yet seen complete (Load.in_flight), as the
@@ -9,9 +9,9 @@ load-reading dispatchers count, per instance (config `count`, D84):
              requests when host weights are equal), NGINX least_conn, the AIBrix gateway's least-request, the
              SGLang router, LiteLLM least-busy. Only the appendix row W12.
 Dead reckoning (the split of the in-flight count by the engine's gauge, and the pending decode tokens) is
-RouteBalance's own mechanism and no dispatcher uses it (owner 09-25). A dispatcher never fetches anything itself;
+RouteBalance's own mechanism and no dispatcher uses it. A dispatcher never fetches anything itself;
 lowest_latency also learns from the completions and timeouts the server reports. Candidates arrive in fleet order,
-and order is behaviour. least_outstanding with the engine count is v3's shortest queue (D40: one rule, no
+and order is behaviour. least_outstanding with the engine count is v3's shortest queue (one rule, no
 separate shortest-queue dispatcher).
 Ties: least_outstanding gives them to the least recently assigned candidate, then to fleet order (as
 RouteBalance's own tie-break, and like the round robin among ties of stock least-connection balancers;
@@ -49,7 +49,7 @@ class Dispatcher(ABC):
     def probe_set(self, candidates: Sequence[Instance]) -> Sequence[Instance]:
         """With the per-request probe: the candidates to fetch now; choose_probed then picks among them on
         their fetched loads. Every candidate by default; power of two draws its pair here, so it fetches only
-        the two instances it compares (D59)."""
+        the two instances it compares."""
         return candidates
 
     def choose_probed(self, probed: Sequence[Instance], loads: Mapping[str, Load]) -> Instance:

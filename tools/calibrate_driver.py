@@ -1,4 +1,4 @@
-"""W1 (D37): measure TPOT at fixed running-batch sizes on every tier, directly on the engines.
+"""W1: measure TPOT at fixed running-batch sizes on every tier, directly on the engines.
 
     python -m tools.calibrate_driver --render DIR --row W1 --fleet FLEET.json --hosts HOSTS.json
                                      --data-root DIR --out DIR
@@ -16,8 +16,8 @@ That the batch really was c is checked, per instance and level: the engines' /me
 while the level runs, each instance's running batch only while its own closed loop runs (a faster tier finishes
 its requests earlier and then idles until the level ends), and the level holds on an instance when its engine
 preempted nothing (the KV cache fit c contexts), the median of its running-batch reads is c less at most floor(c
-/ 32) (a closed loop's gauge dips while a finished request's slot refills: exact below 32, within 3 at 96; owner
-09-25), no filler failed and the fillers did not run out before the last measured request finished. (A waiting
+/ 32) (a closed loop's gauge dips while a finished request's slot refills: exact below 32, within 3 at 96), no filler
+failed and the fillers did not run out before the last measured request finished. (A waiting
 request alone is normal: vLLM keeps arrivals waiting while a step's token budget goes to prefill.) An instance-
 level that does not hold is recorded but gives no calibration records, and the run exits 1.
 
@@ -30,7 +30,7 @@ engines), so the tiers see the same prompts. The engines are warmed up and drain
 
 A request's TPOT is (e2e - ttft) / (output_tokens - 1) in s/token, on the backend client's clock: per token and
 robust to vLLM merging several tokens into one streamed delta, which a mean chunk gap is not (a first delta that
-already carries several tokens makes it slightly low). The scheduler's D38 sweep logs the same quantity.
+already carries several tokens makes it slightly low). The scheduler's latency sweep logs the same quantity.
 Output (a new directory, written as the run goes, so a failure keeps what finished):
   requests.jsonl  every measured request and every finished filler: tier, instance, level, b, held, tpot_s,
                   filler, and the backend's outcome; appended level by level
@@ -184,7 +184,7 @@ async def calibrate(plan: dict, row: dict, fleet: list[Instance], prompts: list[
         backend = BackendClient(sess, plan["bench"]["request_timeout_s"])
         await direct.drain(sess, fleet, timeout_s=drain_s)
         w = plan["warmup"]
-        warm = BackendClient(sess, drain_s)      # the warm-up's own bound: the owner's kept pre-run bound (D134 item 10)
+        warm = BackendClient(sess, drain_s)      # the warm-up's own bound: the kept pre-run bound
         manifest["warmup"] = await direct.warm_up(sess, warm, fleet, requests_per_instance=w["requests_per_instance"],
                                                   max_tokens=w["max_tokens"], prompt=w["prompt"], sampling=sampling,
                                                   run_id=run_id)

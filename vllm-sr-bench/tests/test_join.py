@@ -54,7 +54,7 @@ def test_every_reply_gets_its_replica_and_the_routers_timings(tmp_path):
     assert out.requests[0].reply.timings_ms == {"signals": 185.0, "decision": 0.0, "routing": 186.0}
     assert [ln["instance_id"] for ln in lines] == ["s0", "s1", "l0"]
     assert abs(lines[0]["first_token_from_envoy_s"] - 0.1) < 1e-6
-    assert abs(out.requests[0].reply.first_token_s - 0.1) < 1e-6          # D161: the SLO's TTFT from Envoy's start
+    assert abs(out.requests[0].reply.first_token_s - 0.1) < 1e-6          # the SLO's TTFT from Envoy's start
     assert lines[0]["first_token_from_send_s"] == 0.1                      # the client's send-to-first kept
 
 

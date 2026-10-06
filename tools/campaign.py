@@ -37,7 +37,7 @@ presets.json
 
 scope.json (the lease rows around bench/scope.py's blocks)
   bench, datasets, traces, accounted      as bench/scope.py (the render writes the configs table)
-  server {torch_threads, max_connections, request_timeout_s}     the scheduler launch values (D44)
+  server {torch_threads, max_connections, request_timeout_s}     the scheduler launch values
   warmup {requests_per_instance, max_tokens, prompt}             sent to the engines directly before a cell
   drain {timeout_s}                                              the bound on waiting for idle engines
   scored_corpora {"<family>": {path, sha256}}   the (prompt, model) score lookup the analysis reads (analysis/quality.py)
@@ -395,7 +395,7 @@ class ScopeFile(Strict):
 
 
 class Server(Strict):
-    torch_threads: Optional[int] = Field(ge=1)       # null: torch's default thread count (D134, as v3)
+    torch_threads: Optional[int] = Field(ge=1)       # null: torch's default thread count (as v3)
     max_connections: int = Field(ge=1)
     request_timeout_s: float = Field(gt=0)
 

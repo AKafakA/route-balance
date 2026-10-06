@@ -17,7 +17,7 @@ exist on the node (routebalance.hw) and no two instances of a node may share one
 (--enforce-eager); there is no false: an absent switch is vLLM's default and the engine's resolved config
 is the record of it.
 
-The scheduler launch file (configs/scheduler_launch.example.json; the real one under local/) holds the D44
+The scheduler launch file (configs/scheduler_launch.example.json; the real one under local/) holds the launch
 parameters, identical for every system: {"host", "port", "torch_threads", "max_connections",
 "request_timeout_s"}. An OWNER-MUST-SET placeholder, or any other non-number, is refused.
 
@@ -87,7 +87,7 @@ class _Hub(Strict):
 class _Launch(Strict):
     host: str = Field(min_length=1)
     port: int = Field(gt=0, lt=65536)
-    torch_threads: Optional[int] = Field(default=None, ge=1)   # D134: null = torch's default (v3), nothing set
+    torch_threads: Optional[int] = Field(default=None, ge=1)   # null = torch's default (v3), nothing set
     max_connections: int = Field(ge=1)
     request_timeout_s: float = Field(gt=0)
 

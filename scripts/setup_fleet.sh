@@ -13,7 +13,7 @@
 # `setup.sh --role engine` with the node's --model specs (python -m tools.engine_plan models). Exit 3
 # (REBOOT REQUIRED) reboots the node, waits for it (up to 30 min) and runs the same command again, once.
 # The scheduler node then also runs `setup.sh --role scheduler` with the --hub specs. One log per node
-# under LOG_DIR. Finally every engine node's venv freeze must be identical (one engine stack, D24).
+# under LOG_DIR. Finally every engine node's venv freeze must be identical (one engine stack).
 # --with-tests: the scheduler node's setup.sh also builds the test venv (setup.sh --with-tests).
 # Exits 1 if any node failed.
 

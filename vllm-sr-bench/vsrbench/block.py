@@ -1,4 +1,4 @@
-"""A family's vLLM-SR block: the given seeds at the main grid's rates in one block (D153; seed 1 only since D166),
+"""A family's vLLM-SR block: the given seeds at the main grid's rates in one block (seed 1 only),
 seed 1 first, each run by `vsrbench.run_cell`; and the block's coverage.
 
     python -m vsrbench.block run --family F --render R --traces l12,l30,... --seeds 1,2,3 --reference-cells DIR
@@ -8,10 +8,10 @@ seed 1 first, each run by `vsrbench.run_cell`; and the block's coverage.
 Each run's template is the round-robin dispatcher's main-grid cell at its rate, or, if the render has none, another
 cell of the family's main group at that rate; the run sends the template's trace at its own seed (run_cell --seed): the
 arrivals and the prompt order follow from the trace and the seed, as every system of that rate and seed is sent (the
-main grid renders seeds 2-3 only at the knee points, D157). Its engines are compared with a published, valid run of that
+main grid renders seeds 2-3 only at the knee points). Its engines are compared with a published, valid run of that
 group (the template if it is one). Its inputs are checked against the render in every verdict, and also against a
 published, valid main-grid run at its rate and seed whenever there is one (rechecked here, so a pair published after
-the run still counts). Every run of the block records the same versions (owner 09-30: a version change is flagged):
+the run still counts). Every run of the block records the same versions (a version change is flagged):
 `run` stops before a run whose versions differ from the block's first published run, and `status` fails a mixed block.
 A run already published is not run again: a valid one counts, an invalid one stays for the main session to retire and
 rerun (as the main grid's). `run` stops, as scripts/run_scope.sh does, after more than --max-invalid invalid runs in
@@ -212,7 +212,7 @@ def main(argv: list[str]) -> int:
                 return 3
             continue
         first = next((c for c, _, _ in order if cell_dir(a.cells_root, c).is_dir()), None)
-        if first is not None:       # owner 09-30: a version change within the block is flagged; the block stops
+        if first is not None:       # a version change within the block is flagged; the block stops
             vsr, sg = _arg(rest, "--vsr"), "--docker-sg" in rest
             then = versions_of(a.cells_root, first) or {}
             now = {"versions": versions(Path(vsr), Docker(sg)), "module": module_digests()}

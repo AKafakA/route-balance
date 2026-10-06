@@ -1,6 +1,4 @@
 """The estimator's pure-Python pieces: the chat-template unwrap and md5-pinned artifact reads.
-
-The numeric KNN tests need numpy and faiss and live in tests/equivalence (test_knn_numeric.py).
 """
 import hashlib
 

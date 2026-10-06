@@ -1,6 +1,6 @@
 """The learned TPOT heads' input features, built without numpy or xgboost.
 
-The server logs these for every request (the D38 sweep records the heads train on) and xgboost_tpot.py
+The server logs these for every request (the latency sweep records the heads train on) and xgboost_tpot.py
 serves them, both through feature_values(), so training and serving vectors are identical by construction;
 the constant and curve latency sources never import xgboost.
 """

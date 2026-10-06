@@ -1,11 +1,11 @@
 """vLLM-SR's configuration for one family: the operator's provider file and pool bindings, upstream's built-in Balance
-policy generated from them by upstream's CLI, and the one edit (each pool's quality index, D150).
+policy generated from them by upstream's CLI, and the one edit (each pool's quality index).
 
 The provider file holds only what an operator must supply: the models, their prices, their replicas, their cards and
 the quality evidence. Everything else (signals, pools, orders, margins, the router's globals) comes from
 `vllm-sr recipe builtin init balance --bundle mom-v1` unchanged.
 
-Two profiles, never mixed (owner 09-30, the P100 rule):
+Two profiles, never mixed:
   lease  the fleet file and the experiment network, the training-split means; refused if any test token appears
   test   dev-gpu's small engines behind Docker's bridge gateway, marked with TEST_MARK
 """
@@ -28,7 +28,7 @@ from vsrbench import constants as C
 @dataclass(frozen=True)
 class Backend:
     name: str          # the replica's name (the fleet's instance id)
-    host: str          # where Envoy connects (the experiment network, D131)
+    host: str          # where Envoy connects (the experiment network)
     port: int
 
 
@@ -119,7 +119,7 @@ def provider_document(models: list[Model], means: dict[str, float], *, test: boo
                                     "capabilities": ["chat"]} for m in models]},
         "evaluation": {
             "benchmarks": [{"id": C.BENCHMARK_ID, "display_name": "DeepEval on the training split",
-                            "domain": "general_reasoning", "source": "https://github.com/AKafakA/route-balance",
+                            "domain": "general_reasoning", "source": "https://example.invalid/route-balance",
                             "default_profile": C.PROFILE, "profiles": [profile],
                             "metrics": [{"id": "score", "unit": "proportion", "direction": "higher_is_better",
                                          "range": [0, 1]}]}],

@@ -173,7 +173,7 @@ def test_staged_version_is_checked_even_if_disk_is_clean(tmp_path):
 def test_staged_symlink_target_is_checked(tmp_path):
     root = tmp_path
     _git(root, "init", "-q")
-    (root / "data_link").symlink_to(J(["/ho", "me/someone/Block/data"]))   # dangling on purpose
+    (root / "data_link").symlink_to(J(["/ho", "me/someone/proj/data"]))   # dangling on purpose
     _git(root, "add", "data_link")
     assert "abs_path" in {f.kind for f in scan_tree(root)}
 

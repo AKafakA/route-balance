@@ -2,7 +2,7 @@
 
 Everything is compared within one comparison group (bench/scope.py: one dataset, prompt order and fleet) and
 one trace; cells of different groups are never pooled. A configuration's point is the mean over its seeds of
-each per-seed cell metric (quality, mean and p99 end-to-end latency, decode cost and total cost (D117), the SLO
+each per-seed cell metric (quality, mean and p99 end-to-end latency, decode cost and total cost, the SLO
 miss shares at the
 tight and loose levels (1 - attainment, analysis/slo.py), throughput);
 `seeds` says which seeds. Only cells that are ok in the manifest and valid in their summary enter.
@@ -22,7 +22,7 @@ from bench.scope import ExpectedCell
 from routebalance.config import ConfigError
 
 METRICS = ("e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k", "cost_total_per_1k", "slo_miss_tight",
-           "slo_miss_loose")   # lower is better; D117: total cost (prompt + output) beside v3's decode cost (v2 priced both)
+           "slo_miss_loose")   # lower is better; total cost (prompt + output) beside v3's decode cost (v2 priced both)
 _AVERAGED = ("quality", *METRICS, "throughput_rps")
 Key = tuple[str, str, str]
 

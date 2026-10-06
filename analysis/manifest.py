@@ -75,7 +75,7 @@ def expectation_problems(cell: CellRecord, exp: ExpectedCell, bench: BenchParams
     if budgeted != (len(cell.requests) if exp.dataset.budgets is not None else 0):
         problems.append(f"{budgeted}/{len(cell.requests)} requests carried a budget, the scope expects "
                         + ("all" if exp.dataset.budgets is not None else "none"))
-    return problems        # D134 (owner): a late send is counted (the report's max_send_lag_ms), never a gate
+    return problems        # a late send is counted (the report's max_send_lag_ms), never a gate
 
 
 def cell_problems(cell: CellRecord, exp: ExpectedCell, bench: BenchParams) -> list[str]:
@@ -105,7 +105,7 @@ def check(scope: Scope, cells_root: Path) -> Coverage:
         except ConfigError as e:
             invalid[exp.cell_id] = (f"unreadable: {str(e)[:_REASON_CHARS]}",)
             continue
-        problems = cell_problems(rec, exp, scope.bench) + isolation_problems(directory)   # D128/D132
+        problems = cell_problems(rec, exp, scope.bench) + isolation_problems(directory)   # the isolation evidence
         fleet_of[exp.cell_id] = (exp.group, rec.identity_start.fleet_digest)
         if problems:
             invalid[exp.cell_id] = tuple(problems)

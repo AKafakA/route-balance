@@ -38,8 +38,8 @@ from tests.unit.fakes import SAMPLING, FakeTokenizer, write_dataset
 from tools.engines import engines
 
 # group -> (reference config id or None, {config id: its intended differences}): the group.json of each cell.
-# g1 is a main comparison group of five systems, with RouteBalance on the pollers' cache (D54) and v3's
-# per-request probe arm (D55, dead reckoning off); w4-dr an ablation group (dead reckoning off vs its reference).
+# g1 is a main comparison group of five systems, with RouteBalance on the pollers' cache and v3's
+# per-request probe arm (dead reckoning off); w4-dr an ablation group (dead reckoning off vs its reference).
 GROUPS = {
     "g1": (None, {cid: ["system.*", "telemetry.dead_reckoning"]
                   for cid in ("rb-maxdiv", "rb-round", "rb-fixedref", "rb-min", "rb-mean", "rb-off", "rb-poll", "lor",
@@ -111,7 +111,7 @@ def configs(table_md5: str, prefill_md5: str) -> dict[str, dict]:
         "telemetry": {"poll_ms": 20.0, "timeout_s": 2.0},
     }
     weights = {"w_quality": 0.5, "w_latency": 0.3, "w_cost": 0.2}
-    curve = {"source": "profiled_curve", "envelope": "batch_aware", "normalization": "fixed_ref",     # with prefill (D118)
+    curve = {"source": "profiled_curve", "envelope": "batch_aware", "normalization": "fixed_ref",     # with prefill
              "table": "calib/tpot.json", "table_md5": table_md5,
              "prefill": {"table": "calib/prefill.json", "table_md5": prefill_md5}}
 
@@ -128,25 +128,25 @@ def configs(table_md5: str, prefill_md5: str) -> dict[str, dict]:
     maxdiv = rb(rounds={"adaptive": False, "max_batch": 4, "timeout_ms": 30.0}, lpt="max",
                 pending_decode="own_length",               # cost and latency heavy: both tiers win requests
                 weights={"w_quality": 0.2, "w_latency": 0.4, "w_cost": 0.4},
-                normalize_over="request")                  # v3's per-request scale (D137: "round" is the main one)
+                normalize_over="request")                  # v3's per-request scale ("round" is the main one)
     return {
         "rb-maxdiv": maxdiv,
-        "rb-round": maxdiv | {"normalize_over": "round", "lpt": "off", "pending_decode": "lpt_key"},   # D137: the
+        "rb-round": maxdiv | {"normalize_over": "round", "lpt": "off", "pending_decode": "lpt_key"},   # the
         #           round's scales; arrival order, so a later request can raise the running latency maximum
         "w4-ref": maxdiv,
         "w4-nodr": maxdiv | {"dead_reckoning": False},
         "rb-fixedref": rb(rounds={"adaptive": True}, lpt="max", pending_decode="lpt_key", latency=curve),
         "rb-min": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="min",
-                     pending_decode="lpt_key"),               # the LPT-key ablation (D41); decode = the key
+                     pending_decode="lpt_key"),               # the LPT-key ablation; decode = the key
         "rb-mean": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="mean",
                       pending_decode="own_length", latency=curve),
         "rb-off": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="off", normalize_over="request",
                      pending_decode="lpt_key"),               # arrival order; lpt_key and decode = the max
-        "rb-poll": maxdiv | {"telemetry_read": "poll"},       # D54: RouteBalance on the pollers' cache
-        "lor": pipe(passthrough, {"type": "least_outstanding", "seed": 1, "count": "engine"}),   # the main grid (D84)
+        "rb-poll": maxdiv | {"telemetry_read": "poll"},       # RouteBalance on the pollers' cache
+        "lor": pipe(passthrough, {"type": "least_outstanding", "seed": 1, "count": "engine"}),   # the main grid
         "lor-probe": pipe(passthrough, {"type": "least_outstanding", "seed": 1, "count": "engine"},
                           telemetry_read="per_request",
-                          dead_reckoning=False),           # D55: v3's per-request probe on the engine's counts
+                          dead_reckoning=False),           # v3's per-request probe on the engine's counts
         "decoupled": pipe({"type": "rb_decoupled", "kwargs": {}, "concurrency": 32}, {"type": "round_robin", "seed": 1},
                           weights=weights, latency=curve),
         "sweep": pipe(passthrough, {"type": "random", "seed": 7}, pending_decode="own_length",
@@ -181,7 +181,7 @@ class LiveFleet:
         self.hosts_path.write_text(json.dumps({node: {"address": address, "hw": hw}
                                                for _, _, node, hw, address in INSTANCES}))
         self.fleet = load_fleet(self.fleet_path, self.hosts_path)
-        self.engines_record = w / "engines.record"            # as deploy.sh engines --record writes it (D48)
+        self.engines_record = w / "engines.record"            # as deploy.sh engines --record writes it
         argv = {i.instance_id: f"--model {i.model} --port {i.port} --max-num-seqs {i.tier.max_num_seqs}" for i in self.fleet}
         self.engines_record.write_text("# deploy.sh engines (recorder)\n" + "".join(
             f"{i.instance_id}\t{i.node}\t{i.address}\t{i.port}\t0\t{i.tier.gpu}\t1\t{i.model}\t{argv[i.instance_id]}\n"
@@ -286,7 +286,7 @@ class LiveFleet:
 async def record_all(work: Path, out: Path) -> list[Path]:
     async with LiveFleet(work) as live:
         cells = [await live.record_cell(cid, out / "cells", group=g) for g, (_, cfgs) in GROUPS.items() for cid in cfgs]
-        await live.post_config(live.configs["lor"])          # a polling system: preflight checks its cache ages (D53)
+        await live.post_config(live.configs["lor"])          # a polling system: preflight checks its cache ages
         await live.flushed_stats()
         await live.record_preflight(out / "preflight")
         return cells

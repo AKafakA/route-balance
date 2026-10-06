@@ -1,4 +1,4 @@
-"""D102: the new scored corpus keeps each row's prompt fields and replaces every model's answer."""
+"""the new scored corpus keeps each row's prompt fields and replaces every model's answer."""
 import json
 
 import pytest
@@ -33,7 +33,7 @@ def test_merge_replaces_the_answers_and_drops_what_the_old_text_decided(tmp_path
 
 
 def test_merge_keeps_a_corpus_without_is_harmful_as_it_is(tmp_path):
-    """Gemma's corpora carry no is_harmful (D144): the merge copies it only when the corpus has it."""
+    """Gemma's corpora carry no is_harmful: the merge copies it only when the corpus has it."""
     row = {k: v for k, v in ROW.items() if k != "is_harmful"}
     corpus = _jsonl(tmp_path / "c.jsonl", [row])
     answers = _jsonl(tmp_path / "a.jsonl", [_answer("p0", "A", "a0"), _answer("p0", "B", "b0")])

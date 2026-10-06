@@ -1,4 +1,4 @@
-"""Equal-quality deltas (D80, D81): one treatment configuration on the quality-latency frontier for every
+"""Equal-quality deltas: one treatment configuration on the quality-latency frontier for every
 metric, the tolerance, the range over the seeds, and the request bootstrap within the paired seeds."""
 import numpy as np
 import pytest
@@ -27,7 +27,7 @@ FRONTIER = [(0.4, 1000.0), (0.5, 2000.0)]
 @pytest.mark.parametrize("q,expected", [
     (0.425, 1250.0), (0.4, 1000.0), (0.5, 2000.0),        # inside, and on the end points
     (0.38, 1000.0), (0.52, 2000.0),                        # past an end, within the tolerance
-    (0.36, 1000.0),                                        # below the low end: the low end, at higher quality (D87)
+    (0.36, 1000.0),                                        # below the low end: the low end, at higher quality
     (0.54, None),                                          # above the high end, beyond it: never extrapolated
 ])
 def test_value_at(q, expected):
@@ -93,7 +93,7 @@ def test_no_eligible_preset_is_an_error():
 
 
 def test_every_metric_is_read_at_the_one_configuration_on_the_latency_frontier():
-    # rb-c is off the latency frontier but has the best p99: the p99 is still read between rb-a and rb-b (D80)
+    # rb-c is off the latency frontier but has the best p99: the p99 is still read between rb-a and rb-b
     pts = [CellPoint(group="g1", config_id=c, system=sys_, knob=c, dispatch="lor", trace_id="l30", seed=1, quality=q,
                      e2e_mean_ms=m, e2e_p99_ms=p99, cost_decode_per_1k=cost, cost_total_per_1k=cost,
                      slo_miss_tight=0.1, slo_miss_loose=0.05,
@@ -138,7 +138,7 @@ def test_a_seed_without_an_equal_quality_point_leaves_no_range():
     assert mean.per_seed[1].delta is None and mean.range is None and mean.range_relative is None
 
 
-# ---------------------------------------------------------------- the request bootstrap (D80, the appendix)
+# ---------------------------------------------------------------- the request bootstrap (the appendix)
 
 N = 40
 
@@ -151,7 +151,7 @@ def _cell(config, system, seed, scores, e2e_s, cost=None, prompts=None):
     v = RequestValues(index=tuple(range(len(e2e_s))),
                       prompt_ids=tuple(prompts or (f"p{seed}-{i}" for i in range(len(e2e_s)))),
                       score=scores, e2e_s=e2e_s, cost=cost, met_tight=met, met_loose=met,
-                      cost_total=cost * 1.5)                               # D117: prompt + output, never nan here
+                      cost_total=cost * 1.5)                               # prompt + output, never nan here
     point = {k: float(x[0]) for k, x in v.at(np.arange(len(e2e_s))[None, :]).items()}
     return (CellPoint(group="g1", config_id=config, system=system, knob=config, dispatch="lor", trace_id="l30",
                       seed=seed, throughput_rps=20.0, **point), (("g1", "l30", config, seed), v))
@@ -259,7 +259,7 @@ def _kinked():
 
 
 def test_the_per_metric_reading_reads_each_metric_on_its_own_frontier():
-    # v2/v3's reading (D86): p99's frontier is rb-c, rb-b; the baseline's 0.425 is within the tolerance of rb-c's 0.45
+    # v2/v3's reading: p99's frontier is rb-c, rb-b; the baseline's 0.425 is within the tolerance of rb-c's 0.45
     [one] = equal_quality(_kinked(), "RB", RULES, None, reading="one_config")
     [per] = equal_quality(_kinked(), "RB", RULES, None, reading="per_metric")
     one_by, per_by = ({d.metric: d for d in r.deltas} for r in (one, per))
@@ -288,7 +288,7 @@ def test_an_unknown_reading_is_refused():
 
 
 def test_below_the_frontier_the_low_end_is_read_at_higher_quality():
-    # D87: the baseline's 0.30 is below rb-a's 0.40 by more than the tolerance: rb-a is compared, marked
+    # the baseline's 0.30 is below rb-a's 0.40 by more than the tolerance: rb-a is compared, marked
     pts = _grid()[:3] + [pt("ap-1", "AP", 1, 0.30, 2500)]
     [row] = equal_quality(pts, "RB", RULES, None, "one_config")
     mean = row.deltas[0]

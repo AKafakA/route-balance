@@ -72,7 +72,7 @@ def test_curve_rejects_bad_points(curve):
 
 
 def test_a_decreasing_curve_is_rejected_and_a_flat_one_accepted():
-    """D47: a TPOT curve never decreases in b (a dip would make a fixed_ref latency term exceed 1)."""
+    """a TPOT curve never decreases in b (a dip would make a fixed_ref latency term exceed 1)."""
     with pytest.raises(LatencyError, match=r"decreases from 10.0 ms at b=1 to 9.5 ms at b=4"):
         ProfiledCurveTPOT({"a": [[1, 9.0], [2, 9.0]], "t": [[1, 10.0], [4, 9.5], [8, 12.0]]})
     assert ProfiledCurveTPOT({"t": [[1, 10.0], [4, 10.0], [8, 12.0]]}).tpot_s("t", 6) == pytest.approx(0.011)
@@ -187,7 +187,7 @@ def test_model_rejects_pairs_that_are_not_an_arm(source, envelope):
         LatencyModel(source, envelope, None)
 
 
-# ---------------------------------------------------------------- prefill (D118)
+# ---------------------------------------------------------------- prefill
 
 LINES = {"qwen2.5-3b_a30": {"intercept_ms": 18.0, "per_token_ms": 0.053, "n": 128, "r2": 0.93},
          "qwen2.5-14b_v100": {"intercept_ms": 29.7, "per_token_ms": 0.1329, "n": 128, "r2": 0.93}}
@@ -334,11 +334,11 @@ def test_load_rejects_malformed_prefill_tables(tmp_path, mutate):
 
 ZERO_CALL = """
 import sys, importlib.abc
-class Block(importlib.abc.MetaPathFinder):
+class ImportBlocker(importlib.abc.MetaPathFinder):
     def find_spec(self, name, path, target=None):
         if name.split(".")[0] in ("xgboost", "numpy"):
             raise ImportError("blocked: " + name)
-sys.meta_path.insert(0, Block())
+sys.meta_path.insert(0, ImportBlocker())
 from pathlib import Path
 from test_latency import INSTANCES, LENGTHS, State, TIERS, _cfg
 from routebalance.estimate.latency import load_latency_model

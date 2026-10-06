@@ -6,7 +6,7 @@ Every request goes through the scheduler's own backend client (routebalance.back
 a served request is: the raw prompt as the single user message, templated once by vLLM, with the scope's
 sampling. Engine load is read from the same Prometheus /metrics the telemetry view scrapes.
 
-The warm-up also empties every engine's prefix cache (D128: v2 gave every main-table cell a freshly deployed
+The warm-up also empties every engine's prefix cache (v2 gave every main-table cell a freshly deployed
 cluster; here the engines stay up, so each run resets them instead). Per engine, one at a time and all engines at once:
 the warm-up prompt once (so it is cached), vLLM's POST /reset_prefix_cache (served only with VLLM_SERVER_DEV_MODE=1),
 then the warm-up requests. The first after the reset must find no cached token and the second, the same prompt, must

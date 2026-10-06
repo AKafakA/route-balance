@@ -20,14 +20,14 @@ Constant and curve tables are JSON documents written by tools/calibrate_tpot_cur
   {"unit": "ms_per_token", "constant": {tier: ms}, "curve": {tier: [[b, ms], ...]}, "provenance": {...}}
 Values are ms per output token and at least 1 ms (v3 floored every TPOT at 1 ms, so a smaller value
 would have been served differently); curve points have integer b >= 1, strictly increasing, and a curve never
-decreases in b (D47: a physical TPOT(b) does not fall with the batch; a measured dip is sampling noise, and it
+decreases in b (a physical TPOT(b) does not fall with the batch; a measured dip is sampling noise, and it
 would make a fixed_ref latency term exceed 1). tools/calibrate_tpot_curve.py writes its curves as a running
 max over b.
 
 The constant and curve sources never import xgboost and never call a booster: their predict_calls is
 always 0 (the zero-call gate).
 
-Prefill (D118, optional: Latency.prefill): every envelope's value plus the prompt's prefill on the tier,
+Prefill (optional: Latency.prefill): every envelope's value plus the prompt's prefill on the tier,
   intercept + per_token * P, with P the request's prompt tokens,
 from a table written by tools/fit_prefill.py: {"unit": "ms", "prefill": {tier: {"intercept_ms", "per_token_ms",
 "n", "r2"}}, "provenance": {...}}, both values positive. The line is fitted with the engines' prefix cache on, so it
@@ -136,7 +136,7 @@ class ProfiledCurveTPOT:
                 bs.append(point[0])
                 ms.append(_ms(point[1], f"curve[{tier!r}] at b={point[0]}"))
             self._b[tier], self._ms[tier] = bs, ms
-        for tier, ms in self._ms.items():                # every point is a TPOT first, then the shape (D47)
+        for tier, ms in self._ms.items():                # every point is a TPOT first, then the shape
             bs = self._b[tier]
             drop = next((i for i in range(1, len(ms)) if ms[i] < ms[i - 1]), None)
             if drop is not None:

@@ -40,7 +40,7 @@ def test_adaptive_collector_starts_idle_and_adapts():
 
 @pytest.mark.parametrize("waiting,taken,limit", [(2, 2, 4), (4, 4, 4), (9, 9, 9), (40, 32, 32)])
 def test_an_adaptive_round_takes_the_schedulers_backlog_up_to_the_largest_size(waiting, taken, limit):
-    """D123: at the idle limits (4 / 50 ms) a round takes every request already waiting, up to 32, at once."""
+    """at the idle limits (4 / 50 ms) a round takes every request already waiting, up to 32, at once."""
     async def scenario():
         c = RoundCollector(Rounds(adaptive=True))
         for i in range(waiting):

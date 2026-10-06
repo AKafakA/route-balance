@@ -43,7 +43,7 @@ DECISIONS = {"rb_default": "rb", "decoupled_arm": "rb", "headline": "q50l30c20",
              "w3_near_frontier": ["qwen.rb.q50l30c20", "qwen.ap.pw070.lor"],
              "w3_headline": ["qwen.rb.q50l30c20"], "w5_systems": ["qwen.rb.q50l30c20", "qwen.disp.lor"],
              "w7_systems": ["qwen.rb.q50l30c20", "qwen.rb-dec.uniform"]}
-W3_DECISIONS = {k: DECISIONS[k] for k in ("w3_near_frontier", "w3_headline")}   # W3 is disabled since D121
+W3_DECISIONS = {k: DECISIONS[k] for k in ("w3_near_frontier", "w3_headline")}   # W3 is disabled
 HELD: set[str] = set()     # blocks that must run but cannot yet (none since 09-25): always pending
 FLEETS = {"qwen_std": ("a" * 64, "1" * 64), "qwen_topo53": ("b" * 64, "2" * 64), "gemma": ("c" * 64, "3" * 64)}
 
@@ -120,29 +120,29 @@ def test_the_tracked_files_dry_run_every_row():
                      "W2p": 142, "W2x": 54, "W2y": 4, "W2y2": 3, "W2y3": 4, "W2y4": 5, "W2y5": 1, "W2y6": 4, "W2y7": 2,
                      "W2y8": 6, "W2z": 25, "W4": 45, "W4l": 3, "W5": 27, "W8gp": 11, "W8g": 22, "W8gt": 3, "W8r": 72,
                      "W9": 458, "W15": 48, "W15r": 96, "W15b": 9, "W8s": 27, "W5s": 72, "W7b": 9, "W14": 4, "W14r": 8}
-    # W8 (old prices), W8p disabled; W8gp (the probe), W8g, W8gt: Gemma's generality check, W8r its seeds 2-3 (D209-D212);
-    # W9: the Qwen repetitions written by tools/repetition_rows.py (D171, D178, D192, D203);
-    # W4r without dead reckoning off and the LPT keys (D198); W4lr, W5r, W7br: the repetitions (D173, D191, D166
-    # revised 10-02); W14, W14r: the vLLM-SR study's runs of ours at 6 and 9 req/s (D195, D207)
+    # W8 (old prices), W8p disabled; W8gp (the probe), W8g, W8gt: Gemma's generality check, W8r its seeds 2-3;
+    # W9: the Qwen repetitions written by tools/repetition_rows.py;
+    # W4r without dead reckoning off and the LPT keys; W4lr, W5r, W7br: the repetitions
+    # (revised 10-02); W14, W14r: the vLLM-SR study's runs of ours at 6 and 9 req/s
     # W15, W15r: the per-request variant at the eight presets and six rates in the main group, seeds 1-3; W4r, W4lr,
-    # W5r and W7br dropped (D225); W15b, W8s: RB-single at RB-decoupled's burst and Gemma points (D226)
-    # W8: the Qwen grid's baselines (D70); W4: D142's ablations with leave-out (15 configurations x 3 rates), W4l the
+    # W5r and W7br dropped; W15b, W8s: RB-single at RB-decoupled's burst and Gemma points
+    # W8: the Qwen grid's baselines; W4: the ablations with leave-out (15 configurations x 3 rates), W4l the
     # learned variant, its own row so W4 is not refused while the retrained heads' pin is pending;
-    # D121: seed 1 of every main row first, their seeds 2-3 after (W4r, W5r); W3 and W11 disabled (D121); topology
-    # W7/W7r dropped (D156); the full seeds 2-3 W8r/W9 replaced by the knee points (D157); W12 dropped (D154); W13 into
-    # W4-leave-out (D147)
+    # seed 1 of every main row first, their seeds 2-3 after (W4r, W5r); W3 and W11 disabled; topology
+    # W7/W7r dropped; the full seeds 2-3 W8r/W9 replaced by the knee points; W12 dropped; W13 into
+    # W4-leave-out
     held = {f"{r['id']}/{b['name']}" for r in rows.values() if r["kind"] == "cells" for b in r["blocks"] if b.get("hold")}
     assert held == HELD
     assert summary["decisions_needed"] == ["ablation_norm", "decoupled_arm", "headline", "rb_default",
-                                           "w5_systems"]                  # D121: no seed picks; D140: the normalization
-    assert summary["owner_unset"] == []                                    # every owner value is set (09-25)
+                                           "w5_systems"]                  # no seed picks; the normalization
+    assert summary["owner_unset"] == []                                    # every owner value is set
     assert {"tpot-table.qwen", "prefill-table.qwen", "xgb-heads.qwen", "xgb-heads-retrained.qwen"} <= \
         set(summary["pins_needed"])
     assert "W4" in campaign.dry_run_text(summary)
 
 
 def test_the_burst_sweep_and_the_three_rates():
-    """D125: the burst sweep's traces (vLLM bench's burstiness: the gamma shape, the mean rate fixed) and the three rates
+    """the burst sweep's traces (vLLM bench's burstiness: the gamma shape, the mean rate fixed) and the three rates
     of the ablations, the topology and Gemma rows."""
     traces = SCOPE_JSON["traces"]
     bursts = {f"ga{a}-l{r}": (b, float(r)) for a, b in (("025", 0.25), ("05", 0.5), ("2", 2.0)) for r in (12, 30, 42)}
@@ -161,7 +161,7 @@ def test_the_burst_sweep_and_the_three_rates():
 
 
 def test_gemmas_generality_check_runs_d209s_eleven_settings():
-    """D209: settings fixed on Qwen: RouteBalance and RB-decoupled at the knees and the default, each baseline at its
+    """settings fixed on Qwen: RouteBalance and RB-decoupled at the knees and the default, each baseline at its
     knee and at RouteBalance 80/10/10's quality, least outstanding; the probe (30 req/s) first, its own row."""
     summary = campaign.dry_run(campaign.load_presets(campaign.PRESETS), campaign.load_scope_file(campaign.SCOPE))
     rows = {r["id"]: r for r in summary["rows"]}
@@ -179,18 +179,18 @@ def test_gemmas_generality_check_runs_d209s_eleven_settings():
                     for th in b["axes"]["t"]:
                         got.add(t.replace("{w}", w).replace("{pw}", pw).replace("{t}", th))
         assert got == want and b["group"] == "gemma" and b["seeds"] == [1], (rid, sorted(got ^ want))
-    (b,) = scope["W8gt"]["blocks"]                  # D211: BEST-Route at threshold 0, the main grid's named setting
+    (b,) = scope["W8gt"]["blocks"]                  # BEST-Route at threshold 0, the main grid's named setting
     want_t = (["gemma.br.t00.lor"], ["gl12", "gl30", "gl42"], [1], "gemma")
     assert (b["configs"], b["traces"], b["seeds"], b["group"]) == want_t
-    r, br0 = scope["W8r"]["blocks"]                  # D212: the 12 settings at seeds 2 and 3
+    r, br0 = scope["W8r"]["blocks"]                  # the 12 settings at seeds 2 and 3
     assert scope["W8r"]["enabled"] and (r["configs"], r["axes"]["w"], r["axes"]["pw"], r["axes"]["t"]) == (
         scope["W8g"]["blocks"][0]["configs"], ["q50l30c20", "q80l10c10", "uniform"], ["pw053", "pw080"], ["t03", "t05"])
     assert all((x["traces"], x["seeds"], x["group"]) == (["gl12", "gl30", "gl42"], [2, 3], "gemma") for x in (r, br0))
     assert br0["configs"] == ["gemma.br.t00.lor"]
 
 def test_the_per_request_variant_fills_the_main_grid():
-    """D225: RouteBalance with one request per round at D192's eight presets and W2's six rates in the main group, seed 1
-    (W15) and seeds 2-3 (W15r, D203's points for RouteBalance's variants); W4's copies at 80/10/10 stay the ablation
+    """RouteBalance with one request per round at the eight presets and W2's six rates in the main group, seed 1
+    (W15) and seeds 2-3 (W15r, the points for RouteBalance's variants); W4's copies at 80/10/10 stay the ablation
     group's (alias abl); the ablations', the burst's and the budget's repetitions (W4r, W4lr, W5r, W7br) are dropped."""
     presets, scope = filled()
     lease = {**DECISIONS, "rb_default": "rb-static", "decoupled_arm": "rb-static", "headline": "q80l10c10"}
@@ -220,12 +220,12 @@ def test_the_per_request_variant_fills_the_main_grid():
 
 
 def test_rb_single_runs_where_rb_decoupled_runs():
-    """D226: RB-single at RB-decoupled's burst point (80/10/10, the nine burst traces, seed 1; W5's group) and Gemma
+    """RB-single at RB-decoupled's burst point (80/10/10, the nine burst traces, seed 1; W5's group) and Gemma
     points (the generality check's three settings at its three rates, seeds 1-3; the gemma group), each configuration the
     in-batch RouteBalance at its preset with only the ablation's rounds."""
     presets, scope = filled()
     lease = {**DECISIONS, "rb_default": "rb-static", "decoupled_arm": "rb-static", "headline": "q80l10c10",
-             "w5_systems": ["qwen.rb-static.q80l10c10", "qwen.rb-static-dec.q80l10c10", "qwen.ap.pw080.lor"]}   # D192 (3)
+             "w5_systems": ["qwen.rb-static.q80l10c10", "qwen.rb-static-dec.q80l10c10", "qwen.ap.pw080.lor"]}
     result = campaign.render(presets, scope, pins=pins(presets), decisions=lease, fleets=FLEETS)
     rows = {r["id"]: r for r in result.plan["rows"]}
     bursts = [f"ga{a}-l{r}" for a in ("025", "05", "2") for r in (12, 30, 42)]
@@ -244,7 +244,7 @@ def test_rb_single_runs_where_rb_decoupled_runs():
 
 
 def test_the_burst_repetitions_before_the_release():
-    """D229: seeds 2-3 on the nine burst traces, in W5's group: RouteBalance 80/10/10 and AvengersPro 0.80 first, then
+    """seeds 2-3 on the nine burst traces, in W5's group: RouteBalance 80/10/10 and AvengersPro 0.80 first, then
     RB-decoupled and RB-single at 80/10/10."""
     presets, scope = filled()
     lease = {**DECISIONS, "rb_default": "rb-static", "decoupled_arm": "rb-static", "headline": "q80l10c10"}
@@ -261,14 +261,14 @@ def test_the_burst_repetitions_before_the_release():
 
 
 def test_the_latency_sweep_sends_every_training_prompt_once_a_run():
-    for trace in ("sweep6-36", "sweep38-42"):                  # W1b and its 38-42 req/s extension W1c (D119, D120)
+    for trace in ("sweep6-36", "sweep38-42"):                  # W1b and its 38-42 req/s extension W1c
         sweep = sum(s["n_requests"] for s in SCOPE_JSON["traces"][trace]["segments"])
         assert sweep == SCOPE_JSON["datasets"]["train_qwen"]["rows"] == 14919, trace
     assert [s["rate"] for s in SCOPE_JSON["traces"]["sweep38-42"]["segments"]] == [38.0, 40.0, 42.0]
 
 
 def test_the_time_varying_load_is_v2s():
-    """Owner 09-25: v2's square wave (900 requests at 30 req/s, then 180 at 6: 30 s each) and gamma bursts with
+    """v2's square wave (900 requests at 30 req/s, then 180 at 6: 30 s each) and gamma bursts with
     burstiness 0.3 at 18 req/s, each over the whole evaluation set."""
     square, gamma = SCOPE_JSON["traces"]["square30-6"], SCOPE_JSON["traces"]["gamma-b03"]
     phases = [(g["n_requests"], g["rate"]) for g in square["segments"]]
@@ -301,34 +301,34 @@ def test_every_configuration_renders_to_a_valid_scheduler_document():
     expanded = campaign.expand(presets)
     assert len(expanded) == 3872       # 358; the G1 read-mode controls (3 x 16 + 10 AP); 8 rb-learned (Qwen only);
     #                                    the budget sweep's filter arms (rb, rb-static x 2 families; rb-learned, Qwen);
-    #                                    Gemma BEST-Route, 4 t x 3 dispatchers (D70); the power-of-two probe
-    #                                    controls (10 AP + 2 dispatcher-only, D59); the mechanism ablations once per
+    #                                    Gemma BEST-Route, 4 t x 3 dispatchers; the power-of-two probe
+    #                                    controls (10 AP + 2 dispatcher-only); the mechanism ablations once per
     #                                    RouteBalance latency variant (11 x 2 families x 8 weights x 2 more), and
-    #                                    abl-xgb gone (-16: rb-learned is the learned variant in W4, D78); the
+    #                                    abl-xgb gone (-16: rb-learned is the learned variant in W4); the
     #                                    dispatch-only least-outstanding and power of two counting in flight
-    #                                    (2 x 2 families, the appendix row W12, D84); the leave-one-source-out
-    #                                    indexes (7 sources x 3 variants x 8 weights, Qwen only, the optional W13, D93);
-    #                                    the as-shipped copies of the per-request routers (D135: RB-decoupled 2 x 8 x 2,
+    #                                    (2 x 2 families, the appendix row W12); the leave-one-source-out
+    #                                    indexes (7 sources x 3 variants x 8 weights, Qwen only, the optional W13);
+    #                                    the as-shipped copies of the per-request routers (RB-decoupled 2 x 8 x 2,
     #                                    AvengersPro 5 pw x 3 dispatchers x 2, BEST-Route 4 t x 3 x 2 = 86);
     #                                    RouteBalance with per-request normalization, once per latency variant
-    #                                    (D140: 3 variants x 8 weights x 2 families = 48); the routers on lowest
-    #                                    latency (D156: 5 pw + 4 t, 2 families, each with its as-shipped copy = 36);
-    #                                    D142/D140: every ablation template once per normalization (+616: 7 mechanism
+    #                                    (3 variants x 8 weights x 2 families = 48); the routers on lowest
+    #                                    latency (5 pw + 4 t, 2 families, each with its as-shipped copy = 36);
+    #                                    every ablation template once per normalization (+616: 7 mechanism
     #                                    templates x 48, leave-out 168, LPT keys 96, the static prior 16), the 75/25%
     #                                    label fractions (Qwen: 2 x 3 arms x 8 weights x 2 normalizations = 96), the
     #                                    heads retrained on the new load sweep under both normalizations (Qwen,
-    #                                    their own pin: 2 x 8 = 16); D167's three extra presets in RouteBalance's main,
+    #                                    their own pin: 2 x 8 = 16); the three extra presets in RouteBalance's main,
     #                                    per-request, learned and ablation templates (+537: 6 + 6 + 18 + 3 + 6
     #                                    retrained + 252 seven mechanisms + 12 static prior + 36 label fractions + 126
-    #                                    leave-out + 72 LPT keys); RB-decoupled's two templates at the three (D172, +12);
-    #                                    the eight probed extra presets (D177-D186) in all of them (+8 x 183)
+    #                                    leave-out + 72 LPT keys); RB-decoupled's two templates at the three (+12);
+    #                                    the eight probed extra presets in all of them (+8 x 183)
     for p in expanded.values():
         if p.config["lpt"] == "{k}" and "min" not in LPT_KEYS:
             continue
         got, needs = campaign.render_config(p, resolver)
         assert needs.empty() and got is not None, p.preset_id
         assert campaign.config_digest(parse_scheduler(got.document)) == got.digest
-        table = got.document["latency"]["prefill"]["table"]            # D118: in every variant, the family's table
+        table = got.document["latency"]["prefill"]["table"]            # in every variant, the family's table
         assert table.startswith("art/prefill-table.") and table.split(".")[-1] in p.preset_id.split("."), p.preset_id
 
 
@@ -353,17 +353,17 @@ def test_the_baseline_knobs_are_the_plans():
         return campaign.render_config(expanded[pid], resolver)[0].document
     ap_q = doc("qwen.ap.pw070.lor")["pipeline"]["router"]["kwargs"]
     ap_g = doc("gemma.ap.pw070.lor")["pipeline"]["router"]["kwargs"]
-    assert (ap_q["beta"], ap_q["top_k"], ap_g["beta"], ap_g["top_k"]) == (9.0, 1, 9.0, 1)   # upstream's defaults (D89)
+    assert (ap_q["beta"], ap_q["top_k"], ap_g["beta"], ap_g["top_k"]) == (9.0, 1, 9.0, 1)   # upstream's defaults
     assert ap_q["embedder_revision"] == "1110a243fdf4706b3f48f1d95db1a4f5529b4d41" and len(ap_q["upstream_sha256"]) == 64
     br = doc("qwen.br.t03.po2")["pipeline"]
-    kw = br["router"]["kwargs"]      # BEST-Route as its authors ship it (D79): upstream's ranker and routing rule
+    kw = br["router"]["kwargs"]      # BEST-Route as its authors ship it: upstream's ranker and routing rule
     assert br["router"]["type"] == "best_route_upstream" and kw["threshold"] == 0.3
     assert (kw["base_model"], kw["base_revision"]) == ("microsoft/deberta-v3-small",
                                                        "a36c739020e01763fe789b4b85e2df55d6180012")
     assert kw["upstream_sha256"] == "85279e1f6080d87db95dcbded46d7713fcf2728b82339c3b6a30ef3b56579005"
     assert br["dispatch"]["type"] == "po2"
     assert doc("qwen.disp.lowest-latency")["pipeline"]["dispatch"]["latency_window"] == 10
-    # D84: the main grid's load-reading dispatchers read the engines' cached gauges, alone, behind the routers and
+    # the main grid's load-reading dispatchers read the engines' cached gauges, alone, behind the routers and
     # behind RB-decoupled; the probes fetch the gauges per request (v3); the appendix row W12 counts in flight
     def read(pid):
         d = doc(pid)
@@ -380,9 +380,9 @@ def test_the_baseline_knobs_are_the_plans():
     sweep = doc("qwen.sweep.random")
     assert (sweep["mode"], sweep["pending_decode"], sweep["pipeline"]["dispatch"]["type"]) == ("pipeline", "own_length",
                                                                                                 "random")
-    br_g = doc("gemma.br.t05.lor")["pipeline"]["router"]                   # D70: Gemma gets BEST-Route too
+    br_g = doc("gemma.br.t05.lor")["pipeline"]["router"]                   # Gemma gets BEST-Route too
     assert br_g["type"] == "best_route_upstream" and br_g["kwargs"]["checkpoint"] == "art/br.gemma"
-    # the owner's backup (D79): v3's 4-way recipe, D71's fallbacks the cheapest (Gemma 1B at D208's prices, Qwen 3B)
+    # the backup: v3's 4-way recipe, the fallbacks the cheapest (Gemma 1B at its OpenRouter prices, Qwen 3B)
     v3 = {f: resolver.resolve("$part:br.router.v3", "test", campaign.Needs(), {"family": f, "t": "t05"})["kwargs"]
           for f in ("gemma", "qwen")}
     assert (v3["gemma"]["fallback_model"], v3["qwen"]["fallback_model"]) == ("google/gemma-3-1b-it", "Qwen/Qwen2.5-3B")
@@ -396,13 +396,13 @@ def test_the_tracked_files_render_with_every_lease_input():
     by_block = {}
     for c in cells:
         by_block[c.block] = by_block.get(c.block, 0) + 1
-    assert by_block["G1"] == 66 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 24   # seed 1, 3 rates (D142)
+    assert by_block["G1"] == 66 and by_block["W2b"] == 20 and by_block["W4-mechanisms"] == 24   # seed 1, 3 rates
     assert (by_block["W4-latency"], by_block["W4-learned"], by_block["W4-leave-out"]) == (9, 3, 6)
-    assert by_block["W4-lpt-key"] == 6 and "W4r-lpt-key" not in by_block                          # D198
-    assert not {"W4r-mechanisms", "W4r-learned", "W5r", "W7br-75"} & set(by_block)                  # D225
-    assert (by_block["W15"], by_block["W15r"], by_block["W15b"], by_block["W8s"]) == (48, 96, 9, 27)   # D225, D226
-    assert (by_block["W5s"], by_block["W5s-variants"]) == (36, 36)                                 # D229
-    assert sum(n for b, n in by_block.items() if b.startswith("W9-")) == 458                         # D203
+    assert by_block["W4-lpt-key"] == 6 and "W4r-lpt-key" not in by_block
+    assert not {"W4r-mechanisms", "W4r-learned", "W5r", "W7br-75"} & set(by_block)
+    assert (by_block["W15"], by_block["W15r"], by_block["W15b"], by_block["W8s"]) == (48, 96, 9, 27)
+    assert (by_block["W5s"], by_block["W5s-variants"]) == (36, 36)
+    assert sum(n for b, n in by_block.items() if b.startswith("W9-")) == 458
     assert all(cid in result.configs for cid in scope.configs)
     for cid, doc in result.configs.items():
         assert campaign.config_digest(parse_scheduler(doc)) == scope.configs[cid].config_digest
@@ -481,7 +481,7 @@ def _enabled(scope_file, *ids) -> dict:
 
 
 # the placeholder W9 of 30 Sep (the full grid at seeds 2-3 by axes, fill over W3), kept as the fill fixture after
-# tools/repetition_rows.py wrote the lease's W9 as explicit points (10-02, D203)
+# tools/repetition_rows.py wrote the lease's W9 as explicit points (10-02)
 OLD_W9_BLOCKS = [
     {"name": f"W9-{t}", "group": "qwen", "dataset": "eval_qwen",
      "axes": {"pw": "$list:ap_pw", "t": "$list:br_t", "d": "$list:dispatchers", "dw": "$owner:decoupled_weights",
@@ -502,7 +502,7 @@ def _old_w9(scope_file, *also) -> dict:
 
 
 def _with_w3(scope_file) -> dict:
-    """The scope with W3 and the old W9 enabled (W3 disabled since D121): the one fill overlap, W9 over W3."""
+    """The scope with W3 and the old W9 enabled (W3 disabled): the one fill overlap, W9 over W3."""
     return _old_w9(scope_file, "W3")
 
 
@@ -511,7 +511,7 @@ def test_fill_blocks_do_not_repeat_cells_and_plain_blocks_refuse_to():
     w9 = campaign.render(presets, parse(ScopeFile, _old_w9(scope_file), "scope"), pins=pins(presets),
                          decisions=DECISIONS, fleets=FLEETS)
     cells = {c.cell_id: c for c in expected_cells(parse(Scope, w9.scope, "rendered"))}
-    assert cells["qwen.rb.q50l30c20__l12__s2"].block == "W9-l12"               # D121: W3 merged into W9
+    assert cells["qwen.rb.q50l30c20__l12__s2"].block == "W9-l12"               # W3 merged into W9
     raw = _with_w3(scope_file)
     w3 = campaign.render(presets, parse(ScopeFile, raw, "scope"), pins=pins(presets),
                          decisions={**DECISIONS, **W3_DECISIONS}, fleets=FLEETS)
@@ -538,11 +538,11 @@ def test_a_missing_pin_leaves_its_blocks_pending():
 
 
 def test_the_retrained_heads_wait_for_their_own_pin_and_change_no_other_configuration():
-    """D142 (Codex review 09-30): the learned heads retrained on the new load sweep have their own pin, so the
+    """The learned heads retrained on the new load sweep have their own pin, so the
     ablation's learned variant waits for it alone, and supplying it adds that variant and changes no configuration
     already rendered (the main grid's and G1b/G1c's learned configurations keep the earlier pin)."""
     presets, scope = filled()
-    scope = parse(ScopeFile, _enabled(scope, "W4r", "W4lr"), "scope")      # the repetitions too (disabled by D166)
+    scope = parse(ScopeFile, _enabled(scope, "W4r", "W4lr"), "scope")      # the repetitions too (disabled)
     p = pins(presets)
     given = {n: v for n, v in p.items() if not n.startswith("xgb-heads-retrained.")}
     without = campaign.render(presets, scope, pins=given, decisions=DECISIONS, fleets=FLEETS)
@@ -560,7 +560,7 @@ def test_missing_decisions_and_fleets_leave_blocks_pending():
     presets, scope = filled()
     result = campaign.render(presets, scope, pins=pins(presets), decisions={}, fleets={"qwen_std": FLEETS["qwen_std"]})
     assert "rb_default" in result.pending["W2/W2-rb-l30"] and "headline" in result.pending["W4/W4-latency"]
-    assert "fleet 'gemma' not given" in result.pending["W8gp/W8gp"] and "W8/W8" not in result.pending   # D209
+    assert "fleet 'gemma' not given" in result.pending["W8gp/W8gp"] and "W8/W8" not in result.pending
     assert "W2/W2-base-l30" not in result.pending and "G1/G1" not in result.pending
     assert result.blocked_rows["W8-cal"] == "fleet 'gemma' not given"
 
@@ -570,7 +570,7 @@ def test_owner_values_are_never_invented():
     result = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     assert result.scope is None and result.configs == {}
     assert all("parts.telemetry.poll_ms" in r for b, r in result.pending.items() if b not in HELD)
-    presets, scope = filled(unset_scope={"server.torch_threads"})   # the launch values gate every cell (D44)
+    presets, scope = filled(unset_scope={"server.torch_threads"})   # the launch values gate every cell
     result = campaign.render(presets, scope, pins=pins(presets), decisions=DECISIONS, fleets=FLEETS)
     assert result.scope is None and all("server.torch_threads" in r for r in result.pending.values())
     assert all(result.pending[b].startswith("OWNER-MUST-SET") and "held:" in result.pending[b] for b in HELD)
@@ -631,7 +631,7 @@ def test_a_fill_block_waits_for_the_earlier_blocks_that_could_list_its_cells(tmp
     p = pins(presets)
     w9 = parse(ScopeFile, _old_w9(scope), "scope")
     tracked = campaign.render(presets, w9, pins=p, decisions={"rb_default": "rb"}, fleets=FLEETS)
-    assert "waits for W3" not in tracked.pending["W9/W9-l12"]           # D121: W3 disabled, W9 waits for no pick
+    assert "waits for W3" not in tracked.pending["W9/W9-l12"]           # W3 disabled, W9 waits for no pick
     scope = parse(ScopeFile, _with_w3(scope), "scope")
     first = campaign.render(presets, scope, pins=p, decisions={"rb_default": "rb"}, fleets=FLEETS)
     assert "waits for W3/W3-near-frontier" in first.pending["W9/W9-l12"]
@@ -746,17 +746,17 @@ def test_a_held_block_keeps_the_campaign_incomplete(tmp_path):
     scope = parse(Scope, result.scope, "rendered")
     assert result.pending == {} and sum(c.block.startswith("W7b-") for c in expected_cells(scope)) == 9
     assert "W6/W6" not in result.pending and not any(c.block == "W6" for c in expected_cells(scope))   # dropped
-    assert not any(c.block in ("W4-arm3", "W4-const-batch", "W4r-const-batch") for c in expected_cells(scope))   # D142
+    assert not any(c.block in ("W4-arm3", "W4-const-batch", "W4r-const-batch") for c in expected_cells(scope))
 
 
 @pytest.mark.parametrize("nv", ["", "-reqnorm"])
 @pytest.mark.parametrize("arm", ["rb", "rb-static", "rb-learned"])
 def test_the_ablations_take_apart_the_decided_variant(arm, nv):
-    """D142: W4's reference is rb_default's variant in the decided normalization (D140's winner, ablation_norm), and its
+    """W4's reference is rb_default's variant in the decided normalization (the chosen one, ablation_norm), and its
     variants are of that variant: latency weight 0, the static prior and the learned heads retrained on the new load
     sweep (their own pin, apart from the learned arm's), eight mechanisms, the two LPT keys and two leave-out indexes;
     16 configurations x 3 rates at seed 1 in W4; seeds 2-3 in W4r and W4lr without dead reckoning off and the two LPT
-    keys (D198): 13 configurations.
+    keys: 13 configurations.
     """
     presets, scope = filled()
     scope = parse(ScopeFile, _enabled(scope, "W4r", "W4lr"), "scope")
@@ -776,7 +776,7 @@ def test_the_ablations_take_apart_the_decided_variant(arm, nv):
         "W4-lpt-key": {f"abl.qwen.{arm}{nv}.abl-lpt-{k}.{h}" for k in ("min", "mean")},
         "W4-leave-out": {f"abl.qwen.{arm}{nv}.abl-lodo-{ds}.{h}" for ds in ("lmsys", "gsm8k")},
         "W4-learned": {f"abl.qwen.rb-learned-retrained{nv}.{h}"}}
-    dropped = {f"abl.qwen.{arm}{nv}.abl-{m}.{h}" for m in ("dr-off", "lpt-min", "lpt-mean")}   # D198
+    dropped = {f"abl.qwen.{arm}{nv}.abl-{m}.{h}" for m in ("dr-off", "lpt-min", "lpt-mean")}
     assert not any(c.block == "W4r-lpt-key" for c in w4)
     for name, ids in want_ids.items():
         for b in (name, name.replace("W4-", "W4r-")):
@@ -814,13 +814,13 @@ def test_the_ablations_take_apart_the_decided_variant(arm, nv):
         def differs(cid):
             flat = _executed_sections(result.configs[cid])
             return {k for k in set(base) | set(flat) if base.get(k) != flat.get(k)}
-        assert differs(f"abl.qwen.abl-static-prior{nv}.{h}") == {"system.latency.envelope"}               # D164
+        assert differs(f"abl.qwen.abl-static-prior{nv}.{h}") == {"system.latency.envelope"}
         assert differs(f"abl.qwen.rb-learned-retrained{nv}.{h}") == {"system.latency.source", "system.latency.table",
                                                                      "system.latency.table_md5"}
 
 
 def test_the_learned_variant_scores_latency_by_max_divide():
-    """D78: v3's learned variant used max-divide; fixed-reference stays the measured curve's."""
+    """v3's learned variant used max-divide; fixed-reference stays the measured curve's."""
     presets, _ = filled()
     resolver = campaign.Resolver(presets, pins(presets))
     expanded = campaign.expand(presets)
@@ -846,7 +846,7 @@ def test_an_enabled_block_needs_seeds_and_previous_must_be_a_render(tmp_path):
 
 
 def test_the_tracked_scope_server_section_validates_as_it_is():
-    """Codex re-review 09-29: the tracked scope's null torch_threads (torch's default, D134) must render."""
+    """Codex re-review 09-29: the tracked scope's null torch_threads (torch's default) must render."""
     from tools.campaign import Server
     scope = json.loads((Path(__file__).resolve().parents[2] / "configs" / "scope.json").read_text())
     s = Server.model_validate(scope["server"])
@@ -854,7 +854,7 @@ def test_the_tracked_scope_server_section_validates_as_it_is():
 
 
 def test_the_router_concurrency_is_routebalances_largest_round_or_one_as_shipped():
-    """D135 (owner 09-29: "i mean the max batch size"): every per-request router's main setting runs as many calls at once
+    """Every per-request router's main setting runs as many calls at once
     as RouteBalance's largest round; its as-shipped copy runs one at a time; the two copies differ in nothing else."""
     from routebalance.schedule.rounds import ADAPTIVE_LIMITS
     parts = campaign.load_presets(campaign.PRESETS).parts
@@ -866,7 +866,7 @@ def test_the_router_concurrency_is_routebalances_largest_round_or_one_as_shipped
 
 
 def test_the_extra_presets_row_is_routebalance_in_both_normalizations_and_rb_decoupled():
-    """D167/D172 (local review 10-01): W2x is exactly the three extra presets for RouteBalance (rb_default's variant,
+    """W2x is exactly the three extra presets for RouteBalance (rb_default's variant,
     in-batch and per request) and RB-decoupled (decoupled_arm's), at the six rates, seed 1; rb_default and decoupled_arm
     differ here, so a template written with the wrong decision would show."""
     presets, scope = filled()

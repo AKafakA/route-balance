@@ -8,7 +8,7 @@ system of that rate and seed is sent. Order (scripts/run_cell.sh's, with the sta
   2. drain the engines; a fresh stack (vllm-sr serve); the engines as they report themselves; the live checks (live.py),
      the stores empty: a run never starts on a stack that does not execute the configuration, or that holds state from
      before
-  3. the warm-up with the proven prefix-cache reset, then drain (D128, D132)
+  3. the warm-up with the proven prefix-cache reset, then drain
   4. the bench runner's open loop through Envoy (bench.runner.run_cell with vsrbench.client.VsrClient); the raw record is
      written at once
   5. the engines again; Envoy's access log flushed; the replay store holds the run's requests; the live checks again;
@@ -527,7 +527,7 @@ def _listing_diff(a: dict, b: dict) -> list[str]:
 
 
 async def engine_preflight(instances) -> tuple[list[str], dict]:
-    """gates/preflight.py's engine check on every engine (health, vLLM's version (D24), the one model, drained), as
+    """gates/preflight.py's engine check on every engine (health, vLLM's version, the one model, drained), as
     every main-grid run passes before it starts."""
     async with direct.session(len(instances) * len(ENGINE_PATHS)) as sess:
         replies = {i.instance_id: dict(zip(ENGINE_PATHS, await asyncio.gather(
@@ -578,7 +578,7 @@ def netstat(text: str) -> dict:
 
 def listen_counters(docker) -> dict:
     """The kernel's listen-queue counters of the host (our client's side) and of Envoy's network namespace (vLLM-SR's
-    front door, D161): recorded, never judged (D141)."""
+    front door): recorded, never judged."""
     host = netstat(Path("/proc/net/netstat").read_text())
     envoy = netstat(docker.exec_sh("vllm-sr-envoy-container", "cat /proc/net/netstat"))
     return {"host": host, "envoy": envoy}

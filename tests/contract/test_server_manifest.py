@@ -50,12 +50,12 @@ def test_the_manifest_reports_what_this_process_executes(tmp_path):
     assert man["system"] == {k: RB[k] for k in ("mode", "normalize_over", "weights", "rounds", "lpt", "pending_decode",
                                                 "latency",
                                                 "estimator")} | {"router": None, "dispatch": None,
-                                                                 "telemetry_read": "per_round"}   # D53
+                                                                 "telemetry_read": "per_round"}   # per round
     assert man["budget"] == RB["budget"]
     assert man["telemetry"] == RB["telemetry"] | {"dead_reckoning": True}
     assert man["loaded"] == {"estimator": "StubEstimator", "latency_source": "constant",
                              "latency_envelope": "own_length", "router": None, "dispatcher": None, "round_loop": True,
-                             "telemetry_pollers": False, "router_lane_threads": None}   # no router, no lane (D135)
+                             "telemetry_pollers": False, "router_lane_threads": None}   # no router, no lane
     assert man["artifacts"] == {}                  # the test factory loads no files
     digest = shell_tree_digest(PACKAGE_DIR)
     assert man["code"] == {"routebalance": digest, "routebalance_now": digest, "avengers_pro": None,
@@ -63,16 +63,16 @@ def test_the_manifest_reports_what_this_process_executes(tmp_path):
     assert all(isinstance(n, int) for n in man["threadpools"].values())
     assert man["versions"]["aiohttp"] == aiohttp.__version__ and man["versions"]["python"]
     launch = man["launch"]
-    # D134: vLLM bench's stock connector for both sessions (no limit, keep-alive), whatever max_connections says
+    # vLLM bench's stock connector for both sessions (no limit, keep-alive), whatever max_connections says
     assert launch["engine_session"] == {"limit": 0, "limit_per_host": 0, "force_close": False}
     assert launch["telemetry_session"] == {"limit": 0, "limit_per_host": 0, "force_close": False}
     assert (launch["torch_threads"], launch["max_connections"], launch["request_timeout_s"],
             launch["router_threads"]) == (1, 64, 5.0, 4)
-    assert "router_lane_threads" not in launch       # D135: per configuration, under loaded
+    assert "router_lane_threads" not in launch       # per configuration, under loaded
     assert launch["event_loop"].startswith("asyncio.") or launch["event_loop"].startswith("uvloop")
     assert launch["cpus"]["count"] >= launch["cpus"]["affinity"] >= 1
     assert set(launch["env"]) >= {"OMP_NUM_THREADS", "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS", "RAYON_NUM_THREADS"}
-    # D141: served as v3's scheduler was, through uvicorn with v3's keep-alive; every other setting is uvicorn's stock
+    # served as v3's scheduler was, through uvicorn with v3's keep-alive; every other setting is uvicorn's stock
     assert man["versions"]["uvicorn"] == uvicorn.__version__ == "0.32.1" and man["versions"]["httptools"] == "0.8.0"
     assert launch["http_server"] == {"server": "uvicorn 0.32.1",
                                      "http": "uvicorn.protocols.http.httptools_impl.HttpToolsProtocol",
@@ -84,7 +84,7 @@ def test_the_manifest_reports_what_this_process_executes(tmp_path):
 
 
 def test_the_listen_queue_the_kernel_holds_is_uvicorns(tmp_path):
-    """D141, by execution: the listening socket's accept queue (ss's Send-Q for a listener) is uvicorn's stock 2048,
+    """By execution: the listening socket's accept queue (ss's Send-Q for a listener) is uvicorn's stock 2048,
     capped by the kernel's somaxconn; and the stats carry the kernel's listen-overflow counters for every run."""
     async def scenario():
         async with Harness(tmp_path, fleet_states()) as h:
@@ -114,7 +114,7 @@ def test_the_manifest_follows_a_config_swap(tmp_path):
                                "router": "PassthroughRouter", "dispatcher": "LeastOutstanding", "round_loop": False,
                                "telemetry_pollers": True, "router_lane_threads": None}   # passthrough calls no model
     assert all(after[k] == before[k] for k in ("fleet_digest", "fleet", "budget", "code", "versions"))
-    # dead reckoning is RouteBalance's own; the pipeline system reads the engines' counts (owner 09-25)
+    # dead reckoning is RouteBalance's own; the pipeline system reads the engines' counts
     assert before["telemetry"]["dead_reckoning"] is True and after["telemetry"]["dead_reckoning"] is False
     assert {k: v for k, v in after["telemetry"].items() if k != "dead_reckoning"} == \
         {k: v for k, v in before["telemetry"].items() if k != "dead_reckoning"}

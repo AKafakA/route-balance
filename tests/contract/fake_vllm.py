@@ -33,7 +33,7 @@ class FakeState:
     chat_delay_s: float = 0.0  # default-ok: no pacing unless a test asks for it
     chat_requests: list[dict] = field(default_factory=list)
     scrapes: int = 0  # default-ok: counts /metrics reads
-    version: str = "0.18.1"  # default-ok: the campaign's vLLM (D24)
+    version: str = "0.18.1"  # default-ok: the campaign's vLLM
     served: tuple[str, ...] = ()  # default-ok: the model ids /v1/models lists (vLLM's served model names)
     live_running: bool = False  # default-ok: report the chat streams in flight as the running gauge
     streams: int = 0  # default-ok: chat streams in flight
@@ -44,13 +44,13 @@ class FakeState:
                                                  ("num_gpu_blocks", "8000"))
     # the prefix cache, as vLLM counts it (tokens): every chat request queries its prompt tokens (5); a prompt already
     # cached hits 4 of them. /reset_prefix_cache (served only in vLLM's developer mode) empties it.
-    dev_mode: bool = True  # default-ok: VLLM_SERVER_DEV_MODE=1, as the lease engines since D128
+    dev_mode: bool = True  # default-ok: VLLM_SERVER_DEV_MODE=1, as the lease engines run
     reset_ignored: bool = False  # default-ok: a reset that answers 200 and empties nothing (the proof must catch it)
     cached: set = field(default_factory=set)
     prefix_queries: int = 0  # default-ok: a fresh engine
     prefix_hits: int = 0  # default-ok: a fresh engine
     resets: int = 0  # default-ok: counts /reset_prefix_cache calls
-    # vLLM's serving counters (D132: a cell's engine readings must change by exactly its own requests)
+    # vLLM's serving counters (a cell's engine readings must change by exactly its own requests)
     served_requests: int = 0  # default-ok: a fresh engine
     served_prompt_tokens: int = 0  # default-ok: a fresh engine
     served_generation_tokens: int = 0  # default-ok: a fresh engine

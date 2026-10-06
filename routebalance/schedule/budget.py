@@ -13,7 +13,7 @@ A request may carry budget_cost, in dollars; 0 means no budget. Two rules use it
 
 The reported cost of a finished request includes its prompt: prompt_tokens * cost_in + output_tokens *
 cost_out. The scheduling objective's cost term counts the prompt the same way, with the expected length in
-place of the output tokens (D117).
+place of the output tokens.
 """
 from __future__ import annotations
 

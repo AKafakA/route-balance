@@ -6,14 +6,14 @@
 #                        --scheduler URL --scheduler-log-dir DIR --fleet FLEET.json --hosts HOSTS.json \
 #                        --engines-record FILE --data-root DIR --cells-root DIR --mirror DEST
 #
-# --engines-record is the --record file of the deploy.sh engines run that launched the fleet's engines (D48).
+# --engines-record is the --record file of the deploy.sh engines run that launched the fleet's engines.
 #
 # The rows are run in the plan's order whatever order they are given in; every requested cell must belong to
 # the fleet given (a topology or model-family change is a redeploy, then a run of its own rows). Before every
 # cell the scheduler's code on disk must be the code it started with (its manifest reports both): after an
 # rsync of the code the scheduler must be restarted. With --restart the command is run (it must restart the
 # scheduler and return once it is launched) and the check repeated; without it the run stops.
-# With --fresh-scheduler (D132, as v3's per-cell runner), every cell runs on a fresh scheduler process: before each
+# With --fresh-scheduler (as v3's per-cell runner), every cell runs on a fresh scheduler process: before each
 # cell, scripts/restart_scheduler.sh restarts it from RUN_DIR (the deploy.sh scheduler run directory on this node)
 # with a new log directory, SCHED_LOG_DIR/<cell>.<stamp>, which that cell's driver reads.
 # A cell that could not run (exit 2) or whose mirror failed (exit 3) stops the run; an invalid cell (exit 1)
@@ -119,7 +119,7 @@ done
 mirror_root || { echo "$(ts) [run_scope] the second location at $MIRROR does not match $ROOT"; exit 3; }
 set +e
 "$PY" -m analysis.manifest --scope "$RENDER/scope.json" --cells "$ROOT"   # the whole render, for the log only: the
-                                  # rows' done-ness below is status(), which rechecks each run's isolation (D128/D132)
+                                  # rows' done-ness below is status(), which rechecks each run's isolation
 drv status --render "$RENDER" --rows "$ROWS" --cells-root "$ROOT"
 DONE=$?
 set -e

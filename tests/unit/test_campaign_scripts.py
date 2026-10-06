@@ -98,7 +98,7 @@ def test_the_runner_reads_its_tokenizer_offline_from_the_pinned_snapshots():
 
 
 def test_every_cell_reads_its_engines_before_and_after():
-    """D48: run_cell.sh reads every engine before the warm-up (D132: so the traffic check covers the cache reset and
+    """run_cell.sh reads every engine before the warm-up (so the traffic check covers the cache reset and
     its proof) and again after the runner."""
     text = (REPO / "scripts" / "run_cell.sh").read_text()
     outs = [ln for ln in text.splitlines() if "--out \"$ATTEMPT/engines_" in ln]
@@ -108,6 +108,6 @@ def test_every_cell_reads_its_engines_before_and_after():
 
 
 def test_every_cell_checks_for_a_fresh_scheduler_before_its_configuration():
-    """D132: run_cell.sh refuses a used scheduler after the drain, before it posts the cell's configuration."""
+    """run_cell.sh refuses a used scheduler after the drain, before it posts the cell's configuration."""
     text = (REPO / "scripts" / "run_cell.sh").read_text()
     assert text.index("drv drain") < text.index("drv fresh") < text.index("drv post-config")

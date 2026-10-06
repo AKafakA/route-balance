@@ -7,7 +7,7 @@ One run of one cell:
      reply never delays a later send;
   3. wait for every reply, then read the identity again (a configuration change during the cell shows);
      the cyclic garbage collector is off from the first send to the last reply, and the last request is started
-     before the wait over every request is built (D103: a full collection there had delayed the last send by up
+     before the wait over every request is built (a full collection there had delayed the last send by up
      to 204 ms); a cell's records are acyclic and bounded, freed by reference counting;
   4. return one CellRecord (bench/records.py).
 The runner sends no warm-up or ready-check requests (v3 sent six through the scheduler, into its decision

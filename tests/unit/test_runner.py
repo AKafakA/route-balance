@@ -250,7 +250,7 @@ def test_every_request_states_its_budget_null_or_the_prompts():
 
 
 def test_the_collector_is_off_while_sending_and_back_on_after(tmp_path):
-    """D103: no cyclic garbage collection between the first send and the last reply (a full collection had delayed
+    """no cyclic garbage collection between the first send and the last reply (a full collection had delayed
     the last send by up to 204 ms); the collector's state is restored afterwards, also when the cell fails."""
     import gc
 
@@ -271,7 +271,7 @@ def test_the_collector_is_off_while_sending_and_back_on_after(tmp_path):
 
 
 def test_the_last_request_starts_before_the_final_wait(tmp_path, monkeypatch):
-    """D103: the last request's task runs before asyncio.gather over every request is built."""
+    """the last request's task runs before asyncio.gather over every request is built."""
     order = []
     real_gather = runner.asyncio.gather
 

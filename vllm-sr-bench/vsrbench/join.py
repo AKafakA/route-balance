@@ -5,7 +5,7 @@ Envoy's access log (the CLI template's format) ends every line with "<x-request-
 the upstream host (ip:port) names the replica, and so the fleet instance. The router logs one JSON object per event
 (its stdout, as `docker logs` returns it); per request it logs signal_phase_timing, decision_phase_timing and
 routing_decision, whose timings are its own. Each joined reply's first_token_s (the SLO's TTFT) becomes the time from
-Envoy's own request start to the client's first token (D161): it starts at vLLM-SR's front door, as our scheduler's starts
+Envoy's own request start to the client's first token: it starts at vLLM-SR's front door, as our scheduler's starts
 at its handler (a wait before either front door is outside both), and it ends one hop later than ours, at the client
 after Envoy forwards the first chunk, where ours ends at the scheduler's receipt of it (Envoy's stock access log has no
 first-token time; %START_TIME% is at millisecond resolution). The client's send-to-first value is kept in the evidence,
@@ -142,7 +142,7 @@ def join(record: CellRecord, models: list[Model], access_log: Path, router_log: 
             unjoined.append(f"{r.request_id}: no first-token time from Envoy's start")
         update = {"instance_id": instance, "timings_ms": timings}
         if from_envoy is not None:
-            update["first_token_s"] = from_envoy       # D161: the SLO's TTFT from vLLM-SR's front door, as ours
+            update["first_token_s"] = from_envoy       # the SLO's TTFT from vLLM-SR's front door, as ours
         requests.append(r.model_copy(update={"reply": r.reply.model_copy(update=update)}))
     if unjoined:
         problems.append(f"{len(unjoined)} replies not joined to one replica of their model: {unjoined[:3]}")

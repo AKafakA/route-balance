@@ -1,9 +1,9 @@
-"""One vLLM-SR stack per run (D146: a fresh deployment): new containers, a new CLI state directory, empty storage
+"""One vLLM-SR stack per run (a fresh deployment): new containers, a new CLI state directory, empty storage
 volumes; torn down after the run once its evidence is copied out.
 
 Every command is upstream's (`vllm-sr serve`, `vllm-sr stop`) or a read (`docker ps`, `docker inspect`, `docker logs`,
 `docker cp` out of a container). The one input of ours is the Envoy template directory, passed as the CLI's
-TEMPLATE_ROOT (D146, D150: the owner's timeouts and circuit breakers); its digest is recorded with every run.
+TEMPLATE_ROOT (the owner's timeouts and circuit breakers); its digest is recorded with every run.
 The classifier weights the CLI downloads (`models/`) are shared by every run, like the engines' Hub snapshots: they
 are read-only inputs, and their listing digest is recorded with every run.
 """

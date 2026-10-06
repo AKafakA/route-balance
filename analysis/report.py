@@ -1,5 +1,5 @@
-"""The paper's numbers, from the lease's cells (plan Part B; paper rule R12: a number reaches the paper only
-through this tool's output, which the paper \\input{}s).
+"""The paper's numbers, from the lease's cells (a number reaches the paper only through this tool's
+output, which the paper \\input{}s).
 
     python -m analysis.report --render DIR --cells ROOT --data-root DIR --fleet NAME=FLEET.json [...]
         --hosts HOSTS.json --slo-base FAMILY=BASE.json [...] [--store STORE.jsonl ...]
@@ -27,7 +27,7 @@ Output, a new directory:
   report.json  per cell: the summary, the model mix and the overhead stages; per configuration: the seed means
                (analysis/frontier.py); the frontiers per metric; for each --treatment system, the equal-quality rows
                (analysis/equal_quality.py, each seed's value, the range over the seeds and the request-bootstrap
-               interval, D80, D81) by both readings (D86): "equal_quality" (one_config: one treatment
+               interval) by both readings: "equal_quality" (one_config: one treatment
                configuration for every metric) and "equal_quality_per_metric" (per_metric: each metric on its own
                frontier, as v2/v3), each with its "_appendix" rows; and every baseline configuration it could not
                compare, with the
@@ -45,17 +45,17 @@ Output, a new directory:
                intervals
   tables/equal_seeds.<treatment>.<group>.<trace>.tex   (the appendix) each seed's changes
   tables/equal_appendix.<treatment>.<group>.<trace>.tex   (the appendix) the appendix-only baselines
-               (APPENDIX_SYSTEMS: the dispatch-only least-outstanding and power of two counting in-flight requests,
-               D84), with their request-bootstrap intervals; they run in the main group so that they pair
+               (APPENDIX_SYSTEMS: the dispatch-only least-outstanding and power of two counting in-flight requests),
+               with their request-bootstrap intervals; they run in the main group so that they pair
                with the main grid's runs, and never enter the equal-quality tables of the main text or
                macros.tex (the systems tables list every configuration of a group, these included)
   macros.tex   per treatment, group and stationary trace: the range over the baseline configurations of the
                relative change of mean E2E, P99 E2E and cost at equal quality (...Min/...Max), and including the
-               comparisons read at higher quality (...MinAll/...MaxAll, D87)
-A value read at RouteBalance's frontier low end, above the baseline's quality beyond the tolerance (D87), carries
+               comparisons read at higher quality (...MinAll/...MaxAll)
+A value read at RouteBalance's frontier low end, above the baseline's quality beyond the tolerance, carries
 a dagger in the tables. Every equal* table and macro is written for both readings: the one_config names as above,
 the per_metric ones with the prefix equal_pm (tables) and eqpm (macros). The paper's framing picks one after the
-runs (D86).
+runs.
 """
 from __future__ import annotations
 
@@ -87,11 +87,11 @@ from tools.campaign import load_plan
 
 SLO_LEVELS = ("tight", "loose")
 MACRO_METRICS = {"e2e_mean_ms": "Mean", "e2e_p99_ms": "Tail", "cost_total_per_1k": "Cost",
-                 "cost_decode_per_1k": "DecodeCost"}   # D117: Cost is prompt + output (as v2); DecodeCost as v3
+                 "cost_decode_per_1k": "DecodeCost"}   # Cost is prompt + output (as v2); DecodeCost as v3
 TABLE_METRICS = {**MACRO_METRICS, "slo_miss_tight": "SLO tight (pp)", "slo_miss_loose": "SLO loose (pp)"}
 ATTAINMENT = ("slo_miss_tight", "slo_miss_loose")        # shown as the change of attainment, in points
-APPENDIX_SYSTEMS = frozenset({"dispatcher-inflight"})  # D84: compared in the appendix only (equal_appendix.*)
-# reading -> (report key, table prefix, macro prefix); both readings are always written (D86)
+APPENDIX_SYSTEMS = frozenset({"dispatcher-inflight"})  # compared in the appendix only (equal_appendix.*)
+# reading -> (report key, table prefix, macro prefix); both readings are always written
 READING_OUT = {"one_config": ("equal_quality", "equal", "eq"),
                "per_metric": ("equal_quality_per_metric", "equal_pm", "eqpm")}
 assert set(READING_OUT) == set(READINGS)
@@ -350,7 +350,7 @@ def systems_table(configs: Sequence[ConfigPoint]) -> str:
     return "\n".join(rows) + "\n"
 
 
-HIGHER = r"$^\dagger$"     # read at RouteBalance's frontier low end, above the baseline's quality (D87)
+HIGHER = r"$^\dagger$"     # read at RouteBalance's frontier low end, above the baseline's quality
 
 
 def _change(metric: str, relative: Optional[float], delta: Optional[float],
@@ -358,7 +358,7 @@ def _change(metric: str, relative: Optional[float], delta: Optional[float],
             higher: bool = False) -> str:
     """A metric's change as the tables show it: relative (%) for latency and cost; for an SLO miss share, the
     change of attainment in percentage points (minus the miss share's delta), with its interval flipped. A value
-    read at higher quality than the baseline's (D87) carries HIGHER."""
+    read at higher quality than the baseline's carries HIGHER."""
     mark = HIGHER if higher else ""
     if metric in ATTAINMENT:
         if delta is None:
@@ -378,7 +378,7 @@ def _table(header: str, lines: Sequence[str], n_metrics: int, n_lead: int) -> st
 
 
 def _any_higher(d: dict, interval: str, shown: Optional[Sequence[float]]) -> bool:
-    """A cell is marked when a value it shows was read at higher quality (D87): the value at the means, or, when
+    """A cell is marked when a value it shows was read at higher quality: the value at the means, or, when
     the cell prints its range or interval (`shown`), a seed inside the range or a resample inside the interval."""
     if shown is None:
         within = False

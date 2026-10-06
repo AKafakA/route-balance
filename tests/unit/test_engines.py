@@ -1,4 +1,4 @@
-"""The engine record (D48): the deploy record's launches, and each engine's start time and KV cache as it reports them."""
+"""The engine record: the deploy record's launches, and each engine's start time and KV cache as it reports them."""
 import pytest
 
 from routebalance.config import ConfigError
