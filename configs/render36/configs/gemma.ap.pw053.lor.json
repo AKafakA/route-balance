@@ -1,0 +1,62 @@
+{
+ "budget": {
+  "admission_filter": false
+ },
+ "dead_reckoning": false,
+ "estimator": {
+  "encoder_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+  "index_dir": "knn/gemma_deepeval_k50_20261002",
+  "index_md5": "54ee027bad2feddef49a30349347eab3",
+  "k": 50,
+  "prior": "knn",
+  "score_type": "deepeval"
+ },
+ "latency": {
+  "envelope": "batch_aware",
+  "normalization": "fixed_ref",
+  "prefill": {
+   "table": "calib/prefill_gemma_20261002.json",
+   "table_md5": "8417aa354d9585f089c15a5728dcb13a"
+  },
+  "source": "profiled_curve",
+  "table": "calib/tpot_gemma_20261002.json",
+  "table_md5": "778fa37bf92650db5ecfb8771142f16b"
+ },
+ "lpt": "max",
+ "mode": "pipeline",
+ "normalize_over": null,
+ "pending_decode": null,
+ "pipeline": {
+  "dispatch": {
+   "count": "engine",
+   "latency_window": null,
+   "seed": 1,
+   "type": "least_outstanding"
+  },
+  "router": {
+   "concurrency": 32,
+   "kwargs": {
+    "artifact_dir": "avengers_pro/avengers_pro_gemma_pw0.53_20261002p",
+    "beta": 9.0,
+    "embedder": "sentence-transformers/all-MiniLM-L6-v2",
+    "embedder_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+    "max_tokens": 7500,
+    "max_workers": 4,
+    "top_k": 1,
+    "upstream_sha256": "6cfaf58f525217b47c2e90361fbb3e94309f66fbbc7eadef067e01c82946493b"
+   },
+   "type": "avengers_pro"
+  }
+ },
+ "rounds": {
+  "adaptive": true,
+  "max_batch": null,
+  "timeout_ms": null
+ },
+ "telemetry": {
+  "poll_ms": 50.0,
+  "timeout_s": 1.0
+ },
+ "telemetry_read": "poll",
+ "weights": null
+}

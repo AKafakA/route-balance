@@ -184,7 +184,7 @@ def store_problems(state: dict, replays: int, *, at_start: bool) -> list[str]:
 
 def envoy_problems(clusters: dict, dump: dict, models: list[Model]) -> list[str]:
     """Envoy sends each model's requests to exactly its fleet replicas, by round robin (upstream's default), with the
-    owner's timeouts and circuit breakers on every listener, route and cluster."""
+    authors' timeouts and circuit breakers on every listener, route and cluster."""
     out = []
     live = {c["name"]: sorted((h["address"]["socket_address"]["address"], h["address"]["socket_address"]["port_value"])
                               for h in c.get("host_statuses", []))

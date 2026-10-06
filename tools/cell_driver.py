@@ -157,7 +157,7 @@ async def fresh(url: str) -> None:
     """a cell runs only on a fresh scheduler process (one that has logged no decision); refused before the cell
     runs, so a forgotten run_scope.sh --fresh-scheduler costs no run (the verdict checks it again)."""
     logged = (await _get(url, "/v1/stats"))["logged"]
-    seen = logged["decisions"] + logged["decisions_buffered"]     # flushed or not yet (Codex review 09-29)
+    seen = logged["decisions"] + logged["decisions_buffered"]     # flushed or not yet
     if seen != 0:
         raise ConfigError(f"the scheduler has logged {seen} decisions: not a fresh process "
                           "(run_scope.sh --fresh-scheduler restarts it before every cell)")

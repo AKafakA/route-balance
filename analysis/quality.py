@@ -9,7 +9,7 @@ Prompts and model names match exactly (the client sends the dataset text unchang
 scored name). A scored corpus is JSONL, one prompt per line:
   {"prompt": str, "models": {<model>: {"llm_judge_scores": {<judge_key>: score in [0, 1], ...}, ...}, ...}, ...}
 A prompt in two records, across all corpora loaded together, is an error. The campaign render pins each
-family's corpus (scope.json scored_corpora).
+family's corpus (plan.json scored_corpora).
 
 The budget sweep's cells are the exception: a reply cut short by its budget is not the answer the corpus
 scored, so their quality is the judged score of the text actually served, from the ScoreStore below

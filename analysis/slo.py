@@ -6,7 +6,7 @@ with k the level's value for the served model (configs/prereg_rules.json "slo") 
 measured on the lease stack in W1 at b = 1 (tools/slo_base.py). On the record's clocks:
   TTFT  first_token_s, the scheduler's clock from the request's arrival to its first token (its queue and decision,
         RouteBalance's round wait, then the engine's TTFT), as v2's client_ttft; the reply's delivery after the last
-        token is no longer counted (Codex audit 09-29, which found E2E minus the decode doing so)
+        token is no longer counted
   TPOT  (server_latency - ttft) / (output_tokens - 1), the engine's time per output token; a one-token reply
         has no TPOT and is judged on its TTFT alone (vLLM's benchmark defines TPOT from two tokens on)
 Attainment: the share of the cell's requests that meet the SLO; a failed request never does. The comparisons

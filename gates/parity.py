@@ -31,7 +31,7 @@ The driver writes group.json from the scope. A pattern is a manifest path: eithe
       every cell that loaded it: a different md5 under one path is a file that changed during the campaign.
   - The bench side of each record is equal across the group: sampling, max_connections, request_timeout_s,
     dataset_sha256, tokenizer_id and prompt_order.
-  - The engines (D48, the first rule on execution): each cell's engines_before.json equals its engines_after.json
+  - The engines, as executed: each cell's engines_before.json equals its engines_after.json
     (no engine restarted or changed during the cell), and every cell of the group ran on the same engines with
     the same launches: the deploy.sh command, the KV cache each engine built, its model and context length.
     Only the start time may differ between cells (an engine restarted between them with the same launch).

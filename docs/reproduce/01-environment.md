@@ -7,13 +7,8 @@ environment that serves runs.
 
 ```bash
 uv venv --python 3.10 .venv-uvicorn
-uv pip install --python .venv-uvicorn/bin/python -e ".[dev]"
-make check
+uv pip install --python .venv-uvicorn/bin/python -e .
 ```
-
-`make check` runs offline, on the CPU, with no network: lint, the hygiene gate, the static defect gate, the unit
-tests, the contract tests against a fake vLLM, and the campaign gates' tests (`gates.md`). It must pass before
-anything else is trusted.
 
 The paper data pack carries its own pinned analysis environment (`requirements.txt` in the pack) and needs only
 that, not this repository.

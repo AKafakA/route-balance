@@ -27,13 +27,13 @@ RouteBalance (mode routebalance)
   - fixed_ref: every latency term lies in (0, 1], and term * latency gives the same reference for every
     candidate.
   - max_divide: every latency term is 1 - latency / (max latency + EPS), bitwise, so the slowest is ~0; normalizing
-    over the round (D137), the max is the round's running maximum logged with the line (scales.l_max), which covers
+    over the round, the max is the round's running maximum logged with the line (scales.l_max), which covers
     the line's latencies and runs over the round in decision order, and the round's lines share one quality range
     and cost maximum. The scales are logged exactly when the configuration normalizes over the round.
   - Rounds: the lines of a round agree on its size and limits. There are at most `size` of them, and their
     positions are distinct and below the size. The size is at most the round's max_batch. Fixed rounds use the
     configured limits; an adaptive round's window is one of the adaptive pairs' and its max_batch is that pair's
-    size, or the requests already waiting when it opened (round_backlog) up to the largest size (D123).
+    size, or the requests already waiting when it opened (round_backlog) up to the largest size.
   - LPT: every line's lpt_key is the configured statistic (max, min or mean; off writes the max) of the
     request's expected lengths over every model the estimator returned (the line's lengths). Unless lpt is
     off, within a round in position order the lpt_keys do not increase.
@@ -45,7 +45,7 @@ Pipeline (mode pipeline)
     router score. Where the reason names a tier or model (rb_decoupled, avengers_pro, best_route_upstream, a
     best_route fallback), that is the one served.
   - decode_tokens and feature_tokens: the request's max_tokens, with no lengths logged. With pending_decode
-    own_length (the D38 sweep) they are the expected length on the chosen model and the LPT key.
+    own_length (the latency sweep) they are the expected length on the chosen model and the LPT key.
 """
 from __future__ import annotations
 
@@ -62,9 +62,9 @@ from routebalance.config import SchedulerConfig, config_digest, load_scheduler
 from routebalance.schedule.score import EPS
 
 # The adaptive round limits (max_batch, timeout_ms) of the paper, written out here so that a changed constant
-# in schedule/rounds.py fails this gate (tests/gates checks the two agree today).
+# in schedule/rounds.py fails this gate.
 ADAPTIVE_LIMITS = frozenset({(4, 50.0), (16, 100.0), (32, 200.0)})
-BACKLOG_CAP = 32            # D123: an adaptive round takes the scheduler's backlog up to the largest adaptive size
+BACKLOG_CAP = 32            # an adaptive round takes the scheduler's backlog up to the largest adaptive size
 REASON_PREFIX = {"passthrough": "passthrough:", "best_route": "best_route_4way:", "avengers_pro": "avengers_pro:",
                  "rb_decoupled": "rb_decoupled:", "best_route_upstream": "best_route_upstream:"}
 # The router's reason names a model, or (rb_decoupled) the tier whose model it returned: the dispatcher then
@@ -270,20 +270,20 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
         _round(p, cfg, r, members)
         complete = len(members) == members[0]["round_size"]
         if cfg.normalize_over == "round" and complete and all(_valid_scales(m["scales"]) for m in members):
-            # D137: the cost maximum is over every request of the round x every fleet instance (before any filter)
+            # the cost maximum is over every request of the round x every fleet instance (before any filter)
             c_max = max(_cost(m, f, _lengths(m, models)) for m in members for f in fleet)
             if any(m["scales"]["c_max"] != c_max for m in members):
                 p.add("a round's cost maximum is not the maximum over its requests x the fleet", f"round {r}")
 
 
 def _cost(line: dict, f: FleetEntry, lengths: dict) -> float:
-    """A candidate's predicted cost as the scheduler computes it (schedule/assign.py, D117)."""
+    """A candidate's predicted cost as the scheduler computes it (schedule/assign.py)."""
     return line["request"]["prompt_tokens"] * f.cost_in + lengths[f.model] * f.cost_out
 
 
 def _cost_terms(p: Problems, rid: str, line: dict, cands: list[dict], by_id: dict, lengths: dict, scales) -> None:
     """Every cost term is 1 - cost / (cost maximum + EPS), bitwise: the maximum over this request's candidates, or
-    over the round (scales.c_max) when normalizing over the round (D137)."""
+    over the round (scales.c_max) when normalizing over the round."""
     costs = [_cost(line, by_id[c["inst"]], lengths) for c in cands]
     c_ref = max(costs) if scales is None else scales["c_max"]
     if scales is not None and not c_ref >= max(costs):
@@ -315,7 +315,7 @@ def _valid_scales(scales) -> bool:
 
 
 def _latency_terms(p: Problems, rid: str, cands: list[dict], normalization: str, scales) -> None:
-    """scales: the round's (normalize_over round, D137): max_divide divides by the round's running maximum, which
+    """scales: the round's (normalize_over round): max_divide divides by the round's running maximum, which
     covers this request's latencies; None: by this request's own maximum, so its slowest term is ~0."""
     lats, terms = [c["lat_s"] for c in cands], [c["l"] for c in cands]
     if not all(x > 0 for x in lats):
@@ -345,7 +345,7 @@ def _round(p: Problems, cfg: SchedulerConfig, r: int, members: list[dict]) -> No
         return
     (size,), ((max_batch, timeout_ms, backlog),) = sizes, limits
     if cfg.normalize_over == "round" and all(_valid_scales(m.get("scales")) for m in members):   # else malformed
-        # D137: one quality range and cost maximum per round; the latency maximum runs over the round in decision
+        # one quality range and cost maximum per round; the latency maximum runs over the round in decision
         # order, each request's candidates included
         if len({(m["scales"]["q_min"], m["scales"]["q_max"], m["scales"]["c_max"]) for m in members}) != 1:
             p.add("a round's lines disagree on its quality range or cost maximum", f"round {r}")

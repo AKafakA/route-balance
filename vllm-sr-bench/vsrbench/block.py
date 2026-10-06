@@ -151,7 +151,7 @@ def plan(scope, family: str, traces: list[str], seeds: list[int]) -> list[tuple[
 
 def main(argv: list[str]) -> int:
     rest = argv[argv.index("--") + 1:] if "--" in argv else []
-    # --flag=value as --flag value, so every check below (and run_cell) reads one form (Codex review 09-30)
+    # --flag=value as --flag value, so every check below (and run_cell) reads one form
     rest = [part for tok in rest for part in (tok.split("=", 1) if tok.startswith("--") and "=" in tok else [tok])]
     argv = argv[:argv.index("--")] if "--" in argv else argv
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0], allow_abbrev=False)

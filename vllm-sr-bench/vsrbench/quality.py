@@ -14,8 +14,8 @@ def training_means(rows_path: Path, models: list[str], judge_key: str = JUDGE_KE
     without a model's score is an error, never a silent skip."""
     raw = Path(rows_path).read_bytes()
     sums, n = {m: 0.0 for m in models}, 0
-    # newlines only: str.splitlines also breaks at U+2028 and other separators, which a JSON string may hold (the 28 Sep
-    # Qwen training rows hold 37 in their answers; the first lease run stopped on it, 10-02)
+    # newlines only: str.splitlines also breaks at U+2028 and other separators, which a JSON string may hold (the Qwen
+    # training rows hold 37 in their answers)
     for i, line in enumerate(raw.decode("utf-8").split("\n"), 1):
         if not line.strip():
             continue

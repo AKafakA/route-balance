@@ -150,7 +150,7 @@ class Inputs:
             self.corpora[family] = ScoredCorpus.load([path], judge_key)
         self.store = ScoreStore.load(list(stores), judge_key) if stores else None
         self.slo_bases = {family: SloBase.load(p) for family, p in slo_bases.items()}
-        # Codex audit 09-29: the report records which calibration produced its SLO thresholds (and, set by main(),
+        # the report records which calibration produced its SLO thresholds (and, set by main(),
         # which rules), so every attainment and goodput number names its inputs
         self.provenance = {"slo_bases": {f: {"path": str(p), "sha256": file_sha256(Path(p)),
                                              "ttft_s": dict(self.slo_bases[f].ttft_s),

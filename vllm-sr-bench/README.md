@@ -44,15 +44,14 @@ neighbouring pairs:
 one of its backends, at the experiment-network address our scheduler uses. Envoy picks among them by round robin
 (upstream's default). **Cards:** each model's context and output limit are its engine's `--max-model-len`.
 
-**The owner's values, in a copy of upstream's Envoy template (`templates/`, diff in `templates.diff`),
+**The authors' values, in a copy of upstream's Envoy template (`templates/`, diff in `templates.diff`),
 passed as the CLI's `TEMPLATE_ROOT`. Its digest is recorded with every run:**
 - the listener timeout (a config field) is the client's 6 h, vLLM bench's stock timeout, as for every system.
 - the ext_proc `message_timeout` is 1 h, Envoy's maximum.
 - the circuit breakers are v2's 200,000 on the router's cluster and every model cluster (stock: Envoy's defaults,
   1,024).
 
-**Stop:** (a) `stop: ["<|im_end|>"]` was probed
-(`probes/stop_token_probe.py`) and does not stop as `stop_token_ids` [151645] does: vLLM's stop strings do not
+**Stop:** (a) `stop: ["<|im_end|>"]` was probed and does not stop as `stop_token_ids` [151645] does: vLLM's stop strings do not
 match special tokens, and v0.4.0 refuses `stop_token_ids`. So (b): the Qwen requests carry no stop, and quality is
 judged on the served text.
 
@@ -125,22 +124,15 @@ routing), not our scheduler's keys. Before comparing its SLO attainment with the
 every router of our framework runs on that CPU. The stock `--platform nvidia` (a dedicated GPU) is not used. Every run
 checks no container is given a device.
 
-## Profiles
+## Profile
 
-- **lease:** the fleet file, the experiment network, the training means. A configuration carrying any test token is
-  refused, before the stack starts and again in the live configuration.
-- **test (the test machine only):** `tests/e2e/` (a two-replica fleet of one small model, or with `--test-pair`
-  two models in the pools, behind Docker's bridge gateway, with the engines launched by `tests/e2e/engines.sh`, the hosts file written by
-  `python -m vsrbench.testprofile hosts`), marked `routebalance-test-profile`, its cells named `test.*`, never under the
-  lease's data disk, a short trace (`--test-trace`).
-  The fleet file labels the test machine's node an A30 because the shared fleet loader knows only the lease's hardware. The
-  label only names its tier.
+A run takes the fleet file, the experiment network and the training means. A configuration carrying the test
+profile's mark (`routebalance-test-profile`) or any test token is refused, before the stack starts and again in the
+live configuration.
 
 ## Layout
 
 | Path | What it is |
 |---|---|
 | `vsrbench/` | the stack lifecycle, the streaming client, the run driver, the record writer, the checks |
-| `probes/` | one-off probes (the stop token) |
-| `templates/`, `templates.diff` | upstream's CLI templates with the owner's Envoy values, and the diff |
-| `tests/` | unit tests (`PYTHONPATH=..:. pytest tests`). `tests/e2e/`: the test machine's profile |
+| `templates/`, `templates.diff` | upstream's CLI templates with the authors' Envoy values, and the diff |

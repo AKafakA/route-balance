@@ -1,0 +1,45 @@
+{
+ "budget": {
+  "admission_filter": false
+ },
+ "dead_reckoning": true,
+ "estimator": {
+  "encoder_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+  "index_dir": "knn/qwen_deepeval_k50_20260928b",
+  "index_md5": "dfa43d0a9cd9a031d0b05bfd59870646",
+  "k": 50,
+  "prior": "knn",
+  "score_type": "deepeval"
+ },
+ "latency": {
+  "envelope": "queue_aware",
+  "normalization": "max_divide",
+  "prefill": {
+   "table": "calib/prefill_qwen_d135.json",
+   "table_md5": "45b0fbc1e540c0a268d675db269bf8f7"
+  },
+  "source": "constant",
+  "table": "calib/tpot_qwen_d135.json",
+  "table_md5": "a3f75b059b85a18d9000585ce8cf1991"
+ },
+ "lpt": "max",
+ "mode": "routebalance",
+ "normalize_over": "round",
+ "pending_decode": "own_length",
+ "pipeline": null,
+ "rounds": {
+  "adaptive": true,
+  "max_batch": null,
+  "timeout_ms": null
+ },
+ "telemetry": {
+  "poll_ms": 50.0,
+  "timeout_s": 1.0
+ },
+ "telemetry_read": "per_round",
+ "weights": {
+  "w_cost": 0.2,
+  "w_latency": 0.2,
+  "w_quality": 0.6
+ }
+}

@@ -1,0 +1,59 @@
+{
+ "budget": {
+  "admission_filter": false
+ },
+ "dead_reckoning": false,
+ "estimator": {
+  "encoder_revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+  "index_dir": "knn/gemma_deepeval_k50_20261002",
+  "index_md5": "54ee027bad2feddef49a30349347eab3",
+  "k": 50,
+  "prior": "knn",
+  "score_type": "deepeval"
+ },
+ "latency": {
+  "envelope": "batch_aware",
+  "normalization": "fixed_ref",
+  "prefill": {
+   "table": "calib/prefill_gemma_20261002.json",
+   "table_md5": "8417aa354d9585f089c15a5728dcb13a"
+  },
+  "source": "profiled_curve",
+  "table": "calib/tpot_gemma_20261002.json",
+  "table_md5": "778fa37bf92650db5ecfb8771142f16b"
+ },
+ "lpt": "max",
+ "mode": "pipeline",
+ "normalize_over": null,
+ "pending_decode": null,
+ "pipeline": {
+  "dispatch": {
+   "count": "engine",
+   "latency_window": null,
+   "seed": 1,
+   "type": "least_outstanding"
+  },
+  "router": {
+   "concurrency": 32,
+   "kwargs": {
+    "base_model": "microsoft/deberta-v3-small",
+    "base_revision": "a36c739020e01763fe789b4b85e2df55d6180012",
+    "checkpoint": "best_route/gemma_upstream_20261002",
+    "threshold": 0.5,
+    "upstream_sha256": "85279e1f6080d87db95dcbded46d7713fcf2728b82339c3b6a30ef3b56579005"
+   },
+   "type": "best_route_upstream"
+  }
+ },
+ "rounds": {
+  "adaptive": true,
+  "max_batch": null,
+  "timeout_ms": null
+ },
+ "telemetry": {
+  "poll_ms": 50.0,
+  "timeout_s": 1.0
+ },
+ "telemetry_read": "poll",
+ "weights": null
+}

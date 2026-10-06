@@ -9,9 +9,9 @@ The fleet files
   deployment the cell expects.
 Every engine of the fleet
   GET /health        200
-  GET /version       vLLM 0.18.1 (D24: official vLLM, no fork, on every node)
+  GET /version       vLLM 0.18.1 (official vLLM, no fork, on every node)
   GET /v1/models     exactly one model, the tier's
-  GET /metrics       running + waiting == 0: the engine is drained. The D30 precondition: only the scheduler
+  GET /metrics       running + waiting == 0: the engine is drained. The precondition: only the scheduler
                      sends to an engine, so load starts from zero.
 The scheduler
   GET /health        200 "ok"
@@ -20,7 +20,7 @@ The scheduler
                      the scheduler started
   GET /v1/stats      no failure; active == 0; no decision line buffered (the previous cell's log is on disk);
                      reading the pollers' cache (telemetry_read "poll", as the manifest says): a snapshot of every
-                     instance (its age is counted, never a failure: D133); per round or per request: none
+                     instance (its age is counted, never a failure); per round or per request: none
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ from routebalance.config import ConfigError, fleet_digest, load_fleet, loads_str
 from routebalance.telemetry import InstanceStateUnavailable, parse_metrics
 from routebalance.types import Instance
 
-VLLM_VERSION = "0.18.1"            # D24
+VLLM_VERSION = "0.18.1"            # official vLLM, no fork
 PROBE_TIMEOUT_S = 10.0             # per HTTP request of this gate (not an experiment parameter)
 ENGINE_PATHS = ("/health", "/version", "/v1/models", "/metrics")
 SCHEDULER_PATHS = ("/health", "/v1/config", "/v1/manifest", "/v1/stats")
@@ -165,11 +165,11 @@ def scheduler_problems(replies: dict[str, Reply], fleet: list[Instance], expect_
             problems.append(f"scheduler: /v1/stats reads telemetry '{stats.telemetry_read}', "
                             f"the manifest's {manifest.system.mode} system '{manifest.system.telemetry_read}'")
         elif stats.telemetry_read != "poll":
-            pass       # fetched per round (D53) or per request (D55), a miss failing the round or the request;
+            pass       # fetched per round or per request, a miss failing the round or the request;
                        # the engines themselves were checked directly above
         elif set(ages) != {i.instance_id for i in fleet}:
             problems.append(f"scheduler: the pollers hold no snapshot for every instance: {ages}")
-        # D133 (owner): a snapshot's age is counted (every decision logs it), never gated
+        # a snapshot's age is counted (every decision logs it), never gated
     return problems
 
 

@@ -122,7 +122,7 @@ def versions(vsr: Path, docker) -> dict:
 
 def shared_tree_check() -> None:
     """The shared packages (bench, gates, tools, ...) load from this tree: harness.json records this tree's code, and the
-    checks that judge a run must be the code it records (local reviews 09-30; run_cell and vsrbench.block both call it)."""
+    checks that judge a run must be the code it records (run_cell and vsrbench.block both call it)."""
     elsewhere = sorted({m.__name__.split(".")[0] for m in list(sys.modules.values())
                         if m.__name__.split(".")[0] in SHARED_PACKAGES and getattr(m, "__file__", None)
                         and not Path(m.__file__).resolve().is_relative_to(REPO)})

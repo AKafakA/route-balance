@@ -9,7 +9,7 @@
   slo             after SOLA (analysis/slo.py): the multiplier k of each level, by served model, on the
                   served tier's single-request TTFT and TPOT (tight, loose); attainment_levels, the attainment
                   shares at which goodput is read (the largest rate that keeps them)
-  g1              the thesis gate, decided from the G1 cells (configs/scope.json) as soon as they
+  g1              the thesis gate, decided from the G1 cells (configs/render36/scope.json) as soon as they
                   finish. RB-new (the profiled-curve arm) is compared with RB-decoupled on the same preset:
                     tier_mix_shift_min            RB-new's tier mix moves with load: the largest change of any
                                                   tier's request share from lambda 12 to lambda 30 is at least this

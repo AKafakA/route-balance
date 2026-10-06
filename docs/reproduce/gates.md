@@ -2,8 +2,7 @@
 
 A run is not a measurement until its gates pass. The gates check that what executed is what was configured, and
 that nothing else ran beside it. None of them judges how a system served: a slow request, a late send or an old
-load snapshot is counted and reported, never a reason to drop a run. Each gate is a module under `gates/` with
-tests under `tests/gates/`, including fixtures that must fail.
+load snapshot is counted and reported, never a reason to drop a run. Each gate is a module under `gates/`.
 
 ## Before every run
 
@@ -27,13 +26,6 @@ tests under `tests/gates/`, including fixtures that must fail.
 | gate | refuses |
 |---|---|
 | `parity.py` | a group whose runs did not execute identically except in the differences the group declares: each run's execution manifest (code, library versions, launch values, thread pools, telemetry settings, the md5 of every artifact loaded) the same before and after, the code on disk unchanged while the scheduler ran, the same engine launches for every run |
-
-## The tree
-
-| gate | refuses |
-|---|---|
-| `hygiene.py` | committed files with host names, private addresses, personal identifiers, credentials, personal absolute paths, or backup and stale copies. The identity terms come from a private `--terms` file (`make check TERMS=<file>`), which this release does not include |
-| `static_defects.py` | the defect classes that produce complete, error-free, wrong runs: a falsy `or` used as a value, an invented default, an experiment parameter read from the environment, GPU knowledge outside `routebalance/hw.py`, a hard-coded model list |
 
 ## The analysis
 

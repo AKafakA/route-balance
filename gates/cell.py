@@ -12,8 +12,8 @@ scripts/run_cell.sh writes, per cell, <cells_root>/<cell_id>/:
   group.json              {"group", "reference", "intended_differences"}: the cell's comparison group, written
                           from the scope (gates/parity.py)
   engines_before.json     every engine of the fleet as it reports itself before the cell, with the launch command
-  engines_after.json      deploy.sh ran for it, and again after the last reply (tools/engines.py, D48)
-  gates/*.log, latency.jsonl (the D38 sweep only)       not read by the gates
+  engines_after.json      deploy.sh ran for it, and again after the last reply (tools/engines.py)
+  gates/*.log, latency.jsonl (the latency sweep only)       not read by the gates
 Every reader is strict. The gate that reads a file fails on any of these: the file is missing; a key is
 missing or unknown; a value has the wrong type; a number is not finite; a JSON key is repeated. Nothing is
 defaulted.
@@ -58,22 +58,22 @@ class ConnectionWaits(Strict):
 
 
 class TcpListen(Strict):
-    """The node's kernel counters of connections turned away by a full listen queue, cumulative since boot (D141)."""
+    """The node's kernel counters of connections turned away by a full listen queue, cumulative since boot."""
     overflows: int = Field(ge=0)
     drops: int = Field(ge=0)
 
 
 class Stats(Strict):
     loop_lag: dict[str, Union[int, float]]
-    telemetry_read: Literal["per_round", "per_request", "poll"]   # D53, D55; the pollers' cache is D19
+    telemetry_read: Literal["per_round", "per_request", "poll"]   # once per round, per request, or the pollers' cache
     telemetry_age_ms: Optional[dict[str, Union[float, str]]]   # poll only: instance -> age, or {"error": why stale}
     active: int = Field(ge=0)
     rounds: Optional[int]
     booster_calls: Optional[int]                     # None: no latency model is loaded
     failure: Optional[str]
-    evidence_failure: Optional[str] = None           # D134: a log writer failed (the run is invalid, never refused)
+    evidence_failure: Optional[str] = None           # a log writer failed (the run is invalid, never refused)
     connection_waits: ConnectionWaits
-    tcp_listen: Optional[TcpListen] = None           # since D141 (recorded, never a reason to discard a run)
+    tcp_listen: Optional[TcpListen] = None           # absent from older records (recorded, never a reason to discard a run)
     logged: Logged
 
     @model_validator(mode="after")
@@ -99,7 +99,7 @@ class FleetEntry(Strict):
 class SystemKeys(Strict):
     """The system-defining settings: the only ones that may differ between the systems of a group."""
     mode: Literal["routebalance", "pipeline"]
-    telemetry_read: Literal["per_round", "per_request", "poll"]   # part of the system (D53, D55)
+    telemetry_read: Literal["per_round", "per_request", "poll"]   # part of the system
     weights: Optional[dict[str, float]]
     rounds: dict[str, Any]
     lpt: str
@@ -108,7 +108,7 @@ class SystemKeys(Strict):
     estimator: dict[str, Any]
     router: Optional[dict[str, Any]]
     dispatch: Optional[dict[str, Any]]
-    normalize_over: Optional[Literal["request", "round"]] = None   # D137 (records before it carry none)
+    normalize_over: Optional[Literal["request", "round"]] = None   # absent from older records
 
     @model_validator(mode="after")
     def _read_follows_mode(self):
@@ -120,7 +120,7 @@ class SystemKeys(Strict):
 
 class TelemetrySettings(Strict):
     poll_ms: float
-    max_age_ms: Optional[float] = None     # records made before D133 only
+    max_age_ms: Optional[float] = None     # older records only
     timeout_s: float
     dead_reckoning: bool
 
@@ -133,8 +133,8 @@ class Loaded(Strict):
     dispatcher: Optional[str]
     round_loop: bool
     telemetry_pollers: bool                 # read from the live view: running exactly when telemetry_read is poll
-    # the lane the pipeline router's calls ran on, as built (None: no router calls a model); records made before
-    # D135 carry it under launch instead
+    # the lane the pipeline router's calls ran on, as built (None: no router calls a model). Older records
+    # carry it under launch instead
     router_lane_threads: Optional[int] = None
 
 
@@ -163,7 +163,7 @@ class Cpus(Strict):
 
 
 class HttpServer(Strict):
-    """The scheduler's HTTP server as it runs (D141: uvicorn, as v3 and vLLM)."""
+    """The scheduler's HTTP server as it runs (uvicorn, as v3 and vLLM)."""
     server: str
     http: str
     backlog: int
@@ -175,23 +175,23 @@ class HttpServer(Strict):
 
 
 class OpenFiles(Strict):
-    """RLIMIT_NOFILE as the scheduler runs with it (D141: v3's set_ulimit, soft 65535)."""
+    """RLIMIT_NOFILE as the scheduler runs with it (v3's set_ulimit, soft 65535)."""
     soft: int
     hard: int
 
 
 class Launch(Strict):
-    torch_threads: Optional[int]           # None: torch's default (D134)
+    torch_threads: Optional[int]           # None: torch's default
     torch_threads_effective: Optional[int]
     max_connections: int
     request_timeout_s: float
     router_threads: int
-    router_lane_threads: Optional[int] = None   # before D135 (one lane per process); since, under loaded, per configuration
+    router_lane_threads: Optional[int] = None   # older records (one lane per process); later ones under loaded
     engine_session: SessionSettings
     telemetry_session: SessionSettings
     event_loop: str
-    http_server: Optional[HttpServer] = None    # before D141 the scheduler served through aiohttp (not recorded)
-    open_files: Optional[OpenFiles] = None      # before D141 not recorded
+    http_server: Optional[HttpServer] = None    # absent from older records
+    open_files: Optional[OpenFiles] = None      # absent from older records
     cpus: Cpus
     env: dict[str, Optional[str]]
 
@@ -292,7 +292,7 @@ def _parse(model, data: Any, what: str):
 # ---------------------------------------------------------------- engines_before.json / engines_after.json
 
 class Served(Strict):
-    """An engine's cumulative serving counters at one reading, from its /metrics (tools/engines.py, D132)."""
+    """An engine's cumulative serving counters at one reading, from its /metrics (tools/engines.py)."""
     requests: int = Field(ge=0)            # vllm:request_success_total over every finished_reason
     prompt_tokens: int = Field(ge=0)       # vllm:prompt_tokens_total
     generation_tokens: int = Field(ge=0)   # vllm:generation_tokens_total
@@ -310,7 +310,7 @@ class EngineLaunch(Strict):
     cache_config: dict[str, str] = Field(min_length=1)
     model: str = Field(min_length=1)
     max_model_len: int = Field(ge=1)
-    served: Optional[Served] = None        # D132; records made before it have none (and fail traffic_problems)
+    served: Optional[Served] = None        # absent from older records (which fail traffic_problems)
 
     def launch(self) -> dict:
         """Everything but the start time and the counters: what a cell of the group must share with every other."""
@@ -332,7 +332,7 @@ def engine_changes(before: Engines, after: Engines) -> list[str]:
 
 
 def fleet_uncovered(engines: Engines, manifest: Manifest) -> list[str]:
-    """D48: the engine record reads every engine of the cell's fleet, and only those."""
+    """The engine record reads every engine of the cell's fleet, and only those."""
     fleet = sorted(f.instance_id for f in manifest.fleet)
     return [] if sorted(engines.instances) == fleet else [f"engines {sorted(engines.instances)} vs the fleet {fleet}"]
 
@@ -455,13 +455,13 @@ def run(gate: str, check: Callable[[], tuple[list[str], str]]) -> int:
     return 0
 
 
-# ---------------------------------------------------------------- isolation (D128, D132)
+# ---------------------------------------------------------------- isolation
 
 RESET_STEPS = ("prime", "after_reset", "control")
 
 
 def reset_problems(cell: Cell) -> list[str]:
-    """D128: every engine of the cell's fleet started the cell from an emptied prefix cache (but for the warm-up
+    """Every engine of the cell's fleet started the cell from an emptied prefix cache (but for the warm-up
     prompt's own blocks, the same in every cell), as its warm-up proved
     (tools/direct.py): the prime, then after vLLM's reset a request with no cached token, then the same prompt again
     with some. A cell without that proof (made before the reset, or on engines that could not reset) is invalid."""
@@ -487,7 +487,7 @@ def reset_problems(cell: Cell) -> list[str]:
 
 
 def traffic_problems(cell: Cell) -> list[str]:
-    """D132: between the cell's two engine readings (the first taken before the warm-up, so the reset and its proof are
+    """Between the cell's two engine readings (the first taken before the warm-up, so the reset and its proof are
     inside), only the warm-up's and the cell's own requests reached the engines. Per engine, the change in finished
     requests, prompt tokens and generated tokens must equal what warmup.json and the record say it served."""
     try:
@@ -525,7 +525,7 @@ def traffic_problems(cell: Cell) -> list[str]:
 
 
 def scheduler_problems(cell: Cell) -> list[str]:
-    """D132: the cell ran on a fresh scheduler process (it had logged no decision before the cell), and D134: no
+    """The cell ran on a fresh scheduler process (it had logged no decision before the cell), and no
     evidence writer failed during it (requests were still served; the cell is invalid)."""
     try:
         before, after = cell.stats("before"), cell.stats("after")

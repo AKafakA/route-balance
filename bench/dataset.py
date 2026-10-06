@@ -6,7 +6,7 @@ given the seed. A shuffle depends only on the list length, so the v3 order is th
 Random(0).shuffle(range(n_rows)); a run of n requests sends its first n entries (no oversampling).
   fixed     that order for every seed; reproduces every banked v3 cell
   per_seed  run seed s uses Random(s - 1): seed 1 is the v3 order, seeds 2, 3, ... permute it
-            (the MLSys runs: seeds vary the prompt order as well as the arrivals)
+            (the paper's runs: seeds vary the prompt order as well as the arrivals)
 
 Templating. The client sends the RAW prompt; the scheduler passes it to vLLM's
 chat endpoint as the single user message and vLLM applies the chat template once. v3 templated in the client

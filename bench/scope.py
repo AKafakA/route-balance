@@ -1,4 +1,4 @@
-"""The experiment scope: which cells exist and how each one is run (configs/scope.json).
+"""The experiment scope: which cells exist and how each one is run (a render's scope.json, configs/render36/).
 
 {
   "bench":    {"sampling": {...Sampling}, "max_connections": int, "request_timeout_s": float,
@@ -18,9 +18,8 @@
 }
 A cell is one (config, trace, seed); its id is "<config_id>__<trace_id>__s<seed>" and it belongs to exactly
 one block. The expected cells are enumerated from this file; nothing is counted by listing a directory.
-A campaign scope is rendered in stages (tools/campaign.py): a block whose configurations need an artifact or
-a decision that does not exist yet is left out and named under "pending", and a scope with anything pending
-is never complete (analysis/manifest.py).
+A block whose configurations need an artifact or a decision that does not exist yet is named under "pending"
+instead of listed, and a scope with anything pending is never complete (analysis/manifest.py).
 
 A group is the unit of comparison: frontiers and equal-quality deltas compare cells of one group only, and
 the manifest requires every cell of a group to have run on one fleet. The blocks of a group share their

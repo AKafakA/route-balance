@@ -10,8 +10,7 @@ ranker and routing rule from a pinned checkout), AvengersPro's upstream cluster 
 LiteLLM's lowest-latency rule, and the least-outstanding and power-of-two dispatchers on the engines' own load
 gauges. Each runs in the same server as RouteBalance, on the same fleet, the same telemetry, the same HTTP session to the
 engines and the same dispatch path. The vLLM Semantic Router runs as its authors deploy it, its own stack in front
-of the same engines, driven by the same client. Counting in-flight requests, as NGINX's `least_conn` and Envoy's `LEAST_REQUEST` do, is an
-appendix variant.
+of the same engines, driven by the same client.
 
 **RouteBalance's own mechanisms are never given to a baseline.** Scheduling a round of requests together, dead
 reckoning (the scheduler's own in-flight count as each instance's load) and the per-round load read belong to
@@ -27,9 +26,8 @@ request per round. Both are compared with RouteBalance pair by pair, at the same
 
 ## The serving path
 
-**No value of our own.** Every setting is the upstream system's stock default (vLLM, vLLM's benchmark client,
-uvicorn, Envoy), the previous implementation's accepted value, or a value the authors set, and
-`configs/provenance.json` records the source of each, which `tests/unit/test_provenance.py` enforces.
+**Every value has a source.** Every setting is the upstream system's stock default (vLLM, vLLM's benchmark client,
+uvicorn, Envoy), the previous implementation's accepted value, or a value the authors set.
 
 **No rule of our own refuses, drops, delays or times out a request.** A stale load snapshot, a late send or a slow
 reply is counted and logged, never gated. The benchmark client and the scheduler's sessions use vLLM's benchmark
@@ -62,15 +60,8 @@ values, with k by model size in `configs/prereg_rules.json`.
 **Arrivals are open loop.** The offered rate is the control variable. Arrivals and prompt order come from the
 trace and the seed, and the verdict regenerates them to check the record.
 
-## The configuration notes
+## The rendered campaign
 
-The free-text notes in `configs/` (`about`, `ref` and similar fields) cite the development decision log by id (D16,
-D225 and so on). The log itself is not part of this release, and each note states what was decided. The files are
-the ones the runs used, with two exceptions that differ in notes only (two notes each), every value unchanged:
-
-| file | sha256 as run | sha256 as shipped |
-|---|---|---|
-| `configs/scope.json` | `8b77ccab9e40bb97d36a4c460bee9a1c39f830c736eddb429adb6b32a6d87583` | `f7f9e1bbda96751496e411f8ead46172716fcbaadb62ad18ff9ee2e4be70f58c` |
-| `configs/provenance.json` | `d696d4c99b59a0d87c2c79ec258df91cd7d0bfec5588a3175e7d4444de6731dd` | `1a5a4c56703ba01ba89bcdda961f49ee2280049caec0df7f21417b16bf079f79` |
-
-The rendered campaign records the first column (`render.json`, `scope_sha256`).
+`configs/render36/` is the render the runs used: `scope.json` and every scheduler document under `configs/` as they
+ran, and `plan.json` with every value of the rows that ran, in the plan's order. Each row carries a new one-line note
+of what it runs. The rows that never ran are left out, with the one fleet and the one group only they named.

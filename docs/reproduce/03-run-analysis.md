@@ -34,20 +34,20 @@ The runs' full records (each request's timings and served model, the decision lo
 input of the reports. The paper's four reports were made from them with this repository's code:
 
 ```bash
-python -m analysis.report --render RENDER --cells RUNS/q1 --data-root INPUTS/qwen/data \
+python -m analysis.report --render configs/render36 --cells RUNS/q1 --data-root INPUTS/qwen/data \
   --fleet qwen_std=configs/fleet_qwen.json --hosts HOSTS.json --slo-base qwen=INPUTS/qwen/slo_base_qwen.json \
   --store INPUTS/qwen/budget-judge/store.s1.jsonl INPUTS/qwen/budget-judge/store.s2-zero.jsonl \
   --rules configs/prereg_rules.json --treatment RouteBalance-static --out report-q1
-python -m analysis.report --render RENDER --cells RUNS/g1 --data-root INPUTS/gemma/data \
+python -m analysis.report --render configs/render36 --cells RUNS/g1 --data-root INPUTS/gemma/data \
   --fleet gemma=configs/fleet_gemma.json --hosts HOSTS.json --slo-base gemma=INPUTS/gemma/slo_base_gemma.json \
   --rules configs/prereg_rules.json --treatment RouteBalance-static --out report-g1
 ```
 
 and the same over all seeds (`RUNS/qall`, `RUNS/gall`). The records carry the served texts of the budget runs and
-are not part of the reviewer packs. Their parity records were made under the development tree's gates, which differ
-from this tree's (the hygiene gate rewritten, the freeze gate removed: `removed.md`), so with this tree each group's
-parity reads `not run` until the parity gate is rerun over the records. Every other value of the reports is the
-same.
+are not part of the reviewer packs. Their parity records are keyed by the source of the gates' folder (`gate_code`
+in `tools/cell_driver.py`). This tree's `gates/` holds the run gates with the code the runs executed, its comments
+edited, and not the repository checks of development, so the key differs and each group's parity reads `not run`
+until the parity gate is rerun over the records. Every other value of the reports is the same.
 
 ## The boundary
 

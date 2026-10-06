@@ -49,8 +49,7 @@ Check: every experiment parameter is a required field. Nothing is read from the 
 - **Dead reckoning (RouteBalance's own).** Every request an engine serves was sent by this scheduler, so the
   scheduler's own in-flight count is the instance's load. The engine gauge only splits it into running and
   waiting: `running = min(engine running, in_flight)`, `waiting = in_flight − running`. The baselines' views run
-  with it off, and their load-reading dispatchers read the engines' gauges. Only the appendix row W12 counts the
-  in-flight requests themselves, as production proxies do.
+  with it off, and their load-reading dispatchers read the engines' gauges.
 - **Pending decode tokens.** Each dispatch opens a token with its predicted decode length. Streamed
   progress counts it down. At the prediction it is extended by +10 and counts down again.
 - `Load.engine_waiting` is the raw gauge. The round-size rule reads it (`schedule/rounds.py`).
@@ -112,8 +111,6 @@ Check: the constant and curve sources never import xgboost, and `predict_calls` 
     the budget, else the cheapest by worst-case cost).
 - `budget.py`: v3's max_tokens clamp, shared by every system, and the cost arithmetic.
 
-Check: `tests/unit/test_rounds.py`, `test_score.py` and `test_assign.py`.
-
 ## 6. Baselines: `baselines/`
 
 - `routers.py` picks a model:
@@ -129,10 +126,10 @@ Check: `tests/unit/test_rounds.py`, `test_score.py` and `test_assign.py`.
     part of their routing time.
 - `dispatch.py` picks an instance among the router's candidates:
   - round robin.
-  - least outstanding: the shortest running + waiting queue on the engines' own counts (v3's shortest queue, the
-    main grid), or counting in-flight requests, as NGINX's `least_conn` does, in the appendix row W12.
-  - power of two: of two drawn instances, the one with the shorter engine queue, or counting in-flight requests,
-    as Envoy's `LEAST_REQUEST` does with equal weights, in the appendix row W12.
+  - least outstanding: the shortest running + waiting queue on the engines' own counts (v3's shortest queue).
+  - power of two: of two drawn instances, the one with the shorter engine queue.
+  - Both can instead count their own in-flight requests (`count: in_flight`), as NGINX's `least_conn` and Envoy's
+    `LEAST_REQUEST` do. No configuration of the paper's runs sets it.
   - random.
   - LiteLLM's `lowest_latency` (a 10-sample mean, in which a timeout counts 1000 s).
   - Ties: least outstanding gives them to the least recently assigned instance, as stock balancers rotate among
@@ -140,9 +137,7 @@ Check: `tests/unit/test_rounds.py`, `test_score.py` and `test_assign.py`.
 - `pipeline.py`: router, then candidates, then loads from the shared view, then dispatcher. The
   dispatch is recorded with no await in between (its in-flight count and decode tokens are tracked for every
   system), so on the engines' gauges concurrent selections of least outstanding see each other only through its
-  least-recently-assigned tie-break, and an in-flight count (W12) includes every earlier selection.
-
-Check: `tests/unit/test_baselines_routers.py`, `test_baselines_dispatch.py` and `test_baselines_pipeline.py`.
+  least-recently-assigned tie-break.
 
 ## 7. The server: `server.py`, `decision_log.py`
 
@@ -195,7 +190,7 @@ cancellation before and after a round places a request, and duplicate request id
     metric, the range over the seeds, and a request bootstrap within the paired seeds), the SLO (TTFT and TPOT
     within k times the tier's single-request values, after SOLA), its attainment and goodput.
 - `tools/`:
-  - `campaign.py`: renders the lease campaign (presets × scope) into per-cell configurations.
+  - `campaign.py`: reads the rendered campaign's plan (`configs/render36/plan.json`).
   - `cell_driver.py`: one cell's steps.
   - `engine_plan.py`: fleet × hosts × engine args → one vLLM launch per instance.
   - the TPOT calibration (row W1), the TPOT tables and the XGBoost retrain, and the budget sweep's served-text
@@ -206,9 +201,8 @@ cancellation before and after a round places a request, and duplicate request id
   - `run_cell.sh`: drain, apply, preflight, read the engines (`tools/engines.py`), warm up, run, read them
     again, gates, publish, mirror. `run_scope.sh` runs a
     scope's cells.
-- `configs/`: the fleets, engine args, presets, the lease scope and the pre-registered rules. Owner values
-  are `OWNER-MUST-SET` until set, and a render refuses them.
+- `configs/`: the fleets, engine args, the scheduler's launch values, the pre-registered rules and the rendered
+  campaign (`render36/`). A launch value still `OWNER-MUST-SET` (`scheduler_launch.example.json` is the template)
+  is refused at deploy.
 
-`make check` runs lint, the hygiene and static-defect gates, the unit tests, the contract tests (against a fake
-vLLM) and the campaign gates' tests with MUST-FAIL fixtures. `docs/reproduce/` gives the reproduction stages, and
-`docs/reproduce/gates.md` what each gate refuses.
+`docs/reproduce/` gives the reproduction stages, and `docs/reproduce/gates.md` what each gate refuses.

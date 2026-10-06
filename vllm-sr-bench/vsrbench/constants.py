@@ -1,4 +1,4 @@
-"""Every fixed value of the vLLM-SR runs, each with its source (the owner's value, upstream's stock, or
+"""Every fixed value of the vLLM-SR runs, each with its source (the authors' value, upstream's stock, or
 v2/v3's)."""
 
 # upstream, as released: a fresh deployment with the least configuration tuning
@@ -49,7 +49,7 @@ JUDGE_KEY = "deepeval-llama3.1-8b-it_reference"         # the corpus's judge (th
 # Gemma's is added when its re-collection exists. Any other file is refused, the evaluation corpora first
 TRAINING_ROWS_SHA256 = {"qwen": "0a624b7f4e88d53e494dd1af00c445283d2c01450bc88a94901f1818e7dcec96"}
 
-# the owner's values
+# the authors' values
 LISTENER_TIMEOUT_S = 21600    # the route and stream-idle timeouts: the client's bound, vLLM bench's stock 6 h
 MESSAGE_TIMEOUT_S = 3600      # ext_proc message_timeout: Envoy's maximum ([0s, 1h])
 CIRCUIT_BREAKER = 200000      # connections, pending, requests on every cluster: v2's value
@@ -65,6 +65,6 @@ REQUEST_FIELDS = ("model", "messages", "temperature", "repetition_penalty", "fre
 # (the test setup is isolated from the evaluation)
 TEST_MARK = "routebalance-test-profile"
 # Docker's default bridge gateway (a Docker constant, not a host of ours): the test machine as the test stack
-# reaches its engines; assembled from parts, as the hygiene gate asks of any private address in the tree
+# reaches its engines; assembled from parts, so that no private address is written in the tree
 TEST_GATEWAY = ".".join(("172", "17", "0", "1"))
 TEST_TOKENS = (TEST_MARK, "host.docker.internal", TEST_GATEWAY, "m-small", "m-large")
