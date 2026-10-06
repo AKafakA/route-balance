@@ -1,0 +1,33 @@
+{
+ "loop_lag": {
+  "samples": 12,
+  "p50_ms": 3.1575895845890045,
+  "p99_ms": 11.941703036427498,
+  "p999_ms": 11.941703036427498,
+  "max_ms": 11.941703036427498
+ },
+ "telemetry_read": "poll",
+ "telemetry_age_ms": {
+  "S_0": 22.5,
+  "S_1": 17.2,
+  "L_2": 16.9
+ },
+ "active": 0,
+ "rounds": 4,
+ "booster_calls": 0,
+ "failure": null,
+ "evidence_failure": null,
+ "connection_waits": {
+  "engine": 0,
+  "telemetry": 0
+ },
+ "tcp_listen": {
+  "overflows": 77381,
+  "drops": 77416
+ },
+ "logged": {
+  "decisions": 112,
+  "decisions_buffered": 0,
+  "latency": null
+ }
+}

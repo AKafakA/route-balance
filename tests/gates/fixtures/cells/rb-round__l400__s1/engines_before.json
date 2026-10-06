@@ -1,0 +1,74 @@
+{
+ "record_sha256": "ac8c271e4047b72dd63f0ecb2e4cb1a413850f8c39d6816b152b425e1aa0b567",
+ "instances": {
+  "S_0": {
+   "argv_sha256": "bff8c2610d1c6c16bd9e21077a8dc426f58382c4a6f27fcb8f5ca94195bdf8b3",
+   "argv": "--model S --port 49525 --max-num-seqs 8",
+   "gpus": "0",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 49525 --max-num-seqs 8",
+   "start_time_s": 1790000000.0,
+   "cache_config": {
+    "block_size": "16",
+    "cache_dtype": "auto",
+    "enable_prefix_caching": "True",
+    "gpu_memory_utilization": "0.9",
+    "num_gpu_blocks": "8000"
+   },
+   "model": "S",
+   "max_model_len": 4096,
+   "served": {
+    "requests": 8,
+    "prompt_tokens": 40,
+    "generation_tokens": 16,
+    "prefix_queries": 40,
+    "prefix_hits": 0
+   }
+  },
+  "S_1": {
+   "argv_sha256": "17e5f92076f746e0a2da72ae349268f10f7d5ea2ffbf660592dd1979409c5c93",
+   "argv": "--model S --port 35197 --max-num-seqs 8",
+   "gpus": "0",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 35197 --max-num-seqs 8",
+   "start_time_s": 1790000000.0,
+   "cache_config": {
+    "block_size": "16",
+    "cache_dtype": "auto",
+    "enable_prefix_caching": "True",
+    "gpu_memory_utilization": "0.9",
+    "num_gpu_blocks": "8000"
+   },
+   "model": "S",
+   "max_model_len": 4096,
+   "served": {
+    "requests": 8,
+    "prompt_tokens": 40,
+    "generation_tokens": 16,
+    "prefix_queries": 40,
+    "prefix_hits": 0
+   }
+  },
+  "L_2": {
+   "argv_sha256": "ef106caf17c5d89f3d4c88e6bbfea2f312b275bf7aa65e5514c8084c5dd7d1bf",
+   "argv": "--model L --port 58623 --max-num-seqs 8",
+   "gpus": "0",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model L --port 58623 --max-num-seqs 8",
+   "start_time_s": 1790000000.0,
+   "cache_config": {
+    "block_size": "16",
+    "cache_dtype": "auto",
+    "enable_prefix_caching": "True",
+    "gpu_memory_utilization": "0.9",
+    "num_gpu_blocks": "8000"
+   },
+   "model": "L",
+   "max_model_len": 4096,
+   "served": {
+    "requests": 0,
+    "prompt_tokens": 0,
+    "generation_tokens": 0,
+    "prefix_queries": 0,
+    "prefix_hits": 0
+   }
+  }
+ }
+}
