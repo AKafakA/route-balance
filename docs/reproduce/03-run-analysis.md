@@ -45,8 +45,9 @@ python -m analysis.report --render RENDER --cells RUNS/g1 --data-root INPUTS/gem
 
 and the same over all seeds (`RUNS/qall`, `RUNS/gall`). The records carry the served texts of the budget runs and
 are not part of the reviewer packs. Their parity records were made under the development tree's gates, which differ
-from this tree's in the hygiene gate (`removed.md`), so with this tree each group's parity reads `not run` until the
-parity gate is rerun over the records. Every other value of the reports is the same.
+from this tree's (the hygiene gate rewritten, the freeze gate removed: `removed.md`), so with this tree each group's
+parity reads `not run` until the parity gate is rerun over the records. Every other value of the reports is the
+same.
 
 ## The boundary
 

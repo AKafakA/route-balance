@@ -1,7 +1,7 @@
 # What this branch removed
 
 The development tree held 390 tracked files. This branch keeps the code that serves, measures and analyses the
-runs, the tests and gates that verify it, and the configurations the runs used. It drops 34 files (3,443 lines).
+runs, the tests and gates that verify it, and the configurations the runs used. It drops 36 files (3,600 lines).
 
 ## How the keep-set was derived
 
@@ -28,15 +28,13 @@ implementation was deterministic: its decisions, routers, dispatchers, estimator
 re-aggregated tables. Its inputs are that implementation's data, which this release does not include, so the suite
 cannot run from this tree. Nothing in it executes in a run.
 
-### The scope-freeze gate's log (1 file)
+### The campaign's scope-freeze gate (3 files)
 
-- `configs/after_freeze.json`.
+- `gates/freeze.py`, `tests/gates/test_freeze.py`, `configs/after_freeze.json`.
 
-During the campaign, a change to the frozen scope or presets passed only with a logged decision, and this file was
-that log. The gate compares the files with a tag of the development repository, which this release does not carry,
-so `make check` no longer runs it. The gate itself (`gates/freeze.py`) and its tests stay, because every file under
-`gates/` is part of the gates' source fingerprint (below, under Comments). The scope and presets the runs used are
-recorded by sha256 in the rendered campaign.
+During the campaign, a change to the frozen scope or presets passed only with a logged decision. The gate compares
+the files with a tag of the development repository, which this release does not carry, and its log is development
+history. The scope and presets the runs used are recorded by sha256 in the rendered campaign.
 
 ### A probe's output (1 file)
 
@@ -56,8 +54,8 @@ the vLLM Semantic Router's requests carry no stop (`vllm-sr-bench/README.md`).
 Comments, docstrings, documents and a few error and log messages cited internal decision ids and dates. Those
 citations were removed and the reasoning beside them kept, with these exceptions:
 
-- `gates/` is the development tree's, byte for byte, except the hygiene gate (`gates/hygiene.py`) and its tests. The
-  development tree's hygiene gate held its identity terms (an internal codename, development hosts, people, cluster
+- `gates/` is the development tree's, byte for byte, except the freeze gate, removed, and the hygiene gate
+  (`gates/hygiene.py`) and its tests. The development tree's hygiene gate held its identity terms (an internal codename, development hosts, people, cluster
   paths) in the file itself. Here it reads them from a private `--terms` file that this release does not include,
   and its tests use invented terms.
 - `gate_code` in `tools/cell_driver.py` hashes every file under `gates/`, and the analysis reuses a group's parity
