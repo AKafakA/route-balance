@@ -32,7 +32,7 @@ tests under `tests/gates/`, including fixtures that must fail.
 
 | gate | refuses |
 |---|---|
-| `hygiene.py` | committed files with host names, private addresses, personal identifiers, credentials, personal absolute paths, or backup and stale copies |
+| `hygiene.py` | committed files with host names, private addresses, personal identifiers, credentials, personal absolute paths, or backup and stale copies. The identity terms come from a private `--terms` file (`make check TERMS=<file>`), which this release does not include |
 | `static_defects.py` | the defect classes that produce complete, error-free, wrong runs: a falsy `or` used as a value, an invented default, an experiment parameter read from the environment, GPU knowledge outside `routebalance/hw.py`, a hard-coded model list |
 | `freeze.py` | a change to `configs/scope.json` or `configs/presets.json` after the campaign's freeze tag without a logged decision. It needs the development repository's tag, so `make check` does not run it in this release |
 

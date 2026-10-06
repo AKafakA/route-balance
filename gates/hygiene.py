@@ -1,9 +1,10 @@
 """Repository hygiene gate.
 
-Fails on anything that must never be committed: the internal codename, cluster or personal host
-names, private IPs, personal identifiers, credentials, personal absolute paths, and
-backup/stale/versioned copies. File contents and file paths are both checked. Credentials are
-never printed, not even when they appear in a file name.
+Fails on anything that must never be committed: the internal codename, cluster or personal host names, private IPs,
+personal identifiers, credentials, personal absolute paths, and backup/stale/versioned copies. The identity terms
+(codename, development hosts, people, cluster paths) come from a private --terms file, never from this file: a
+release ships without them. File contents and file paths are both checked. Credentials are never printed, not even
+when they appear in a file name.
 
 Scope. In a git repository: every tracked or staged file is checked in BOTH its staged (index)
 version and its working-tree version, and every untracked file that is not ignored is checked on
@@ -11,7 +12,7 @@ disk. A force-added file under an ignored directory is therefore still checked. 
 checked by their link-target text, which is what git stores. Outside git: every file except caches.
 There are no exempt files: tests build their leak fixtures at runtime.
 
-Usage: python -m gates.hygiene <repo-root>   (exit 1 on findings, 2 on usage or I/O errors)
+Usage: python -m gates.hygiene [--terms FILE] <repo-root>   (exit 1 on findings, 2 on usage or I/O errors)
 """
 from __future__ import annotations
 
@@ -29,11 +30,10 @@ def _alt(*words: str) -> str:
     return "|".join(re.escape(w) for w in words)
 
 
-# Literal names are assembled from fragments so that this file does not match its own patterns.
-_CN = "ca" + "ra"  # the internal codename
-_HOST_WORDS = _alt("cloud" + "lab.us", ".wi" + "sc.", "wi" + "sc.edu", "hyper" + "ion", "emu" + "lab", ".cam" + ".ac.uk",
-                   "login-" + "icelake", "gxp-" + "l40s", "dev-" + "gpu-", "open" + "claw")
-_PEOPLE = _alt("wd" + "312", "as" + "dwb", "kalyv" + "ianaki", "da" + "weiuestc")
+# The identity terms (the internal codename, the development hosts, the people, the cluster paths) are not in this
+# file: a release ships without them. They come from a private --terms file (kind<TAB>term per line, # comments),
+# each kind matched as below. Without it the gate checks everything else and says that the terms were not checked.
+TERM_KINDS = ("codename", "host", "identity", "abs_path")
 _HW = r"(?:d7525|c4130|d8545|c240g\d|r7525|m510|xl170|c6525|c6420|c220g\d|d430|d710|d820|c8220)"
 _NB, _NA = r"(?<![A-Za-z0-9])", r"(?![A-Za-z0-9])"   # word boundaries that also split on '_'
 SECRET = re.compile(_NB + (
@@ -41,19 +41,34 @@ SECRET = re.compile(_NB + (
     r"|sk-[A-Za-z0-9_-]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{30,}|xox[abprs]-[A-Za-z0-9-]{10,}"
     r"|-----BEGIN [A-Z ]*PRIVATE KEY-----)"))
 PATTERNS = [
-    ("codename", re.compile(r"(?i)" + _CN)),
-    ("host", re.compile(r"(?i)" + _HOST_WORDS + "|" + _NB + _HW + r"[a-z0-9]*-(?:\d{2}s\d{5}|\d{6})" + _NA)),
+    ("host", re.compile(r"(?i)" + _NB + _HW + r"[a-z0-9]*-(?:\d{2}s\d{5}|\d{6})" + _NA)),
     # private and campus IPs (also inside file names and before a sentence's full stop), but not version pins
     # such as "==10.3.9.90"; and user@<any IPv4>
     ("ip", re.compile(r"(?<![A-Za-z0-9.])(?<!==)(?<!>=)(?<!<=)(?<!~=)(?<!!=)"
                       r"(?:10\.\d{1,3}|192\.168|172\.(?:1[6-9]|2\d|3[01])|128\.105)\.\d{1,3}\.\d{1,3}"
                       r"(?![A-Za-z0-9]|\.\d)"
                       r"|[A-Za-z0-9_.-]+@\d{1,3}(?:\.\d{1,3}){3}(?!\.?\d)")),
-    ("identity", re.compile(r"(?i)" + _NB + "(?:" + _PEOPLE + ")" + _NA)),
     ("secret", SECRET),
-    ("abs_path", re.compile(r"/home/[A-Za-z0-9_.-]+|/[Uu]sers/[A-Za-z0-9_.-]+|"
-                            + _alt("/rds" + "/user/", "/local" + "/scratch/"))),
+    ("abs_path", re.compile(r"/home/[A-Za-z0-9_.-]+|/[Uu]sers/[A-Za-z0-9_.-]+")),
 ]
+
+
+def parse_terms(text: str, where: str = "terms") -> list[tuple[str, re.Pattern]]:
+    """The term patterns of a --terms file's text, one per kind. A file missing a kind is refused."""
+    terms: dict[str, list[str]] = {k: [] for k in TERM_KINDS}
+    for n, line in enumerate(text.splitlines(), start=1):
+        if not line.strip() or line.startswith("#"):
+            continue
+        kind, sep, term = line.partition("\t")
+        if not sep or kind not in terms or not term:
+            raise ValueError(f"{where}:{n}: expected kind<TAB>term, kind one of {TERM_KINDS}")
+        terms[kind].append(term)
+    missing = [k for k in TERM_KINDS if not terms[k]]
+    if missing:
+        raise ValueError(f"{where}: no {', '.join(missing)} terms: every kind needs at least one")
+    build = {"codename": lambda w: r"(?i)" + _alt(*w), "host": lambda w: r"(?i)" + _alt(*w),
+             "identity": lambda w: r"(?i)" + _NB + "(?:" + _alt(*w) + ")" + _NA, "abs_path": lambda w: _alt(*w)}
+    return [(k, re.compile(build[k](terms[k]))) for k in TERM_KINDS]
 FORBIDDEN_PART = re.compile(
     r"(?i)\.bak|\.orig$|~$|\.stale|\.old$|\.backup$|(?:^|[_-])v\d{1,2}(?:[_.-]|$)"
     r"|(?:^|[_-])(?:old|bak|backup)(?:[_.-]|$)|^archive$")
@@ -132,8 +147,9 @@ def _check(kind: str, rx: re.Pattern, text: str) -> str | None:
     return "<redacted>" if kind == "secret" else m.group(0)
 
 
-def scan_tree(root: Path) -> list[Finding]:
+def scan_tree(root: Path, terms: list[tuple[str, re.Pattern]] = ()) -> list[Finding]:
     root = Path(root)
+    patterns = PATTERNS + list(terms)
     findings: list[Finding] = []
     seen_paths: set[str] = set()
     for rel, where, text in _versions(root):
@@ -141,12 +157,12 @@ def scan_tree(root: Path) -> list[Finding]:
             seen_paths.add(rel)
             if any(FORBIDDEN_PART.search(part) for part in Path(rel).parts):
                 findings.append(Finding("forbidden_file", rel, 0, "backup/stale/versioned copy or archive"))
-            for kind, rx in PATTERNS:
+            for kind, rx in patterns:
                 shown = _check(kind, rx, rel)
                 if shown:
                     findings.append(Finding(kind, rel, 0, f"file path matched {shown}"))
         for lineno, line in enumerate(text.splitlines(), start=1):
-            for kind, rx in PATTERNS:
+            for kind, rx in patterns:
                 shown = _check(kind, rx, line)
                 if shown:
                     findings.append(Finding(kind, rel, lineno, f"{where}: matched {shown}"))
@@ -154,20 +170,26 @@ def scan_tree(root: Path) -> list[Finding]:
 
 
 def main(argv: list[str]) -> int:
+    terms_file = None
+    if len(argv) == 3 and argv[0] == "--terms":
+        terms_file, argv = Path(argv[1]), argv[2:]
     if len(argv) != 1:
-        print("usage: python -m gates.hygiene <repo-root>", file=sys.stderr)
+        print("usage: python -m gates.hygiene [--terms FILE] <repo-root>", file=sys.stderr)
         return 2
     root = Path(argv[0])
     if not root.is_dir():
         print(f"hygiene: {SECRET.sub('<redacted>', str(root))} is not a directory", file=sys.stderr)
         return 2
     try:
-        findings = scan_tree(root)
-    except OSError as e:
+        terms = parse_terms(terms_file.read_text(), str(terms_file)) if terms_file else []
+        findings = scan_tree(root, terms)
+    except (OSError, ValueError) as e:
         print(f"hygiene: {SECRET.sub('<redacted>', str(e))}", file=sys.stderr)
         return 2
     for f in findings:
         print(f)
+    if terms_file is None:
+        print("hygiene: no --terms file, so the identity terms were not checked", file=sys.stderr)
     print(f"hygiene: {len(findings)} finding(s)")
     return 1 if findings else 0
 

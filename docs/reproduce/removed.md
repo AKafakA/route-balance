@@ -56,18 +56,26 @@ the vLLM Semantic Router's requests carry no stop (`vllm-sr-bench/README.md`).
 Comments, docstrings, documents and a few error and log messages cited internal decision ids and dates. Those
 citations were removed and the reasoning beside them kept, with these exceptions:
 
-- `gates/` is the development tree's, byte for byte. `gate_code` in `tools/cell_driver.py` hashes every file there,
-  and the analysis reuses a group's parity record only when it was made by the same gate code. Keeping the gates
-  unchanged keeps the runs' parity records valid for this tree.
+- `gates/` is the development tree's, byte for byte, except the hygiene gate (`gates/hygiene.py`) and its tests. The
+  development tree's hygiene gate held its identity terms (an internal codename, development hosts, people, cluster
+  paths) in the file itself. Here it reads them from a private `--terms` file that this release does not include,
+  and its tests use invented terms.
+- `gate_code` in `tools/cell_driver.py` hashes every file under `gates/`, and the analysis reuses a group's parity
+  record only when it was made by the same gate code. The runs' parity records were made under the development
+  tree's gates, so with this tree the report reads each group's parity as `not run` until the parity gate is rerun
+  over the records. Tables, macros and every other value of a report do not depend on it. The raw bundle's own copy
+  of the development tree rebuilds the four reports byte for byte.
 - Every string the code writes into a report, a data file or a log, and every error message, is unchanged, so a
-  few messages still cite an id. Two kinds of output differ: the docstring text some tools print (their `--help`,
-  and `tools/venv_parity.py`'s usage message), and the vLLM Semantic Router's evaluation `source` URL
-  (`vllm-sr-bench/vsrbench/config.py`), which names no repository here. A vLLM Semantic Router block compares
+  few messages still cite an id. Three kinds of output differ: the docstring text some tools print (their `--help`,
+  and `tools/venv_parity.py`'s usage message), the vLLM Semantic Router's evaluation `source` URL
+  (`vllm-sr-bench/vsrbench/config.py`), which names no repository here, and its test profile's node name and two
+  messages, which named the test machine (test-profile output only: no run record or report holds them). A vLLM Semantic Router block compares
   the code of its earlier runs with its own (`vsr/harness.json`), so a block started on the development tree's
   code continues only on that code, and a new block starts on this tree.
 
-So the reports rebuild byte for byte, and the configuration files keep their notes as the runs used them
-(`decisions.md`).
+The configuration files keep the notes the runs used, except four of them (`decisions.md`).
 
 Nothing in this list executes inside a run, so removing it cannot change a measured number. The check that it
-cannot change a reported number is stage 3: the reports rebuilt with this branch's code equal the shipped ones.
+cannot change a reported number is stage 3: the paper data pack regenerates every number, table and figure with
+this tree's analysis code, byte for byte, and the reports rebuilt from the run records with it differ from the
+shipped ones only in the parity state described above.

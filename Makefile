@@ -16,7 +16,7 @@ lint:
 	else echo "lint: $(SHELLCHECK) not found, scripts/*.sh were only syntax-checked (make lint SHELLCHECK=<path>)"; fi
 
 hygiene:
-	$(PY) -m gates.hygiene .
+	$(PY) -m gates.hygiene $(if $(TERMS),--terms $(TERMS)) .
 
 static:
 	$(PY) -m gates.static_defects routebalance bench analysis tools

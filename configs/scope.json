@@ -605,7 +605,7 @@
      "planned": {"arm": 1}, "enabled": true, "why": null, "hold": null}
    ]},
   {"id": "W7br", "kind": "cells", "prio": "should", "enabled": false, "why": "D225 (owner 10-04): \"no burst repeation and budget repeation any more\"",
-   "about": "the repetitions of W7b, the budget sweep (seeds 2-3; D191 restored them; the first cut if the lease runs short, D176); their served texts judged on dev-gpu (D200)",
+   "about": "the repetitions of W7b, the budget sweep (seeds 2-3; D191 restored them; the first cut if the lease runs short, D176); their served texts judged on the test machine (D200)",
    "plan": "18 cells, ~1.5 h",
    "blocks": [
     {"name": "W7br-75", "group": "qwen-budget-75", "dataset": "eval_qwen_b75", "axes": {"arm": "$decision:rb_default"},

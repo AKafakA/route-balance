@@ -32,7 +32,8 @@ make check
 
 `make check` runs offline, on the CPU: lint, the hygiene gate (no host names, private addresses, credentials or
 personal paths), the static defect gate (no invented defaults, no experiment parameter from the environment, one
-GPU map), the unit and contract tests, and the gates' tests with fixtures that must fail.
+GPU map), the unit and contract tests, and the gates' tests with fixtures that must fail. `make check TERMS=<file>`
+gives the hygiene gate a private file of identity terms, and without one the gate says it did not check them.
 
 ## Estimators (`routebalance/estimate/`)
 

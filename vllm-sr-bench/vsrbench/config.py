@@ -7,7 +7,7 @@ the quality evidence. Everything else (signals, pools, orders, margins, the rout
 
 Two profiles, never mixed:
   lease  the fleet file and the experiment network, the training-split means; refused if any test token appears
-  test   dev-gpu's small engines behind Docker's bridge gateway, marked with TEST_MARK
+  test   the test machine's small engines behind Docker's bridge gateway, marked with TEST_MARK
 """
 from __future__ import annotations
 
@@ -76,12 +76,12 @@ def bindings(family: str) -> dict:
 
 
 def test_bindings() -> dict:
-    """dev-gpu's test profile: one model on two replicas (the GPU the judge leaves holds two small engines)."""
+    """The test machine's test profile: one model on two replicas (the GPU the judge leaves holds two small engines)."""
     return {pool: [{"model": "m-small"}] for pool in C.POOLS}
 
 
 def test_pair_bindings() -> dict:
-    """dev-gpu's two-model test profile: the pools' selection between two models (the lease's path)."""
+    """The test machine's two-model test profile: the pools' selection between two models (the lease's path)."""
     return {"simple": [{"model": "m-small"}], "medium": [{"model": "m-small"}, {"model": "m-large"}],
             "reasoning": [{"model": "m-large"}]}
 
@@ -144,7 +144,7 @@ def test_tokens_in(text: str) -> list[str]:
 def refuse_test_tokens(text: str, what: str) -> None:
     found = test_tokens_in(text)
     if found:
-        raise ConfigError(f"{what} carries the test profile's {found}: a lease run never uses the dev-gpu setup")
+        raise ConfigError(f"{what} carries the test profile's {found}: a lease run never uses the test machine's setup")
 
 
 def _walk(node, path=()):

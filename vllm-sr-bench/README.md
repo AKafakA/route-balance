@@ -129,11 +129,11 @@ checks no container is given a device.
 
 - **lease:** the fleet file, the experiment network, the training means. A configuration carrying any test token is
   refused, before the stack starts and again in the live configuration.
-- **test (dev-gpu only):** `tests/e2e/` (a two-replica fleet of one small model, or with `--test-pair` two models in the
-  pools, behind Docker's bridge gateway, with the engines launched by `tests/e2e/engines.sh`, the hosts file written by
+- **test (the test machine only):** `tests/e2e/` (a two-replica fleet of one small model, or with `--test-pair`
+  two models in the pools, behind Docker's bridge gateway, with the engines launched by `tests/e2e/engines.sh`, the hosts file written by
   `python -m vsrbench.testprofile hosts`), marked `routebalance-test-profile`, its cells named `test.*`, never under the
   lease's data disk, a short trace (`--test-trace`).
-  The fleet file labels the dev-gpu node an A30 because the shared fleet loader knows only the lease's hardware. The
+  The fleet file labels the test machine's node an A30 because the shared fleet loader knows only the lease's hardware. The
   label only names its tier.
 
 ## Layout
@@ -143,4 +143,4 @@ checks no container is given a device.
 | `vsrbench/` | the stack lifecycle, the streaming client, the run driver, the record writer, the checks |
 | `probes/` | one-off probes (the stop token) |
 | `templates/`, `templates.diff` | upstream's CLI templates with the owner's Envoy values, and the diff |
-| `tests/` | unit tests (`PYTHONPATH=..:. pytest tests`). `tests/e2e/`: the dev-gpu test profile |
+| `tests/` | unit tests (`PYTHONPATH=..:. pytest tests`). `tests/e2e/`: the test machine's profile |

@@ -25,13 +25,13 @@
   {
    "instance_id": "s0",
    "tier": "m-small_a30",
-   "node": "devgpu",
+   "node": "test-node",
    "port": 8611
   },
   {
    "instance_id": "l0",
    "tier": "m-large_a30",
-   "node": "devgpu",
+   "node": "test-node",
    "port": 8612
   }
  ]

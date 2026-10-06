@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# dev-gpu only (the test profile): two small engines for the end-to-end test, and a record in deploy.sh's format
+# the test machine only (the test profile): two small engines for the end-to-end test, and a record in deploy.sh's format
 # (tools/engines.py reads it as the lease's), each started line read from the process and the engine as
 # scripts/node_ctl.sh's cmd_started does. The engines serve Qwen2.5-0.5B under the test profile's names.
 #   engines.sh start RUN_DIR RECORD [pair]      engines.sh stop RUN_DIR [pair]
 set -euo pipefail
-ROOT="${RB_VSR_TEST_ROOT:?set RB_VSR_TEST_ROOT to the dev-gpu test directory (venv-vllm inside)}"
+ROOT="${RB_VSR_TEST_ROOT:?set RB_VSR_TEST_ROOT to the test machine's test directory (venv-vllm inside)}"
 HF="${RB_VSR_HF_HOME:?set RB_VSR_HF_HOME to the Hub cache holding the test model}"
 PY=$ROOT/venv-vllm/bin/python
 REV=060db6499f32faf8b98477b0a26969ef7d8b9987
@@ -26,7 +26,7 @@ start() {
     echo $! > "$run/engine.$1.pid"
     for _ in $(seq 1 240); do curl -sf -m 2 "http://127.0.0.1:$2/health" >/dev/null && break; sleep 2; done
     curl -sf -m 2 "http://127.0.0.1:$2/health" >/dev/null || { echo "$1 did not become healthy" >&2; tail -5 "$run/engine.$1.log"; exit 1; }
-    printf '%s\tdevgpu\t127.0.0.1\t%s\t0\ta30\t1\tQwen/Qwen2.5-0.5B\t%s\n' "$1" "$2" "$(argv "$2" "$3")" >> "$record.tmp"
+    printf '%s\ttest-node\t127.0.0.1\t%s\t0\ta30\t1\tQwen/Qwen2.5-0.5B\t%s\n' "$1" "$2" "$(argv "$2" "$3")" >> "$record.tmp"
   done
   for e in "${ENGINES[@]}"; do
     set -- $e

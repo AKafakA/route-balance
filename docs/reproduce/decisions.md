@@ -66,11 +66,11 @@ trace and the seed, and the verdict regenerates them to check the record.
 
 The free-text notes in `configs/` (`about`, `ref` and similar fields) cite the development decision log by id (D16,
 D225 and so on). The log itself is not part of this release, and each note states what was decided. The files are
-the ones the runs used, with two exceptions that differ in notes only, every value unchanged:
+the ones the runs used, with two exceptions that differ in notes only (two notes each), every value unchanged:
 
 | file | sha256 as run | sha256 as shipped |
 |---|---|---|
-| `configs/scope.json` | `8b77ccab9e40bb97d36a4c460bee9a1c39f830c736eddb429adb6b32a6d87583` | `5db088ae7040229ad8beb8c9b1fb46e42fc3c1e873cfa04ee55418423442b7aa` |
+| `configs/scope.json` | `8b77ccab9e40bb97d36a4c460bee9a1c39f830c736eddb429adb6b32a6d87583` | `f7f9e1bbda96751496e411f8ead46172716fcbaadb62ad18ff9ee2e4be70f58c` |
 | `configs/provenance.json` | `d696d4c99b59a0d87c2c79ec258df91cd7d0bfec5588a3175e7d4444de6731dd` | `1a5a4c56703ba01ba89bcdda961f49ee2280049caec0df7f21417b16bf079f79` |
 
 The rendered campaign records the first column (`render.json`, `scope_sha256`).

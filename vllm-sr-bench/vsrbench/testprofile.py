@@ -1,5 +1,5 @@
-"""dev-gpu's test profile inputs that the hygiene gate keeps out of the tree (a private address): the hosts file of the
-two test engines, written at runtime.
+"""The test machine's test profile inputs that the hygiene gate keeps out of the tree (a private address): the
+hosts file of the two test engines, written at runtime.
 
 Usage: python -m vsrbench.testprofile hosts OUT.json
 """
@@ -15,7 +15,7 @@ from vsrbench import constants as C
 def hosts() -> dict:
     """The test engines listen on the host; the stack reaches them through Docker's bridge gateway, the drivers on
     loopback. The node is labelled an A30 because the shared fleet loader knows only the lease's hardware."""
-    return {"devgpu": {"address": "127.0.0.1", "hw": "d7525", "service_address": C.TEST_GATEWAY}}
+    return {"test-node": {"address": "127.0.0.1", "hw": "d7525", "service_address": C.TEST_GATEWAY}}
 
 
 def main(argv: list[str]) -> int:

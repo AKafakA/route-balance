@@ -8,31 +8,44 @@ from pathlib import Path
 
 import pytest
 
-from gates.hygiene import main, scan_tree
+from gates import hygiene
+from gates.hygiene import main
 
 J = "".join
-CODENAME = J(["ca", "ra"])
+CODENAME = J(["zor", "blax"])
 NODE = J(["d75", "25-", "99s", "99999"])          # CloudLab node-name shape, fictional number
 NODE6 = J(["c24", "0g5-", "999999"])
 LEAKS = {
     "codename_word": (f"from pkg.{CODENAME} import x\n", "codename"),
     "codename_camel": (f"class {CODENAME.capitalize()}Scheduler: pass\n", "codename"),
     "codename_env": (f'{{"env": "{CODENAME.upper()}_STATIC_LAT"}}\n', "codename"),
-    "host_domain": (J(["ssh node0.", "cloud", "lab.us\n"]), "host"),
+    "host_domain": (J(["ssh ", "nimbus", "-dev.example.org\n"]), "host"),
     "host_node": (f"ssh {NODE}\n", "host"),
     "host_node6": (f"ssh {NODE6}\n", "host"),
-    "host_campus": (J(["ssh login-", "icelake.hpc.", "cam", ".ac.uk\n"]), "host"),
+    "host_campus": (J(["see ", "campus", "-example.edu/tools\n"]), "host"),
     "ip_private": (J(['{"ip": "10.', '0.0.7"}\n']), "ip"),
     "ip_campus": (J(['{"ip": "128.', '105.0.7"}\n']), "ip"),
     "secret_hf": (J(["TOKEN=hf_", "a" * 34, "\n"]), "secret"),
     "secret_sk_proj": (J(["OPENAI_API_KEY=sk-", "proj-", "b" * 40, "\n"]), "secret"),
     "secret_gho": (J(["gh", "o_", "c" * 36, "\n"]), "secret"),
-    "path_home": (J(['p = "/ho', 'me/someone"\n']), "abs_path"),
+    "path_home": (J(["/ho", "me/someone/data\n"]), "abs_path"),
     "path_users": (J(["cd /us", "ers/someone/x\n"]), "abs_path"),
     "path_mac": (J(["cd /Us", "ers/Someone/x\n"]), "abs_path"),
-    "path_rds": (J(["cd /rds", "/user/someone/x\n"]), "abs_path"),
-    "path_scratch": (J(["cd /local", "/scratch/tmp/x\n"]), "abs_path"),
+    "path_rds": (J(["cp x ", "/srv/", "teamx/run1\n"]), "abs_path"),
+    "path_scratch": (J(["tmp=", "/srv/", "teamx/scratch\n"]), "abs_path"),
 }
+
+
+# The identity terms come from a release's private --terms file. These are invented, and split so that this file never
+# holds one whole.
+FAKE_TERMS = J(["codename\t", "zor", "blax\n", "host\t", "nimbus", "-dev\n", "host\t", "campus", "-example.edu\n",
+                "identity\t", "jd", "oe42\n", "identity\t", "jane ", "example\n", "abs_path\t", "/srv/", "teamx/\n"])
+TERMS = hygiene.parse_terms(FAKE_TERMS)
+
+
+def scan_tree(root):
+    """Every test scans with the invented terms."""
+    return hygiene.scan_tree(root, TERMS)
 
 
 def _tree(root: Path, files: dict) -> Path:
@@ -128,9 +141,9 @@ def test_host_next_to_underscore_fails(tmp_path, text):
 
 
 @pytest.mark.parametrize("text,kind", [
-    (J(["ssh ", "someone@", "142.", "93.38.181\n"]), "ip"),
-    (J(["#SBATCH -A ", "KALYV", "IANAKI-SL3-GPU\n"]), "identity"),
-    (J(["squeue -u ", "wd", "312\n"]), "identity"),
+    (J(["someone@", "203.0", ".113.7\n"]), "ip"),             # a login to a public address
+    (J(["by jd", "oe42\n"]), "identity"),
+    (J(["Jane ", "Example wrote it\n"]), "identity"),
 ])
 def test_identity_and_public_login_fail(tmp_path, text, kind):
     root = _tree(tmp_path, {"scripts/f.sh": text})
@@ -222,3 +235,31 @@ def test_unreadable_secret_named_file_is_redacted(tmp_path, capsys):
         os.chmod(root / "configs" / f"{secret}.json", 0o600)
     captured = capsys.readouterr()
     assert rc in (1, 2) and secret not in captured.out + captured.err
+
+
+def test_terms_file_adds_the_identity_terms(tmp_path, capsys):
+    terms = tmp_path / "terms.tsv"
+    terms.write_text(FAKE_TERMS)
+    root = _tree(tmp_path / "repo", {"a.py": f"from pkg.{CODENAME} import x\n"})
+    assert main([str(root)]) == 0                         # without the terms the codename is not checked
+    assert "not checked" in capsys.readouterr().err
+    assert main(["--terms", str(terms), str(root)]) == 1
+
+
+def test_a_terms_file_missing_a_kind_is_a_usage_error(tmp_path):
+    terms = tmp_path / "terms.tsv"
+    terms.write_text(FAKE_TERMS.replace("abs_path\t", "# abs_path\t"))
+    root = _tree(tmp_path / "repo", {"a.py": "x = 1\n"})
+    assert main(["--terms", str(terms), str(root)]) == 2
+
+
+def test_an_upper_case_node_name_fails(tmp_path):
+    root = _tree(tmp_path, {"a.txt": f"ssh {NODE.upper()}\n"})
+    assert "host" in {f.kind for f in scan_tree(root)}
+
+
+def test_a_malformed_terms_file_is_a_usage_error(tmp_path):
+    terms = tmp_path / "terms.tsv"
+    terms.write_text("person\tsomeone\n")                  # not a kind
+    root = _tree(tmp_path / "repo", {"a.py": "x = 1\n"})
+    assert main(["--terms", str(terms), str(root)]) == 2

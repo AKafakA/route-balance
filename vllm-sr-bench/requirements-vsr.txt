@@ -1,4 +1,4 @@
-# vllm-sr 0.4.0 on Python 3.10 (the lease nodes' python3.10), installed with the lease scheduler venv's versions as constraints (/mydata/rb/venv-scheduler-uvicorn/rb-setup.freeze): every package the two venvs share is at the scheduler's version; tested on dev-gpu 2026-09-30 (pip freeze of the venv that ran the end-to-end runs)
+# vllm-sr 0.4.0 on Python 3.10 (the lease nodes' python3.10), installed with the lease scheduler venv's versions as constraints (/mydata/rb/venv-scheduler-uvicorn/rb-setup.freeze): every package the two venvs share is at the scheduler's version; tested on the test machine on 2026-09-30 (pip freeze of the venv that ran the end-to-end runs)
 annotated-types==0.8.0
 attrs==26.1.0
 certifi==2026.7.22

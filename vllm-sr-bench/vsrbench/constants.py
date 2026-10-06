@@ -5,7 +5,7 @@ v2/v3's)."""
 VSR_VERSION = "0.4.0"                                   # pip vllm-sr==0.4.0, released 2026-09-27
 VSR_COMMIT = "6573123715e214a9eaa3ad23372ee5157411e519"  # tag v0.4.0
 # the images the 0.4.0 CLI pulls (the router at its own release tag, Envoy fixed in its consts.py; the stores the
-# Balance policy needs), pinned by the digests pulled on dev-gpu 2026-09-30
+# Balance policy needs), pinned by the digests pulled on the test machine on 2026-09-30
 IMAGES = {
     "router": ("ghcr.io/vllm-project/semantic-router/vllm-sr:v0.4.0",
                "sha256:f6037c06796d6b6f678b2289b4fd618c6fa22b1487b276241f9382f9557ac690"),
@@ -61,10 +61,10 @@ ENVOY_ADMIN_PORT = 9901       # the CLI template's admin port (read only, for th
 REQUEST_FIELDS = ("model", "messages", "temperature", "repetition_penalty", "frequency_penalty",
                   "max_completion_tokens", "stream", "stream_options")
 
-# the test profile (dev-gpu) is marked, and a lease config carrying any mark is refused
+# the test profile (the test machine) is marked, and a lease config carrying any mark is refused
 # (the test setup is isolated from the evaluation)
 TEST_MARK = "routebalance-test-profile"
-# Docker's default bridge gateway (a Docker constant, not a host of ours): the dev-gpu host as the test stack
+# Docker's default bridge gateway (a Docker constant, not a host of ours): the test machine as the test stack
 # reaches its engines; assembled from parts, as the hygiene gate asks of any private address in the tree
 TEST_GATEWAY = ".".join(("172", "17", "0", "1"))
 TEST_TOKENS = (TEST_MARK, "host.docker.internal", TEST_GATEWAY, "m-small", "m-large")
