@@ -14,7 +14,7 @@ order, with their comparison groups and fleets, `scope.json` gives every run's c
 
 The drivers run from a render. In `configs/render36/`, each row of `plan.json` names its runs and the comparison
 groups they belong to, and each group its fleet: the Qwen fleet (`qwen_std`, `configs/fleet_qwen.json`) or the Gemma
-fleet (`gemma`, `configs/fleet_gemma.json`). Every run of a row must run on that fleet, and the driver refuses another.
+fleet (`gemma`, `configs/fleet_gemma.json`). Every run of a row must run on that fleet, and the runner refuses another.
 
 The render pins the deployment the runs used. Each fleet's digest covers each instance's tier, node and port (the
 fleet file) and its addresses (the hosts file), as `fleet_digest` in `routebalance/config.py` computes it, and
@@ -48,7 +48,7 @@ EOF
 
 Run with the runs' own hosts file and unchanged documents, it writes the shipped render back byte for byte. Pass
 `--render RENDER` to every command below that takes a render (`tools/calibrate_driver.py`,
-`tools/collect_answers.py`, `tools/judge_served.py`, `scripts/run_scope.sh`, `python -m analysis.report` and the
+`tools/collect_answers.py`, `tools/judge_served.py`, `python -m runner rows`, `python -m analysis.report` and the
 vLLM Semantic Router's drivers), give `deploy.sh scheduler` a document from `RENDER/configs/`, and keep the new runs
 in their own runs folder.
 
@@ -99,8 +99,8 @@ scripts/deploy.sh scheduler --fleet configs/fleet_qwen.json --hosts HOSTS.json -
 
 `LAUNCH.json` holds the scheduler's launch values (`configs/scheduler_launch.example.json` documents them), the
 same for every system. They must equal the plan's `server` values (`torch_threads` null, `max_connections` 4096,
-`request_timeout_s` 21600), and the driver refuses a scheduler launched with others before every run
-(`tools/cell_driver.py check-scheduler`). A running engine, a busy port or a busy GPU is refused, never killed. The engines' record
+`request_timeout_s` 21600), and the runner refuses a scheduler launched with others before every run
+(`runner/scheduler.py`). A running engine, a busy port or a busy GPU is refused, never killed. The engines' record
 names the process each engine runs as, and every run is checked against it.
 
 ## 4. Run the rows
@@ -108,10 +108,10 @@ names the process each engine runs as, and every run is checked against it.
 This step runs on the scheduler's node, from its copy of this repository (step 3's `--tree`). Copy `RENDER`, the
 hosts file and `ENGINES.record` there first, and again after any re-pin (`RENDER`) or engine deploy
 (`ENGINES.record`): the node setup copies only the repository's tracked files, and `deploy.sh` only the files of its
-own run. Then, with `PY` naming the scheduler's environment there:
+own run. Then, from that repository's root, with the scheduler's environment:
 
 ```bash
-PY=<scheduler venv>/bin/python scripts/run_scope.sh --render RENDER --rows W2 --max-invalid 3 --fresh-scheduler <scheduler run dir> \
+<scheduler venv>/bin/python -m runner rows --render RENDER --rows W2 --max-invalid 3 --fresh-scheduler <scheduler run dir> \
   --scheduler http://127.0.0.1:<port> --scheduler-log-dir <its log dir> --fleet configs/fleet_qwen.json \
   --hosts HOSTS.json --engines-record ENGINES.record --data-root <data dir> --cells-root <runs dir> \
   --mirror <second location>
@@ -119,7 +119,7 @@ PY=<scheduler venv>/bin/python scripts/run_scope.sh --render RENDER --rows W2 --
 
 `--fresh-scheduler` takes the deployed scheduler's run directory, `run_dir` in the first line of `SCHEDULER.record`.
 
-Each run (`scripts/run_cell.sh`) drains the engines and the scheduler, applies the run's configuration, checks
+Each run (`runner/cell.py`) drains the engines and the scheduler, applies the run's configuration, checks
 the fleet and the scheduler (preflight), reads every engine as it reports itself, with its serving counters, then
 warms the engines up directly while emptying every engine's prefix cache and proving it, so the counters cover the
 reset and the whole run. It then runs the benchmark client, reads the engines again, cuts the run's window out of

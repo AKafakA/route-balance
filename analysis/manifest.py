@@ -14,7 +14,7 @@ Each expected cell is
 A record in a directory the scope does not list, or directly in the root, is unexpected. No other file is a
 cell (logs, decision logs and sidecars never end in .cell.json). Every readable, not accounted cell of one
 comparison group must have run on one fleet. A scope with pending blocks is never complete. Quality needs the
-scored corpus and is checked by analysis/metrics.py; the per-cell gates' verdicts by scripts/run_cell.sh.
+scored corpus and is checked by analysis/metrics.py; the per-cell gates' verdicts by the runner (runner/store.py).
 
 Usage: python -m analysis.manifest --scope <rendered scope.json> --cells <cells root>   (exit 0 only when complete)
 """

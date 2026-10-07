@@ -14,7 +14,7 @@ published, valid main-grid run at its rate and seed whenever there is one (reche
 the run still counts). Every run of the block records the same versions (a version change is flagged):
 `run` stops before a run whose versions differ from the block's first published run, and `status` fails a mixed block.
 A run already published is not run again: a valid one counts, an invalid one stays for the main session to retire and
-rerun (as the main grid's). `run` stops, as scripts/run_scope.sh does, after more than --max-invalid invalid runs in
+rerun (as the main grid's). `run` stops, as the rows runner does, after more than --max-invalid invalid runs in
 this invocation, at once on a run that could not run (run_cell's exit 2; its attempt stays for debugging) and on a
 failed mirror; a run already published is mirrored again (verified identical). It exits 0 only when every run of the
 block is valid.
@@ -35,7 +35,8 @@ from bench.records import cell_dir
 from gates.cell import GateError, open_cell, reset_problems, traffic_problems
 from bench.scope import expected_cells
 from routebalance.config import ConfigError
-from tools import cell_driver
+from runner import render as rd, store
+from runner.mirror import mirror_cell
 from vsrbench.run_cell import CLIENT_ENV, _sha, input_problems, inputs_reference, shared_tree_check, versions, vsr_cell
 from vsrbench.stack import Docker
 
@@ -57,7 +58,7 @@ def template_for(scope, family: str, trace: str) -> str:
 
 
 def expected(scope, family: str, template: str, seed: int, config_sha: str):
-    return vsr_cell(dataclasses.replace(cell_driver.expected(scope, template), seed=seed), family, config_sha, test=False)
+    return vsr_cell(dataclasses.replace(rd.expected(scope, template), seed=seed), family, config_sha, test=False)
 
 
 PATH_FLAGS = ("--fleet", "--hosts", "--engine-args", "--engines-record", "--training-rows", "--data-root", "--vsr",
@@ -124,18 +125,16 @@ def reference_for(scope, root: Path, family: str, template: str) -> str:
     """The template if it is published and valid in the main grid's cells root, else the newest valid cell of the
     family's main group there (every cell of a group runs on the same engine launches: gates/parity.py)."""
     exp = {c.cell_id: c for c in expected_cells(scope) if c.group == family}
-    if template in exp and cell_driver.status(scope, exp[template], root) == "done":
+    if template in exp and store.status(scope, exp[template], root) == "done":
         return template
-    valid = [c for c, e in exp.items() if cell_dir(root, c).is_dir() and cell_driver.status(scope, e, root) == "done"]
+    valid = [c for c, e in exp.items() if cell_dir(root, c).is_dir() and store.status(scope, e, root) == "done"]
     if not valid:
         raise ConfigError(f"no valid {family} main-grid run in {root} to compare the engines with")
     return max(valid, key=lambda c: (cell_dir(root, c) / "gates" / "verdict.json").stat().st_mtime)
 
 
-def mirror(root: Path, dest: str, cid: str) -> int:
-    """scripts/mirror.sh's mirror_cell: never over another run of the cell, then identical (checksums)."""
-    return subprocess.run(["bash", "-c", f'source "{MODULE.parent}/scripts/mirror.sh" && mirror_cell "$0" "$1" "$2"',
-                           str(root), dest, cid]).returncode
+def say(msg: str) -> None:
+    print(f"[vsr block] {msg}", flush=True)
 
 
 def _arg(rest: list[str], flag: str) -> str:
@@ -164,7 +163,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--reference-cells", type=Path, required=True,
                     help="the main grid's cells root: the engines' comparison and the inputs' pairing")
     ap.add_argument("--mirror", help="the second location (rsync syntax)")
-    ap.add_argument("--max-invalid", type=int, default=3)     # scripts/run_scope.sh's --max-invalid as the lease runs it
+    ap.add_argument("--max-invalid", type=int, default=3)     # the rows runner's --max-invalid as the lease ran it
     a = ap.parse_args(argv)
     a.render, a.cells_root, a.reference_cells = a.render.resolve(), a.cells_root.resolve(), a.reference_cells.resolve()
     if a.mirror is not None and ":" not in a.mirror:            # a local mirror: the same place for run_cell and here
@@ -181,7 +180,7 @@ def main(argv: list[str]) -> int:
     clash = sorted({g for g in given for f in BLOCK_FLAGS if f.startswith(g) and len(g) > 2})   # and any abbreviation
     if clash:
         raise ConfigError(f"{clash} are set by the block for each run; they cannot be given after --")
-    scope, _ = cell_driver.load(a.render)
+    scope, _ = rd.load(a.render)
     order = plan(scope, a.family, a.traces.split(","), [int(s) for s in a.seeds.split(",")])
     def states() -> dict[str, str]:
         return {cid: verdict(a.cells_root, cid, scope, a.family, t, s, a.reference_cells) for cid, t, s in order}
@@ -207,7 +206,7 @@ def main(argv: list[str]) -> int:
         state = verdict(a.cells_root, cid, scope, a.family, template, seed, a.reference_cells)
         if state != "missing":
             print(f"[vsr block] {cid}: {state}, published; not run again")
-            if mirror(a.cells_root, a.mirror, cid) != 0:
+            if not mirror_cell(a.cells_root, a.mirror, cid, say):
                 print(f"[vsr block] the mirror of {cid} failed: stopping")
                 return 3
             continue
@@ -226,7 +225,7 @@ def main(argv: list[str]) -> int:
                "--reference-cells", str(a.reference_cells), "--cells-root", str(a.cells_root), "--mirror", a.mirror,
                *rest]
         print(f"[vsr block] {cid}: template {template} at seed {seed}, engines compared with {ref}", flush=True)
-        env = {k: os.environ[k] for k in CLIENT_ENV if k in os.environ}   # as scripts/run_cell.sh starts the client
+        env = {k: os.environ[k] for k in CLIENT_ENV if k in os.environ}   # as the runner starts the client
         rc = subprocess.run(cmd, cwd=MODULE, env=env).returncode
         if rc == 2:
             print(f"[vsr block] {cid} could not run (exit 2): stopping; its attempt stays under _attempts")

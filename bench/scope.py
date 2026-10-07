@@ -29,7 +29,7 @@ intended differences of each of its configurations: the execution-manifest paths
 the subtree under a) in which that configuration's cells may differ. In a comparison group (reference null)
 every configuration lists the same system-defining paths; in an ablation group each one lists what it changes
 from the group's reference configuration, and the reference itself lists nothing. Everything else the
-manifest records must be identical (the parity gate reads each cell's group.json, scripts/run_cell.sh).
+manifest records must be identical (the parity gate reads each cell's group.json, runner/store.py).
 max_send_lag_ms is not a bound: a late send is counted, never a gate, and the report gives each cell's latest
 start after its scheduled arrival. The render's scope carries it as null, which nothing reads.
 """

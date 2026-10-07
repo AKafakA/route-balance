@@ -2,7 +2,7 @@
 
 A render is a directory of three parts, read by the drivers and the analysis:
   scope.json          the scope in bench/scope.py's schema: every cell with its block, group, trace and seed
-  configs/<id>.json   each configuration's complete scheduler document, which scripts/run_cell.sh POSTs
+  configs/<id>.json   each configuration's complete scheduler document, which the runner POSTs
   plan.json           the plan, below
 
 plan.json ("format": "rb-plan/1")
@@ -11,7 +11,7 @@ plan.json ("format": "rb-plan/1")
                     calibration  params {fleet, dataset, levels, requests_per_level} and blocked (null: it can run),
                                  for tools/calibrate_driver.py
                     cells        cells (the ids of the cells it runs), groups, pending and disabled_blocks (both
-                                 empty), for tools/cell_driver.py and scripts/run_scope.sh --rows
+                                 empty), for the runner (python -m runner rows --rows)
   groups          {"<group>": {fleet, reference, intended_differences}}: the fleet each comparison group runs on
   fleets          {"<name>": {family, about, fleet_sha256, fleet_digest}}: the fleet file a group's cells must use
   server          {torch_threads, max_connections, request_timeout_s}: the scheduler's launch values

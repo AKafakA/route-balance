@@ -106,7 +106,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["routebalance*", "bench*", "analysis*", "gates*", "tools*"]
+include = ["routebalance*", "bench*", "analysis*", "gates*", "runner*", "tools*"]
 
 [tool.ruff]
 line-length = 125

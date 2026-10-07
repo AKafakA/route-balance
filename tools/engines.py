@@ -12,7 +12,7 @@ CUDA_VISIBLE_DEVICES and its command line, read on the node from the process its
 must be that process (the same start time): an engine relaunched any other way is refused, so the record's
 command line is what runs. The executed command line must end in the planned arguments and its GPUs must be
 the planned ones.
-A cell is invalid when any of these changed between before and after (tools/cell_driver.py verdict); the parity
+A cell is invalid when any of these changed between before and after (runner/store.py verdict); the parity
 gate requires every cell of a group to have run on the same launches (everything but start_time_s).
 """
 from __future__ import annotations

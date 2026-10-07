@@ -2,7 +2,7 @@
 
 The run takes its trace, seed, prompts, order, sampling and bench parameters from a main-grid cell of the same
 render (the template: the round-robin dispatcher's cell at the same rate and seed), so it sends exactly what every
-system of that rate and seed is sent. Order (scripts/run_cell.sh's, with the stack in place of our scheduler):
+system of that rate and seed is sent. Order (the runner's, runner/cell.py, with the stack in place of our scheduler):
   0. our scheduler is not running (its port is closed, no process of it) and no previous stack is left
   1. the configuration: upstream's generator from the fleet and the training means, the index edit, upstream's validator
   2. drain the engines; a fresh stack (vllm-sr serve); the engines as they report themselves; the live checks (live.py),
@@ -13,7 +13,7 @@ system of that rate and seed is sent. Order (scripts/run_cell.sh's, with the sta
      written at once
   5. the engines again; Envoy's access log flushed; the replay store holds the run's requests; the live checks again;
      the evidence copied out; the stack torn down. A step that fails here is a problem of the run, never its loss: a run
-     that served is always published, valid or not (as scripts/run_cell.sh keeps such cells)
+     that served is always published, valid or not (as the runner keeps such cells)
   6. the join (instances, router timings), the record, the checks of the main grid (analysis.manifest.cell_problems,
      gates.cell reset and traffic, the engines unchanged and launched as the paired main-grid run's), the verdict
      (gates/verdict.json); publish; mirror
@@ -49,7 +49,9 @@ from gates.cell import GateError, engine_changes, open_cell, reset_problems, tra
 from gates.preflight import ENGINE_PATHS, engine_problems, fetch
 from routebalance.backend import BackendClient
 from routebalance.config import ConfigError, fleet_digest, load_fleet
-from tools import cell_driver, direct, engines
+from runner import render as rd, store
+from runner.mirror import mirror_cell
+from tools import direct, engines
 from vsrbench import constants as C
 from vsrbench import config as vc
 from vsrbench import join, live
@@ -59,11 +61,11 @@ from vsrbench.stack import Docker, Stack, tree_digest
 
 MODULE = Path(__file__).resolve().parents[1]
 REPO = MODULE.parent
-SCHEDULER_PORT = 8200          # our scheduler's port on the lease (scripts/run_scope.sh --scheduler)
+SCHEDULER_PORT = 8200          # our scheduler's port on the lease (python -m runner rows --scheduler)
 LEASE_ROOT = "/mydata"         # the lease nodes' data disk: a test run never writes there
-SHARED = ("scripts/mirror.sh",)   # besides every shared Python module loaded (harness_record reads sys.modules)
-SHARED_PACKAGES = ("analysis", "bench", "gates", "routebalance", "tools")
-# the environment scripts/run_cell.sh gives the bench runner (env -i), and the interpreter's module path
+SHARED_PACKAGES = ("analysis", "bench", "gates", "routebalance", "runner", "tools")   # harness_record reads sys.modules
+# the environment the runner gives the benchmark client (env -i, runner/cell.py node_env), and the interpreter's
+# module path
 CLIENT_ENV = ("HOME", "PATH", "LANG", "HF_HOME", "HF_HUB_OFFLINE", "PYTHONPATH")
 
 
@@ -139,7 +141,7 @@ def harness_record() -> dict:
                      if getattr(m, "__file__", None) and Path(m.__file__).resolve().is_relative_to(REPO)
                      and not Path(m.__file__).resolve().is_relative_to(MODULE)})
     return {"module": {str(p.relative_to(MODULE)): _sha(p) for p in sorted(MODULE.glob("vsrbench/*.py"))},
-            "shared": {**{str(p.relative_to(REPO)): _sha(p) for p in loaded}, **{f: _sha(REPO / f) for f in SHARED}},
+            "shared": {str(p.relative_to(REPO)): _sha(p) for p in loaded},
             "git_head": git.stdout.strip() if git.returncode == 0 else None,
             "git_dirty": dirty.stdout.splitlines() if dirty.returncode == 0 else None,
             "hf": {k: os.environ.get(k) for k in ("HF_HOME", "HF_HUB_OFFLINE")},
@@ -235,7 +237,7 @@ def main(argv: list[str]) -> int:
     if not test:
         extra = sorted(set(os.environ) - set(CLIENT_ENV))
         if extra or os.environ.get("HF_HUB_OFFLINE") != "1" or not os.environ.get("HF_HOME"):
-            raise ConfigError(f"a lease run starts as the main grid's client does (scripts/run_cell.sh: env -i with "
+            raise ConfigError(f"a lease run starts as the main grid's client does (runner/cell.py: env -i with "
                               f"{CLIENT_ENV}, HF_HUB_OFFLINE=1, HF_HOME the node's Hub cache); found also {extra}")
         shared_tree_check()
     if C.VSR_VERSION not in subprocess.run([str(a.vsr), "--version"], capture_output=True, text=True).stdout:
@@ -248,8 +250,8 @@ def main(argv: list[str]) -> int:
         raise ConfigError(f"our scheduler runs (port {SCHEDULER_PORT} or pids {scheduler_processes()}): stop it "
                           "(a vLLM-SR run shares no node service)")
     docker = Docker(a.docker_sg)
-    scope, plan = cell_driver.load(a.render)
-    template = cell_driver.expected(scope, a.template_cell)
+    scope, plan = rd.load(a.render)
+    template = rd.expected(scope, a.template_cell)
     if a.seed is not None:
         template = dataclasses.replace(template, seed=a.seed)
     if template.dataset.budgets is not None:
@@ -261,7 +263,7 @@ def main(argv: list[str]) -> int:
             template = dataclasses.replace(template, trace=Trace(burstiness=1.0,
                                                                  segments=[Segment(n_requests=int(n), rate=float(rate))]))
     else:
-        instances = cell_driver.fleet_of(plan, template.group, a.fleet, a.hosts)
+        instances = rd.fleet_of(plan, template.group, a.fleet, a.hosts)
         if a.reference_cells is None:
             raise ConfigError("--reference-cells is required for a lease run (the paired run's engines)")
     models = vc.lease_models(a.fleet, a.hosts, a.engine_args)
@@ -296,7 +298,7 @@ def main(argv: list[str]) -> int:
     published = cell_dir(a.cells_root, exp.cell_id)
     if published.exists():
         raise ConfigError(f"{published} exists: a cell is never overwritten (retire it first)")
-    held = cell_driver.unpublished(a.cells_root, exp.cell_id) + completed_attempts(a.cells_root, exp.cell_id)
+    held = store.unpublished(a.cells_root, exp.cell_id) + completed_attempts(a.cells_root, exp.cell_id)
     if held:
         raise ConfigError(f"{held} hold a run of {exp.cell_id}: publish or retire it first")
     reference = None if test else cell_dir(a.reference_cells, a.reference_cell or a.template_cell)
@@ -460,13 +462,12 @@ def main(argv: list[str]) -> int:
     problems = cell_problems(record, exp, scope.bench) + checks + post + join_problems
     _write(attempt / "gates" / "verdict.json", {"cell_id": exp.cell_id, "valid": not problems, "problems": problems,
                                                 "notes": notes, "profile": a.profile})
-    out = cell_driver.publish(attempt, a.cells_root)
-    rc = subprocess.run(["bash", "-c", f'source "{REPO}/scripts/mirror.sh" && mirror_cell "$0" "$1" "$2"',
-                         str(a.cells_root), a.mirror, exp.cell_id]).returncode
+    out = store.publish(attempt, a.cells_root)
+    mirrored = mirror_cell(a.cells_root, a.mirror, exp.cell_id, lambda m: print(f"[vsr run_cell] {m}", file=sys.stderr))
     print(f"{out}: {len(record.requests)} requests in {record.duration_s:.1f} s; "
           + ("valid" if not problems else "INVALID: " + "; ".join(problems)) + (f"; notes: {notes}" if notes else ""))
-    if rc != 0:
-        print(f"the mirror to {a.mirror} failed ({rc})", file=sys.stderr)
+    if not mirrored:
+        print(f"the mirror to {a.mirror} failed", file=sys.stderr)
         return 3
     return 0 if not problems else 1
 
@@ -485,7 +486,7 @@ def _isolation(attempt: Path, instances) -> list[str]:
 def _guard(problems: list[str], what: str, step) -> None:
     try:
         step()
-    except Exception as e:  # recorded as the run's problem: the run is kept (scripts/run_cell.sh's rule)
+    except Exception as e:  # recorded as the run's problem: the run is kept (the runner's rule)
         problems.append(f"{what} failed: {type(e).__name__}: {str(e)[:300]}")
         print(f"[vsr run_cell] {what} failed: {type(e).__name__}: {e}", file=sys.stderr)
 
@@ -562,7 +563,7 @@ def inputs_reference(scope, root: Path, template: str, seed: int) -> Optional[Pa
     same = sorted(c.cell_id for c in exp.values() if c.group == t.group and c.trace_id == t.trace_id and c.seed == seed)
     same = sorted(same, key=lambda c: c != template)
     for cid in same:
-        if cell_dir(root, cid).is_dir() and cell_driver.status(scope, exp[cid], root) == "done":
+        if cell_dir(root, cid).is_dir() and store.status(scope, exp[cid], root) == "done":
             return cell_dir(root, cid)
     return None
 
@@ -600,6 +601,6 @@ async def _engines(instances, record: Path, out: Path) -> None:
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except Exception as e:          # it could not run: no published record (exit 2, as run_cell.sh)
+    except Exception as e:          # it could not run: no published record (exit 2, as the runner's)
         print(f"[vsr run_cell] could not run: {type(e).__name__}: {e}", file=sys.stderr)
         sys.exit(2)

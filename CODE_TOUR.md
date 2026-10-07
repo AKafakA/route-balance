@@ -189,16 +189,17 @@ cancellation before and after a round places a request, and duplicate request id
     within k times the tier's single-request values, after SOLA), its attainment and goodput.
 - `tools/`:
   - `campaign.py`: reads the rendered campaign's plan (`configs/render36/plan.json`).
-  - `cell_driver.py`: one cell's steps.
   - `engine_plan.py`: fleet × hosts × engine args → one vLLM launch per instance.
   - the TPOT calibration (row W1), the TPOT tables and the XGBoost retrain, and the budget sweep's served-text
     judge loop.
 - `scripts/` (shell):
   - `setup.sh`: one node, per role, resumable across the V100 driver reboot, ending with a self-check.
   - `deploy.sh` and the stop scripts.
-  - `run_cell.sh`: drain, apply, preflight, read the engines (`tools/engines.py`), warm up, run, read them
-    again, gates, publish, mirror. `run_scope.sh` runs a
-    scope's cells.
+- `runner/` (`python -m runner`):
+  - `cell.py`: one cell: drain, a fresh scheduler, apply, preflight, read the engines (`tools/engines.py`), warm up,
+    run, read them again, gates, publish, mirror.
+  - `rows.py`: the rows of a render in the plan's order, resuming, every cell on a fresh scheduler process
+    (`scheduler.py` restarts it); `store.py`: the runs on disk, their verdicts and the groups' parity records.
 - `configs/`: the fleets, engine args, the scheduler's launch values, the pre-registered rules and the rendered
   campaign (`render36/`). A launch value still `OWNER-MUST-SET` (`scheduler_launch.example.json` is the template)
   is refused at deploy.

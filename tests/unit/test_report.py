@@ -9,7 +9,7 @@ import pytest
 from analysis import report as rp
 from analysis.rules import load_rules
 from bench.dataset import file_sha256, load_prompts
-from tools.cell_driver import gate_code
+from runner.store import gate_code
 from bench.records import write_cell
 from bench.runner import CellSpec, run_cell
 from bench.schema import parse
@@ -78,14 +78,14 @@ def env(tmp_path):
         (cells / cell.cell_id).mkdir()
         write_cell(rec, cells / cell.cell_id)
         (cells / cell.cell_id / "gates").mkdir()
-        (cells / cell.cell_id / "gates" / "verdict.json").write_text('{"valid": true}')   # run_cell.sh's verdict
+        (cells / cell.cell_id / "gates" / "verdict.json").write_text('{"valid": true}')   # the runner's verdict
     _pass_parity(cells, scope)
     return {"render": render, "cells": cells, "data_root": tmp_path, "fleet": fleet, "hosts": hosts, "base": base,
             "rules": rules_path, "tmp": tmp_path}
 
 
 def _pass_parity(cells, scope, rc=0):
-    """A parity record per group over its current cells, as tools/cell_driver.py writes it."""
+    """A parity record per group over its current cells, as runner/store.py writes it."""
     groups = {}
     for cell in expected_cells(scope):
         (name,) = [f.name for f in (cells / cell.cell_id).glob("*.cell.json")]

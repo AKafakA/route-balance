@@ -1,4 +1,4 @@
-"""The engine record against fake vLLM engines over real HTTP: what run_cell.sh writes before and after a cell."""
+"""The engine record against fake vLLM engines over real HTTP: what the runner writes before and after a cell."""
 import asyncio
 
 import pytest

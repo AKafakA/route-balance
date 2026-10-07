@@ -227,7 +227,7 @@ def only_missing_quality(config_id: str, problems: Sequence[str]) -> bool:
 
 
 def gate_problem(cells_root: Path, cell_id: str) -> Optional[str]:
-    """Why a cell's per-cell gates do not pass (scripts/run_cell.sh writes gates/verdict.json), or None."""
+    """Why a cell's per-cell gates do not pass (the runner writes gates/verdict.json), or None."""
     v = cell_dir(cells_root, cell_id) / "gates" / "verdict.json"
     if not v.is_file():
         return "no gate verdict (gates/verdict.json)"
@@ -238,7 +238,7 @@ def gate_problem(cells_root: Path, cell_id: str) -> Optional[str]:
 
 
 def parity_state(cells_root: Path, group: str, runs: Mapping[str, str]) -> str:
-    """'passed' when the group's latest parity record (tools/cell_driver.py) passed and covers exactly these runs
+    """'passed' when the group's latest parity record (runner/store.py) passed and covers exactly these runs
     ({cell directory name: record sha256}; names, since the record holds the node's paths and the analysis may read
     the mirror), 'failed' when it did not pass, else 'not run' (the group is not complete, or a cell ran again)."""
     d = cells_root / "_groups" / group
@@ -246,13 +246,13 @@ def parity_state(cells_root: Path, group: str, runs: Mapping[str, str]) -> str:
     if not records:
         return "not run"
     last = loads_strict(records[-1].read_text())
-    from tools.cell_driver import gate_code                  # the driver's key: a fixed gate runs again
+    from runner.store import gate_code                       # the runner's key: a fixed gate runs again
     if last["gate_code"] != gate_code():
         return "not run"
     if last["rc"] != 0:
         return "failed"
     covered = {Path(c).name: sha for c, sha in last["cells"]}
-    return "passed" if covered == dict(runs) else "not run"    # as the driver: exactly the current runs
+    return "passed" if covered == dict(runs) else "not run"    # as the runner: exactly the current runs
 
 
 def build(inputs: Inputs, cells_root: Path, treatments: Sequence[str]) -> dict:

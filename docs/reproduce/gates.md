@@ -9,7 +9,7 @@ load snapshot is counted and reported, never a reason to drop a run. Each gate i
 | gate | refuses |
 |---|---|
 | `preflight.py` | a fleet or a scheduler that is not the one the run expects, or not idle: every engine healthy, on vLLM 0.18.1, serving exactly its tier's model and drained (nothing running or waiting), and the scheduler serving the run's configuration and fleet, by digest |
-| fresh scheduler (`tools/cell_driver.py fresh`) | a scheduler process that has already logged a decision |
+| fresh scheduler (`runner/scheduler.py`) | a scheduler process that has already logged a decision |
 
 ## Per run
 
@@ -33,7 +33,7 @@ load snapshot is counted and reported, never a reason to drop a run. Each gate i
 published and its verdict is valid, and a group whose latest parity record failed is left out whole. A missing,
 invalid, unexpected or pending run, or a group whose parity has not run over its current runs, makes the report
 exit non-zero, with the report still written. The parity records are keyed by the gates' source (`gate_code` in
-`tools/cell_driver.py`), so a parity record made by other gate code counts as not run.
+`runner/store.py`), so a parity record made by other gate code counts as not run.
 
 ## What a failed gate does
 

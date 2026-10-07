@@ -116,14 +116,14 @@ def test_a_failed_evidence_writer_is_caught(cell):
 def test_resume_rechecks_the_isolation_of_a_published_valid_cell(tmp_path, monkeypatch):
     """Codex review 09-29: a saved valid verdict is not enough; status(), which resume and group_ready use, rechecks
     the isolation evidence (the record checks are stubbed here: they have their own tests)."""
-    from tools import cell_driver
+    from runner import store
     root = tmp_path / "cells"
     shutil.copytree(FIXTURE, root / FIXTURE.name)
     (root / FIXTURE.name / "gates").mkdir(exist_ok=True)
     (root / FIXTURE.name / "gates" / "verdict.json").write_text(json.dumps({"valid": True}))
-    monkeypatch.setattr(cell_driver, "record_problems", lambda scope, exp, d: [])
+    monkeypatch.setattr(store, "record_problems", lambda scope, exp, d: [])
 
     class Exp:
         cell_id = FIXTURE.name
-    assert cell_driver._gated_valid(root, Exp()) is True          # the fast gate reads the verdict only
-    assert cell_driver.status(None, Exp(), root) == "invalid"     # no warm-up proof, no counters
+    assert store.gated_valid(root, Exp()) is True                # the fast gate reads the verdict only
+    assert store.status(None, Exp(), root) == "invalid"           # no warm-up proof, no counters

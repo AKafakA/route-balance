@@ -16,8 +16,9 @@ shipped data.
 | `bench/` | the open-loop load generator and benchmark client, and the per-run record |
 | `analysis/` | per-run metrics, the run manifest, frontiers, the equal-quality comparison, the SLO, the report |
 | `gates/` | the gates that decide whether a run counts (`docs/reproduce/gates.md`) |
-| `tools/` | the drivers of a run and of the calibration, the learned heads, router training, judging, the engine plan |
-| `scripts/` | node setup, engine and scheduler deployment, one run and a row of runs |
+| `runner/` | the runs of a render, one at a time, end to end (`python -m runner`) |
+| `tools/` | the calibration driver, the learned heads, router training, judging, the engine plan, the engines' records |
+| `scripts/` | node setup, engine and scheduler deployment |
 | `configs/` | the fleets, the engine arguments per tier, the scheduler's launch values, the preregistered rules, and the rendered campaign the runs used (`render36/`) |
 | `vllm-sr-bench/` | the vLLM Semantic Router, deployed as its authors deploy it, as its own stack in front of the same engines, and driven by the same client |
 
@@ -52,7 +53,7 @@ paper from the shipped data, on a CPU.
 | `tools/judge_served.py` | the budget runs' judge loop: the texts they served go to the DeepEval judge once |
 | `tools/engines.py` | each engine as it reports itself, read before and after every run: a restart invalidates the run |
 | `tools/router_training.py` | the baselines' training inputs, built for both model families: AvengersPro's artifacts and BEST-Route's candidates |
-| `scripts/run_cell.sh`, `scripts/run_scope.sh` | one run end to end, and the rows of a render in order, resuming |
+| `runner/` (`python -m runner`) | one run end to end, and the rows of a render in order, resuming |
 
 A run's quality is the mean DeepEval score of its successful requests, looked up by (prompt, served model) in the
 scored corpus (`analysis/quality.py`). The budget runs are scored on the text actually served. A request meets its

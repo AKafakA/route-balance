@@ -10,7 +10,7 @@ check: $(CHECK)
 
 lint:
 	$(PY) -m ruff check .
-	$(PY) -m compileall -q routebalance bench analysis gates tools
+	$(PY) -m compileall -q routebalance bench analysis gates runner tools
 	for f in scripts/*.sh; do bash -n "$$f" || exit 1; done
 	@if command -v $(SHELLCHECK) >/dev/null 2>&1; then echo "$(SHELLCHECK) scripts/*.sh"; $(SHELLCHECK) -x -P scripts scripts/*.sh; \
 	else echo "lint: $(SHELLCHECK) not found, scripts/*.sh were only syntax-checked (make lint SHELLCHECK=<path>)"; fi
@@ -19,7 +19,7 @@ hygiene:
 	$(PY) -m gates.hygiene $(if $(TERMS),--terms $(TERMS)) .
 
 static:
-	$(PY) -m gates.static_defects routebalance bench analysis tools
+	$(PY) -m gates.static_defects routebalance bench analysis runner tools
 
 unit:
 	$(PY) -m pytest -q tests/unit

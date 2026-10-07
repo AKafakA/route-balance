@@ -1,7 +1,7 @@
 """Record real cell directories for the gates. The parts are real where it matters:
   - the scheduler (routebalance/server.py, with the real load_components) behind fake vLLM engines;
   - the runner that drives it (bench/runner.py);
-  - the layout, which follows scripts/run_cell.sh (gates/cell.py).
+  - the layout, which follows the runner's (runner/cell.py, gates/cell.py).
 
 The recorder is used in two places. The contract tests make a live run that every gate must pass. The same
 code re-records the fixtures committed under tests/gates:
@@ -213,7 +213,7 @@ class LiveFleet:
             assert r.status == 200, await r.text()
 
     async def flushed_stats(self) -> dict:
-        await self.service.decisions.flush()        # run_cell.sh polls until decisions_buffered is 0
+        await self.service.decisions.flush()        # the runner polls until decisions_buffered is 0
         return await self.get("/v1/stats")
 
     def log_lines(self) -> list[str]:

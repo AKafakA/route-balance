@@ -1,6 +1,6 @@
 """One cell's evidence directory, and strict readers for its files: the gates' only input format.
 
-scripts/run_cell.sh writes, per cell, <cells_root>/<cell_id>/:
+The runner (runner/cell.py) writes, per cell, <cells_root>/<cell_id>/:
   <cell_id>.cell.json     the bench record (bench/records.py)
   config.json             the exact scheduler document POSTed for the cell
   decisions.jsonl         the scheduler's decision lines (routebalance/server.py) that carry the cell's config

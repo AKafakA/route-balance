@@ -4,7 +4,7 @@ One JSON file per cell, `<cell_id>.cell.json`. Only files with that suffix are c
 sidecars never carry it, so they can never be counted as cells (v3 counted provenance sidecars).
 In a campaign every cell has its own directory under the cells root, named by its id: `<root>/<cell_id>/`
 holds exactly one record, `<cell_id>.cell.json`, beside the evidence the driver collected for the cell
-(scripts/run_cell.sh: the configuration posted, the decision-log slice, scheduler stats and manifests, gates).
+(runner/cell.py: the configuration posted, the decision-log slice, scheduler stats and manifests, gates).
 Times are seconds on the client's monotonic clock from the start of the arrival loop, except the *_unix
 wall-clock stamps.
 """
