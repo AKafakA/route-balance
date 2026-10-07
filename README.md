@@ -4,7 +4,8 @@ A serving-layer scheduler for heterogeneous LLM fleets. For each request it pick
 predicted quality, load-aware latency and cost, and it schedules requests in rounds so that the requests of a round
 see each other's assignments.
 
-`CODE_TOUR.md` walks the code in the order a request takes through it, with each file's invariants.
+This tree is the code that ran the paper's runs, rewritten for reading. `CODE_TOUR.md` walks it in the order a
+request takes through it, with each file's invariants, and `proofs/` shows that it does what the code that ran did.
 `docs/reproduce/` reproduces the paper: its environment, the runs, and every number, table and figure from the
 shipped data.
 
@@ -21,6 +22,8 @@ shipped data.
 | `scripts/` | node setup, engine and scheduler deployment |
 | `configs/` | the fleets, the engine arguments per tier, the scheduler's launch values, the preregistered rules, and the rendered campaign the runs used (`render36/`) |
 | `vllm-sr-bench/` | the vLLM Semantic Router, deployed as its authors deploy it, as its own stack in front of the same engines, and driven by the same client |
+| `proofs/` | the checks that this tree does what the code that ran did: the archived runs' records and decisions, the reports rebuilt byte for byte, a GPU run (`proofs/README.md`) |
+| `tests/` | the unit, contract and gate tests, with the repository's checks (`make check`) |
 
 ## Quick start
 

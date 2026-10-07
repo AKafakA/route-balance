@@ -45,9 +45,9 @@ python -m analysis.report --render configs/render36 --cells RUNS/g1 --data-root 
 
 and the same over all seeds (`RUNS/qall`, `RUNS/gall`). The records carry the served texts of the budget runs and
 are not part of the reviewer packs. Their parity records are keyed by the source of the gates' folder (`gate_code`
-in `runner/store.py`). This tree's `gates/` holds the run gates with the code the runs executed, its comments
-edited, and not the repository checks of development, so the key differs and each group's parity reads `not run`
-until the parity gate is rerun over the records. Every other value of the reports is the same.
+in `runner/store.py`). This tree's `gates/` holds the run gates rewritten for reading, beside the repository's own
+checks, so the key differs from the runs' and each group's parity reads `not run` until the parity gate is rerun over
+the records (`python -m runner parity`). Every other value of the reports is the same.
 
 ## The boundary
 

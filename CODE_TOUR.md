@@ -7,8 +7,37 @@ same server, on the same telemetry and the same dispatch path. That sharing is w
 construction. The vLLM Semantic Router runs as its own stack in front of the same engines (`vllm-sr-bench/`).
 
 The core is `routebalance/`. This tour follows the order a request takes through it.
-For each file it lists what to check: the invariants the rest of the system relies on. "v3" is the
-previous implementation this code was ported from, and "v2" the one before it.
+For each file it lists what to check: the invariants the rest of the system relies on.
+
+**Words.** A *cell* is one run: one configuration on one trace and one seed, named `<config>__<trace>__s<seed>`.
+A *render* (`configs/render36/`) is the campaign as data: every configuration, trace, seed and comparison group,
+and the plan's rows of runs; row names such as W1 or G1 are the plan's own. "v3" is the previous implementation
+this code was ported from, and "v2" the one before it: "as v3" in a comment means a value or a rule kept from it.
+This tree is the code that ran the paper's runs, rewritten for reading; `proofs/` shows it does what that code did.
+
+## One request, end to end
+
+1. The benchmark client sends it on its arrival time (`bench/runner.py` `run_cell`, `bench/client.py`
+   `HttpSchedulerClient.complete`).
+2. `POST /v1/completions` (`server.py` `build_app`) parses it strictly into a `Completion` (`request.py`) and hands it
+   to `Service.complete` (`service.py`).
+3. RouteBalance: `Service._await_round` submits it to the round loop (`round_loop.py` `RouteBalance.run`). A round
+   closes when it is full or at its timeout (`schedule/rounds.py` `RoundCollector.next_round`); the round's prompts are
+   estimated in one batch (`estimate/knn.py`), every instance's load is read once (`telemetry.py` `fetch_round`), and
+   `schedule_round` (`schedule/assign.py`) scores every request on every instance (`schedule/score.py`, with the
+   latency of `estimate/latency.py`), the longest first, each decision dispatched as soon as it is made: the
+   round loop records it in the telemetry view at once (`RouteBalance._dispatch`).
+   A pipeline system: `Service._select` asks `select_instance` (`baselines/pipeline.py`): the router picks a model
+   (`baselines/routers.py`), the dispatcher an instance of it (`baselines/dispatch.py`), on the shared view's loads,
+   and the dispatch is recorded in the view at once.
+4. `Service._serve` clamps max_tokens to the request's budget and streams from the engine (`backend.py`
+   `BackendClient.generate`), reporting progress to the view; the dispatch is then closed, as a completion or a
+   failure.
+5. `Service._log` writes the request's decision line (`decision_log.py`); the reply goes back with the scheduler's
+   first-token time.
+
+The runner (`runner/`) wraps every run in its checks; the gates (`gates/`) and the analysis (`analysis/`) read what
+the run left. Each is described below.
 
 **If you have one hour**, read these about 1,400 lines. They decide the results:
 `schedule/` (all four files), `telemetry.py`, `baselines/dispatch.py` + `baselines/pipeline.py`,
@@ -41,8 +70,8 @@ Check: every experiment parameter is a required field. Nothing is read from the 
     poller per instance every `poll_ms`, as llm-d's endpoint picker scrapes each model server's `/metrics` every
     50 ms. A slow instance never delays the others. RouteBalance on this cache is the cache control.
   - `per_request`, v3's baselines: each request `fetch()`es the candidates its dispatcher compares (every candidate
-    for least outstanding, and power of two's two drawn instances) and reads the engines' own counts. G1 runs it as
-    a control.
+    for least outstanding, and power of two's two drawn instances) and reads the engines' own counts. The plan's
+    row G1 runs it as a control.
 - Freshness is measured from when a scrape was sent. A failed, slow or malformed scrape leaves the instance's last
   good snapshot in use, as a scraped cache does, and every decision logs the snapshot's age and its last error. Only an
   instance never read fails the round or the request. Nothing falls back to an idle default.
@@ -158,7 +187,8 @@ Check: the constant and curve sources never import xgboost, and `predict_calls` 
   - one backend client.
   - one 4-thread pool for RouteBalance's batch calls (the estimator and the scheduling round), and a
     lane for the baselines' per-request router calls, sized by the router concurrency.
-  - one dispatch path, `Service._serve`: record, budget clamp, stream with progress, close.
+  - one dispatch path: the dispatch recorded in the view when the instance is chosen, then `Service._serve`:
+    budget clamp, stream with progress, close.
 - `RouteBalance.run` is the round loop:
   1. collect a round.
   2. estimate (pool).
@@ -194,8 +224,8 @@ cancellation before and after a round places a request, and duplicate request id
 - `tools/`:
   - `campaign.py`: reads the rendered campaign's plan (`configs/render36/plan.json`).
   - `engine_plan.py`: fleet × hosts × engine args → one vLLM launch per instance.
-  - the TPOT calibration (row W1), the TPOT tables and the XGBoost retrain, and the budget sweep's served-text
-    judge loop.
+  - the TPOT calibration (the plan's row W1), the TPOT tables and the XGBoost retrain, and the budget sweep's
+    served-text judge loop.
 - `scripts/` (shell):
   - `setup.sh`: one node, per role, resumable across the V100 driver reboot, ending with a self-check.
   - `deploy.sh` and the stop scripts.
@@ -204,6 +234,19 @@ cancellation before and after a round places a request, and duplicate request id
     run, read them again, gates, publish, mirror.
   - `rows.py`: the rows of a render in the plan's order, resuming, every cell on a fresh scheduler process
     (`scheduler.py` restarts it); `store.py`: the runs on disk, their verdicts and the groups' parity records.
+- `gates/`: what decides whether a run counts.
+  - `preflight.py`, before a run: the fleet and the scheduler are the run's own, healthy and idle.
+  - `arm.py`: the values a run used, from its decision lines: RouteBalance's scores, round limits, LPT order and
+    candidates recomputed; a pipeline line's served model is the one its router named, its score finite.
+  - `zero_call.py`: no learned-head call where the configuration has no learned head.
+  - `parity.py`: the systems of a comparison group executed the same everything but their declared differences.
+  - `cell.py`: the strict readers of a run's evidence, and its isolation: the proven prefix-cache reset, the
+    engines' traffic during the run, a fresh scheduler.
+  - `hygiene.py` and `static_defects.py` are the repository's own checks (`make check`).
+- `proofs/`: the checks that this tree does what the code that ran did: the archived runs' records and verdicts,
+  their decisions replayed, the four reports rebuilt byte for byte, and an end-to-end run on a GPU.
+- `vllm-sr-bench/`: the vLLM Semantic Router, deployed as its authors deploy it, driven by the same client and checked
+  by the same run checks.
 - `configs/`: the fleets, engine args, the scheduler's launch values, the pre-registered rules and the rendered
   campaign (`render36/`). A launch value still `OWNER-MUST-SET` (`scheduler_launch.example.json` is the template)
   is refused at deploy.

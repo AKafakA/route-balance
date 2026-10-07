@@ -2,7 +2,9 @@
 
 The ref branch rewrites the code of the submission branch (commit 984eb1a, the code the paper's runs executed) for
 reading. These proofs check, on the archived runs themselves, that the rewrite changes nothing a run did. They run on a
-machine that holds the run archive, the artifacts the runs loaded and a scheduler environment.
+machine that holds the run archive, the artifacts the runs loaded and a scheduler environment. Each tree is called through
+an adapter with the same methods and the same plain-data results (`--adapter`): `adapters/submission.py` for the code
+that ran, `adapters/ref.py` for this tree.
 
 ## Inputs
 
@@ -13,6 +15,7 @@ machine that holds the run archive, the artifacts the runs loaded and a schedule
 | the upstream checkouts | AvengersPro at its pinned commit with its one recorded patch, best-route-llm at its pinned commit | `scripts/setup.sh`'s pins, and the runs' recorded module md5s |
 | the encoders | the two Hub models at their pinned revisions | the runs' recorded file md5s |
 | the environment | Python 3.10 with `pip install -e` of the code that ran (the pinned dependencies) | `pip check` |
+| the GPU run's engines | vLLM 0.18.1 from PyPI on Python 3.10, as `scripts/setup.sh` installs it, and Qwen2.5-3B and 7B at the engine arguments' revisions | `configs/engine_args_qwen.json` |
 
 ## The proofs
 
@@ -25,6 +28,7 @@ machine that holds the run archive, the artifacts the runs loaded and a schedule
 | routers | `python -m proofs.replay run routers` | AvengersPro, BEST-Route and RB-decoupled on every request: digests between two trees, and the logged model, score and reason |
 | dispatchers | `python -m proofs.replay run dispatchers` | every pipeline run's dispatcher on its own router picks: digests between two trees, and the logged instance for round robin and random behind the passthrough router |
 | reports | `proofs/reports.sh` | the four reports rebuilt from the runs, after the tree's own parity gate ran over every comparison group in a scratch copy: every file and log against the bundle's |
+| GPU end to end | `proofs/gpu/run.sh` | every run of a small render on two real vLLM engines, through each tree's own runner (`proofs/gpu/e2e.py` lists what stands in for the lease): each run's verdict, and the choices that do not depend on timing (RB-decoupled's tier and score as its decision reason records them, round robin's and random's instances), request by request, between the two trees |
 
 `python -m proofs.replay compare A.jsonl B.jsonl` compares two trees' digests run by run.
 
