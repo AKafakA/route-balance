@@ -41,7 +41,7 @@ def req(rid, s_len=100.0, l_len=80.0, qs=0.5, ql=0.9, budget=0.0, max_tokens=102
 
 
 def run_round(requests, loads=None, latency=None, **kw):
-    args = dict(weights=W, normalization="max_divide", normalize_over="request", lpt="max", pending_decode="own_length",
+    args = dict(weights=W, normalization="max_divide", normalize_over="request", lpt="max",
                 last_assigned={}, clock=lambda: 1.0, admission=None, on_decision=None) | kw
     return schedule_round(requests, FLEET, loads or idle_loads(), latency or QueueLatency(), **args)
 
@@ -76,10 +76,9 @@ def test_each_decision_is_handed_over_before_the_next_request_is_scored():
     assert picks == [(d.instance.instance_id, d.decode_tokens) for d in plain]
 
 
-def test_pending_decode_records_own_length_or_the_lpt_key():
+def test_pending_decode_records_the_expected_length_on_the_chosen_model():
     w = Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0)   # quality: the large model wins
     assert run_round([req("a")], weights=w)[0].decode_tokens == 80
-    assert run_round([req("a")], weights=w, pending_decode="lpt_key")[0].decode_tokens == 100
 
 
 def test_fixed_ref_scores_against_idle_instances():
@@ -124,7 +123,7 @@ def test_a_long_prompt_moves_the_cost_choice_to_the_cheaper_input_price():
     def pick(prompt_tokens):
         r = RoundRequest("r", prompt_tokens, {"A": Est(0.5, 10.0), "B": Est(0.5, 10.0)}, 0.0, 1024)
         (d,) = schedule_round([r], fleet, loads, Flat(), weights=Weights(w_quality=0.0, w_latency=0.0, w_cost=1.0),
-                              normalization="max_divide", normalize_over="request", lpt="max", pending_decode="own_length",
+                              normalization="max_divide", normalize_over="request", lpt="max",
                               last_assigned={},
                               clock=lambda: 1.0, admission=None, on_decision=None)
         return d.instance.model
@@ -160,7 +159,7 @@ def test_the_fallback_is_the_worst_case_cost_not_the_expected_one():
     r = RoundRequest("x", 50, {"A": Est(0.5, 1.0), "B": Est(0.9, 1.0)}, 1e-7, 1024)
     loads = {i.instance_id: Load(InstanceStats(0, 0, 0.0, 0, 4, 0), 5.0, 0, 0) for i in fleet}
     d = schedule_round([r], fleet, loads, QueueLatency(), weights=Weights(w_quality=1.0, w_latency=0.0, w_cost=0.0),
-                       normalization="max_divide", normalize_over="request", lpt="max", pending_decode="own_length",
+                       normalization="max_divide", normalize_over="request", lpt="max",
                               last_assigned={},
                        clock=lambda: 1.0, admission=Admission(), on_decision=None)[0]
     assert not d.admitted_all and d.instance.instance_id == "a0" and len(d.scored) == 1
@@ -169,8 +168,6 @@ def test_the_fallback_is_the_worst_case_cost_not_the_expected_one():
 def test_unknown_modes_raise():
     with pytest.raises(ValueError):
         run_round([req("a")], lpt="median")
-    with pytest.raises(ValueError):
-        run_round([req("a")], pending_decode="max")
 
 
 def test_a_negative_budget_is_rejected():
@@ -181,17 +178,16 @@ def test_a_negative_budget_is_rejected():
 # keys (min / mean / max): a 10/15/20, b 40/42.5/45, c 5/52.5/100, d 60/60/60: each statistic orders differently
 @pytest.mark.parametrize("lpt,order,key_a", [("min", ["d", "b", "a", "c"], 10.0), ("mean", ["d", "c", "b", "a"], 15.0),
                                              ("max", ["c", "d", "b", "a"], 20.0)])
-def test_lpt_key_statistics_order_the_round_and_feed_lpt_key_pending(lpt, order, key_a):
+def test_lpt_key_statistics_order_the_round(lpt, order, key_a):
     rs = [req("a", s_len=10, l_len=20), req("b", s_len=40, l_len=45), req("c", s_len=5, l_len=100),
           req("d", s_len=60, l_len=60)]
-    ds = run_round(rs, lpt=lpt, pending_decode="lpt_key")
+    ds = run_round(rs, lpt=lpt)
     assert [d.request.request_id for d in ds] == order
-    a = next(d for d in ds if d.request.request_id == "a")
-    assert a.lpt_key == key_a and a.decode_tokens == int(key_a)
+    assert next(d for d in ds if d.request.request_id == "a").lpt_key == key_a
 
 
 def test_an_expectation_below_one_token_is_recorded_as_one_token():
-    ds = run_round([req("a", s_len=0.4, l_len=50.0)], lpt="min", pending_decode="lpt_key")
+    ds = run_round([req("a", s_len=0.4, l_len=0.4)])
     assert ds[0].lpt_key == 0.4 and ds[0].decode_tokens == 1
     assert _decode_tokens(0.0) == 1                              # a zero key is not an error either
     with pytest.raises(ValueError):
@@ -200,9 +196,8 @@ def test_an_expectation_below_one_token_is_recorded_as_one_token():
 
 def test_lpt_off_keeps_arrival_order_and_records_the_max_as_v3():
     rs = [req("a", s_len=10, l_len=20), req("c", s_len=5, l_len=100)]
-    ds = run_round(rs, lpt="off", pending_decode="lpt_key")
+    ds = run_round(rs, lpt="off")
     assert [d.request.request_id for d in ds] == ["a", "c"] and [d.lpt_key for d in ds] == [20.0, 100.0]
-    assert [d.decode_tokens for d in ds] == [20, 100]
 
 
 def test_normalizing_over_the_round_uses_the_rounds_ranges_and_the_running_latency_maximum():
@@ -242,7 +237,7 @@ def test_the_running_latency_maximum_grows_with_the_round():
     """in arrival order (lpt off) a later, longer request raises the maximum its own terms divide by; the
     earlier request's terms keep the smaller one."""
     short, long_ = req("a", s_len=10.0, l_len=10.0), req("b", s_len=400.0, l_len=400.0)
-    d1, d2 = run_round([short, long_], normalize_over="round", lpt="off", pending_decode="lpt_key")
+    d1, d2 = run_round([short, long_], normalize_over="round", lpt="off")
     assert d1.request.request_id == "a" and d2.scales.l_max > d1.scales.l_max
     assert d1.scales.l_max == max(s.candidate.latency_s for s in d1.scored)
     assert d2.scales.l_max == max(d1.scales.l_max, max(s.candidate.latency_s for s in d2.scored))

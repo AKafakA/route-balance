@@ -14,8 +14,7 @@ publishes them with completed engine steps and they are scraped every poll_ms), 
 dispatch, or during a long first prefill, a scrape can still show an idle engine, and right after a
 completion it can still show the finished request; the in-flight count covers both without any
 timing assumption. Dead reckoning is RouteBalance's own mechanism; the baselines' views run with it off and their
-load-reading dispatchers read the engine's gauges; only the appendix row W12 counts the in-flight
-requests themselves (Load.in_flight, the count production proxies keep).
+load-reading dispatchers read the engine's gauges.
 
 Three ways to read (config telemetry_read):
   poll        the snapshot the background pollers keep, every poll_ms, as production balancers read a scraped

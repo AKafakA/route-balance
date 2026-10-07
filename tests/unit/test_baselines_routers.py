@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from routebalance.baselines.routers import (ALL_INSTANCES, BEST_ROUTE_MODULES, AvengersProRouter, BestRouteRouter,
+from routebalance.baselines.routers import (ALL_INSTANCES, BEST_ROUTE_MODULES, AvengersProRouter,
                                             BestRouteUpstreamRouter, DecoupledInputs, Estimate, PassthroughRouter,
                                             RBDecoupledRouter, RouterRequest, _check_recorded, _import_upstream,
                                             _names_the_model, _rankings, best_route_digest, build_router,
@@ -17,7 +17,6 @@ from routebalance.types import Tier
 from tests.fleet_s2 import POOL, TIERS
 
 EX = ThreadPoolExecutor(max_workers=2, thread_name_prefix="router")
-LABELS = {0: "Qwen/Qwen2.5-3B", 1: "Qwen/Qwen2.5-7B", 2: "Qwen/Qwen2.5-14B", 3: "Qwen/Qwen2.5-72B"}
 REQ = RouterRequest("what is 2+2?", "r1", 12)
 
 
@@ -27,20 +26,6 @@ def run(coro):
 
 def choose(router, pool=POOL, req=REQ):
     return run(router.choose_model(req, pool))
-
-
-class FakeClassifier:
-    def __init__(self, label, prob):
-        self.result, self.threads, self.prompts = (label, prob), [], []
-
-    def __call__(self, prompt):
-        self.threads.append(threading.current_thread().name)
-        self.prompts.append(prompt)
-        return self.result
-
-
-def best_route(label, prob, threshold=0.0, fallback="Qwen/Qwen2.5-3B", labels=LABELS):
-    return BestRouteRouter(FakeClassifier(label, prob), labels, threshold=threshold, fallback=fallback, executor=EX)
 
 
 # ---------------------------------------------------------------- passthrough
@@ -53,53 +38,6 @@ def test_passthrough_returns_the_all_instances_sentinel():
 
 
 # ---------------------------------------------------------------- BEST-Route
-
-def test_best_route_argmax():
-    d = choose(best_route(2, 0.61))
-    assert (d.model, d.score, d.reason) == ("Qwen/Qwen2.5-14B", 0.61, "best_route_4way:argmax_label=2:p=0.610")
-
-
-def test_best_route_threshold_is_strict():
-    assert choose(best_route(3, 0.5, threshold=0.5)).model == "Qwen/Qwen2.5-72B"      # p == t keeps the argmax
-    d = choose(best_route(3, 0.4999, threshold=0.5))
-    assert d.model == "Qwen/Qwen2.5-3B"
-    assert d.reason == "best_route_4way:low_conf:p=0.500<0.5:fallback=Qwen/Qwen2.5-3B" and d.score == 0.4999
-
-
-def test_best_route_threshold_zero_never_falls_back():
-    assert choose(best_route(1, 0.26, threshold=0.0, fallback=None)).model == "Qwen/Qwen2.5-7B"
-
-
-def test_best_route_pool_miss_precedes_the_threshold():
-    pool = [m for m in POOL if m != "Qwen/Qwen2.5-72B"]
-    d = choose(best_route(3, 0.99, threshold=0.7), pool=pool)
-    assert d.model == "Qwen/Qwen2.5-3B" and d.reason == "best_route_4way:pool_miss:label=3:fallback=Qwen/Qwen2.5-3B"
-    d = choose(best_route(3, 0.3, threshold=0.0), pool=pool)                        # pool miss even at t = 0
-    assert d.reason.startswith("best_route_4way:pool_miss:label=3")
-
-
-def test_best_route_unmapped_label_is_a_pool_miss():
-    assert choose(best_route(7, 0.9)).reason == "best_route_4way:pool_miss:label=7:fallback=Qwen/Qwen2.5-3B"
-
-
-def test_best_route_never_infers_a_fallback():
-    pool = [m for m in POOL if m != "Qwen/Qwen2.5-72B"]
-    with pytest.raises(RuntimeError, match="explicit fallback_model"):
-        choose(best_route(3, 0.9, fallback=None), pool=pool)
-    with pytest.raises(RuntimeError, match="not in the pool"):
-        choose(best_route(1, 0.3, threshold=0.5, fallback="Qwen/Qwen2.5-1B"))
-    with pytest.raises(ConfigError):
-        best_route(1, 0.3, threshold=0.5, fallback=None)
-
-
-def test_best_route_scores_off_the_event_loop():
-    router = best_route(0, 0.9)
-    choose(router)
-    assert router._classify.prompts == [REQ.prompt]
-    assert [t.startswith("router") for t in router._classify.threads] == [True]
-    with pytest.raises(ValueError):
-        choose(router, pool=[])
-
 
 # ---------------------------------------------------------------- AvengersPro
 
@@ -260,20 +198,6 @@ def test_build_passthrough_takes_no_kwargs():
         build("passthrough", {"seed": 1})
 
 
-@pytest.mark.parametrize("kwargs,match", [
-    ({"checkpoint": "br", "confidence_threshold": 0.5, "max_length": 512}, "fallback_model"),   # before any load
-    ({"checkpoint": "br", "confidence_threshold": 0.0}, "max_length"),
-    ({"checkpoint": "/abs/br", "confidence_threshold": 0.0, "max_length": 512}, "relative"),
-    ({"checkpoint": "br", "confidence_threshold": 1.0, "max_length": 512}, "confidence_threshold"),
-    ({"checkpoint": "br", "confidence_threshold": 0.0, "max_length": 512, "batch_scoring": True}, "batch_scoring"),
-    ({"checkpoint": "br", "confidence_threshold": 0.0, "max_length": 512}, "fallback_model"),   # always stated
-    ({"checkpoint": "br", "confidence_threshold": 0.0, "max_length": 512, "fallback_model": "m"}, "no checkpoint"),
-])
-def test_build_best_route_validates_before_loading(kwargs, match):
-    with pytest.raises(ConfigError, match=match):
-        build("best_route", kwargs)
-
-
 AP = {"artifact_dir": "ap", "beta": 5.0, "top_k": 4, "embedder": "m", "embedder_revision": "a" * 40,
       "upstream_sha256": "b" * 64, "max_tokens": 7500, "max_workers": 4}
 
@@ -315,8 +239,8 @@ def test_router_options_validate_without_loading():
     validate_options(router("passthrough", {}))
     with pytest.raises(ConfigError, match="embedder_revision"):
         validate_options(router("avengers_pro", {**AP, "embedder_revision": "x"}))
-    with pytest.raises(ConfigError, match="max_length"):
-        validate_options(router("best_route", {"checkpoint": "br", "confidence_threshold": 0.0}))
+    with pytest.raises(ConfigError, match="base_model"):
+        validate_options(router("best_route_upstream", {"checkpoint": "br", "threshold": 0.0}))
 
 
 def test_build_rb_decoupled_needs_its_inputs():
@@ -345,10 +269,10 @@ def test_the_router_lane_runs_as_many_model_calls_at_once_as_its_concurrency():
             time.sleep(0.05)
             with lock:
                 state["now"] -= 1
-            return 1, 0.9
+            return [["Qwen/Qwen2.5-7B"]]
 
         lane = router_lane(threads)
-        router = BestRouteRouter(slow, LABELS, threshold=0.0, fallback="Qwen/Qwen2.5-3B", executor=lane)
+        router = AvengersProRouter(slow, executor=lane)
 
         async def burst(router=router):
             t0 = time.perf_counter()
@@ -453,8 +377,6 @@ def test_the_best_route_checkout_must_be_the_pinned_one(tmp_path):
 def test_each_head_must_name_its_fleet_model(head, model, ok):
     """A labels file that maps a head to another model (e.g. 3B and 7B swapped) fails the load, never routes."""
     assert _names_the_model(head, model) is ok
-
-
 
 
 @pytest.mark.parametrize("missing", ["max_tokens", "max_workers"])

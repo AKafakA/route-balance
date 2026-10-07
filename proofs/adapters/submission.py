@@ -60,15 +60,10 @@ class Code:
                  last_assigned: MutableMapping[str, float], clock: Callable[[], float]) -> list[dict]:
         """One round: `batch` the record's requests in the order the round collected them, `estimates` the
         estimator's, `loads` {instance: plain load}. Returns every decision, in decision order."""
-        cfg = self.cfg
         requests = [RoundRequest(r["request_id"], r["prompt_tokens"], e,
                                  0.0 if r["budget_cost"] is None else r["budget_cost"], max_tokens)
                     for r, e in zip(batch, estimates, strict=True)]
-        decisions = schedule_round(requests, self.fleet, {i: _load(v) for i, v in loads.items()}, self.comps.latency,
-                                   weights=cfg.weights, normalization=cfg.latency.normalization,
-                                   normalize_over=cfg.normalize_over, lpt=cfg.lpt, pending_decode=cfg.pending_decode,
-                                   last_assigned=last_assigned, clock=clock,
-                                   admission=Admission() if cfg.budget.admission_filter else None, on_decision=None)
+        decisions = self._round(requests, {i: _load(v) for i, v in loads.items()}, last_assigned, clock)
         return [{"req": d.request.request_id, "inst": d.instance.instance_id, "decode": d.decode_tokens,
                  "lpt": hexf(d.lpt_key), "admitted_all": d.admitted_all,
                  "scales": None if d.scales is None else [hexf(d.scales.q_min), hexf(d.scales.q_max),
@@ -77,6 +72,14 @@ class Code:
                  "scored": [[s.candidate.instance_id, hexf(s.score), hexf(s.quality_term), hexf(s.cost_term),
                              hexf(s.latency_term), hexf(s.candidate.latency_s)] for s in d.scored]}
                 for d in decisions]
+
+    def _round(self, requests, loads, last_assigned, clock) -> list:
+        """schedule_round as the server calls it (routebalance/server.py), without the per-decision callback."""
+        cfg = self.cfg
+        return schedule_round(requests, self.fleet, loads, self.comps.latency, weights=cfg.weights,
+                              normalization=cfg.latency.normalization, normalize_over=cfg.normalize_over, lpt=cfg.lpt,
+                              pending_decode=cfg.pending_decode, last_assigned=last_assigned, clock=clock,
+                              admission=Admission() if cfg.budget.admission_filter else None, on_decision=None)
 
     # ------------------------------------------------------------------ the pipeline
 

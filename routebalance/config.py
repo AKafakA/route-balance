@@ -285,7 +285,7 @@ class Telemetry(_Strict):
 
 
 class Router(_Strict):
-    type: Literal["avengers_pro", "best_route", "best_route_upstream", "passthrough", "rb_decoupled"]
+    type: Literal["avengers_pro", "best_route_upstream", "passthrough", "rb_decoupled"]
     # flat, finite scalars; stored as sorted (key, value) pairs so the frozen config is truly immutable and hashable
     kwargs: tuple[tuple[str, Scalar], ...]
     # how many of the router's model calls run at once (baselines/routers.py router_lane: 1 as shipped, 32 the main
@@ -328,9 +328,9 @@ class Dispatch(_Strict):
     seed: int = Field(ge=0, lt=2**32)
     # lowest_latency only (required there, rejected elsewhere): latency samples kept per instance
     latency_window: Optional[int] = Field(default=None, ge=1)
-    # the load-reading dispatchers only (required there, rejected elsewhere): "engine" or "in_flight", as
-    # baselines/dispatch.py describes
-    count: Optional[Literal["in_flight", "engine"]] = Field(default=None)
+    # the load-reading dispatchers only (required there, rejected elsewhere): what they count, the engines' own
+    # running + waiting gauges (baselines/dispatch.py)
+    count: Optional[Literal["engine"]] = Field(default=None)
 
     @model_validator(mode="after")
     def _window_only_for_lowest_latency(self):
@@ -352,9 +352,10 @@ class SchedulerConfig(_Strict):
     weights: Optional[Weights]
     rounds: Rounds
     lpt: Literal["max", "min", "mean", "off"]     # LPT key statistic over the models' expected lengths
-    # decode tokens an assignment adds to its instance's pending decode (schedule/assign.py): required for
-    # RouteBalance; a pipeline system records max_tokens (None) or, for the latency sweep, own_length
-    pending_decode: Optional[Literal["own_length", "lpt_key"]]
+    # decode tokens an assignment adds to its instance's pending decode: own_length, the request's expected length
+    # on the chosen model (schedule/assign.py). Required for RouteBalance; a pipeline system records max_tokens
+    # (None) or, for the latency sweep, own_length
+    pending_decode: Optional[Literal["own_length"]]
     dead_reckoning: bool
     # how load is read (telemetry.py describes the three ways): RouteBalance per round, with dead
     # reckoning; the pipeline systems from the pollers' cache or per request
@@ -386,9 +387,6 @@ class SchedulerConfig(_Strict):
             raise ValueError("pending_decode is required in routebalance mode")
         if (self.mode == "routebalance") != (self.normalize_over is not None):
             raise ValueError("normalize_over is required in routebalance mode and taken by no pipeline system")
-        if self.mode != "routebalance" and self.pending_decode not in (None, "own_length"):
-            raise ValueError("a pipeline system records max_tokens as pending decode, or with pending_decode "
-                             "own_length (the D38 latency sweep only) the estimator's length; lpt_key is RB-only")
         if self.mode == "routebalance" and self.telemetry_read == "per_request":
             raise ValueError("RouteBalance reads load per round or from the pollers' cache, never per request")
         if self.mode != "routebalance" and self.telemetry_read == "per_round":
@@ -396,7 +394,7 @@ class SchedulerConfig(_Strict):
         sweep = self.mode != "routebalance" and self.pending_decode == "own_length"   # the latency sweep
         if self.mode != "routebalance" and self.dead_reckoning and not sweep:
             raise ValueError("dead reckoning is RouteBalance's own mechanism: a pipeline system's dispatcher reads "
-                             "the engines' own gauges or counts in-flight requests (owner 09-25, D84)")
+                             "the engines' own gauges")
         if sweep and not self.dead_reckoning:
             raise ValueError("the latency sweep logs the learned heads' training features, which RouteBalance serves "
                              "on dead-reckoned counts: it runs with dead reckoning (its random dispatch reads no load)")
@@ -406,9 +404,6 @@ class SchedulerConfig(_Strict):
         if self.pipeline is not None and self.dead_reckoning and self.pipeline.dispatch.count == "engine":
             raise ValueError("a dispatcher counting the engines' gauges needs a view without dead reckoning, which "
                              "would replace them by the in-flight count")
-        if self.telemetry_read == "per_request" and self.pipeline.dispatch.count != "engine":
-            raise ValueError("a per-request probe fetches the engines' gauges: its dispatcher counts them "
-                             "(count engine); an in-flight count needs no fetch")
         if self.mode != "routebalance" and self.budget.admission_filter:
             raise ValueError("the budget admission filter exists only in routebalance mode (pipeline systems get the clamp)")
         return self

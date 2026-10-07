@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
  "config_digest": "1c5fdbc77caddc97defbafc0b1c690c2365567966aa817ef4c4a911b3ae0b9e8",
- "fleet_digest": "623c0c0c93128ce3fbba484005ae9462a6e09b27c67572b8115f46bd046dbbe1",
+ "fleet_digest": "8364ef4366209cb77649f85923039c2103d6b0fdfa28091fd4fae1f3bd5194d6",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -93,9 +93,9 @@
   "calib/tpot.json": "3004488055fdb43f53da93726b9e2130"
  },
  "code": {
-  "routebalance": "8295ed7a6b029134bf40ba1863b7b5fe85ce5d6ad3533f1961addb566cc2986b",
+  "routebalance": "0a9511c27b5abfde3a205efbdb9a451d08a7337a35f92d80ab7b965a7a1c2d2c",
   "avengers_pro": null,
-  "routebalance_now": "8295ed7a6b029134bf40ba1863b7b5fe85ce5d6ad3533f1961addb566cc2986b",
+  "routebalance_now": "0a9511c27b5abfde3a205efbdb9a451d08a7337a35f92d80ab7b965a7a1c2d2c",
   "avengers_pro_now": null
  },
  "threadpools": {

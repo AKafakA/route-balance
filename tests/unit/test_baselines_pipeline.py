@@ -102,7 +102,7 @@ def test_unknown_model_raises():
 
 
 def test_telemetry_failure_propagates_for_every_dispatcher():
-    for d in (RoundRobin(), LeastOutstanding("engine")):
+    for d in (RoundRobin(), LeastOutstanding()):
         view = FakeView(error=InstanceStateUnavailable("stale"))
         with pytest.raises(InstanceStateUnavailable):
             select(FixedRouter("Qwen/Qwen2.5-3B"), d, view)
@@ -113,7 +113,7 @@ def test_dispatcher_gets_the_views_loads():
     seven = of_model("7B")
     loads = {i.instance_id: load(running=5, in_flight=5) for i in FLEET} | {
         seven[3].instance_id: load(running=1, in_flight=1)}
-    sel = select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding("engine"), FakeView(loads))
+    sel = select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(), FakeView(loads))
     assert sel.instance is seven[3]
 
 
@@ -122,9 +122,9 @@ def test_a_probe_fetches_the_routers_candidates_only():
     seven = of_model("7B")
     loads = {i.instance_id: load(running=5) for i in FLEET} | {seven[2].instance_id: load(running=1)}
     probed, cached = FakeView(loads), FakeView(loads)
-    assert select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding("engine"), probed, probe=True).instance is seven[2]
+    assert select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(), probed, probe=True).instance is seven[2]
     assert probed.fetched == [i.instance_id for i in seven]
-    assert select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding("engine"), cached).instance is seven[2]
+    assert select(FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(), cached).instance is seven[2]
     assert not hasattr(cached, "fetched")                     # the cache read never fetches
 
 
@@ -132,7 +132,7 @@ def test_a_power_of_two_probe_fetches_its_drawn_pair_with_the_cache_forms_draws(
     """po2-probe fetches only the two instances it compares, drawn as the cache form draws them."""
     loads = {i.instance_id: load(running=n) for n, i in enumerate(FLEET)}
     cached, probed = FakeView(loads), FakeView(loads)
-    a, b = PowerOfTwo(seed=1, count="engine"), PowerOfTwo(seed=1, count="engine")
+    a, b = PowerOfTwo(seed=1), PowerOfTwo(seed=1)
     pairs = set()
     for _ in range(20):
         via_cache = select(PassthroughRouter(), a, cached)
@@ -192,7 +192,7 @@ def test_each_selection_is_recorded_before_the_next_one_reads_the_view():
     """Concurrent selections on unchanged engine gauges spread by the least-recently-assigned tie-break alone,
     and every dispatch is recorded (in flight, with its decode tokens) before the next selection reads."""
     ticks = iter(range(1, 100))
-    view, router, lor = real_view(), FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding("engine", clock=lambda: next(ticks))
+    view, router, lor = real_view(), FixedRouter("Qwen/Qwen2.5-7B"), LeastOutstanding(clock=lambda: next(ticks))
 
     async def burst():
         return await asyncio.gather(*(select_instance(router, lor, FLEET, view, RouterRequest("hi", str(k)),
@@ -205,10 +205,9 @@ def test_each_selection_is_recorded_before_the_next_one_reads_the_view():
                                                                                       for s in sels]
 
 
-def test_in_flight_counts_see_every_earlier_selection_whatever_the_gauges_say():
-    """with the in-flight count, a burst on frozen gauges that show one engine busy still spreads by the
-    dispatches recorded so far (Envoy counts its own active requests); the gauge form sends the whole burst to the
-    engines its stale gauge shows empty."""
+def test_on_frozen_gauges_a_burst_goes_to_the_engines_they_show_empty():
+    """the engines' own gauges, frozen between scrapes with one engine busy: least outstanding sends the whole
+    burst to the engines the gauge shows empty, as a balancer reading scraped engine metrics does."""
     three = of_model("3B")
     gauges = {three[0].instance_id: (5, 0)}          # a stale gauge: engine 0 busy, 1 and 2 idle
     router = FixedRouter("Qwen/Qwen2.5-3B")
@@ -217,17 +216,14 @@ def test_in_flight_counts_see_every_earlier_selection_whatever_the_gauges_say():
         return await asyncio.gather(*(select_instance(router, lor, FLEET, view, RouterRequest("hi", str(k)),
                                                       decode_tokens=ALL64, probe=False) for k in range(6)))
     view = real_view(gauges)
-    run(burst(view, LeastOutstanding("in_flight")))
-    assert [view.loads([i.instance_id])[i.instance_id].in_flight for i in three] == [2, 2, 2]
-    view = real_view(gauges)
-    run(burst(view, LeastOutstanding("engine")))
+    run(burst(view, LeastOutstanding()))
     assert [view.loads([i.instance_id])[i.instance_id].in_flight for i in three] == [0, 3, 3]
 
 
 def test_the_engines_own_counts_steer_least_outstanding():
     three = of_model("3B")
     gauges = {three[0].instance_id: (3, 1), three[1].instance_id: (0, 0), three[2].instance_id: (1, 0)}
-    view, router, lor = real_view(gauges), FixedRouter("Qwen/Qwen2.5-3B"), LeastOutstanding("engine")
+    view, router, lor = real_view(gauges), FixedRouter("Qwen/Qwen2.5-3B"), LeastOutstanding()
     assert select(router, lor, view).instance is three[1]           # the engine that reports an empty queue
     assert view.loads([three[1].instance_id])[three[1].instance_id].stats.num_running == 0   # not dead-reckoned
 
@@ -235,7 +231,7 @@ def test_the_engines_own_counts_steer_least_outstanding():
 def test_failed_selection_leaves_nothing_recorded():
     view = real_view()
     with pytest.raises(ValueError):
-        select(FixedRouter("Qwen/Qwen2.5-1B"), LeastOutstanding("engine"), view)
+        select(FixedRouter("Qwen/Qwen2.5-1B"), LeastOutstanding(), view)
     assert all(ld.in_flight == 0 for ld in view.loads([i.instance_id for i in FLEET]).values())
 
 

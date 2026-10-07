@@ -63,10 +63,6 @@ def set_(key, value):
     return f
 
 
-def whole_max(line):
-    return max(1, int(max(line["lengths"].values())))
-
-
 def worst_candidate(line):
     worst = min(line["candidates"], key=lambda c: c["score"])
     line["instance_id"], line["tier"] = worst["inst"], TIER[worst["inst"]]
@@ -169,24 +165,20 @@ MUST_FAIL = [
      "lpt_key is not the min of the request's expected lengths"),
     (RB_MEAN, first(lambda ln: ln.__setitem__("lpt_key", ln["lpt_key"] * 1.01)),
      "lpt_key is not the mean of the request's expected lengths"),
-    (RB_MIN, first(lambda ln: ln.__setitem__("decode_tokens", whole_max(ln))),
-     "decode_tokens do not follow pending_decode lpt_key"),
     (RB_MAXDIV, first(lambda ln: ln.pop("lpt_key")), "decision line is malformed"),
     (RB_OFF, first(lambda ln: ln.__setitem__("lpt_key", min(ln["lengths"].values()))),
      "lpt_key is not the max (lpt off) of the request's expected lengths"),
-    (RB_OFF, first(lambda ln: ln.__setitem__("decode_tokens", max(1, int(min(ln["lengths"].values()))))),
-     "decode_tokens do not follow pending_decode lpt_key"),
     # decode and feature tokens
     (RB_MAXDIV, first(lambda ln: ln.__setitem__("feature_tokens", ln["feature_tokens"] + 1)),
      "feature_tokens is not the largest expected length"),
     (RB_MAXDIV, first(lambda ln: ln.__setitem__("decode_tokens", ln["feature_tokens"])),
-     "decode_tokens do not follow pending_decode own_length"),
+     "decode_tokens are not the expected length on the chosen model"),
     (RB_FIXEDREF, first(lambda ln: ln.__setitem__("decode_tokens", ln["decode_tokens"] - 1)),
-     "decode_tokens do not follow pending_decode lpt_key"),
+     "decode_tokens are not the expected length on the chosen model"),
     (RB_MAXDIV, first(lambda ln: ln["lengths"].pop("S")), "decision line is malformed"),
     # pipeline
     (LOR, first(lambda ln: ln.pop("reason")), "never dispatched"),
-    (LOR, first(set_("reason", "best_route_4way:argmax_label=1:p=0.900")), "not the passthrough router's"),
+    (LOR, first(set_("reason", "avengers_pro:upstream:rank=1:model=L")), "not the passthrough router's"),
     (DECOUPLED, first(other_tier_in_reason), "chose a model other than the one served"),
     (DECOUPLED, first(lambda ln: ln.__setitem__("reason", "rb_decoupled:tier=no_tier:score=0.5")),
      "named a tier outside the fleet"),
@@ -196,7 +188,7 @@ MUST_FAIL = [
     (LOR, first(set_("lengths", {"S": 1.0, "L": 2.0})), "carries estimator lengths"),
     (LOR, first(set_("candidates", [])), "carries RouteBalance round evidence"),
     (SWEEP, first(lambda ln: ln.__setitem__("decode_tokens", ln["feature_tokens"] + 1)),
-     "decode_tokens do not follow pending_decode own_length"),
+     "decode_tokens are not the expected length on the chosen model"),
     (SWEEP, first(lambda ln: ln.pop("lengths")), "decision line is malformed"),
     # the router lane ran with the configuration's concurrency
     (DECOUPLED, lambda c: edit_manifests(c, lambda m: m["loaded"].__setitem__("router_lane_threads", 1)),
@@ -381,7 +373,7 @@ def test_lpt_off_keeps_no_order_but_writes_the_max(tmp_path):
 
 
 def test_a_zero_expected_length_is_a_valid_estimate(tmp_path):
-    """S5b: an estimate may be 0 tokens (lpt min over a model predicted empty); the decode count is then 1."""
+    """An estimate may be 0 tokens (a model predicted to answer empty); its decode count is then 1."""
     cell = copy_cell(tmp_path, RB_MIN)
 
     def empty(ls):
@@ -389,7 +381,7 @@ def test_a_zero_expected_length_is_a_valid_estimate(tmp_path):
         other = next(m for m in ln["lengths"] if m != "S")
         ln["lengths"] = {"S": 0.0, other: ln["lengths"][other]}
         ln["lpt_key"] = 0.0
-        ln["decode_tokens"] = 1
+        ln["decode_tokens"] = max(1, int(ln["lengths"]["S" if ln["instance_id"] != "L_2" else other]))
         ln["feature_tokens"] = max(1, int(ln["lengths"][other]))
     edit_lines(cell, empty)
     found = problems(cell)

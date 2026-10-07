@@ -116,7 +116,7 @@ Check: the constant and curve sources never import xgboost, and `predict_calls` 
 - `routers.py` picks a model:
   - `passthrough`, which gives every instance to the dispatcher.
   - BEST-Route as its authors ship it: upstream's DeBERTa ranker and routing rule, loaded from a pinned
-    checkout. v3's 4-way classifier is the wired fallback, run only on an explicit switch.
+    checkout.
   - AvengersPro, the upstream cluster router at a pinned commit, its embedder at a pinned revision.
   - `rb_decoupled`, which uses RouteBalance's own predictors and objective on idle-instance latency, so the
     model is fixed before load is visible.
@@ -128,8 +128,6 @@ Check: the constant and curve sources never import xgboost, and `predict_calls` 
   - round robin.
   - least outstanding: the shortest running + waiting queue on the engines' own counts (v3's shortest queue).
   - power of two: of two drawn instances, the one with the shorter engine queue.
-  - Both can instead count their own in-flight requests (`count: in_flight`), as NGINX's `least_conn` and Envoy's
-    `LEAST_REQUEST` do. No configuration of the paper's runs sets it.
   - random.
   - LiteLLM's `lowest_latency` (a 10-sample mean, in which a timeout counts 1000 s).
   - Ties: least outstanding gives them to the least recently assigned instance, as stock balancers rotate among

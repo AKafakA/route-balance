@@ -39,5 +39,5 @@
   "adaptive": true
  },
  "lpt": "max",
- "pending_decode": "lpt_key"
+ "pending_decode": "own_length"
 }

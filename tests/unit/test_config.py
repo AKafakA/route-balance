@@ -44,7 +44,7 @@ RB = {
 LOAD_READING = ("least_outstanding", "po2")
 
 
-def _pipeline(router="best_route", dispatch="least_outstanding", count=None):
+def _pipeline(router="best_route_upstream", dispatch="least_outstanding", count=None):
     """A pipeline system; a load-reading dispatcher reads the engines' gauges (the main grid) unless told otherwise."""
     d = copy.deepcopy(RB)
     d["mode"] = "pipeline"
@@ -130,7 +130,7 @@ def test_valid_configs_parse():
     lambda d: d["latency"].update(envelope="queue_aware"),           # a curve has no single TPOT to queue on
     lambda d: d["latency"].update(source="xgboost", envelope="own_length"),     # not an arm that exists
     lambda d: d.update(pipeline={"router": {"type": "passthrough", "kwargs": {}},
-                                 "dispatch": {"type": "po2", "seed": 1, "count": "in_flight"}}),  # a pipeline in RB mode
+                                 "dispatch": {"type": "po2", "seed": 1, "count": "engine"}}),     # a pipeline in RB mode
     lambda d: d.update(weights=None),                                # RB scoring without weights
     lambda d: d.pop("budget"),                                       # missing section
 ])
@@ -146,10 +146,7 @@ def test_pending_decode_is_required_exactly_in_routebalance_mode():
     d["pending_decode"] = None
     with pytest.raises(ConfigError, match="pending_decode is required"):
         parse_scheduler(d)
-    d = _pipeline(dispatch="random")                       # the sweep's dispatcher (configs/presets.json)
-    d["pending_decode"] = "lpt_key"
-    with pytest.raises(ConfigError, match="lpt_key is RB-only"):
-        parse_scheduler(d)
+    d = _pipeline(dispatch="random")                       # the sweep's dispatcher
     d["pending_decode"] = "own_length"                      # the latency sweep
     with pytest.raises(ConfigError, match="it runs with dead reckoning"):
         parse_scheduler(d)                                  # its logged features must be RouteBalance's view
@@ -189,29 +186,18 @@ def test_the_engine_gauge_controls_parse(read, dispatch):
     assert parse_scheduler(d).pipeline.dispatch.count == "engine"
 
 
-@pytest.mark.parametrize("dispatch", ["least_outstanding", "po2"])
-def test_the_in_flight_count_parses_from_the_cache_and_needs_no_fetch(dispatch):
-    d = _pipeline(dispatch=dispatch, count="in_flight")                  # the appendix row W12
-    assert parse_scheduler(d).pipeline.dispatch.count == "in_flight"
-    d["telemetry_read"] = "per_request"
-    with pytest.raises(ConfigError, match="an in-flight count needs no fetch"):
-        parse_scheduler(d)
-
-
 @pytest.mark.parametrize("read", ["poll", "per_request"])
 def test_an_engine_gauge_dispatcher_is_refused_on_a_dead_reckoned_view(read):
-    # the latency sweep's exception (dead reckoning in a pipeline) must not turn "engine" into the in-flight count
+    # the latency sweep's exception (dead reckoning in a pipeline) must not turn the engines' gauges into the
+    # in-flight count
     d = _pipeline(dispatch="least_outstanding", count="engine")
     d.update(telemetry_read=read, pending_decode="own_length", dead_reckoning=True)
     with pytest.raises(ConfigError, match="without dead reckoning"):
         parse_scheduler(d)
-    d["pipeline"]["dispatch"]["count"] = "in_flight"
-    if read == "poll":
-        assert parse_scheduler(d).pipeline.dispatch.count == "in_flight"      # unaffected by dead reckoning
 
 
-@pytest.mark.parametrize("dispatch,count", [("least_outstanding", None), ("po2", None), ("round_robin", "in_flight"),
-                                            ("random", "engine"), ("lowest_latency", "in_flight"),
+@pytest.mark.parametrize("dispatch,count", [("least_outstanding", None), ("po2", None), ("round_robin", "engine"),
+                                            ("random", "engine"), ("lowest_latency", "engine"),
                                             ("least_outstanding", "queue")])
 def test_count_is_taken_by_the_load_reading_dispatchers_only(dispatch, count):
     d = _pipeline(dispatch=dispatch)

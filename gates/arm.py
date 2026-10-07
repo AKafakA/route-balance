@@ -38,12 +38,12 @@ RouteBalance (mode routebalance)
     request's expected lengths over every model the estimator returned (the line's lengths). Unless lpt is
     off, within a round in position order the lpt_keys do not increase.
   - feature_tokens (the learned heads' length feature) is the largest expected length, in whole tokens.
-  - decode_tokens: with own_length, the expected length on the chosen model; with lpt_key (v3), the line's
-    lpt_key (the configured statistic). Both in whole tokens and at least 1.
+  - decode_tokens: the expected length on the chosen model (pending_decode own_length), in whole tokens and at
+    least 1.
 Pipeline (mode pipeline)
   - Every line is a dispatch carrying the router's reason, prefixed by the configured router type, and a finite
-    router score. Where the reason names a tier or model (rb_decoupled, avengers_pro, best_route_upstream, a
-    best_route fallback), that is the one served.
+    router score. Where the reason names a tier or model (rb_decoupled, avengers_pro, best_route_upstream), that
+    is the one served.
   - decode_tokens and feature_tokens: the request's max_tokens, with no lengths logged. With pending_decode
     own_length (the latency sweep) they are the expected length on the chosen model and the LPT key.
 """
@@ -55,7 +55,6 @@ import re
 import sys
 from collections import Counter
 from pathlib import Path
-from typing import Optional
 
 from gates.cell import Cell, FleetEntry, Problems, open_cell, run
 from routebalance.config import SchedulerConfig, config_digest, load_scheduler
@@ -65,13 +64,12 @@ from routebalance.schedule.score import EPS
 # in schedule/rounds.py fails this gate.
 ADAPTIVE_LIMITS = frozenset({(4, 50.0), (16, 100.0), (32, 200.0)})
 BACKLOG_CAP = 32            # an adaptive round takes the scheduler's backlog up to the largest adaptive size
-REASON_PREFIX = {"passthrough": "passthrough:", "best_route": "best_route_4way:", "avengers_pro": "avengers_pro:",
-                 "rb_decoupled": "rb_decoupled:", "best_route_upstream": "best_route_upstream:"}
+REASON_PREFIX = {"passthrough": "passthrough:", "avengers_pro": "avengers_pro:", "rb_decoupled": "rb_decoupled:",
+                 "best_route_upstream": "best_route_upstream:"}
 # The router's reason names a model, or (rb_decoupled) the tier whose model it returned: the dispatcher then
 # places the request on any instance of that model, whatever its tier.
 NAMED = {"rb_decoupled": (re.compile(r"^rb_decoupled:tier=([^:]+):"), "tier"),
          "avengers_pro": (re.compile(r":model=(.+)$"), "model"),
-         "best_route": (re.compile(r":fallback=(.+)$"), "model"),
          "best_route_upstream": (re.compile(r":model=(.+)$"), "model")}
 REF_RTOL = 1e-9            # fixed_ref: term * latency = the reference, up to float rounding
 MEAN_RTOL = 1e-9           # lpt mean: the scheduler's mean of the lengths, up to the order of the float sum
@@ -186,16 +184,15 @@ def _lpt_key(p: Problems, rid: str, line: dict, lpt: str, lengths: dict) -> floa
     return key
 
 
-def _decode(p: Problems, rid: str, line: dict, cfg: SchedulerConfig, fleet_model: str, lengths: dict,
-            lpt_key: Optional[float]) -> None:
-    """lpt_key: the line's checked LPT key; None for a pipeline line, whose pending_decode is never lpt_key."""
+def _decode(p: Problems, rid: str, line: dict, fleet_model: str, lengths: dict) -> None:
+    """A line under pending_decode own_length: its feature and decode tokens, from its expected lengths."""
     longest = whole(max(lengths.values()))
     if _get(line, "feature_tokens") != longest:
         p.add("feature_tokens is not the largest expected length in whole tokens (the heads' feature)",
               f"{rid}: {line['feature_tokens']} != {longest}")
-    want = whole(lengths[fleet_model]) if cfg.pending_decode == "own_length" else whole(lpt_key)
+    want = whole(lengths[fleet_model])
     if _get(line, "decode_tokens") != want:
-        p.add(f"decode_tokens do not follow pending_decode {cfg.pending_decode}",
+        p.add("decode_tokens are not the expected length on the chosen model in whole tokens",
               f"{rid}: {line['decode_tokens']} != {want}")
 
 
@@ -255,9 +252,9 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
             _latency_terms(p, rid, cands, cfg.latency.normalization, scales)
             lengths = _lengths(line, models)
             _cost_terms(p, rid, line, cands, by_id, lengths, scales)
-            key = _lpt_key(p, rid, line, cfg.lpt, lengths)
+            _lpt_key(p, rid, line, cfg.lpt, lengths)
             if line["instance_id"] in model_of:
-                _decode(p, rid, line, cfg, model_of[line["instance_id"]], lengths, key)
+                _decode(p, rid, line, model_of[line["instance_id"]], lengths)
             for key in ("round", "round_size", "round_pos", "round_max_batch", "round_backlog"):
                 if not isinstance(_get(line, key), int) or isinstance(line[key], bool):
                     raise _Malformed(f"{key} {line[key]!r} is not an integer")
@@ -406,7 +403,7 @@ def _pipeline(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], lines:
                         p.add("the router chose a model other than the one served",
                               f"{rid}: {named[1]} {name!r} vs served model {served.model!r}")
             if cfg.pending_decode == "own_length":
-                _decode(p, rid, line, cfg, served.model, _lengths(line, models), None)
+                _decode(p, rid, line, served.model, _lengths(line, models))
             else:
                 if "lengths" in line:
                     p.add("a baseline line carries estimator lengths (no estimator should run)", rid)

@@ -1,11 +1,11 @@
 {
- "record_sha256": "ac8c271e4047b72dd63f0ecb2e4cb1a413850f8c39d6816b152b425e1aa0b567",
+ "record_sha256": "963f98cbce47fd650d82d25175da269f02ddd4aca918f4923f59be33846d3c56",
  "instances": {
   "S_0": {
-   "argv_sha256": "bff8c2610d1c6c16bd9e21077a8dc426f58382c4a6f27fcb8f5ca94195bdf8b3",
-   "argv": "--model S --port 49525 --max-num-seqs 8",
+   "argv_sha256": "8f860467833f755d32cd6e9f30143c2e4979aa8df8e75ae7764406d196f35288",
+   "argv": "--model S --port 37747 --max-num-seqs 8",
    "gpus": "0",
-   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 49525 --max-num-seqs 8",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 37747 --max-num-seqs 8",
    "start_time_s": 1790000000.0,
    "cache_config": {
     "block_size": "16",
@@ -25,10 +25,10 @@
    }
   },
   "S_1": {
-   "argv_sha256": "17e5f92076f746e0a2da72ae349268f10f7d5ea2ffbf660592dd1979409c5c93",
-   "argv": "--model S --port 35197 --max-num-seqs 8",
+   "argv_sha256": "799d77469bbf2c13ebba5e2bf1e631d27432aeb1bb782738085d5928140e3fbb",
+   "argv": "--model S --port 53311 --max-num-seqs 8",
    "gpus": "0",
-   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 35197 --max-num-seqs 8",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model S --port 53311 --max-num-seqs 8",
    "start_time_s": 1790000000.0,
    "cache_config": {
     "block_size": "16",
@@ -40,18 +40,18 @@
    "model": "S",
    "max_model_len": 4096,
    "served": {
-    "requests": 26,
-    "prompt_tokens": 130,
-    "generation_tokens": 52,
-    "prefix_queries": 130,
-    "prefix_hits": 56
+    "requests": 25,
+    "prompt_tokens": 125,
+    "generation_tokens": 50,
+    "prefix_queries": 125,
+    "prefix_hits": 52
    }
   },
   "L_2": {
-   "argv_sha256": "ef106caf17c5d89f3d4c88e6bbfea2f312b275bf7aa65e5514c8084c5dd7d1bf",
-   "argv": "--model L --port 58623 --max-num-seqs 8",
+   "argv_sha256": "f1188f10f9d416d9c9bc759fcc5e03d829c717768367dde71954e377ca2fbf08",
+   "argv": "--model L --port 46661 --max-num-seqs 8",
    "gpus": "0",
-   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model L --port 58623 --max-num-seqs 8",
+   "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model L --port 46661 --max-num-seqs 8",
    "start_time_s": 1790000000.0,
    "cache_config": {
     "block_size": "16",
@@ -63,11 +63,11 @@
    "model": "L",
    "max_model_len": 4096,
    "served": {
-    "requests": 43,
-    "prompt_tokens": 215,
-    "generation_tokens": 86,
-    "prefix_queries": 215,
-    "prefix_hits": 108
+    "requests": 44,
+    "prompt_tokens": 220,
+    "generation_tokens": 88,
+    "prefix_queries": 220,
+    "prefix_hits": 112
    }
   }
  }

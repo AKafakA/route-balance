@@ -69,7 +69,7 @@ def pipeline(router: dict, **kw) -> dict:
     cfg = copy.deepcopy(BASE)
     cfg.update(mode="pipeline", normalize_over=None,
                weights=None, pending_decode=None, dead_reckoning=False, telemetry_read="poll",
-               pipeline={"router": router, "dispatch": {"type": "least_outstanding", "seed": 1, "count": "in_flight"}}, **kw)
+               pipeline={"router": router, "dispatch": {"type": "least_outstanding", "seed": 1, "count": "engine"}}, **kw)
     return cfg
 
 
@@ -101,14 +101,15 @@ def test_a_passthrough_baseline_loads_no_artifact(tmp_path, fake_knn):
     assert load(pipeline({"type": "passthrough", "kwargs": {}}), tmp_path).artifacts == {}
 
 
-def test_a_router_checkpoint_is_recorded_file_by_file(tmp_path, monkeypatch, fake_knn):
+def test_a_router_artifact_directory_is_recorded_file_by_file(tmp_path, monkeypatch, fake_knn):
     monkeypatch.setattr(server, "build_router", lambda *a, **kw: PassthroughRouter())
-    (tmp_path / "br/ckpt/tok").mkdir(parents=True)
-    (tmp_path / "br/ckpt/config.json").write_bytes(b"{}")
-    (tmp_path / "br/ckpt/tok/spm.model").write_bytes(b"\x00\x01")
-    cfg = pipeline({"type": "best_route", "kwargs": {"checkpoint": "br/ckpt", "confidence_threshold": 0.0,
-                                                     "max_length": 512}})
-    assert load(cfg, tmp_path).artifacts == {"br/ckpt/config.json": md5(b"{}"), "br/ckpt/tok/spm.model": md5(b"\x00\x01")}
+    (tmp_path / "ap/sub").mkdir(parents=True)
+    (tmp_path / "ap/config.json").write_bytes(b"{}")
+    (tmp_path / "ap/sub/kmeans.joblib").write_bytes(b"\x00\x01")
+    cfg = pipeline({"type": "avengers_pro", "kwargs": {"artifact_dir": "ap", "beta": 5.0, "top_k": 4,
+                                                       "embedder": ENCODER, "embedder_revision": "e" * 40}})
+    assert load(cfg, tmp_path).artifacts == {"ap/config.json": md5(b"{}"), "ap/sub/kmeans.joblib": md5(b"\x00\x01"),
+                                             f"avengers_pro@{ENCODER}@{'e' * 40}": "9" * 32}
 
 
 def test_avengers_pro_records_its_artifact_dir_and_its_embedder(tmp_path, monkeypatch, fake_knn):
@@ -225,10 +226,10 @@ def test_load_components_hands_every_pipeline_router_the_lane(tmp_path, monkeypa
     """build_router gets the one-at-a-time lane, not RouteBalance's shared pool."""
     got = []
     monkeypatch.setattr(server, "build_router", lambda *a, **kw: got.append(kw["executor"]) or PassthroughRouter())
-    (tmp_path / "br/ckpt").mkdir(parents=True)
-    (tmp_path / "br/ckpt/config.json").write_bytes(b"{}")
-    cfg = pipeline({"type": "best_route", "kwargs": {"checkpoint": "br/ckpt", "confidence_threshold": 0.0,
-                                                     "max_length": 512}})
+    (tmp_path / "ap").mkdir()
+    (tmp_path / "ap/kmeans.joblib").write_bytes(b"km")
+    cfg = pipeline({"type": "avengers_pro", "kwargs": {"artifact_dir": "ap", "beta": 5.0, "top_k": 4,
+                                                       "embedder": ENCODER, "embedder_revision": "e" * 40}})
     with ThreadPoolExecutor(1) as lane:
         server.load_components(parse_scheduler(cfg), FLEET, artifact_root=tmp_path, avengers_repo=None,
                                router_lane=lane)

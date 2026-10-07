@@ -80,7 +80,7 @@ THREAD_ENV = ("OMP_NUM_THREADS", "OMP_DYNAMIC", "OMP_PROC_BIND", "OMP_PLACES", "
               "MKL_DYNAMIC", "OPENBLAS_NUM_THREADS", "VECLIB_MAXIMUM_THREADS", "NUMEXPR_NUM_THREADS",
               "RAYON_NUM_THREADS", "TOKENIZERS_PARALLELISM", "CUDA_VISIBLE_DEVICES")
 # The router option that names the artifact directory a router loads by path (its files are md5-recorded).
-ROUTER_ARTIFACT_OPTION = {"best_route": "checkpoint", "best_route_upstream": "checkpoint", "avengers_pro": "artifact_dir"}
+ROUTER_ARTIFACT_OPTION = {"best_route_upstream": "checkpoint", "avengers_pro": "artifact_dir"}
 
 
 class Busy(RuntimeError):
@@ -393,7 +393,6 @@ class RouteBalance:
                 await loop.run_in_executor(self._executor, functools.partial(
                     schedule_round, requests, self._fleet, loads, self._c.latency, weights=cfg.weights,
                     normalization=cfg.latency.normalization, normalize_over=cfg.normalize_over, lpt=cfg.lpt,
-                    pending_decode=cfg.pending_decode,
                     last_assigned=self.last_assigned, clock=time.monotonic, admission=admission,
                     on_decision=decided))
             except Exception as e:     # the round fails loudly: every request not yet dispatched gets the error

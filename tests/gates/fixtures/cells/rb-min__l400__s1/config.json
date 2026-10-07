@@ -38,5 +38,5 @@
   "timeout_ms": 30.0
  },
  "lpt": "min",
- "pending_decode": "lpt_key"
+ "pending_decode": "own_length"
 }

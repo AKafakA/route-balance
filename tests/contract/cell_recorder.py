@@ -131,17 +131,17 @@ def configs(table_md5: str, prefill_md5: str) -> dict[str, dict]:
                 normalize_over="request")                  # v3's per-request scale ("round" is the main one)
     return {
         "rb-maxdiv": maxdiv,
-        "rb-round": maxdiv | {"normalize_over": "round", "lpt": "off", "pending_decode": "lpt_key"},   # the
+        "rb-round": maxdiv | {"normalize_over": "round", "lpt": "off"},   # the
         #           round's scales; arrival order, so a later request can raise the running latency maximum
         "w4-ref": maxdiv,
         "w4-nodr": maxdiv | {"dead_reckoning": False},
-        "rb-fixedref": rb(rounds={"adaptive": True}, lpt="max", pending_decode="lpt_key", latency=curve),
+        "rb-fixedref": rb(rounds={"adaptive": True}, lpt="max", pending_decode="own_length", latency=curve),
         "rb-min": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="min",
-                     pending_decode="lpt_key"),               # the LPT-key ablation; decode = the key
+                     pending_decode="own_length"),            # the LPT-key ablation
         "rb-mean": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="mean",
                       pending_decode="own_length", latency=curve),
         "rb-off": rb(rounds={"adaptive": False, "max_batch": 8, "timeout_ms": 30.0}, lpt="off", normalize_over="request",
-                     pending_decode="lpt_key"),               # arrival order; lpt_key and decode = the max
+                     pending_decode="own_length"),            # arrival order; lpt_key = the max
         "rb-poll": maxdiv | {"telemetry_read": "poll"},       # RouteBalance on the pollers' cache
         "lor": pipe(passthrough, {"type": "least_outstanding", "seed": 1, "count": "engine"}),   # the main grid
         "lor-probe": pipe(passthrough, {"type": "least_outstanding", "seed": 1, "count": "engine"},

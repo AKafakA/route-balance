@@ -15,10 +15,9 @@ when the round is scheduled. Every instance of the fleet is a candidate.
      scored: the server dispatches the request then, as v3 did, so no request waits for the rest of its
      round to be scored. The decisions are the same with or without it.
 
-The decode tokens recorded for an assignment are, with pending_decode="own_length", the expected length
-of the request on the chosen model; with "lpt_key" (v3), its LPT key (the configured statistic; "max" when
-LPT is off, as v3 recorded), truncated to whole tokens and at least 1 (v3 truncated and could add 0). The
-same number goes to the telemetry view at dispatch.
+The decode tokens recorded for an assignment (pending_decode "own_length") are the expected length of the
+request on the chosen model, truncated to whole tokens and at least 1 (v3 truncated and could add 0). The same
+number goes to the telemetry view at dispatch.
 """
 from __future__ import annotations
 
@@ -32,7 +31,6 @@ from routebalance.schedule.score import Candidate, Normalization, Scales, Scored
 from routebalance.telemetry import InstanceStats, Load
 from routebalance.types import Instance
 
-PendingDecode = Literal["own_length", "lpt_key"]
 NormalizeOver = Literal["request", "round"]   # config.SchedulerConfig.normalize_over
 NEVER = 0.0   # the last-assigned time of an instance that has not won a request yet (v3), before any clock value
 
@@ -103,7 +101,7 @@ def _idle(s: InstanceStats) -> InstanceStats:
 
 def _decode_tokens(length: float) -> int:
     """Whole tokens, at least 1 (the telemetry view needs a positive prediction; v3 truncated and could add 0,
-    which differs only for an expectation below one token, e.g. lpt="min" over a model predicted empty)."""
+    which differs only for an expectation below one token, e.g. a model predicted to answer empty)."""
     if not (math.isfinite(length) and length >= 0):
         raise ValueError(f"expected length must be finite and >= 0, got {length!r}")
     return max(1, int(length))
@@ -120,14 +118,14 @@ def _worst_case(inst: Instance, req: RoundRequest) -> float:
 
 def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instance], loads: Mapping[str, Load],
                    latency: LatencyModel, *, weights: Weights, normalization: Normalization,
-                   normalize_over: NormalizeOver, lpt: Lpt, pending_decode: PendingDecode,
+                   normalize_over: NormalizeOver, lpt: Lpt,
                    last_assigned: MutableMapping[str, float], clock: Callable[[], float],
                    admission: Optional[Admission],
                    on_decision: Optional[Callable[[Decision], None]]) -> list[Decision]:
     if not instances:
         raise ValueError("no instances")
-    if lpt not in ("max", "min", "mean", "off") or pending_decode not in ("own_length", "lpt_key"):
-        raise ValueError(f"unknown lpt {lpt!r} or pending_decode {pending_decode!r}")
+    if lpt not in ("max", "min", "mean", "off"):
+        raise ValueError(f"unknown lpt {lpt!r}")
     if normalize_over not in ("request", "round"):
         raise ValueError(f"unknown normalize_over {normalize_over!r}")
     fleet_models = {inst.model for inst in instances}
@@ -177,7 +175,7 @@ def schedule_round(requests: Sequence[RoundRequest], instances: Sequence[Instanc
         last_assigned[best.instance_id] = clock()
         inst = next(i for i in instances if i.instance_id == best.instance_id)
         key = lpt_key(req, lpt)
-        tokens = _decode_tokens(lengths[inst.model] if pending_decode == "own_length" else key)
+        tokens = _decode_tokens(lengths[inst.model])
         st = states[inst.instance_id]
         states[inst.instance_id] = replace(st, num_waiting=st.num_waiting + 1,
                                            pending_decode_tokens=st.pending_decode_tokens + tokens)

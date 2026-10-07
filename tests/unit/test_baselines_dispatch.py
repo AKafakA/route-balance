@@ -21,7 +21,7 @@ def loads_for(cands, **by_index):
     return out
 
 
-@pytest.mark.parametrize("d", [RoundRobin(), LeastOutstanding("engine"), PowerOfTwo(1, "engine"), RandomDispatch(1),
+@pytest.mark.parametrize("d", [RoundRobin(), LeastOutstanding(), PowerOfTwo(1), RandomDispatch(1),
                                LowestLatency(10, 1)])
 def test_empty_candidates_raise(d):
     with pytest.raises(ValueError):
@@ -63,25 +63,25 @@ class Ticks:
 
 
 def test_idle_candidates_rotate_by_least_recent_assignment():
-    d = LeastOutstanding("engine", clock=Ticks())
+    d = LeastOutstanding(clock=Ticks())
     assert [d.choose(SEVEN, IDLE) for _ in range(12)] == SEVEN + SEVEN + SEVEN[:2]
 
 
 def test_idle_candidates_rotate_even_on_a_frozen_clock():
-    d = LeastOutstanding("engine", clock=lambda: 5.0)       # every stamp equal: never-assigned (0.0) still goes first
+    d = LeastOutstanding(clock=lambda: 5.0)       # every stamp equal: never-assigned (0.0) still goes first
     assert [d.choose(SEVEN, IDLE) for _ in range(5)] == SEVEN
 
 
 def test_a_smaller_key_beats_recency():
     busy = load(running=1, in_flight=1)
-    d = LeastOutstanding("engine", clock=Ticks())
+    d = LeastOutstanding(clock=Ticks())
     d.choose(SEVEN, IDLE)                       # SEVEN[0] is now the most recently assigned
     loads = {c.instance_id: busy for c in SEVEN} | {SEVEN[0].instance_id: load()}
     assert d.choose(SEVEN, loads) is SEVEN[0]
 
 
 def test_a_new_config_forgets_assignment_times():
-    cfg = Dispatch(type="least_outstanding", seed=1, count="in_flight")
+    cfg = Dispatch(type="least_outstanding", seed=1, count="engine")
     d = build_dispatcher(cfg)
     assert [d.choose(SEVEN, IDLE) for _ in range(3)] == SEVEN[:3]
     assert build_dispatcher(cfg).choose(SEVEN, IDLE) is SEVEN[0]
@@ -93,30 +93,7 @@ def test_least_outstanding_reads_the_views_queue():
     loads = loads_for(SEVEN, i0=load(running=3), i1=load(running=1, in_flight=40), i2=load(waiting=1),
                       i3=load(running=1, waiting=1), i4=load(running=5))
     busy = {c.instance_id: load(running=9) for c in SEVEN[5:]}
-    assert LeastOutstanding("engine").choose(SEVEN, loads | busy) is SEVEN[1]   # tie between i1 and i2, neither assigned yet
-
-
-def test_in_flight_least_outstanding_counts_the_schedulers_own_requests():
-    """Envoy / NGINX least_conn: the count is the requests the scheduler sent and has not seen complete,
-    whatever the lagging gauges say (i1's gauge still shows an idle engine right after 40 dispatches)."""
-    loads = loads_for(SEVEN, i0=load(running=3, in_flight=3), i1=load(in_flight=40), i2=load(waiting=1, in_flight=2),
-                      i3=load(running=1, in_flight=1), i4=load(running=5, in_flight=5))
-    busy = {c.instance_id: load(running=9, in_flight=9) for c in SEVEN[5:]}
-    assert LeastOutstanding("in_flight").choose(SEVEN, loads | busy) is SEVEN[3]
-    assert LeastOutstanding("engine").choose(SEVEN, loads | busy) is SEVEN[1]      # the gauge form is fooled
-
-
-def test_in_flight_power_of_two_compares_the_drawn_pairs_in_flight_counts():
-    # the same draws in both forms; only the count that decides between the drawn pair differs
-    cands = SEVEN[:2]
-    loads = loads_for(cands, i0=load(in_flight=5), i1=load(running=3, waiting=4, in_flight=1))
-    a, b = PowerOfTwo(3, "in_flight"), PowerOfTwo(3, "engine")
-    assert a.choose(cands, loads) is SEVEN[1] and b.choose(cands, loads) is SEVEN[0]
-
-
-def test_an_unknown_count_is_refused():
-    with pytest.raises(ConfigError, match="unknown dispatch count"):
-        LeastOutstanding("queue").choose(SEVEN, IDLE)
+    assert LeastOutstanding().choose(SEVEN, loads | busy) is SEVEN[1]   # tie between i1 and i2, neither assigned yet
 
 
 def test_under_dead_reckoning_the_queue_is_the_in_flight_count():
@@ -143,13 +120,13 @@ def test_under_dead_reckoning_the_queue_is_the_in_flight_count():
 
 def test_least_outstanding_needs_every_candidate_load():
     with pytest.raises(KeyError):
-        LeastOutstanding("engine").choose(SEVEN, {SEVEN[0].instance_id: load()})
+        LeastOutstanding().choose(SEVEN, {SEVEN[0].instance_id: load()})
 
 
 # ---------------------------------------------------------------- power of two
 
 def test_po2_draws_like_random_sample_and_keeps_the_shorter():
-    po2, ref = PowerOfTwo(7, "engine"), random.Random(7)
+    po2, ref = PowerOfTwo(7), random.Random(7)
     queues = {c.instance_id: load(running=k) for k, c in enumerate(SEVEN)}
     for _ in range(50):
         pair = ref.sample(SEVEN, 2)
@@ -159,13 +136,13 @@ def test_po2_draws_like_random_sample_and_keeps_the_shorter():
 
 
 def test_po2_tie_goes_to_the_first_drawn():
-    po2, ref = PowerOfTwo(3, "engine"), random.Random(3)
+    po2, ref = PowerOfTwo(3), random.Random(3)
     for _ in range(20):
         assert po2.choose(SEVEN, IDLE) is ref.sample(SEVEN, 2)[0]
 
 
 def test_po2_single_candidate_consumes_no_randomness():
-    po2 = PowerOfTwo(5, "engine")
+    po2 = PowerOfTwo(5)
     before = po2._rng.getstate()
     one = of_model("72B")[:1]
     assert po2.choose(one, IDLE) is one[0]
@@ -173,7 +150,7 @@ def test_po2_single_candidate_consumes_no_randomness():
 
 
 def test_po2_same_seed_same_sequence():
-    a, b = PowerOfTwo(11, "engine"), PowerOfTwo(11, "engine")
+    a, b = PowerOfTwo(11), PowerOfTwo(11)
     assert [a.choose(FLEET, IDLE) for _ in range(30)] == [b.choose(FLEET, IDLE) for _ in range(30)]
 
 
@@ -274,14 +251,8 @@ def test_other_dispatchers_ignore_completions_and_timeouts():
 @pytest.mark.parametrize("dtype,cls", [("round_robin", RoundRobin), ("least_outstanding", LeastOutstanding),
                                        ("po2", PowerOfTwo), ("random", RandomDispatch)])
 def test_build_dispatcher_types(dtype, cls):
-    count = "in_flight" if dtype in ("least_outstanding", "po2") else None
+    count = "engine" if dtype in ("least_outstanding", "po2") else None
     assert type(build_dispatcher(Dispatch(type=dtype, seed=1, count=count))) is cls
-
-
-@pytest.mark.parametrize("count", ["in_flight", "engine"])
-def test_build_dispatcher_passes_the_count(count):
-    for dtype in ("least_outstanding", "po2"):
-        assert build_dispatcher(Dispatch(type=dtype, seed=1, count=count))._count == count
 
 
 def test_shortest_queue_is_not_a_dispatcher():
@@ -295,7 +266,7 @@ def test_build_lowest_latency_takes_the_configured_window():
 
 
 def test_each_applied_config_reseeds():
-    cfg = Dispatch(type="po2", seed=4, count="in_flight")
+    cfg = Dispatch(type="po2", seed=4, count="engine")
     first = build_dispatcher(cfg)
     seq = [first.choose(FLEET, IDLE) for _ in range(10)]
     again = build_dispatcher(cfg)

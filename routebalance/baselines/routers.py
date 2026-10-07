@@ -1,8 +1,6 @@
 """Baseline routers: each picks a MODEL for a request; a dispatcher then picks the instance.
 
   passthrough   no model choice: the dispatcher sees every instance (the v3 "__ALL__" sentinel)
-  best_route    v3's 4-way DeBERTa classifier for BEST-Route: argmax, with an optional confidence floor (the
-                backup of best_route_upstream)
   best_route_upstream  BEST-Route as its authors ship it (microsoft/best-route-llm): upstream's ranker and
                 its routing rule, loaded from the pinned checkout
   avengers_pro  the upstream AvengersPro cluster router, wrapped as v3 wrapped it
@@ -93,82 +91,6 @@ class PassthroughRouter(Router):
     async def choose_model(self, request: RouterRequest, pool: Sequence[str]) -> RouterDecision:
         _require_pool(pool)
         return RouterDecision(ALL_INSTANCES, 1.0 / len(pool), "passthrough:no_routing")
-
-
-# ---------------------------------------------------------------- BEST-Route
-
-Classify = Callable[[str], tuple[int, float]]   # prompt -> (argmax label, its softmax probability)
-
-
-class BestRouteRouter(Router):
-    """v3 decision order: a label outside the pool goes to the fallback even at threshold 0; then a
-    probability strictly below the threshold goes to the fallback. The fallback is never inferred."""
-
-    def __init__(self, classify: Classify, label_to_model: Mapping[int, str], *, threshold: float,
-                 fallback: Optional[str], executor: Executor):
-        if threshold > 0 and fallback is None:
-            raise ConfigError(f"best_route: confidence_threshold={threshold} needs an explicit fallback_model")
-        self._classify = classify
-        self._label_to_model = dict(label_to_model)
-        self._threshold = threshold
-        self._fallback = fallback
-        self._executor = executor
-
-    def _fallback_in(self, pool: Sequence[str], why: str) -> str:
-        if self._fallback is None:
-            raise RuntimeError(f"best_route: {why} needs an explicit fallback_model")
-        if self._fallback not in pool:
-            raise RuntimeError(f"best_route: fallback_model {self._fallback!r} is not in the pool {list(pool)}")
-        return self._fallback
-
-    async def choose_model(self, request: RouterRequest, pool: Sequence[str]) -> RouterDecision:
-        _require_pool(pool)
-        label, prob = await _off_loop(self._executor, self._classify, request.prompt)
-        if not (math.isfinite(prob) and 0.0 <= prob <= 1.0):
-            raise RuntimeError(f"best_route: the classifier's probability {prob!r} is not in [0, 1]")
-        chosen = self._label_to_model.get(label)
-        if chosen is None or chosen not in pool:
-            fb = self._fallback_in(pool, "pool_miss")
-            return RouterDecision(fb, prob, f"best_route_4way:pool_miss:label={label}:fallback={fb}")
-        if self._threshold > 0 and prob < self._threshold:
-            fb = self._fallback_in(pool, "low_conf")
-            return RouterDecision(fb, prob, f"best_route_4way:low_conf:p={prob:.3f}<{self._threshold}:fallback={fb}")
-        return RouterDecision(chosen, prob, f"best_route_4way:argmax_label={label}:p={prob:.3f}")
-
-
-class _DebertaClassifier:
-    """The checkpoint exactly as v3 ran it: slow SentencePiece tokenizer, one unpadded prompt truncated
-    at max_length, float32 on the CPU (the scheduler node's GPU serves a model instance)."""
-
-    def __init__(self, checkpoint: Path, max_length: int):
-        import torch
-        from transformers import AutoModelForSequenceClassification, AutoTokenizer
-        self._torch = torch
-        self._max_length = max_length
-        self._tok = AutoTokenizer.from_pretrained(str(checkpoint), use_fast=False)
-        self._model = AutoModelForSequenceClassification.from_pretrained(str(checkpoint)).to("cpu").eval()
-
-    def __call__(self, prompt: str) -> tuple[int, float]:
-        enc = self._tok(prompt, max_length=self._max_length, truncation=True, padding=False, return_tensors="pt")
-        with self._torch.no_grad():
-            probs = self._torch.softmax(self._model(**enc).logits.squeeze(0), dim=-1)
-        top = int(self._torch.argmax(probs).item())   # first maximal label on a tie
-        return top, float(probs[top].item())
-
-
-def load_best_route(checkpoint: Path, max_length: int) -> tuple[Classify, dict[int, str]]:
-    if not (checkpoint / "config.json").is_file():
-        raise ConfigError(f"best_route: no checkpoint at {checkpoint}")
-    results = checkpoint / "training_results.json"
-    try:
-        label_to_model = loads_strict(results.read_text())["label_to_model"]
-    except (OSError, KeyError, TypeError, ConfigError) as e:
-        raise ConfigError(f"best_route: no label_to_model in {results}: {e!r}") from e
-    if not isinstance(label_to_model, dict) or not label_to_model:
-        raise ConfigError(f"best_route: label_to_model in {results} must be a non-empty object")
-    classify = _DebertaClassifier(checkpoint, max_length)
-    classify("construction probe")       # the first forward pays one-time setup here, not in a measured cell
-    return classify, {int(k): str(v) for k, v in label_to_model.items()}
 
 
 # ---------------------------------------------------------------- BEST-Route, as its authors ship it
@@ -524,13 +446,6 @@ class _NoOptions(_Options):
     pass
 
 
-class _BestRouteOptions(_Options):
-    checkpoint: ArtifactPath
-    confidence_threshold: float = Field(ge=0, lt=1)      # 0 = pure argmax (with 4 labels, anything <= 0.25 is)
-    fallback_model: str = Field(min_length=1)            # below the threshold, or a prediction outside the pool
-    max_length: int = Field(ge=1)                        # 512 = training length = the model's positions
-
-
 class _BestRouteUpstreamOptions(_Options):
     checkpoint: ArtifactPath                          # upstream's checkpoint-best
     threshold: float = Field(ge=-1, le=1)             # on the score P(as good as the reference) - P(worse)
@@ -557,7 +472,7 @@ def _options(model: type[_Options], cfg: RouterConfig) -> _Options:
         raise ConfigError(f"invalid {cfg.type} router kwargs: {e}") from e
 
 
-_OPTIONS = {"passthrough": _NoOptions, "best_route": _BestRouteOptions, "best_route_upstream": _BestRouteUpstreamOptions,
+_OPTIONS = {"passthrough": _NoOptions, "best_route_upstream": _BestRouteUpstreamOptions,
             "avengers_pro": _AvengersProOptions, "rb_decoupled": _NoOptions}
 
 
@@ -584,11 +499,6 @@ def build_router(cfg: RouterConfig, *, artifact_root: Path, avengers_repo: Optio
     if cfg.type == "passthrough":
         _options(_NoOptions, cfg)
         return PassthroughRouter()
-    if cfg.type == "best_route":
-        br = _options(_BestRouteOptions, cfg)
-        classify, labels = load_best_route(artifact_root / br.checkpoint, br.max_length)
-        return BestRouteRouter(classify, labels, threshold=br.confidence_threshold, fallback=br.fallback_model,
-                               executor=executor)
     if cfg.type == "best_route_upstream":
         bu = _options(_BestRouteUpstreamOptions, cfg)
         if best_route_repo is None or prices is None:

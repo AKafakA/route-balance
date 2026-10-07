@@ -1,7 +1,7 @@
 {
  "format": "rb-manifest/1",
- "config_digest": "693b6a0961b5fc73cae7f73178b143cffdeceffeb45a994d631ca17b2c1febdf",
- "fleet_digest": "623c0c0c93128ce3fbba484005ae9462a6e09b27c67572b8115f46bd046dbbe1",
+ "config_digest": "81f6a71c40d462338ae8aef4bc7488baa8ce88d19310d48326b42b944843e1ec",
+ "fleet_digest": "8364ef4366209cb77649f85923039c2103d6b0fdfa28091fd4fae1f3bd5194d6",
  "fleet": [
   {
    "instance_id": "S_0",
@@ -49,7 +49,7 @@
   },
   "lpt": "off",
   "normalize_over": "request",
-  "pending_decode": "lpt_key",
+  "pending_decode": "own_length",
   "latency": {
    "source": "constant",
    "envelope": "own_length",
@@ -93,9 +93,9 @@
   "calib/tpot.json": "3004488055fdb43f53da93726b9e2130"
  },
  "code": {
-  "routebalance": "8295ed7a6b029134bf40ba1863b7b5fe85ce5d6ad3533f1961addb566cc2986b",
+  "routebalance": "0a9511c27b5abfde3a205efbdb9a451d08a7337a35f92d80ab7b965a7a1c2d2c",
   "avengers_pro": null,
-  "routebalance_now": "8295ed7a6b029134bf40ba1863b7b5fe85ce5d6ad3533f1961addb566cc2986b",
+  "routebalance_now": "0a9511c27b5abfde3a205efbdb9a451d08a7337a35f92d80ab7b965a7a1c2d2c",
   "avengers_pro_now": null
  },
  "threadpools": {
