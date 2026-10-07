@@ -25,7 +25,8 @@ ENGINES = {"record_sha256": "a" * 64, "instances": {"e_0": {
     "argv_sha256": "b" * 64, "argv": "--model M --port 8000", "gpus": "0",
     "cmdline": "/venv/bin/python -u -m vllm.entrypoints.openai.api_server --model M --port 8000",
     "start_time_s": 1790000000.0,
-    "cache_config": {"block_size": "16", "num_gpu_blocks": "8000"}, "model": "M", "max_model_len": 4096}}}
+    "cache_config": {"block_size": "16", "num_gpu_blocks": "8000"}, "model": "M", "max_model_len": 4096,
+    "served": {"requests": 0, "prompt_tokens": 0, "generation_tokens": 0, "prefix_queries": 0, "prefix_hits": 0}}}}
 
 
 @pytest.fixture

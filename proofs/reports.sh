@@ -4,7 +4,7 @@
 #   proofs/reports.sh TREE ADAPTER BUNDLE PYTHON OUT
 #
 # TREE      the code tree (its analysis/, gates/, tools/ and configs/ are used); copied into OUT/code
-# ADAPTER   v1: the tree's parity gate is `python -m tools.cell_driver parity`
+# ADAPTER   submission: the tree's parity gate is `python -m tools.cell_driver parity`
 # BUNDLE    the run bundle: runs/<family>/<run>/, views/{q1,qall,g1,gall}/ (links to the runs), reports/report-*/ and
 #           reports/report-*.log, inputs/ (the data roots, the SLO bases, the budget judge stores, the hosts file)
 # PYTHON    the scheduler environment's python
@@ -29,7 +29,7 @@ export PYTHONHASHSEED=0 OMP_NUM_THREADS=8 MKL_NUM_THREADS=8 PYTHONPATH=$OUT/code
 
 parity() {   # parity VIEW GROUP  (run in OUT/code)
   case "$ADAPTER" in
-    v1) "$PY" -m tools.cell_driver parity --render ../render36 --cells-root "$1" --group "$2" ;;
+    submission) "$PY" -m tools.cell_driver parity --render ../render36 --cells-root "$1" --group "$2" ;;
     *) echo "unknown adapter $ADAPTER" >&2; return 2 ;;
   esac
 }

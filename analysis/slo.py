@@ -78,15 +78,13 @@ class CellSlo:
     def instances(self) -> frozenset[str]:
         return frozenset(i for per in self.limits.values() for i in per)
 
-    def met(self, level: str, instance_id: str, first_token_s: Optional[float], server_latency_s: float,
+    def met(self, level: str, instance_id: str, first_token_s: float, server_latency_s: float,
             ttft_s: float, output_tokens: int) -> bool:
         """first_token_s: the scheduler's clock from the request's arrival to its first token (v2's client_ttft); no
         longer reconstructed as E2E minus the decode, which also counted the reply's delivery after the last token."""
         lim = self.limits[level].get(instance_id)
         if lim is None:
             raise ConfigError(f"instance {instance_id} is not in the cell's fleet")
-        if first_token_s is None:
-            raise ConfigError(f"instance {instance_id}: a reply without the scheduler's first-token time")
         decode_s = server_latency_s - ttft_s
         if first_token_s > lim.ttft_s:
             return False

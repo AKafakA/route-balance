@@ -67,7 +67,6 @@ SHARED = [
     (("launch", "env", "OMP_NUM_THREADS"), "1", "launch.env.OMP_NUM_THREADS"),
     (("launch", "cpus", "affinity"), 1, "launch.cpus.affinity"),
     (("telemetry", "poll_ms"), 100.0, "telemetry.poll_ms"),
-    (("telemetry", "max_age_ms"), 900.0, "telemetry.max_age_ms"),
     (("telemetry", "dead_reckoning"), False, "telemetry.dead_reckoning"),
     (("budget", "admission_filter"), True, "budget.admission_filter"),
     (("fleet_digest",), "f" * 64, "fleet_digest"),

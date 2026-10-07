@@ -317,10 +317,7 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
     outside = [] if slo is None else sorted({o.instance_id for o in ok} - slo.instances())
     if outside:
         problems.append(f"served instances outside the fleet the SLO was built for: {outside}")
-    untimed = sum(o.first_token_s is None for o in ok)
-    if slo is not None and untimed:
-        problems.append(f"{untimed}/{len(ok)} replies carry no scheduler first-token time: the SLO cannot be judged")
-    attainment = {level: None if slo is None or outside or untimed or not outcomes else
+    attainment = {level: None if slo is None or outside or not outcomes else
                   sum(slo.met(level, o.instance_id, o.first_token_s, o.server_latency_s, o.ttft_s, o.output_tokens)
                       for o in ok) / len(outcomes)
                   for level in LEVELS}

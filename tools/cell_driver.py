@@ -456,7 +456,7 @@ def parity(render: Path, root: Path, group: str) -> Optional[int]:
     records = _parity_records(root, group)
     if records:
         last = read_json(records[-1])
-        if last["cells"] == runs and last.get("gate_code") == code:   # a record without one predates the key
+        if last["cells"] == runs and last["gate_code"] == code:
             return last["rc"]
     stamp = time.strftime("%Y%m%dT%H%M%S", time.gmtime())
     out = Path(root) / "_groups" / group
@@ -522,7 +522,7 @@ def rows_status(render: Path, rows: list[str], root: Path) -> tuple[list[str], l
             continue
         records = _parity_records(root, group)
         last = read_json(records[-1]) if records else None
-        if last is None or last["cells"] != _runs(dirs) or last.get("gate_code") != gate_code():
+        if last is None or last["cells"] != _runs(dirs) or last["gate_code"] != gate_code():
             problems.append(f"group {group} is complete but parity has not run over its current cells "
                             "with the current gate code")
         elif last["rc"] != 0:

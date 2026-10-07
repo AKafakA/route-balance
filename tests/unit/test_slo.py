@@ -87,5 +87,3 @@ def test_the_ttft_is_the_schedulers_first_token_time_not_e2e_minus_the_decode(tm
     the scheduler's arrival-to-first-token time (v2's client_ttft), so a delay after generation cannot flip it."""
     slo = CellSlo.of(K, _base(tmp_path), FLEET)
     assert slo.met("tight", "S_0", 1.0, 2.5, 0.5, 5) and not slo.met("tight", "S_0", 1.01, 2.5, 0.5, 5)
-    with pytest.raises(ConfigError, match="without the scheduler's first-token time"):
-        slo.met("tight", "S_0", None, 2.5, 0.5, 5)

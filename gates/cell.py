@@ -71,9 +71,9 @@ class Stats(Strict):
     rounds: Optional[int]
     booster_calls: Optional[int]                     # None: no latency model is loaded
     failure: Optional[str]
-    evidence_failure: Optional[str] = None           # a log writer failed (the run is invalid, never refused)
+    evidence_failure: Optional[str]                  # a log writer failed (the run is invalid, never refused)
     connection_waits: ConnectionWaits
-    tcp_listen: Optional[TcpListen] = None           # absent from older records (recorded, never a reason to discard a run)
+    tcp_listen: TcpListen                            # recorded, never a reason to discard a run
     logged: Logged
 
     @model_validator(mode="after")
@@ -108,19 +108,18 @@ class SystemKeys(Strict):
     estimator: dict[str, Any]
     router: Optional[dict[str, Any]]
     dispatch: Optional[dict[str, Any]]
-    normalize_over: Optional[Literal["request", "round"]] = None   # absent from older records
+    normalize_over: Optional[Literal["request", "round"]]   # None: a pipeline system
 
     @model_validator(mode="after")
     def _read_follows_mode(self):
         allowed = ("per_round", "poll") if self.mode == "routebalance" else ("per_request", "poll")
         if self.telemetry_read not in allowed:
-            raise ValueError(f"a {self.mode} system cannot read telemetry '{self.telemetry_read}' (D53, D55)")
+            raise ValueError(f"a {self.mode} system cannot read telemetry '{self.telemetry_read}'")
         return self
 
 
 class TelemetrySettings(Strict):
     poll_ms: float
-    max_age_ms: Optional[float] = None     # older records only
     timeout_s: float
     dead_reckoning: bool
 
@@ -133,9 +132,7 @@ class Loaded(Strict):
     dispatcher: Optional[str]
     round_loop: bool
     telemetry_pollers: bool                 # read from the live view: running exactly when telemetry_read is poll
-    # the lane the pipeline router's calls ran on, as built (None: no router calls a model). Older records
-    # carry it under launch instead
-    router_lane_threads: Optional[int] = None
+    router_lane_threads: Optional[int]      # the lane the pipeline router's calls ran on (None: no router calls a model)
 
 
 class Code(Strict):
@@ -186,12 +183,11 @@ class Launch(Strict):
     max_connections: int
     request_timeout_s: float
     router_threads: int
-    router_lane_threads: Optional[int] = None   # older records (one lane per process); later ones under loaded
     engine_session: SessionSettings
     telemetry_session: SessionSettings
     event_loop: str
-    http_server: Optional[HttpServer] = None    # absent from older records
-    open_files: Optional[OpenFiles] = None      # absent from older records
+    http_server: HttpServer
+    open_files: OpenFiles
     cpus: Cpus
     env: dict[str, Optional[str]]
 
@@ -310,7 +306,7 @@ class EngineLaunch(Strict):
     cache_config: dict[str, str] = Field(min_length=1)
     model: str = Field(min_length=1)
     max_model_len: int = Field(ge=1)
-    served: Optional[Served] = None        # absent from older records (which fail traffic_problems)
+    served: Served
 
     def launch(self) -> dict:
         """Everything but the start time and the counters: what a cell of the group must share with every other."""
@@ -513,10 +509,10 @@ def traffic_problems(cell: Cell) -> list[str]:
             t[2] += r.reply.output_tokens
     out = []
     for i, want in sorted(served.items()):
-        b, a = before.instances[i].served, after.instances.get(i) and after.instances[i].served
-        if b is None or a is None:
+        if i not in after.instances:
             out.append(f"{i}: no serving counters in the engine readings")
             continue
+        b, a = before.instances[i].served, after.instances[i].served
         got = [a.requests - b.requests, a.prompt_tokens - b.prompt_tokens, a.generation_tokens - b.generation_tokens]
         if got != want:
             out.append(f"{i}: the engine served (requests, prompt tokens, generated tokens) {tuple(got)} during the "

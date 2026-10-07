@@ -279,8 +279,8 @@ class Budget(_Strict):
 class Telemetry(_Strict):
     poll_ms: float = Field(gt=0)
     timeout_s: float = Field(gt=0)
-    # no age bound: a stale snapshot is counted, never a reason to refuse a request; the configurations of older
-    # records carry one, which nothing reads
+    # no age bound: a stale snapshot is counted, never a reason to refuse a request. Nothing reads this field; it
+    # stays because every configuration's digest (config_digest) covers it, as null
     max_age_ms: Optional[float] = Field(default=None, gt=0)
 
 

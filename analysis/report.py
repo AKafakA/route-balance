@@ -247,7 +247,7 @@ def parity_state(cells_root: Path, group: str, runs: Mapping[str, str]) -> str:
         return "not run"
     last = loads_strict(records[-1].read_text())
     from tools.cell_driver import gate_code                  # the driver's key: a fixed gate runs again
-    if last.get("gate_code") != gate_code():                  # default-ok: a record without one predates the key
+    if last["gate_code"] != gate_code():
         return "not run"
     if last["rc"] != 0:
         return "failed"

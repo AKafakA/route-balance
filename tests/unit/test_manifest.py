@@ -205,9 +205,9 @@ def test_an_accounted_cell_from_another_fleet_does_not_block_its_group(env):
 
 
 def test_a_late_send_is_counted_never_a_gate(env):
-    """a late send no longer invalidates a cell; the report counts it (CellSummary.max_send_lag_ms)."""
+    """a late send never invalidates a cell; the report counts it (CellSummary.max_send_lag_ms)."""
     dataset, out = env
-    scope = _scope(dataset, max_send_lag_ms=1e-6)            # an older scope: its bound is read by nothing
+    scope = _scope(dataset, max_send_lag_ms=1e-6)            # a scope with a tiny value: nothing reads it
     _run(scope, dataset, out, ALL[0])
     assert ALL[0] not in manifest.check(scope, out).invalid
 

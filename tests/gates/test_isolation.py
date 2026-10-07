@@ -96,9 +96,11 @@ def test_one_request_from_elsewhere_is_caught(cell):
     assert any(p.startswith(f"{first}: the engine served") and "other traffic" in p for p in isolation_problems(cell))
 
 
-def test_readings_without_serving_counters_are_caught(cell):
+def test_readings_without_serving_counters_are_refused_by_the_schema(cell):
     _edit(cell / "engines_before.json", lambda d: [v.pop("served") for v in d["instances"].values()])
-    assert any("no serving counters" in p for p in isolation_problems(cell))
+    problems = isolation_problems(cell)
+    assert any("cannot show the traffic" in p and "served" in p and "Field required" in p for p in problems)
+    assert any("cannot prove the cache reset" in p and "served" in p for p in problems)
 
 
 def test_a_reused_scheduler_is_caught(cell):
