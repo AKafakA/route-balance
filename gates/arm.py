@@ -1,4 +1,4 @@
-"""Arm gate: the values a cell actually used, read from its decision lines (routebalance/server.py).
+"""Arm gate: the values a cell actually used, read from its decision lines (routebalance/service.py).
 
 Usage: python -m gates.arm --cell DIR --config CONFIG.json   (exit 0 on pass, 1 on fail; one reason per line)
 

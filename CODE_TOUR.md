@@ -55,7 +55,7 @@ Check: every experiment parameter is a required field. Nothing is read from the 
 - `Load.engine_waiting` is the raw gauge. The round-size rule reads it (`schedule/rounds.py`).
 
 Check: every `record_dispatch` is closed exactly once, by `record_completion` or `record_failure`.
-`server.py` guarantees this on every path.
+`service.py` guarantees this on every path.
 
 ## 3. Engines: `backend.py`
 
@@ -137,8 +137,12 @@ Check: the constant and curve sources never import xgboost, and `predict_calls` 
   system), so on the engines' gauges concurrent selections of least outstanding see each other only through its
   least-recently-assigned tie-break.
 
-## 7. The server: `server.py`, `decision_log.py`
+## 7. The server: `server.py`, `service.py`, `round_loop.py`, `components.py`, `execution.py`, `decision_log.py`
 
+- `server.py` is the HTTP app and the entry point (`python -m routebalance.server`); `service.py` the service it
+  serves (the live configuration and the path of every request); `round_loop.py` RouteBalance's round loop;
+  `components.py` what a configuration loads; `execution.py` what the process executes, for the manifest;
+  `request.py` the request and the instance chosen for it.
 - One FastAPI app for every system, served through uvicorn as v3's scheduler and vLLM's own server are:
   - `POST /v1/completions` (the contract is in `bench/client.py`).
   - `GET`/`POST /v1/config`: a swap happens only while idle, is built completely first, and leaves the old

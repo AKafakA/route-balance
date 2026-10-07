@@ -1,5 +1,5 @@
 """Record real cell directories for the gates. The parts are real where it matters:
-  - the scheduler (routebalance/server.py, with the real load_components) behind fake vLLM engines;
+  - the scheduler (routebalance/service.py, with the real load_components) behind fake vLLM engines;
   - the runner that drives it (bench/runner.py);
   - the layout, which follows the runner's (runner/cell.py, gates/cell.py).
 
@@ -25,13 +25,14 @@ from pathlib import Path
 import aiohttp
 from aiohttp import web
 
-import routebalance.server as server
+import routebalance.components as components
 from tests.traces import constant_trace
 from bench.client import HttpSchedulerClient
 from bench.dataset import load_prompts
 from bench.records import Sampling, write_cell
 from bench.runner import CellSpec, run_cell
 from routebalance.config import config_digest, load_fleet, parse_scheduler
+from routebalance.service import Service
 from tests.contract.fake_vllm import FakeState, make_app
 from tests.contract.scheduler_http import ServedScheduler
 from tests.unit.fakes import SAMPLING, FakeTokenizer, write_dataset
@@ -97,7 +98,7 @@ def fake_model_files(role: str, name: str, revision) -> dict[str, str]:
 def install_stand_ins(setitem, setattr_) -> None:
     """setitem/setattr_: monkeypatch.setitem / monkeypatch.setattr in tests, or plain assignment."""
     setitem(sys.modules, "routebalance.estimate.knn", fake_knn_module())
-    setattr_(server, "model_files", fake_model_files)
+    setattr_(components, "model_files", fake_model_files)
 
 
 def configs(table_md5: str, prefill_md5: str) -> dict[str, dict]:
@@ -194,7 +195,7 @@ class LiveFleet:
             await r.setup()
             await web.TCPSite(r, inst.address, inst.port).start()
             self.engines.append(r)
-        self.service = server.Service(self.fleet, artifact_root=w / "artifacts", avengers_repo=None,
+        self.service = Service(self.fleet, artifact_root=w / "artifacts", avengers_repo=None,
                                       request_timeout_s=5.0, max_connections=64, torch_threads=1, log_dir=w / "logs")
         await self.service.start(parse_scheduler(self.configs["lor"]))
         self.port = free_port()

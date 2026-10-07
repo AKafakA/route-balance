@@ -1,7 +1,8 @@
 """The scheduler served in-process for the contract tests, through the production launcher (server.http_server)."""
 import asyncio
 
-from routebalance.server import Service, build_app, http_server
+from routebalance.server import build_app, http_server
+from routebalance.service import Service
 
 STOP_S = 10.0    # the tests' bound on a graceful stop: a handler that never returns fails the test, never hangs it
 

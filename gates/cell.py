@@ -3,7 +3,7 @@
 The runner (runner/cell.py) writes, per cell, <cells_root>/<cell_id>/:
   <cell_id>.cell.json     the bench record (bench/records.py)
   config.json             the exact scheduler document POSTed for the cell
-  decisions.jsonl         the scheduler's decision lines (routebalance/server.py) that carry the cell's config
+  decisions.jsonl         the scheduler's decision lines (routebalance/service.py) that carry the cell's config
                           digest, from the cell's window only
   stats_before.json       GET /v1/stats before the first request, read once no decision line is buffered
   stats_after.json        GET /v1/stats after the last reply, read once the decision log is flushed

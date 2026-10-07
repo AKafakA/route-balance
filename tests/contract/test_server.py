@@ -25,7 +25,9 @@ from routebalance.baselines.dispatch import build_dispatcher
 from routebalance.baselines.routers import PassthroughRouter
 from routebalance.config import ConfigError, parse_scheduler
 from routebalance.estimate.latency import ConstantTPOT, LatencyModel
-from routebalance.server import Assignment, Completion, Components, Service, idle_state
+from routebalance.components import Components, idle_state
+from routebalance.request import Assignment, Completion
+from routebalance.service import Service
 from routebalance.types import Instance, Tier
 from tests.contract.fake_vllm import FakeState, make_app
 from tests.contract.scheduler_http import ServedScheduler
@@ -205,7 +207,7 @@ def test_each_applied_configuration_is_frozen_out_of_the_collector(tmp_path, mon
     cell scans only the requests' objects; the next apply unfreezes first, so the old configuration can be freed."""
     import gc
     import types
-    from routebalance import server
+    from routebalance import service as service_mod
     calls = []
 
     def record(name):
@@ -213,7 +215,8 @@ def test_each_applied_configuration_is_frozen_out_of_the_collector(tmp_path, mon
             calls.append(name)
             return getattr(gc, name)(*args)
         return call
-    monkeypatch.setattr(server, "gc", types.SimpleNamespace(**{n: record(n) for n in ("unfreeze", "collect", "freeze")}))
+    monkeypatch.setattr(service_mod, "gc",
+                        types.SimpleNamespace(**{n: record(n) for n in ("unfreeze", "collect", "freeze")}))
     engines = [(SMALL, FakeState()), (SMALL, FakeState()), (LARGE, FakeState())]
 
     async def scenario():
@@ -304,7 +307,7 @@ def test_a_body_in_its_declared_charset_is_read_as_before(tmp_path):
 
 ULIMIT_SCRIPT = """
 import json, logging, resource, sys
-from routebalance.server import set_ulimit
+from routebalance.execution import set_ulimit
 logging.basicConfig(level=logging.INFO)
 hard = resource.getrlimit(resource.RLIMIT_NOFILE)[1] if sys.argv[2] == "keep" else int(sys.argv[2])
 resource.setrlimit(resource.RLIMIT_NOFILE, (int(sys.argv[1]), hard))
@@ -733,13 +736,13 @@ def test_a_failed_log_writer_is_recorded_and_requests_are_still_served(tmp_path)
 def test_a_failed_apply_drops_its_new_lane_and_keeps_the_old_one(tmp_path, monkeypatch):
     """Until the swap, a failure leaves the old configuration live; the lane built for the new
     one is shut down, and the old lane keeps serving."""
-    import routebalance.server as server_mod
+    import routebalance.service as service_mod
     made = []
 
     def recording_lane(threads):
         made.append(ThreadPoolExecutor(max_workers=threads, thread_name_prefix="router-lane"))
         return made[-1]
-    monkeypatch.setattr(server_mod, "router_lane", recording_lane)
+    monkeypatch.setattr(service_mod, "router_lane", recording_lane)
 
     def failing(cfg, fleet, *, artifact_root, avengers_repo, router_lane, best_route_repo=None):
         if router_lane is not None and router_lane._max_workers == 1:

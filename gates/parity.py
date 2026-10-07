@@ -3,7 +3,7 @@ declares.
 
 Usage: python -m gates.parity --cells DIR [DIR ...]   (exit 0 on pass, 1 on fail; one reason per line)
 
-The input is each cell's execution manifest (GET /v1/manifest, routebalance/server.py), read before and after
+The input is each cell's execution manifest (GET /v1/manifest, routebalance/service.py), read before and after
 the cell, and its group.json:
   {"group": "<scope group>", "reference": null | "<config id>", "intended_differences": ["<pattern>", ...]}
 The driver writes group.json from the scope. A pattern is a manifest path: either an exact leaf, such as

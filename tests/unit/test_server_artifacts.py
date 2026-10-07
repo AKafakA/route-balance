@@ -11,7 +11,8 @@ from concurrent.futures import ThreadPoolExecutor
 import aiohttp
 import pytest
 
-import routebalance.server as server
+import routebalance.components as components
+import routebalance.execution as execution
 from routebalance.baselines.routers import PassthroughRouter
 from routebalance.config import ConfigError, parse_scheduler
 from routebalance.decision_log import JsonlLog
@@ -49,7 +50,7 @@ def fake_knn(monkeypatch):
     mod.INDEX_FILE = "knn_estimator.pkl"
     mod.load_knn = lambda cfg, root, models: types.SimpleNamespace(index=types.SimpleNamespace(encoder_name=ENCODER))
     monkeypatch.setitem(sys.modules, "routebalance.estimate.knn", mod)
-    monkeypatch.setattr(server, "model_files", lambda role, name, rev: {f"{role}@{name}@{rev}": "9" * 32})
+    monkeypatch.setattr(components, "model_files", lambda role, name, rev: {f"{role}@{name}@{rev}": "9" * 32})
 
 
 def write_table(root) -> str:
@@ -61,7 +62,8 @@ def write_table(root) -> str:
 
 def load(cfg: dict, root):
     with ThreadPoolExecutor(1) as ex:
-        return server.load_components(parse_scheduler(cfg), FLEET, artifact_root=root, avengers_repo=None, router_lane=ex)
+        return components.load_components(parse_scheduler(cfg), FLEET, artifact_root=root, avengers_repo=None,
+                                          router_lane=ex)
 
 
 def pipeline(router: dict, **kw) -> dict:
@@ -102,7 +104,7 @@ def test_a_passthrough_baseline_loads_no_artifact(tmp_path, fake_knn):
 
 
 def test_a_router_artifact_directory_is_recorded_file_by_file(tmp_path, monkeypatch, fake_knn):
-    monkeypatch.setattr(server, "build_router", lambda *a, **kw: PassthroughRouter())
+    monkeypatch.setattr(components, "build_router", lambda *a, **kw: PassthroughRouter())
     (tmp_path / "ap/sub").mkdir(parents=True)
     (tmp_path / "ap/config.json").write_bytes(b"{}")
     (tmp_path / "ap/sub/kmeans.joblib").write_bytes(b"\x00\x01")
@@ -113,7 +115,7 @@ def test_a_router_artifact_directory_is_recorded_file_by_file(tmp_path, monkeypa
 
 
 def test_avengers_pro_records_its_artifact_dir_and_its_embedder(tmp_path, monkeypatch, fake_knn):
-    monkeypatch.setattr(server, "build_router", lambda *a, **kw: PassthroughRouter())
+    monkeypatch.setattr(components, "build_router", lambda *a, **kw: PassthroughRouter())
     (tmp_path / "ap").mkdir()
     (tmp_path / "ap/kmeans.joblib").write_bytes(b"km")
     cfg = pipeline({"type": "avengers_pro", "kwargs": {"artifact_dir": "ap", "beta": 5.0, "top_k": 4,
@@ -126,7 +128,7 @@ def test_upstream_best_route_records_its_checkpoint_modules_and_backbone(tmp_pat
     """the checkpoint file by file, each upstream module the router imports, and the backbone at its revision."""
     from routebalance.baselines.routers import BEST_ROUTE_MODULES
     seen = {}
-    monkeypatch.setattr(server, "build_router", lambda *a, **kw: seen.update(kw) or PassthroughRouter())
+    monkeypatch.setattr(components, "build_router", lambda *a, **kw: seen.update(kw) or PassthroughRouter())
     (tmp_path / "br/up").mkdir(parents=True)
     (tmp_path / "br/up/config.bin").write_bytes(b"cfg")
     repo = tmp_path / "best-route-llm"
@@ -136,7 +138,7 @@ def test_upstream_best_route_records_its_checkpoint_modules_and_backbone(tmp_pat
     cfg = pipeline({"type": "best_route_upstream", "kwargs": {"checkpoint": "br/up", "threshold": 0.3,
                     "base_model": "microsoft/deberta-v3-small", "base_revision": "d" * 40, "upstream_sha256": "c" * 64}})
     with ThreadPoolExecutor(1) as ex:
-        arts = server.load_components(parse_scheduler(cfg), FLEET, artifact_root=tmp_path, avengers_repo=None,
+        arts = components.load_components(parse_scheduler(cfg), FLEET, artifact_root=tmp_path, avengers_repo=None,
                                       router_lane=ex, best_route_repo=repo).artifacts
     assert arts == {"br/up/config.bin": md5(b"cfg"),
                     **{f"best_route_upstream@{rel}": md5(rel.encode()) for rel in BEST_ROUTE_MODULES},
@@ -150,7 +152,7 @@ def test_a_model_priced_twice_differently_is_refused(tmp_path, fake_knn):
         other = Tier("small_a100", "S", "a100", cin, cout, 8, ())
         fleet = FLEET + [Instance("S_1", other, "n1", "127.0.0.1", 9001)]
         with ThreadPoolExecutor(1) as ex, pytest.raises(ConfigError, match="two prices"):
-            server.load_components(parse_scheduler(pipeline({"type": "passthrough", "kwargs": {}})), fleet,
+            components.load_components(parse_scheduler(pipeline({"type": "passthrough", "kwargs": {}})), fleet,
                                    artifact_root=tmp_path, avengers_repo=None, router_lane=ex)
 
 
@@ -159,7 +161,7 @@ def test_the_xgboost_source_records_every_file_it_read():
     cfg["latency"].update(source="xgboost", envelope="queue_aware", table="xgb", table_md5="2" * 32)
     source = types.SimpleNamespace(files={"md5s.json": "2" * 32, "feature_names.json": "3" * 32,
                                           "small_a30.xgb": "4" * 32})
-    got = server.latency_artifacts(parse_scheduler(cfg), types.SimpleNamespace(source=source))
+    got = components.latency_artifacts(parse_scheduler(cfg), types.SimpleNamespace(source=source))
     assert got == {"xgb/md5s.json": "2" * 32, "xgb/feature_names.json": "3" * 32, "xgb/small_a30.xgb": "4" * 32}
 
 
@@ -167,7 +169,7 @@ def test_model_files_hash_a_local_model_directory(tmp_path):
     (tmp_path / "enc/1_Pooling").mkdir(parents=True)
     (tmp_path / "enc/model.safetensors").write_bytes(b"w")
     (tmp_path / "enc/1_Pooling/config.json").write_bytes(b"{}")
-    assert server.model_files("estimator", str(tmp_path / "enc"), None) == {
+    assert components.model_files("estimator", str(tmp_path / "enc"), None) == {
         "estimator@enc/1_Pooling/config.json": md5(b"{}"), "estimator@enc/model.safetensors": md5(b"w")}
 
 
@@ -182,9 +184,10 @@ def test_model_files_hash_the_cached_hub_snapshot_offline(tmp_path, monkeypatch)
         return str(snap)
     monkeypatch.setitem(sys.modules, "huggingface_hub", types.SimpleNamespace(snapshot_download=snapshot_download))
     monkeypatch.delenv("SENTENCE_TRANSFORMERS_HOME", raising=False)
-    assert server.model_files("avengers_pro", "org/enc", None) == {"avengers_pro@hf:org/enc/model.safetensors": md5(b"w")}
+    assert components.model_files("avengers_pro", "org/enc", None) == {
+        "avengers_pro@hf:org/enc/model.safetensors": md5(b"w")}
     monkeypatch.setenv("SENTENCE_TRANSFORMERS_HOME", str(tmp_path / "st"))   # the loader's own cache wins
-    server.model_files("estimator", "org/enc", "c0ffee")
+    components.model_files("estimator", "org/enc", "c0ffee")
     assert calls == [("org/enc", None, True, None),                          # the cached main, never the network
                      ("org/enc", "c0ffee", True, str(tmp_path / "st"))]
 
@@ -198,14 +201,14 @@ def test_md5_tree_refuses_a_missing_or_empty_directory(tmp_path):
 
 
 def test_library_versions_list_every_installed_distribution():
-    got = server.library_versions()
+    got = execution.library_versions()
     assert got["python"] == sys.version and got["aiohttp"] == aiohttp.__version__
     assert {"pydantic", "aiohappyeyeballs", "yarl", "multidict"} <= set(got)       # dependencies of dependencies
 
 
 def test_native_threadpools_name_libraries_without_host_paths():
     import numpy  # noqa: F401  (loads a BLAS)
-    pools = server.native_threadpools()
+    pools = execution.native_threadpools()
     assert pools and all(isinstance(n, int) and n >= 1 for n in pools.values())
     assert not any(k.count("/") != 1 or k.startswith("/") for k in pools)       # "<api>:<dir>/<file>" only
 
@@ -225,12 +228,12 @@ def test_a_failed_append_stays_buffered(tmp_path):
 def test_load_components_hands_every_pipeline_router_the_lane(tmp_path, monkeypatch, fake_knn):
     """build_router gets the one-at-a-time lane, not RouteBalance's shared pool."""
     got = []
-    monkeypatch.setattr(server, "build_router", lambda *a, **kw: got.append(kw["executor"]) or PassthroughRouter())
+    monkeypatch.setattr(components, "build_router", lambda *a, **kw: got.append(kw["executor"]) or PassthroughRouter())
     (tmp_path / "ap").mkdir()
     (tmp_path / "ap/kmeans.joblib").write_bytes(b"km")
     cfg = pipeline({"type": "avengers_pro", "kwargs": {"artifact_dir": "ap", "beta": 5.0, "top_k": 4,
                                                        "embedder": ENCODER, "embedder_revision": "e" * 40}})
     with ThreadPoolExecutor(1) as lane:
-        server.load_components(parse_scheduler(cfg), FLEET, artifact_root=tmp_path, avengers_repo=None,
+        components.load_components(parse_scheduler(cfg), FLEET, artifact_root=tmp_path, avengers_repo=None,
                                router_lane=lane)
     assert got == [lane]

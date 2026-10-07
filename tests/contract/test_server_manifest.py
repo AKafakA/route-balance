@@ -7,8 +7,8 @@ from pathlib import Path
 import aiohttp
 import uvicorn
 
-from routebalance.server import PACKAGE_DIR, py_tree_digest
-from routebalance.server import Service
+from routebalance.execution import PACKAGE_DIR, py_tree_digest
+from routebalance.service import Service
 from tests.contract.test_server import RB, Harness, body, factory, fleet_states, pipeline_cfg, read_jsonl
 
 MANIFEST_KEYS = {"format", "config_digest", "fleet_digest", "fleet", "system", "budget", "telemetry", "loaded",
@@ -16,7 +16,7 @@ MANIFEST_KEYS = {"format", "config_digest", "fleet_digest", "fleet", "system", "
 
 
 def shell_tree_digest(directory) -> str:
-    """The shell command documented in routebalance.server.py_tree_digest."""
+    """The shell command documented in routebalance.execution.py_tree_digest."""
     listing = subprocess.run("find . -name '*.py' -printf '%P\\n' | LC_ALL=C sort | xargs sha256sum", shell=True,
                              cwd=directory, capture_output=True, check=True).stdout
     return hashlib.sha256(listing).hexdigest()
