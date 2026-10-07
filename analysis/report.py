@@ -427,6 +427,7 @@ def macro_name(*parts: str, prefix: str = "eq") -> str:
 
 
 def macros(report: dict) -> str:
+    # the header the shipped reports carry, byte for byte (D86 and D87 name the two readings' decisions)
     lines = ["% Written by analysis/report.py. Ranges over the baseline configurations with an equal-quality point;",
              "% eq* read one RouteBalance configuration for every metric, eqpm* each metric on its own frontier (D86).",
              "% ...Min/...Max: at equal quality only; ...MinAll/...MaxAll: also the comparisons read at RouteBalance's",
@@ -519,6 +520,7 @@ def main(argv: list[str]) -> int:
             for r in rows + report[f"{key}_appendix"][t]:
                 for d in r["deltas"]:
                     if d["outside_range"]:
+                        # as the shipped reports' logs carry it (D81 names the range reading's decision)
                         print(f"  NOTE ({reading}) {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: "
                               "the value at the seed means lies outside the range over the seeds (D81)")
     complete = cov["complete"] and not report["failures"] and all(s == "passed" for s in report["parity"].values())

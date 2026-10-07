@@ -20,7 +20,7 @@ FILLED = {
 
 
 def test_the_tracked_file_holds_the_owners_values():
-    """Set 09-25: equal quality within 0.005, 1000 paired resamples at 95%; the day-1 check's thresholds."""
+    """Equal quality within 0.005, 1000 paired resamples at 95%: the preregistered thresholds."""
     rules = load_rules(TRACKED)
     assert rules.equal_quality.model_dump() == {"tolerance": 0.005, "bootstrap_resamples": 1000, "confidence": 0.95,
                                                 "bootstrap_seed": 0}

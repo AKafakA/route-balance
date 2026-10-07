@@ -1,4 +1,4 @@
-"""A malformed stream or an early loop stall is never hidden (review of 09-27)."""
+"""A malformed stream or an early loop stall is never hidden."""
 import asyncio
 import time
 

@@ -145,7 +145,7 @@ def main(argv=None) -> None:
     p.add_argument("--request-timeout-s", type=float, required=True)
     p.add_argument("--max-connections", type=int, required=True, help="engine connection bound, above peak in flight")
     p.add_argument("--torch-threads", type=int, default=None,
-                   help="intra-op threads for every model call; unset: torch's default (D134, as v3)")
+                   help="intra-op threads for every model call; unset: torch's default, as v3")
     p.add_argument("--log-dir", type=Path, required=True)
     a = p.parse_args(argv)
     if not (a.request_timeout_s > 0 and math.isfinite(a.request_timeout_s)) or a.max_connections < 1 \

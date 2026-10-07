@@ -431,7 +431,7 @@ class RBDecoupledRouter(Router):
     async def choose_model(self, request: RouterRequest, pool: Sequence[str]) -> RouterDecision:
         _require_pool(pool)
         if request.prompt_tokens is None or request.prompt_tokens < 1:
-            raise ValueError(f"rb_decoupled: request {request.request_id} carries no prompt token count (D117)")
+            raise ValueError(f"rb_decoupled: request {request.request_id} carries no prompt token count")
         tier, score = await _off_loop(self._executor, self._decide, request.prompt, request.prompt_tokens, tuple(pool))
         return RouterDecision(tier.model, score, f"rb_decoupled:tier={tier.tier_id}:score={score:.6f}")
 

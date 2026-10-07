@@ -83,7 +83,7 @@ def test_goodputs_read_each_configuration_over_its_stationary_traces():
 
 
 def test_the_ttft_is_the_schedulers_first_token_time_not_e2e_minus_the_decode(tmp_path):
-    """Codex audit 09-29: E2E minus the decode also counted the reply's delivery after the last token; the SLO now takes
-    the scheduler's arrival-to-first-token time (v2's client_ttft), so a delay after generation cannot flip it."""
+    """E2E minus the decode would also count the reply's delivery after the last token; the SLO takes the
+    scheduler's arrival-to-first-token time (v2's client_ttft), so a delay after generation cannot flip it."""
     slo = CellSlo.of(K, _base(tmp_path), FLEET)
     assert slo.met("tight", "S_0", 1.0, 2.5, 0.5, 5) and not slo.met("tight", "S_0", 1.01, 2.5, 0.5, 5)

@@ -41,7 +41,7 @@ import yaml
 
 from analysis.manifest import cell_problems
 from bench.arrivals import Segment, Trace
-from bench.dataset import load_hf_tokenizer, load_prompts
+from bench.dataset import file_sha256, load_hf_tokenizer, load_prompts
 from bench.records import Sampling, SchedulerIdentity, cell_dir, write_cell
 from bench.runner import CellSpec, _check_before_sending, run_cell
 from bench.scope import ConfigEntry, ExpectedCell, expected_cells
@@ -103,10 +103,6 @@ def _write(path: Path, data) -> None:
     path.write_text(json.dumps(data, indent=1, sort_keys=True, default=str) + "\n")
 
 
-def _sha(path: Path) -> str:
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
-
-
 def versions(vsr: Path, docker) -> dict:
     """The versions a run executes with, for the block's consistency check: this interpreter, the vllm-sr CLI and its
     venv's packages, Docker's engine and its data root, and the images Docker holds (their repository digests)."""
@@ -140,8 +136,8 @@ def harness_record() -> dict:
     loaded = sorted({Path(m.__file__).resolve() for m in list(sys.modules.values())
                      if getattr(m, "__file__", None) and Path(m.__file__).resolve().is_relative_to(REPO)
                      and not Path(m.__file__).resolve().is_relative_to(MODULE)})
-    return {"module": {str(p.relative_to(MODULE)): _sha(p) for p in sorted(MODULE.glob("vsrbench/*.py"))},
-            "shared": {str(p.relative_to(REPO)): _sha(p) for p in loaded},
+    return {"module": {str(p.relative_to(MODULE)): file_sha256(p) for p in sorted(MODULE.glob("vsrbench/*.py"))},
+            "shared": {str(p.relative_to(REPO)): file_sha256(p) for p in loaded},
             "git_head": git.stdout.strip() if git.returncode == 0 else None,
             "git_dirty": dirty.stdout.splitlines() if dirty.returncode == 0 else None,
             "hf": {k: os.environ.get(k) for k in ("HF_HOME", "HF_HUB_OFFLINE")},
@@ -196,8 +192,7 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--template-cell", required=True, help="the main-grid cell whose trace, seed and prompts it sends")
     ap.add_argument("--seed", type=int, help="the seed this run sends, if not the template's: the arrivals and the prompt "
                                              "order follow from the trace and the seed (bench.scope.ExpectedCell), as "
-                                             "every system of that rate and seed is sent; the main grid renders no seeds "
-                                             "2-3 now (D157, D166: revised after the draft)")
+                                             "every system of that rate and seed is sent")
     ap.add_argument("--family", choices=sorted(C.LADDER), required=True)
     ap.add_argument("--fleet", type=Path, required=True)
     ap.add_argument("--hosts", type=Path, required=True)
@@ -215,7 +210,7 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--models-cache", type=Path, required=True)
     ap.add_argument("--work", type=Path, required=True, help="where each run's CLI state directory is created")
     ap.add_argument("--connect", choices=("published", "envoy"), default="envoy",
-                    help="the client's path to Envoy: its container address on the stack's network (D161, the default: "
+                    help="the client's path to Envoy: its container address on the stack's network (the default: "
                          "direct, as our client reaches our scheduler) or the CLI's published port (through docker-proxy)")
     ap.add_argument("--docker-sg", action="store_true")
     ap.add_argument("--test-trace", help="test profile only: N,RATE (a short trace in place of the template's)")
@@ -228,7 +223,7 @@ def main(argv: list[str]) -> int:
     a = _parser().parse_args(argv)
     test = a.profile == "test"
     if not test and a.connect != "envoy":
-        raise ConfigError("a lease run connects to Envoy directly (D161)")
+        raise ConfigError("a lease run connects to Envoy directly")
     if (a.test_trace or a.test_pair) and not test:
         raise ConfigError("--test-trace and --test-pair are the test profile's")
     if test and (any(str(Path(x).resolve()).startswith(LEASE_ROOT) for x in (a.cells_root, a.work))
@@ -280,7 +275,7 @@ def main(argv: list[str]) -> int:
     else:
         if a.training_rows is None:
             raise ConfigError("--training-rows is required for a lease run")
-        sha = _sha(a.training_rows)
+        sha = file_sha256(a.training_rows)
         corpora = {v.get("sha256") for v in plan.get("scored_corpora", {}).values()}
         if sha in corpora:
             raise ConfigError(f"{a.training_rows} is a scored evaluation corpus: the policy is tuned on training data only")
@@ -454,7 +449,7 @@ def main(argv: list[str]) -> int:
             else:
                 checks.extend(input_problems(record, open_cell(ref).record))
                 notes.append(f"inputs compared with the main-grid run {ref.name} (record sha256 "
-                             f"{_sha(next(ref.glob('*.cell.json')))})")
+                             f"{file_sha256(next(ref.glob('*.cell.json')))})")
         _guard(checks, "the inputs' comparison with the main grid", inputs)
     else:
         notes.append("test profile: no paired main-grid run to compare the engines and the inputs with")
@@ -518,7 +513,7 @@ def verify_weights(root: Path) -> list[str]:
         if "/.cache/" in f"/{rel}" or rel.endswith(".router-model-revision.json"):
             continue
         f = Path(root) / rel
-        if not f.is_file() or _sha(f) != digest:
+        if not f.is_file() or file_sha256(f) != digest:
             bad.append(rel)
     return bad
 

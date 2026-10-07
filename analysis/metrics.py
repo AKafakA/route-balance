@@ -153,7 +153,7 @@ def request_values(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
             raise ConfigError(f"cell {cell.cell_id}: request {r.index} is {outcome} or unpriced; only a valid cell "
                               "has request values")
         if o.prompt_tokens_served is None:
-            raise ConfigError(f"cell {cell.cell_id}: request {r.index} has no served prompt token count (D117)")
+            raise ConfigError(f"cell {cell.cell_id}: request {r.index} has no served prompt token count")
         rows.append((r.index, r.prompt_id, score if outcome == "matched" else math.nan, o.e2e_s,
                      o.output_tokens * prices[o.model],
                      *(slo.met(lvl, o.instance_id, o.first_token_s, o.server_latency_s, o.ttft_s, o.output_tokens)
@@ -285,6 +285,7 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
         if outcome == "matched":
             scores.append(score)
     if found["unscored"]:
+        # report text, as the shipped reports carry it (D67 names the decision to leave such a cell out)
         problems.append(f"{found['unscored']}/{len(ok)} served texts have no judged score: the cell's quality is "
                         "unavailable until they are judged (D67)")
         scores = []                        # never a mean over the scored rest

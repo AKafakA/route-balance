@@ -251,7 +251,7 @@ def test_fewer_than_two_or_repeated_cells_fail(tmp_path):
 
 
 def test_a_group_that_declares_no_difference_may_be_one_cell(tmp_path):
-    """The W1b sweep: one configuration at one seed (found in the 09-25 rehearsal, where it was refused)."""
+    """The latency sweep: one configuration at one seed, a group of one cell, passes."""
     cell = copy_cell(tmp_path, SWEEP)
     spec(cell, lambda s: s.__setitem__("intended_differences", []))
     assert problems([cell])[0] == []

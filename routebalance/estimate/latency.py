@@ -141,7 +141,7 @@ class ProfiledCurveTPOT:
             drop = next((i for i in range(1, len(ms)) if ms[i] < ms[i - 1]), None)
             if drop is not None:
                 raise LatencyError(f"curve[{tier!r}] decreases from {ms[drop - 1]} ms at b={bs[drop - 1]} to "
-                                   f"{ms[drop]} ms at b={bs[drop]}: a TPOT curve never decreases in b (D47)")
+                                   f"{ms[drop]} ms at b={bs[drop]}: a TPOT curve never decreases in b")
 
     @property
     def tiers(self) -> frozenset[str]:

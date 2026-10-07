@@ -460,7 +460,7 @@ def reset_problems(cell: Cell) -> list[str]:
     """Every engine of the cell's fleet started the cell from an emptied prefix cache (but for the warm-up
     prompt's own blocks, the same in every cell), as its warm-up proved
     (tools/direct.py): the prime, then after vLLM's reset a request with no cached token, then the same prompt again
-    with some. A cell without that proof (made before the reset, or on engines that could not reset) is invalid."""
+    with some. A cell without that proof is invalid."""
     try:
         fleet = sorted(cell.engines("before").instances)
         lines = cell._json("warmup.json")["requests"]

@@ -78,8 +78,8 @@ def test_calibration_measures_every_instance_at_every_level(tmp_path, monkeypatc
 
 
 def test_a_fast_tier_holds_although_it_finishes_long_before_a_slow_one(tmp_path, monkeypatch):
-    """Found in the 09-25 rehearsal: the 14B finished level 1 in ~260 s of the level's 672 s, and reads taken
-    after its closed loop ended (running 0) made its median 0. Only an instance's own window counts."""
+    """A fast tier finishes its level long before a slow one; reads taken after its closed loop ended (running 0)
+    would make its median 0. Only an instance's own window counts."""
     monkeypatch.setattr(calibrate_driver, "POLL_S", 0.005)
 
     async def scenario():

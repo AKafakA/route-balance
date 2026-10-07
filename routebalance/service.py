@@ -320,7 +320,7 @@ class Service:
         if self._swapping or self.cfg is None:
             raise Busy("a configuration is being applied")
         cfg, view, comps, rb = self.cfg, self.view, self._comps, self._rb       # one consistent snapshot
-        lane = self.router_lane                                                  # with it (Codex review)
+        lane = self.router_lane                                                  # with it
         pollers = view.polling
         loop = asyncio.get_running_loop()
         torch = sys.modules.get("torch")      # imported by main() before serving; measured on a pool thread

@@ -114,7 +114,7 @@ def test_a_failed_evidence_writer_is_caught(cell):
 
 
 def test_resume_rechecks_the_isolation_of_a_published_valid_cell(tmp_path, monkeypatch):
-    """Codex review 09-29: a saved valid verdict is not enough; status(), which resume and group_ready use, rechecks
+    """A saved valid verdict is not enough; status(), which resume and group_ready use, rechecks
     the isolation evidence (the record checks are stubbed here: they have their own tests)."""
     from runner import store
     root = tmp_path / "cells"

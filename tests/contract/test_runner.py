@@ -186,7 +186,7 @@ def _manifest(attempt, instances=("e_0",)):
 
 
 def test_a_clean_record_with_every_gate_passed_is_valid(lease, monkeypatch):
-    """Found 09-25: the gates' source directory once shadowed the gate list, and every valid cell's verdict raised."""
+    """A clean record whose two run gates passed is valid; a missing or failed gate makes it invalid."""
     render, root, fleet, hosts, _ = lease
     scope, _ = rd.load(render)
     attempt = prepare(render, CELL, root, fleet, hosts)

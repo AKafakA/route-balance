@@ -74,6 +74,7 @@ def build(requests: Path, level: int) -> dict:
         out[tier] = f
     sha = hashlib.sha256(requests.read_bytes()).hexdigest()
     return {"unit": "ms", "prefill": out,
+            # the fit's description as the campaign's prefill tables carry it (D118 names the fit's decision)
             "provenance": {"requests": requests.name, "requests_sha256": sha, "level": level,
                            "fit": "least squares, ttft_ms = intercept_ms + per_token_ms x prompt_tokens (D118)"}}
 

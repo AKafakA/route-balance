@@ -77,7 +77,7 @@ def test_balance_ranking_is_upstreams_score():
 
 
 def test_the_means_are_upstreams_so_equal_accuracies_stay_equal():
-    # Codex review: eight prompts where every model averages exactly 0.2; a column reduction gives 0.19999999999999998
+    # eight prompts where every model averages exactly 0.2; a column reduction gives 0.19999999999999998
     # for three of them, and min-max normalization would make 7B the clear winner. Upstream ranks 3B first.
     quality = np.array([[0.2, 0.0, 0.2, 0.2]] * 4 + [[0.2, 0.4, 0.2, 0.2]] * 4)
     prices = rt.fleet_prices("configs/fleet_qwen.json")

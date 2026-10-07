@@ -293,7 +293,7 @@ def test_a_body_that_is_not_utf8_is_a_bad_request(tmp_path):
 
 
 def test_a_body_in_its_declared_charset_is_read_as_before(tmp_path):
-    """Codex review: a declared charset is honoured, as aiohttp's request.text() did."""
+    """A declared charset is honoured, as aiohttp's request.text() did."""
     async def scenario():
         async with Harness(tmp_path, fleet_states()) as h:
             await h.start(pipeline_cfg())

@@ -245,7 +245,7 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
             _scores(p, rid, line, cands, w)
             scales = _get(line, "scales")
             if (cfg.normalize_over == "round") != (scales is not None):
-                p.add("the round's scales are logged exactly when the score normalizes over the round (D137)",
+                p.add("the round's scales are logged exactly when the score normalizes over the round",
                       f"{rid}: normalize_over {cfg.normalize_over}, scales {scales}")
             if scales is not None and not _valid_scales(scales):
                 raise _Malformed(f"scales {scales!r} are not four finite numbers q_min <= q_max, c_max, l_max > 0")

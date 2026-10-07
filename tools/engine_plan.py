@@ -171,7 +171,7 @@ def load_launch(path: Path) -> _Launch:
     if isinstance(raw, dict):
         unset = sorted(k for k, v in raw.items() if v == "OWNER-MUST-SET")
         if unset:
-            raise ConfigError(f"{path}: {unset} are OWNER-MUST-SET; the owner sets them (D44), nobody else")
+            raise ConfigError(f"{path}: {unset} are OWNER-MUST-SET; the owner sets them, nobody else")
     return parse(_Launch, raw, f"scheduler launch file {path}")
 
 

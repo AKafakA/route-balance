@@ -78,7 +78,7 @@ def cell_point(exp: ExpectedCell, s: CellSummary, coverage: Coverage) -> CellPoi
     if s.slo_attainment_tight is None or s.slo_attainment_loose is None:
         raise ConfigError(f"cell {s.cell_id} was summarised without its SLO")
     if s.cost_total_per_1k is None:
-        raise ConfigError(f"cell {s.cell_id} was summarised without input prices (D117)")
+        raise ConfigError(f"cell {s.cell_id} was summarised without input prices")
     return CellPoint(group=exp.group, config_id=exp.config_id, system=exp.config.system, knob=exp.config.knob,
                      dispatch=exp.config.dispatch, trace_id=exp.trace_id, seed=exp.seed, quality=s.quality,
                      e2e_mean_ms=s.e2e_ms.mean, e2e_p99_ms=s.e2e_ms.p99, cost_decode_per_1k=s.cost_decode_per_1k,

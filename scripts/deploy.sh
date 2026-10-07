@@ -101,7 +101,7 @@ print(config_digest(load_scheduler(sys.argv[3])), fleet_digest(load_fleet(sys.ar
     "$FLEET" "$HOSTS" "$CONFIG") || die "invalid fleet, hosts or scheduler config"
   addr=$(plan nodes --fleet "$FLEET" --hosts "$HOSTS" | awk -F'\t' -v n="$NODE" '$1 == n {print $2}') \
     || die "invalid fleet/hosts"
-  [ -n "$addr" ] || die "node $NODE serves no instance of $FLEET (the scheduler runs on a fleet node, D20)"
+  [ -n "$addr" ] || die "node $NODE serves no instance of $FLEET (the scheduler runs on a fleet node)"
 
   run="$RB_RUN/scheduler.$(date -u +%Y%m%dT%H%M%SZ)"
   rb_ssh 60 "$addr" mkdir -p "$run" || die "cannot create $run on $NODE"

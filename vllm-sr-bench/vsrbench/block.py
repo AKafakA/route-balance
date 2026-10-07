@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import argparse
 import dataclasses
-import hashlib
 import json
 import os
 import subprocess
@@ -31,13 +30,14 @@ import sys
 from pathlib import Path
 
 from analysis.manifest import cell_problems
+from bench.dataset import file_sha256
 from bench.records import cell_dir
 from gates.cell import GateError, open_cell, reset_problems, traffic_problems
 from bench.scope import expected_cells
 from routebalance.config import ConfigError
 from runner import render as rd, store
 from runner.mirror import mirror_cell
-from vsrbench.run_cell import CLIENT_ENV, _sha, input_problems, inputs_reference, shared_tree_check, versions, vsr_cell
+from vsrbench.run_cell import CLIENT_ENV, input_problems, inputs_reference, shared_tree_check, versions, vsr_cell
 from vsrbench.stack import Docker
 
 MODULE = Path(__file__).resolve().parents[1]
@@ -69,7 +69,7 @@ BLOCK_FLAGS = ("--profile", "--render", "--template-cell", "--seed", "--referenc
 
 def module_digests() -> dict[str, str]:
     """This module's code, as run_cell's harness record names it (vsr/harness.json "module")."""
-    return {str(p.relative_to(MODULE)): _sha(p) for p in sorted(MODULE.glob("vsrbench/*.py"))}
+    return {str(p.relative_to(MODULE)): file_sha256(p) for p in sorted(MODULE.glob("vsrbench/*.py"))}
 
 
 def versions_of(root: Path, cid: str):
@@ -103,7 +103,7 @@ def verdict(root: Path, cid: str, scope=None, family: str = "", template: str = 
         valid = json.loads((d / "gates" / "verdict.json").read_text())["valid"]
         cell = open_cell(d)
         rec = cell.record
-        config_sha = hashlib.sha256((d / "vsr" / "config.yaml").read_bytes()).hexdigest()
+        config_sha = file_sha256(d / "vsr" / "config.yaml")
     except (OSError, ValueError, KeyError, GateError):
         return "invalid"
     if valid is not True or rec.cell_id != cid or reset_problems(cell) or traffic_problems(cell):
@@ -190,7 +190,7 @@ def main(argv: list[str]) -> int:
             pair = inputs_reference(scope, a.reference_cells, t, s)
             print(f"{now[cid]:8s} {cid}  inputs paired with: "
                   + ("none published (checked against the render)" if pair is None
-                     else f"{pair.name} ({_sha(next(pair.glob('*.cell.json')))[:16]})"))
+                     else f"{pair.name} ({file_sha256(next(pair.glob('*.cell.json')))[:16]})"))
         count = {k: sum(v == k for v in now.values()) for k in ("valid", "invalid", "missing")}
         mixed = mixed_versions(a.cells_root, order)
         print(f"[vsr block] {count['valid']}/{len(now)} valid, {count['invalid']} invalid, {count['missing']} missing"

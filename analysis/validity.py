@@ -38,7 +38,7 @@ def integrity_problems(cell: CellRecord) -> list[str]:
     if order_digest([r.prompt_row for r in reqs]) != cell.prompt_order_digest:
         problems.append("recorded prompt rows do not match the prompt-order digest")
     mismatched = sum(r.reply is not None and r.reply.prompt_tokens != r.prompt_tokens for r in reqs)
-    if mismatched:   # checked when the cell runs, not only in the analysis
+    if mismatched:   # checked when the cell runs, not only in the analysis; verdict and report text, as the runs wrote it
         problems.append(f"{mismatched} requests: the backend prefilled a different number of prompt tokens than the "
                         "client sent (D34)")
     return problems

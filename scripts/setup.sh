@@ -461,7 +461,7 @@ self_check_vsr() {
   local fail=0 ref digest
   installed docker.io && [ "$(dpkg-query -W -f '${Version}' docker.io)" = "$DOCKER_IO_VERSION" ] || { say "docker.io is not fully installed at $DOCKER_IO_VERSION"; fail=1; }
   [ "$(sudo docker info --format '{{.DockerRootDir}}')" = "$DOCKER_ROOT" ] || { say "Docker's data root is not $DOCKER_ROOT"; fail=1; }
-  [ "$(sudo docker info --format '{{.Driver}}')" = overlay2 ] || { say "Docker's storage is not overlay2 under $DOCKER_ROOT (D168)"; fail=1; }
+  [ "$(sudo docker info --format '{{.Driver}}')" = overlay2 ] || { say "Docker's storage is not overlay2 under $DOCKER_ROOT"; fail=1; }
   local u state
   for u in docker.service docker.socket containerd.service ubuntu-fan.service; do     # never started at boot
     state=$(systemctl is-enabled "$u" 2>&1) || :      # disabled (and a missing unit) exit nonzero; the case reads it
