@@ -11,7 +11,7 @@ check: $(CHECK)
 lint:
 	$(PY) -m ruff check .
 	$(PY) -m compileall -q routebalance bench analysis gates runner tools
-	for f in scripts/*.sh; do bash -n "$$f" || exit 1; done
+	for f in $$(find . -name '*.sh' -not -path './.*' | sort); do bash -n "$$f" || exit 1; done
 	@if command -v $(SHELLCHECK) >/dev/null 2>&1; then echo "$(SHELLCHECK) scripts/*.sh"; $(SHELLCHECK) -x -P scripts scripts/*.sh; \
 	else echo "lint: $(SHELLCHECK) not found, scripts/*.sh were only syntax-checked (make lint SHELLCHECK=<path>)"; fi
 

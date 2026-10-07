@@ -4,7 +4,7 @@
 # scripts/node_ctl.sh's cmd_started does. The engines serve Qwen2.5-0.5B under the test profile's names.
 #   engines.sh start RUN_DIR RECORD [pair]      engines.sh stop RUN_DIR [pair]
 set -euo pipefail
-ROOT="${RB_VSR_TEST_ROOT:?set RB_VSR_TEST_ROOT to the test machine's test directory (venv-vllm inside)}"
+ROOT="${RB_VSR_TEST_ROOT:?set RB_VSR_TEST_ROOT to the test directory on the test machine (venv-vllm inside)}"
 HF="${RB_VSR_HF_HOME:?set RB_VSR_HF_HOME to the Hub cache holding the test model}"
 PY=$ROOT/venv-vllm/bin/python
 REV=060db6499f32faf8b98477b0a26969ef7d8b9987
