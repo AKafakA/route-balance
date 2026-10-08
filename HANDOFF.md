@@ -6,7 +6,7 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## Where the project stands
 
-- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc9 (8 Oct, night). The final runs (the lease of 28 Sept
+- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc10 (8 Oct, night). The final runs (the lease of 28 Sept
   to 5 Oct: 1,457 runs, all valid) are archived. The code is released in three branches, and the reviewer packs are
   built. Every backup was checked by sha256 on 8 Oct. Nothing is running on any machine.
 - **Before submitting: the paper's code link.** The abstract links `https://anonymous.4open.science/r/route-balance-3ECA`.
@@ -17,8 +17,8 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## The paper
 
-- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc9 (8 Oct): commit
-  04ae1af, tag `v1.1-rc9`, snapshot `versions/1.1.0-rc9/` (reader PDFs, the Overleaf ZIP, every check's output, the
+- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc10 (8 Oct): commit
+  ee71e41, tag `v1.1-rc10`, snapshot `versions/1.1.0-rc10/` (reader PDFs, the Overleaf ZIP, every check's output, the
   round's reviews, `SHA256SUMS`). The body ends on page 10. rc6 over rc5: no paragraph ends in a single-word line, ALPS
   is cited among the request schedulers, the Testbed sentence gives the V100's reason (`reviews/2026-10-08_runts-alps/`).
   rc7 over rc6: the round's range measured on the archived decision logs (`tools/round_range.py`,
@@ -30,8 +30,10 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
   (owner 8 Oct): BOute (MLSys 2026) named in §2's Placement paragraph as the offline deployment search that brings in
   model routing (a fixed workload trace, a cluster simulator, P95 latency against quality under a price budget), its
   reference added, no Table 1 row; for the fit Figure 4 (Gemma) is drawn at 2.20 in, no `\looseness`, the body still
-  ends on page 10 (`ROUND_LOG.md`, ledger rows L123 and L124). The figure script's change alters a paper data pack
-  output (`figures/frontier_gemma.pdf`): the pack is at v1.2 for rc8 and needs a v1.3 build for rc9. The paper
+  ends on page 10 (`ROUND_LOG.md`, ledger rows L123 and L124). rc10 over rc9 (owner 8 Oct): Figure 4's caption in one line (his text), the keys of
+  Figures 2 and 4 in two lines from the left edge with the hollow entry on one line, Figure 4 at 2.40 in (2.50 in
+  overflows; ledger rows L125 to L128). The figure scripts' changes alter two paper data pack outputs
+  (`figures/frontier_gemma.pdf`, `figures/frontier3d.pdf`): the pack is at v1.2 for rc8 and needs a v1.3 build. The paper
   repository's Drive bundle predates rc7.
 - Its `HANDOFF.md` was last updated on 5 Oct (rc2). The rounds since (rc3 to rc5: the rc2 review's fixes, the
   related-work audit, the flow rewrite, the page fit, the merged figures, Table 5 as a figure, the two-column
