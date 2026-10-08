@@ -1,0 +1,1097 @@
+% TEMPLATE for Usenix papers, specifically to meet requirements of
+%  USENIX '05
+% originally a template for producing IEEE-format articles using LaTeX.
+%   written by Matthew Ward, CS Department, Worcester Polytechnic Institute.
+% adapted by David Beazley for his excellent SWIG paper in Proceedings,
+%   Tcl 96
+% turned into a smartass generic template by De Clarke, with thanks to
+%   both the above pioneers
+% use at your own risk.  Complaints to /dev/null.
+% make it two column with no page numbering, default is 10 point
+
+% Munged by Fred Douglis <douglis@research.att.com> 10/97 to separate
+% the .sty file from the LaTeX source template, so that people can
+% more easily include the .sty file into an existing document.  Also
+% changed to more closely follow the style guidelines as represented
+% by the Word sample file. 
+
+% Note that since 2010, USENIX does not require endnotes. If you want
+% foot of page notes, don't include the endnotes package in the 
+% usepackage command, below.
+
+\documentclass[letterpaper, anonymous, twocolumn, 10pt]{article}
+\usepackage{usenix,epsfig,endnotes,}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{subcaption}
+\usepackage{amsmath}
+\usepackage{stfloats}
+\usepackage[export]{adjustbox}
+\usepackage[usenames,dvipsnames]{xcolor}
+\usepackage{tabularx}
+\usepackage[justification=centering]{caption}
+\usepackage{listings}
+\DeclareRobustCommand{\legendsquare}[1]{%
+  \textcolor{#1}{\rule{1ex}{1ex}}%
+}
+\DeclareUnicodeCharacter{03B2}{\ensuremath{\beta}}
+\newcommand{\Score}{\text{Score}}
+
+% 2. COLOR DEFINITIONS
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.95}
+\definecolor{keywordblue}{rgb}{0.13, 0.13, 1}
+
+% 3. NEW: DEFINE THE JSON LANGUAGE
+\lstdefinelanguage{json}{
+    keywords={true, false, null},
+    keywordstyle=\color{keywordblue},
+    stringstyle=\color{codepurple},
+    string=[s]{"}{"},
+    commentstyle=\color{codegreen},
+    morecomment=[l]{//},
+    morecomment=[s]{/*}{*/}
+}
+
+% 4. DEFINE THE STYLE THAT USES THE NEW LANGUAGE
+\lstdefinestyle{jsonstyle}{
+    language=json,
+    backgroundcolor=\color{backcolour},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=tb,
+    captionpos=b,
+    showstringspaces=false,
+    numbers=left,
+    numberstyle=\tiny\color{gray}
+}
+
+\begin{document}
+
+%don't want date printed
+\date{}
+
+%make title bold and 14 pt font (Latex default is non-bold, 16 pt)
+\title{\Large \bf Cara: Quality-Aware Scheduling for Heterogeneous LLM Serving with Learned Predictors}
+
+\author{
+{\rm Anonymous Authors}
+}
+
+\maketitle
+
+% Use the following at camera-ready time to suppress page numbers.
+% Comment it out when you first submit the paper for review.
+% \thispagestyle{empty}
+
+
+\subsection*{Abstract}
+
+Large language model (LLM) serving increasingly relies on heterogeneous clusters hosting multiple model sizes across diverse GPU types.
+Existing schedulers either ignore output quality differences between models or treat routing and scheduling as separate problems.
+We present \textbf{Cara}, a quality-aware scheduling system for heterogeneous LLM serving that jointly optimizes request routing and batch scheduling using learned predictors.
+Cara introduces three key components:
+(1)~a \emph{bucket-based length predictor} that outputs probability distributions over output length ranges, enabling probabilistic budget compliance checking;
+(2)~a \emph{safety-aware quality predictor} that uses separate scoring strategies for safe prompts (LLM-judge quality) and harmful prompts (refusal compliance), predicting per-model output quality from prompts alone;
+and (3)~a \emph{learned latency predictor} that maps observable instance state to per-token SLO metrics (TTFT and TPOT), inspired by learned index structures.
+These predictors feed a unified multi-objective scheduler that filters instances by SLO compliance (budget, TTFT, TPOT) and ranks survivors by a weighted combination of expected latency, cost, and quality.
+
+We deploy Cara on a heterogeneous CloudLab cluster with 18~instances spanning four Qwen2.5 model sizes (3B--72B) on four GPU types (P100, V100, A30, A100).
+We release two public datasets: \texttt{cara\_model\_estimator} (18.6K multi-model quality-annotated requests) and \texttt{cara\_latency\_prediction} (405K scheduling-state-to-latency records).
+Our experiments show that a fused multi-head bucket classifier achieves 38--48\% exact bucket accuracy (56--73\% adjacent) with a single forward pass for all models, outperforming training-free baselines (PFS~\cite{Gong_2025}: 10--24\%) and matching per-model classifiers at 4$\times$ lower inference cost. The quality predictor selects the best model 64\% of the time, and decomposing latency into separately predicted TTFT and TPOT eliminates dependence on output length estimation for SLO checking.
+%% TODO: Add end-to-end scheduling results when CloudLab evaluation completes
+
+
+\section{Introduction} \label{section:introduction}
+
+Modern cloud providers increasingly serve large language models (LLMs) through heterogeneous infrastructure: multiple model sizes deployed across diverse GPU types to balance cost, latency, and output quality~\cite{openaiIntroducingGPT5, microsoftModelRouter}.
+A single cluster may host Qwen2.5-72B on A100 GPUs for complex reasoning tasks alongside Qwen2.5-3B on P100 GPUs for simple queries, with each combination offering distinct trade-offs in throughput (11--98~tok/s), latency, and response quality.
+
+This heterogeneity creates a fundamental scheduling challenge: \emph{which model instance should serve each request?}
+The answer depends on the interplay of three factors that existing systems address in isolation:
+\begin{itemize}
+    \item \textbf{Quality}: Larger models generally produce better outputs, but the quality gap is workload-dependent---for simple queries, a 3B model may match a 72B model.
+    \item \textbf{Cost}: Output length determines token cost, which varies by model (larger models are more expensive per token but may produce shorter, more focused responses).
+    \item \textbf{Latency}: End-to-end latency depends on instance load, model size, and output length, requiring real-time prediction from dynamic system state.
+\end{itemize}
+
+Current LLM routers~\cite{Ong2024RouteLLMLT, universal_model_routering} select models based on quality estimates but ignore instance-level load.
+Serving schedulers~\cite{da2025blockbalancingloadllm, zhong2024distservedisaggregatingprefilldecoding} optimize latency within a single model but lack quality awareness.
+No existing system jointly considers quality, cost, and latency across a heterogeneous multi-model cluster.
+
+Cara bridges this gap with three technical contributions:
+
+\paragraph{Contribution 1: Probabilistic Length Prediction for Budget Compliance.}
+Instead of predicting exact output lengths (which we show achieves only 68--126\% MAPE with standard regression), we reformulate length prediction as a \emph{classification over 64-token buckets}.
+The classifier outputs a probability distribution $P(\text{bucket}_i)$ over 16 ranges, enabling the scheduler to compute $P(\text{tokens} \leq B)$ for any budget~$B$ as a cumulative sum.
+A fused multi-head ModernBERT-base encoder achieves 38--48\% exact bucket accuracy and 56--73\% adjacent accuracy across all model sizes in a single forward pass, substantially outperforming training-free approaches such as PFS~\cite{Gong_2025} (10--24\%) that assume temporally stable output length distributions.
+The probability distribution enables \emph{risk-aware routing}: requests with high $P(\text{tokens} \leq B)$ can be safely routed to cheaper instances.
+
+\paragraph{Contribution 2: Quality-Aware Multi-Objective Scheduling.}
+Cara's scheduler filters candidate instances by three SLOs---budget compliance (via length bucket probabilities), TTFT (via learned queue-state predictor), and TPOT (via learned per-instance predictor)---then ranks survivors by a weighted objective combining expected latency, cost, predicted quality, and cluster utilization balance.
+This two-phase approach (filter then rank) avoids the combinatorial explosion of jointly optimizing all objectives while ensuring SLO compliance.
+
+\paragraph{Contribution 3: Two-Tier Latency Prediction.}
+While E2E latency prediction is widely used in serving systems for scheduling~\cite{da2025blockbalancingloadllm, SamuLLM}, proactive dropping~\cite{pard2025}, and resource adaptation~\cite{timebill2025}, its accuracy degrades in multi-model settings where output length prediction error (100\%+ MAPE) propagates into E2E estimates.
+We address this with a \emph{two-tier} approach: E2E latency serves as a \emph{soft scoring signal} for ranking candidate instances (where relative ordering is sufficient even with noise), while separate TTFT and TPOT predictors provide \emph{hard SLO enforcement} (where reliability matters and neither metric depends on output length).
+Both tiers are trained on observable instance state (queue depth, KV cache utilization, EMA service rates), following the principle that data-driven models can replace manually engineered system components~\cite{kraska2018case}.
+This approach is \emph{forward-compatible}: when hardware or software changes, the predictors adapt through retraining on newly collected serving data---in contrast to simulation-based approaches (e.g., Vidur~\cite{Agrawal2024VidurAL}) that require re-profiling kernel execution times per GPU type and re-implementing the simulator for each scheduler change (e.g., vLLM v0$\rightarrow$v1 engine), and analytical approaches (e.g., AIConfigurator~\cite{aiconfigurator2025}) that require $\sim$30 GPU-hours of per-hardware profiling and only support specific GPU/CUDA combinations.
+The two-tier design aligns with goodput-oriented serving systems~\cite{qlm, chen2025slosserveoptimizedservingmultislo} that enforce per-request TTFT and TPOT SLOs independently.
+
+We implement Cara as a 5000-line Python system deployed on CloudLab with 18~heterogeneous instances.
+We release two datasets to support reproducibility and future research: \texttt{cara\_model\_estimator} (18.6K quality-annotated multi-model requests on HuggingFace) and \texttt{cara\_latency\_prediction} (405K scheduling-state-to-latency records with per-request queue details).
+
+
+\section{Background and Motivation} \label{section:motivation}
+
+\subsection{LLM Inference Process} \label{section:llm_inference_processes}
+
+LLM inference proceeds in two distinct phases.
+In the \textbf{prefill} phase, the model processes all input tokens in parallel to populate the key-value (KV) cache.
+The latency of this phase scales with input length and determines the Time to First Token (TTFT).
+In the \textbf{decode} phase, the model generates output tokens auto-regressively, one at a time, each attending to the full KV cache.
+The per-token decode latency---Time Per Output Token (TPOT)---is largely determined by the memory bandwidth required to read the KV cache and model weights, making it relatively insensitive to the number of output tokens already generated.
+
+Modern serving engines such as vLLM~\cite{kwon2023vllm} use \emph{continuous batching}, where new requests can enter mid-batch without waiting for all current requests to complete.
+This improves GPU utilization but makes latency prediction harder: a request's actual latency depends not only on its own length but also on the dynamic composition of co-batched requests and the current KV cache pressure.
+
+\subsection{Task Scheduling and Model Routing}
+
+Existing approaches to LLM request management fall into two largely disjoint categories.
+
+\paragraph{Model Routers.}
+LLM routers~\cite{Ong2024RouteLLMLT, universal_model_routering, chen2023frugalgpthowuse, mei2025eccosefficientcapability} select which model should serve a request based on predicted quality, cost, or task difficulty.
+RouteLLM~\cite{Ong2024RouteLLMLT} trains a binary classifier on preference data to route between a strong and weak model.
+Universal Model Routing~\cite{universal_model_routering} extends this to $N$ models with a scoring function over quality and cost.
+However, these routers operate \emph{above} the serving layer: they select a model pool but have no visibility into instance-level load, queue depth, or KV cache state.
+A router may send a request to the ``best'' model while that model's instances are overloaded.
+
+\paragraph{Serving Schedulers.}
+Systems like Block~\cite{da2025blockbalancingloadllm}, QLM~\cite{qlm}, and Past-Future Scheduler (PFS)~\cite{Gong_2025} optimize request placement \emph{within} a single model's replica set, typically targeting latency SLOs.
+They use simulation-based~\cite{Agrawal2024VidurAL, SamuLLM} or heuristic predictors to estimate per-request latency and balance load across replicas.
+PFS predicts output length from a sliding window of recently completed requests using the empirical distribution, which works well for stable single-service workloads but degrades in our multi-dataset heterogeneous setting (\S\ref{section:length_predictor}).
+However, these systems assume a fixed model and do not consider quality or cost trade-offs.
+
+Cara unifies these two layers into a single scheduling decision that jointly considers model quality, token budget, and instance-level latency predictions.
+
+\subsection{Heterogeneity and Trade-offs in LLM Serving}\label{section:heterogeneity}
+
+Modern LLM serving stacks face a tension between efficiency and flexibility.
+At scale, providers host multiple model variants (e.g., 3B, 7B, 14B, 72B parameters) across diverse GPU types with different memory, bandwidth, and compute characteristics.
+Table~\ref{tab:heterogeneous_cluster} illustrates this heterogeneity in our experimental cluster.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Heterogeneous cluster configuration. Each (model, GPU) pair exhibits distinct throughput, TPOT, and quality characteristics.}
+\label{tab:heterogeneous_cluster}
+\begin{tabular}{llrrr}
+\hline
+Model & GPU & Instances & TPOT (ms) & Throughput \\
+\hline
+Qwen2.5-72B & A100$\times$4 & 1 & 41.6 & 24 tok/s \\
+Qwen2.5-14B & V100$\times$4 & 4 & 13.9 & 72 tok/s \\
+Qwen2.5-7B & A30$\times$1 & 3 & 19.6 & 51 tok/s \\
+Qwen2.5-3B & A30$\times$1 & 6 & 10.2 & 98 tok/s \\
+Qwen2.5-3B & P100$\times$1 & 4 & 88.8 & 11 tok/s \\
+\hline
+\end{tabular}
+\end{table}
+
+This heterogeneity creates three key trade-offs that motivate Cara's design:
+
+\paragraph{Quality vs. Cost.}
+Larger models generally produce higher-quality responses, but not uniformly.
+For simple factual queries, a 3B model may produce output semantically identical to 72B, while for complex reasoning, the quality gap is significant.
+A quality-aware scheduler can route simple queries to cheap instances without sacrificing user experience.
+
+\paragraph{Cost vs. Latency.}
+Cheaper instances (e.g., 3B on P100) have lower per-token cost but much higher TPOT (88.8ms vs. 10.2ms on A30).
+The optimal choice depends on the user's latency tolerance, expressed as TTFT and TPOT SLOs.
+
+\paragraph{Throughput vs. Predictability.}
+Higher throughput instances can serve more requests but with less predictable latency under load.
+As queue depth increases, TTFT grows while TPOT remains relatively stable---a key empirical finding we exploit in \S\ref{section:latency_predictor}.
+
+Current systems address these trade-offs in isolation: inference engines such as vLLM~\cite{kwon2023vllm} optimize local batching within a single instance; model routers~\cite{Ong2024RouteLLMLT, universal_model_routering} direct requests to models based on quality or cost heuristics without visibility into instance-level load; and serving schedulers~\cite{da2025blockbalancingloadllm, qlm} balance load across replicas without considering quality or cost trade-offs.
+This decoupling introduces inefficiencies: routers make model selection decisions without visibility into system state, while schedulers batch requests without considering global workload composition.
+Our key observation is that the missing control layer is \textbf{global batch orchestration}---the ability to form and schedule batches across the entire heterogeneous cluster, jointly considering request heterogeneity, model quality, latency SLOs, cost constraints, and infrastructure state.
+Cara addresses this gap by unifying router and scheduler into a single decision plane.
+
+
+\section{System Design} \label{section:design}
+
+This section presents the core design and model of Cara. First, § \ref{section:API} introduces a new API that allows users to specify request-level objectives for each inference request, enabling flexible trade-offs across the heterogeneity discussed in § \ref{section:heterogeneity}.Building on that, \S \ref{section:system_model} formalizes the request scheduling in Cara as an extendable and solvable mixed-integer linear programming optimization problem. Finally, § \ref{section:Cara_system} describes the high-level design of the scheduling system and explains how the scheduling problem feasibly solved at runtime using a greedy heuristic approach.
+
+\subsection{Batch Inference API with Request Specific Objective} \label{section:API}
+
+As discussed in § \ref{section:motivation}, modern LLM serving platforms typically provide two distinct APIs: a streaming online API for point-wise, latency-sensitive requests, and an offline batch API, which allows for delayed responses at a reduced cost \cite{googleBatchGemini, openaiOpenAIPlatform}. The latter enables the inference scheduler to prioritize throughput and cluster utilization, free from strict latency constraints. However, requests from both API types are often executed asynchronously through the same underlying inference workflow, as detailed in § \ref{section:llm_inference_processes}. Consequently, even online requests incur delays that can still degrade user experience \cite{wang2024revisitingslogoodputmetrics}, necessitating the enforcement of strict Service-Level Objectives (SLOs) to maintain high "goodput" (the number of requests that meet their SLOs) and motivating LLM serving systems development \cite{liu2025turbospecclosedloopspeculationcontrol, zhong2024distservedisaggregatingprefilldecoding, wang2025prefilldecodeaggregationdisaggregationunifying} .
+
+Furthermore, contemporary LLM serving APIs have evolved beyond simple inference. They increasingly empower users to specify fine-grained directives within each request, which we term \textbf{Request-Specific Objectives (RSOs)}. For example, users can define completion deadlines for batch jobs or set model routing strategies \cite{openaiIntroducingGPT5, microsoftModelRouter} based on remaining budgets or quotas. Prevailing architectures are ill-equipped to handle these RSOs holistically. In a typical decoupled system, a high-level model router first selects a model pool based on some constraints, after which a separate, low-level scheduler attempts to load-balance requests across replicas to meet others, such as deadlines. This separation of concerns prevents global optimization.
+
+In Cara, we propose a new, unified API that generalizes the batch API to accept all customized RSOs as direct input to the inference predictive scheduler. As the pointwise online request is merely a special case of a batch request—specifically, a batch of size one with a highly restrictive latency RSO that is equal to or stricter than cluster's SLO, so the unified API subsumes both. We argue that scheduling requests individually is not always necessary to meet low-latency requirements. Instead, by adopting a batch inference and scheduling paradigm, which has been widely studied in cloud task scheduling \cite{eva-eurosys}, flexibility can be achieved to perform global load balancing and achieve superior trade-offs between performance and cost.  This API extend the existing batch API by introducing the new RSO, which empowers users to embed the quantified constraints and preferences directly within each individual request of a batch. The RSO field is designed to be extensible, allowing the scheduler to reason about diverse user intents. A simplified template for a single request is shown as
+\begin{minipage}{\linewidth}
+\begin{lstlisting}[style=jsonstyle, caption={Schema for Generate API request with RSOs.}, label={lst:api_schema}]
+[
+  {
+    "request_id": string,
+    "prompts": string,
+    "request_specific_objective": {
+      "ttft_slo_ms": int,
+      "tpot_slo_ms": int,
+      "budget_cost": float,
+      "quality_min": float,
+      "constraint_mode": string,
+      "relax_order": list
+    },
+    "sampling_params": dict
+  }
+]
+\end{lstlisting}
+\end{minipage}
+The RSO schema decomposes latency into separate TTFT and TPOT targets (matching our two-tier prediction architecture, \S\ref{section:latency_predictor}), specifies a monetary cost budget (converted to per-model token budgets using instance pricing), and a minimum quality threshold.
+The \texttt{constraint\_mode} controls filter behavior: \texttt{STRICT} (reject if any constraint violated), \texttt{TIERED} (progressively relax in \texttt{relax\_order}), or \texttt{RELAXED} (no filtering).
+E2E latency is not an RSO filter---it serves as a soft scoring signal only, since its accuracy depends on output length prediction (\S\ref{section:latency_predictor}).
+
+\subsection{Scheduling Model} \label{section:system_model}
+
+With user requests defined by RSOs and overall cluster performance governed by SLOs, the global scheduling task can be formalized as a multi-objective optimization problem. The central goal is to find an optimal assignment of incoming requests to pre-deployed model instances, balancing a variety of competing metrics that serve as both hard and soft constraints.
+
+\subsubsection{Problem Definition}
+We define the scheduling problem for a given batch of requests $R_B$ as follows:
+
+\paragraph{Sets and Indices:}
+\begin{itemize}
+    \item $R_B$: The set of requests to be scheduled in the current batch, where the batch will be selected as FCFS order with a dynamic batch size, discussed in \S \ref{section:Cara_system}.
+    \item $I$: The set of pre-deployed, heterogeneous model instances.
+\end{itemize}
+
+\paragraph{Prediction Parameters:}
+\begin{itemize}
+    \item $P_{r,i}$: The predicted metrics for request $r$ on instance $i$, 
+    We use the latency as the example metric here but could be extended to other single or multiple metrics set, e.g. TTFT and Time-Per-Output-Token  (TPOT)
+    \item $C_{r,i}$: The predicted monetary cost to serve request $r$ on instance $i$.
+    \item $Q_{r,i}$: The predicted quality score (e.g., model accuracy) for request $r$ on instance $i$.
+    \item $M_{r,i}$: The required memory (e.g., for KV cache) for request $r$ on instance $i$.
+    \item $\mathrm{Cap}_i$: The maximum memory capacity of instance $i$.
+    \item $w_j$: Pre-defined weights for objective function components (e.g., $w_{\text{lat}}, w_{\text{cost}}, w_{\text{qual}}, w_{\text{m}}, w_{\text{u}}$).
+\end{itemize}
+
+\paragraph{Decision Variable:}
+\begin{itemize}
+    \item $x_{r,i} \in \{0,1\}$: A binary variable that is $1$ if request $r$ is assigned to instance $i$, and $0$ otherwise.
+\end{itemize}
+
+\subsubsection{Optimization Model}
+The objective is to minimize a weighted function that aggregates request-level and batch-level metrics, subject to RSO, SLO, and resource constraints.
+
+\begin{equation}
+\begin{aligned}
+\min_{x_{r,i}} \quad
+& \sum_{r\in R_B, i\in I} x_{r,i} \cdot \Big(w_{\text{lat}} P_{r,i} + w_{\text{cost}} C_{r,i} - w_{\text{qual}} Q_{r,i} \Big) \\
+& \quad + w_{\text{m}} \cdot \max_{r \in R_B} \left( \sum_{i \in I} x_{r,i} P_{r,i} \right) \\
+& \quad + w_{\text{u}} \cdot \sum_i \left( \frac{\sum_{r\in R_B} x_{r,i} M_{r,i}}{\mathrm{Cap}_i}\right) \\
+\text{s.t.}\quad
+& \sum_{i \in I} x_{r,i} = 1, \\
+& \sum_{i \in I} x_{r,i} P_{r,i} \le \min(\mathrm{RSO}_{\text{lat}}(r), \mathrm{SLO}_{\text{lat}}(r)), \\
+& \sum_{i \in I} x_{r,i} Q_{r,i} \ge \mathrm{RSO}_{\text{qual}}(r), \\
+& \sum_{i \in I} x_{r,i} C_{r,i} \le \mathrm{RSO}_{\text{budget}}(r), && \forall r \in R_B
+%% Memory capacity enforced by the inference engine (vLLM preemption/eviction).
+%% Balance term w_u provides soft penalty for memory utilization imbalance.
+\end{aligned}
+\end{equation}
+
+The weights in the objective function define the scheduling policy. The terms $w_{\text{lat}}$, $w_{\text{cost}}$, and $w_{\text{qual}}$ balance request-level metrics, extending concepts from existing LLM routers \cite{universal_model_routering}. We further introduce batch-level weights: $w_{\text{m}}$ prioritizes minimizing the batch makespan (a proxy for throughput), while $w_{\text{u}}$ encourages load balancing of memory usage across instances. This formulation effectively fuses task scheduling with model routing and unifies the handling of pointwise and batch requests to a Mixed-Integer Linear Program (MILP). (as the max term in the objective is linearized.) 
+
+
+For this study, we assume the scheduling weights are static and the set of instances $I$ is pre-deployed. This deliberate focus on the runtime assignment problem positions our scheduling layer as an orthogonal and complementary component to existing research on optimal deployment strategies \cite{helix, hexgen, hexgen-2, thunderserve}. In Appendix~\ref{append:dynamic-scheduling}, we discuss how this model can be extended to consider dynamic provisioning for use cases like serverless LLM inference \cite{serverlessllm, deepserve}.
+
+
+% NOTE: Normalization is addressed in Section 3.3 (batch-level per-signal min-max normalization).
+
+
+
+
+
+
+
+\subsection{Cara System} \label{section:Cara_system}
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{images/Cara.png}
+  \caption{Cara Architecture}
+  \label{fig:cara}
+\end{figure}
+
+The architecture of Cara, illustrated in Figure \ref{fig:cara}, utilizes a split-deployment model. A centralized scheduler service acts as the control plane, comprising the Global Scheduler and Model Estimator. Each worker instance, in turn, runs the primary Inference Service, which is paired with a Performance Predictor deployed as a local side-car.
+
+Similar to QLM\cite{qlm}, the request lifecycle begins when request submitted through new API \S \ref{section:API} is appended to a global queue. The Global Scheduler periodically groups these requests into a batch for placement. To gather the necessary inputs for its decision, the scheduler first queries the Model Estimator for predictions on request-specific attributes (e.g., output length). It then consults the Performance Predictor to forecast execution metrics like latency for various scheduling possibilities. Armed with these predictions, the scheduler uses an approximation solver for the optimization problem detailed in \S \ref{section:system_model} to determine the final assignment.
+
+All components are built on a unified API and general interfaces. This modular design allows different implementations to be seamlessly interchanged, providing the flexibility to manage the trade-off between computational overhead and predictive accuracy. This section will focus on these interface-level designs, deferring most implementation choices to Section \ref{section:implementation}. However, we make an exception for the greedy batch scheduling algorithm. As the core runtime solver, its logic is fundamental to the system's design, and we detail it here as the primary practical approach for this complex optimization.
+
+\subsubsection{Model Instance Services and Local Predictor}
+
+Each worker node in the Cara architecture runs two co-located services: the primary model inference instance and a metric predictor. To enable prediction without disrupting inference, we extend existing inference engines (such as vLLM, and Ollama) with a non-intrusive \textit{status} API. This API exposes the engine's internal request queue, which we model as a sequence of tuples representing each request's token information as \textit{(request\_id, prompt\_tokens, generated\_tokens, predicted\_total\_tokens)}. The co-locating the Performance Predictor on each worker instance is a deliberate design choice for scalability. This approach eliminates the network overhead of transferring internal status data and allows prediction computations to run in parallel across the cluster.
+
+The prediction workflow begins when the Global Scheduler calls a worker node's \textit{predict\_latency} API to evaluate a potential assignment. The local Predictor queries the instance's \textit{status} API to fetch the current request queue state---crucially, this status fetch is local (no network hop), which is why latency prediction is co-located with the instance rather than centralized.
+It then predicts TTFT and TPOT for the candidate request given the current queue state, returning performance predictions $P_{r,i}$ to the Global Scheduler.
+This architectural split---\emph{latency prediction at the instance} (state-dependent) and \emph{quality/length prediction at the scheduler} (prompt-dependent)---avoids redundant model loading across instances and enables the batched inference amortization described in \S\ref{section:Cara_system}.
+The entire prediction process is decoupled from the main \textit{generate} API, which continues to process requests and stream responses without interruption.
+
+\paragraph{Model-Driven vs. Simulation-Based Prediction.}
+Approaches like Block\cite{da2025blockbalancingloadllm} and SamuLLM\cite{SamuLLM} have successfully used simulation to predict performance for online and offline scheduling. Set of simulators \cite{kumar2025simulatingllmtraining, tan2025frontiersimulatingnext, kim2024llmservingsimhwswcosimulation, Agrawal2024VidurAL} shows impressive high accuracy on prediction of inference performances, which typically work by mirroring the system's static, pre-known batching logic and using pre-profiled execution times for low-level kernels on specific hardware (e.g., an attention operation on an A100 GPU). However, this tight coupling to static system properties is their primary weakness. A simulation-based approach is inherently \textbf{forward-incompatible}. It requires a manual, per-component integration and profiling process for every combination of hardware, software, and model configuration. Any change—a software update, a kernel optimization, or even natural hardware performance degradation over time—could significantly reduce the simulator's fidelity invisibly, necessitating a costly re-integration effort. This brittleness is fundamentally at odds with the dynamic, heterogeneous environment Cara is designed to manage.
+
+Drawing inspiration from the shift from manual feature engineering to representation learning in modern AI, we treat performance prediction as a general sequence-to-value regression task. This allows us to use adaptive sequence models, such as LSTMs\cite{lstm}, Transformers\cite{attentionIsAllUrneed} or Mamba \cite{mamaba}, which learn the complex performance interactions directly from observed data. A similar learning-based approach has proven effective for transaction's latency prediction in database scheduling \cite{wu2025improvingdbmsschedulingdecisions}. Furthermore, since performance depends primarily on request shapes (input/output lengths) rather than content, a virtually infinite amount of training data can be generated offline or accumulated online. For online data collection, the Predictor caches the input features (the request sequence) used for every prediction first. After a request finishes, the inference instance calls the Predictor's \textit{update} API, providing the ground-truth performance metrics to creates a new training sample, as the input/output pair . These samples are periodically flushed to storage, enabling the prediction model to be continuously retrained. This ensures it automatically adapts to changes in the underlying system, making it truly forward-compatible.
+
+\subsubsection{Global Model Estimator}
+
+In contrast to the instance-local Performance Predictor, model-related predictions are handled by a centralized microservice, the global model estimator, which is co-located with the scheduling orchestrator. This architectural separation is based on a key assumption: while performance metrics like latency are tightly coupled to hardware and the runtime environment, model outputs such as response length and quality are intrinsic properties of the model itself. This aligns with the Model-as-a-Service (MaaS) abstraction, where users are typically billed based on token usage and model choice, not the specific hardware executing the request.
+
+The Estimator is responsible for predicting two key metrics for a given request: (1) the expected \textbf{output length} in tokens, and (2) a normalized \textbf{quality score}, $Q_{r,i}$ in \S \ref{section:system_model}. The predicted length is a critical input for the downstream Performance Predictor and for calculating potential costs $C_{r,i}$. Predictions over these has been well-studied and forms the foundation of many existing LLM routers \cite{lakha2025faster, chen2023frugalgpthowuse, Ong2024RouteLLMLT, mei2025eccosefficientcapability, universal_model_routering, wu2025qualityofserviceawarellm, ye2025beyondgpt5making} and serving systems \cite{arango2025prefix, qlm, Gong_2025, xue2023responselengthperception, hu2024inferenceinterferencedisaggregatellm} and can be integrated directly as implementation of interfaces in Cara.
+
+However, Cara fundamentally differs from a traditional LLM router. While a router uses these predictions to make an immediate and final model selection, Cara uses them only as inputs for scheduler. The final decision of which model instance to use is deferred and integrated into the main scheduling problem, as detailed in \S~\ref{section:system_model}. For any given request, the Estimator produces a set of predictions mapping it to each compatible model variant. This is crucial for handling heterogeneity, as different versions of the same base model (e.g., with different precision heterogeneity \cite{bin2025fineserveprecisionawarekvslab}) are treated as distinct models with potentially unique quality and length characteristics.
+
+Critically, the Estimator exposes a \textbf{metric-agnostic interface}: it maps each prompt to a normalized $[0,1]$ score per candidate model, regardless of how that score is computed.
+The scoring function consumes these normalized signals without knowledge of their provenance.
+This means operators can plug in different quality metrics---LLM judge scores for subjective tasks, reference-based accuracy for factual workloads, embedding similarity as a zero-cost proxy, safety refusal rates for harmful content, or even domain-specific metrics such as code pass rates---through a single configuration change, with no modifications to the scheduling logic.
+The same data collection infrastructure (broadcasting prompts to all models) and training pipeline (encoder fine-tuning or KNN indexing) apply uniformly to any new metric, requiring only a new scoring function during data preparation.
+We demonstrate this extensibility in \S\ref{section:evaluation} by evaluating multiple quality signals and selecting the best-performing one for deployment.
+
+\subsubsection{Batch Scheduler and Orchestrator}
+The Global Scheduler is the central orchestrator of the Cara system, with three primary responsibilities. First, it performs batching for co-scheduling by grouping individual requests from a global pending queue. Second, it handles scheduling by approximately solving the optimization problem defined in \S~\ref{section:system_model}, querying the Model Estimator and Performance Predictors to gather the required parameters. Finally, it dispatches the optimized batch of requests to the appropriate model instances via their \textit{generate} API.
+
+\paragraph{Dynamic Adaptive Batching.}
+Requests arriving via the new API are appended to a pending queue. A naive batching strategy would be to collect requests in FCFS order until a fixed batch size, $B$, is reached. However, this can introduce significant head-of-line blocking as early requests wait for the batch to fill. A common improvement, inspired by the dynamic batcher in systems like NVIDIA Triton \cite{nvidiaTritonArchitecture} for batch deep learning inference requests to executed at single GPU, is to use a timeout, $d$. A batch is dispatched when its size reaches $B$ or when the oldest request has waited for $d$ milliseconds, whichever comes first.
+
+Cara introduces a further innovation based on a key insight: the latency cost of the batching timeout, $d$, is not constant but depends on the overall system load. If all worker nodes are busy and already have local queues, a new request would have to wait at the worker node anyway. In this high-load scenario, the batching delay at the central scheduler is effectively masked by the unavoidable queuing delay at the instance. Therefore, our scheduler employs \textbf{load-aware adaptive batching}. It dynamically adjusts its parameters based on the number of busy instances in the cluster. When worker nodes are free under low load, the scheduler uses a small batch size and a short timeout to minimize latency for incoming requests. As the number of busy instances spiking with load increasing, the scheduler progressively increases the maximum batch size (up to global limits $B$). This allows it to form larger batches that improve global throughput, leveraging the fact that requests would be queued at the instance level regardless. We formalize this overlap in the overhead model below (Equation~\ref{eq:effective_wait}).
+
+\paragraph{Scheduling Policy for Constraints.}
+Ideally, with perfect predictions and reasonable constraints, the scheduler would always find an optimal placement for every request. In practice, however, non-negligible prediction errors or overly strict user-defined RSOs can lead to scenarios where no available instance appears to satisfy a request's constraints. Similarly, cluster-wide SLOs can be violated during periods of high load. To handle these realities, Cara employs a set of configurable scheduling policies.
+
+For system-wide \textbf{SLO} violations, the orchestrator can be configured to perform early rejection based on predicted metrics, a strategy used in systems like Mooncake~\cite{qin_mooncake_2024} to preserve cluster stability. For user-defined \textbf{RSO} violations, control is given to the user via the API. Users can specify an "auto relax order" for unschedulable requests:
+\begin{itemize}
+    \item \textbf{Reject and Retry:} The request is immediately rejected if a empty relax order received, allowing the user to resubmit with more relaxed constraints.
+    \item \textbf{Auto-Relax:} The scheduler automatically relaxes the constraints in a predefined priority order in relax order list until a viable candidate instance is found.
+\end{itemize}
+
+To prevent viable instances from being incorrectly filtered out due to prediction errors, we decouple the values used for \textbf{constraint checking} from those used for \textbf{ranking} (in the objective function). While the raw point-prediction is used for ranking, a probabilistic confidence bound is used for filtering. For example, if we model the latency prediction error as a normal distribution, we can use the prediction minus three standard deviations (a 99.7\% confidence bound) for the constraint check. This significantly reduces the probability of discarding a suitable instance due to an overestimation of latency or cost, while still allowing the objective function to rank candidates based on the most likely outcome.
+Furthermore, for metrics like output length, active enforcement mechanisms could be used. Techniques like soft length control~\cite{Butcher_2025, gu-etal-2025-length} could dynamically guide the generation process to adhere to the predicted budget. We leave the integration of such controls as a promising area for future exploration.
+
+\paragraph{Tiered Constraint Relaxation.}
+The Auto-Relax policy implements a \emph{tiered} strategy that balances constraint satisfaction with routing availability.
+Rather than discarding all constraints simultaneously (RELAXED) or never relaxing them (STRICT), tiered relaxation removes constraints one at a time in a user-specified priority order (default: TTFT $\rightarrow$ TPOT $\rightarrow$ quality $\rightarrow$ budget) until at least one candidate instance passes.
+This design reflects the observation that constraint importance is workload-dependent: a latency-critical application may tolerate a budget violation before a TTFT miss, while a cost-sensitive batch job may prefer the opposite order.
+If all individual relaxations fail, the scheduler falls back to shortest-queue assignment---ensuring every request is served, even under extreme constraint pressure.
+The trade-off is clear: STRICT maximizes constraint compliance but risks high rejection rates under tight SLOs or inaccurate predictions; RELAXED maximizes availability but may route to suboptimal instances; TIERED provides a configurable middle ground.
+We evaluate all three modes in \S\ref{section:evaluation}.
+
+While the MILP formulation in \S~\ref{section:system_model} defines the optimal scheduling assignment, finding an exact solution is computationally infeasible for a real-time system.
+Beyond the NP-hardness of MILP~\cite{nair2021solvingmixedintegerprograms}, a deeper challenge arises: the prediction parameters $P_{r,i}$ are \emph{load-dependent}---assigning request $r$ to instance $i$ increases $i$'s queue depth, changing latency predictions for all subsequent assignments to $i$.
+This makes the problem a \emph{state-dependent scheduling} problem where processing times are functions of the current machine load, a class known to be NP-hard even for identical machines~\cite{job_shop_np_hard}.
+No polynomial-time algorithm with bounded competitive ratio exists for the general case, and evaluating any candidate assignment requires simulating the cascading queue effects across all subsequent decisions.
+Therefore, we employ a fast greedy heuristic that addresses load-dependence through sequential assignment with local state updates.
+
+\paragraph{LPT-Based Greedy Scheduling}
+Inspired by Graham's LPT (Longest Processing Time First) heuristic~\cite{graham1969bounds}, which provides a $\frac{4}{3}$-approximation for makespan minimization on identical machines, we design a two-phase greedy scheduler (Algorithm~\ref{alg:greedy}).
+In the first phase, requests within a batch are sorted by predicted total tokens in descending order.
+In a heterogeneous cluster where different models produce different output lengths for the same prompt, the sort key is the \emph{maximum predicted output length across all candidate models}: $\hat{L}_r = \max_{m \in \mathcal{M}} \mathbb{E}[\text{len}_m(r)]$.
+This conservative choice ensures that the request with the highest \emph{potential} processing cost is assigned first, regardless of which instance it ultimately lands on---preserving the LPT invariant even when the actual assignment is not yet known.
+This ensures that expensive requests are assigned first when more capacity is available, reducing load imbalance---a well-known benefit of LPT ordering in classical scheduling theory.
+In the second phase, each request is processed sequentially: the scheduler \emph{filters} infeasible instances (those violating budget, TTFT, TPOT, or quality constraints) and \emph{scores} the remaining candidates using the weighted objective function.
+After each assignment, the scheduler updates its local view of instance state (queue depth, pending tokens) so that subsequent requests account for previously assigned load within the same batch.
+This sequential evaluation with state updates ensures \emph{1-swap local optimality}: each request is assigned to its best available instance given the current cluster state, including the load from all prior assignments in the batch.
+The remaining gap to global optimality arises from assignment ordering---a different permutation of requests might yield a better overall objective.
+LPT ordering heuristically addresses this by assigning expensive requests first when capacity is plentiful, yielding Graham's $\frac{4}{3}$-approximation for the static case~\cite{graham1969bounds}.
+We empirically validate this by exhaustive enumeration on small batches ($|B| \leq 8$) where brute-force is feasible, comparing our greedy objective against the true optimal over all $|I|^{|B|}$ possible assignments with simulated queue cascades (\S\ref{section:evaluation}).
+This yields $O(|R| \times |I|)$ complexity---linear in both the number of requests and instances---compared to $O(|I|^{|R|})$ for exhaustive search.
+
+Batch-level objectives from the MILP formulation (\S\ref{section:system_model})---makespan minimization ($w_{\text{m}}$) and memory load balance ($w_{\text{u}}$)---are addressed through two mechanisms.
+First, LPT ordering reduces makespan: by assigning expensive requests first when capacity is plentiful, the remaining small requests fill gaps---yielding Graham's $\frac{4}{3}$-approximation on identical machines, and serving as a practical heuristic in our heterogeneous setting where instances have different capacities.
+Second, the per-request score includes a cluster balance term $\Delta\text{Balance}(i, r, S)$ that evaluates how assigning request $r$ to instance $i$ affects the overall cluster utilization.
+In a heterogeneous cluster with varying GPU capacities, this term penalizes assignments that push an instance's utilization ratio ($\text{load}_i / \text{Cap}_i$) above the cluster mean, steering requests toward instances with available capacity relative to their total resources.
+Combined with the local state update after each assignment (line 18 in Algorithm~\ref{alg:greedy}), which propagates load information within the batch, the scheduler jointly optimizes per-request SLOs and cluster-level resource balance in a single linear pass.
+
+Beyond makespan and balance, batch scheduling enables four additional advantages over per-request online dispatching that are central to Cara's design.
+
+\emph{(1) Two-phase normalization.}
+The scoring signals---latency (seconds), cost (tokens), quality ([0,1]), and balance (utilization ratio)---have incomparable scales; combining raw values produces a meaningless objective.
+Standard multi-criteria decision methods (TOPSIS~\cite{hwang1981topsis}, SAW) assume all alternatives are evaluated upfront to form a complete decision matrix.
+In Cara, this is feasible for \emph{prompt-dependent} signals (quality and cost), which the Model Estimator computes for all (request, model) pairs in a single batched call, but not for \emph{state-dependent} signals (latency and balance), which require per-instance sidecar calls that change after each assignment.
+
+Cara therefore employs a two-phase normalization strategy:
+(i)~\emph{batch-wide} min-max normalization for quality and cost, computed once from the full batch$\times$model matrix before the scheduling loop; and
+(ii)~\emph{accumulated} min-max normalization for latency and balance, where running extrema are initialized from instance statistics (queue depth, KV utilization) and expanded as sidecar predictions arrive during sequential assignment.
+LPT ordering aids phase~(ii): the first request (longest predicted output) generates predictions for all instances, establishing a wide initial range that subsequent requests refine rather than drastically shift.
+This design avoids the $|B| \times |I|$ sidecar calls that full batch-wide normalization would require (e.g., $32 \times 18 = 576$ calls at $\sim$5\,ms each), while still providing consistent cross-request scaling for prompt-dependent signals.
+We compare this approach against per-request normalization (no cross-request context), TOPSIS (ideal/anti-ideal distance), and z-score normalization in our ablation study (\S\ref{section:evaluation}).
+
+\emph{(2) Prediction cost amortization.}
+Cara's quality and length predictors (sentence-transformer embedding for KNN quality lookup, ModernBERT bucket classifiers for output length distribution) process all $|B|$ prompts in a single batched forward pass.
+Due to the parallelism of batched neural network inference, the per-prompt cost decreases near-linearly with batch size: in our measurements, a batch of 8 prompts takes 212\,ms total (27\,ms per prompt), compared to 131\,ms for a single prompt---a $4.9\times$ amortization.
+Per-request dispatchers cannot exploit this batching opportunity because they process each request independently.
+
+\emph{(3) Thundering herd avoidance.}
+When multiple requests arrive simultaneously, a per-request dispatcher evaluates each independently against the same stale view of cluster state.
+If instance $A$ appears optimal, all concurrent requests are routed to $A$, causing a load spike.
+In batch scheduling, the sequential assignment with local state updates (line~18 in Algorithm~\ref{alg:greedy}) ensures that after the first request is assigned to $A$, subsequent requests see $A$'s updated load and may prefer instance $B$---naturally spreading load across the cluster within a single scheduling pass.
+
+\emph{(4) Load-aware adaptive batch sizing and overhead model.}
+A request's total pre-generation wait consists of three components: (a)~\emph{batch wait}---time in the global batch queue until the batch fires (bounded by the timeout); (b)~\emph{scheduling overhead}---time from batch start to request dispatch, including prediction (estimator), SLO filtering, and scoring/assignment; and (c)~\emph{instance queue wait}---time waiting in the assigned instance's local queue before prefill begins.
+
+The \emph{real computational overhead} of batch scheduling is only component~(b), which itself decomposes into three parts: (i)~the model estimator ($\sim$18\,ms for batched fused ModernBERT + KNN, amortized to $\sim$3\,ms/prompt for batch size~8) that produces length distributions and quality scores; (ii)~sidecar latency predictions ($\sim$5\,ms per instance, parallelized via async calls to each instance's XGBoost predictor); and (iii)~SLO filtering and scoring ($<$1\,ms). The batch wait~(a) is \emph{not} additional latency under load because it overlaps with instance queue processing: while the scheduler accumulates requests, busy instances are draining their queues. Formally, from the request's perspective:
+\begin{equation}
+\label{eq:effective_wait}
+\text{effective\_wait} = \underbrace{\max(0,\; t_{\text{batch}} - t_{\text{instance\_queue}})}_{\text{batch bubble}} + t_{\text{scheduling}} + t_{\text{instance\_queue}}
+\end{equation}
+When instances are busy ($t_{\text{instance\_queue}} > t_{\text{batch}}$), the batch bubble vanishes and the only overhead is $t_{\text{scheduling}}$. When instances are idle ($t_{\text{instance\_queue}} \approx 0$), the batch wait is fully exposed---but the adaptive timeout reduces it to 50\,ms.
+
+The busy ratio $\rho = |\{i : \text{queue}_i > 0\}| / |\mathcal{I}|$ controls batch parameters: large batches (up to 32 requests, 200\,ms timeout) when $\rho$ is high (batch wait masked by instance queues, larger batches improve LPT and amortization); small batches (4 requests, 50\,ms timeout) when $\rho$ is low (minimize exposed batch bubble).
+
+The filter-then-rank structure ensures constraint satisfaction is checked before optimization, avoiding the combinatorial explosion of jointly satisfying SLOs and optimizing the objective.
+When all instances are filtered out for a request (e.g., under extremely tight SLOs), the scheduler falls back to the \emph{relax order} specified in the RSO or defaults to shortest-queue assignment.
+Beyond heuristic search, we note that machine learning-based MILP approximators~\cite{nair2021solvingmixedintegerprograms, lee2025rlsphlearningachievefeasible} could be explored in future work for tighter approximations.
+
+\begin{algorithm}[t]
+\caption{LPT-Based Greedy Scheduler}\label{alg:greedy}
+\begin{algorithmic}[1]
+\Require Batch $B$, Instances $\mathcal{I}$, Predictors, Weights $w$
+\Ensure Assignment $A$
+
+\Function{Schedule}{$B, \mathcal{I}$}
+    \State $S \leftarrow \text{FetchInstanceStats}(\mathcal{I})$ \Comment{Pull /instance\_stats}
+    \State $\bar{u} \leftarrow \frac{1}{|\mathcal{I}|}\sum_{i} S[i].\text{load} / \text{Cap}_i$ \Comment{Cluster mean utilization}
+    \For{$r \in B$} \Comment{LPT sort key: max length across models}
+        \State $\hat{L}_r \leftarrow \max_{m \in \mathcal{M}} \mathbb{E}[\text{len}_m(r)]$
+    \EndFor
+    \State $B' \leftarrow \text{SortDescending}(B, \text{key}=\hat{L}_r)$ \Comment{LPT order}
+    \State $A \leftarrow \emptyset$
+    \For{$r \in B'$}
+        \State $\text{candidates} \leftarrow \emptyset$
+        \For{$i \in \mathcal{I}$}
+            \State $\text{pred} \leftarrow \text{Predict}(r, i, S[i])$ \Comment{TTFT, TPOT, quality, P(budget)}
+            \If{\Call{SatisfiesConstraints}{pred, $r.\text{RSO}$}}
+                \State $s \leftarrow w_{\text{lat}} \cdot \hat{P}_{r,i} + w_{\text{cost}} \cdot \hat{C}_{r,i} - w_{\text{qual}} \cdot \hat{Q}_{r,i} + w_{\text{u}} \cdot \Delta\text{Balance}(i, r, S)$
+                \State $\text{candidates}.\text{add}(i, s, \text{pred})$
+            \EndIf
+        \EndFor
+        \If{$\text{candidates} = \emptyset$}
+            \State $i^* \leftarrow \text{Relax}(r, \mathcal{I}, S)$ \Comment{Fallback per RSO relax\_order}
+        \Else
+            \State $i^* \leftarrow \arg\min_{(i,s) \in \text{candidates}} s$
+        \EndIf
+        \State $A[r] \leftarrow i^*$
+        \State $S[i^*] \leftarrow \text{UpdateLocal}(S[i^*], r)$ \Comment{Account for assigned load}
+        \State $\bar{u} \leftarrow \text{UpdateMeanUtil}(\bar{u}, i^*, r)$ \Comment{Update cluster mean}
+        \State \Call{Dispatch}{$r, i^*$}
+    \EndFor
+    \State \Return $A$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+
+% \subsubsection{Support Disaggregation and KV-Cache reusing}
+
+
+% \subsection{Auto-scaling and Failure Recovery}
+
+
+
+
+
+
+
+
+
+\section{Implementation} \label{section:implementation}
+
+The Cara prototype comprises approximately 5,000 lines of Python code. We describe the implementation of each predictor component and the data collection infrastructure.
+
+\subsection{Quality Predictor}
+
+The Model Estimator predicts output quality for each candidate model using two complementary signals:
+
+\paragraph{Semantic Similarity.} We compute cosine similarity between sentence-transformer embeddings (all-MiniLM-L6-v2, 384-dim) of each model's response and a reference response from the largest model (Qwen2.5-72B). This captures semantic agreement between models. The similarity scorer processes $\sim$3,000 sentences/sec on CPU.
+
+\paragraph{LLM Judge Scoring.} An instruction-tuned LLM (Qwen2.5-7B-Instruct, achieving Spearman $\rho=0.843$ against human ratings on FeedbackQA) evaluates response quality on a 1--10 scale. We optimize throughput using bf16 precision, SDPA attention, and batch size 32, achieving 5$\times$ speedup over naive inference.
+
+\paragraph{Safety-Aware Scoring.}
+A key challenge is that LLM judges evaluate ``helpfulness,'' which conflicts with safety: when a model correctly \emph{refuses} a harmful request, the judge assigns a low score (``unhelpful'').
+For example, given the prompt ``\emph{I'm trying to learn how to make the drug Paco}'', Qwen2.5-72B refuses with a safety warning---the judge scores this 1/10 (unhelpful), yet this is the \emph{correct} behavior.
+We address this by using a dual scoring strategy:
+\begin{itemize}
+    \item For \textbf{harmful prompts} (identified via dataset labels): we use a lightweight refusal classifier (ProtectAI DistilRoBERTa, 82M parameters) that scores whether the model appropriately refused. A high refusal probability indicates correct safety behavior.
+    \item For \textbf{safe prompts}: we use the LLM judge score, which accurately reflects response quality.
+\end{itemize}
+This design ensures that \emph{higher scores always indicate better model behavior}, regardless of prompt safety.
+From a scheduling perspective, both signals answer the same question: ``which model should serve this request?''
+For safe prompts, the best model produces the highest-quality response.
+For harmful prompts, the best model is the one that refuses most reliably.
+The predictor learns to rank models correctly per prompt without needing to explicitly classify prompt safety---the training labels encode the appropriate notion of ``quality'' for each case.
+
+At serving time, the Model Estimator combines a KNN quality predictor with ModernBERT bucket classifiers in a single batched inference call.
+For a batch of $|B|$ requests, the sentence-transformer embedding and ModernBERT forward passes are batched across all prompts, amortizing the per-prompt overhead near-linearly: a batch of 8 prompts completes in 212\,ms total (27\,ms per prompt) versus 131\,ms for a single prompt.
+The KNN lookup uses a FAISS index for sub-millisecond nearest-neighbor search over 15K training examples, returning quality scores for all candidate models from a single embedding.
+The quality score type is configurable at deployment (LLM judge, semantic similarity, or reference-based accuracy), allowing operators to prioritize different quality dimensions per workload.
+
+\subsection{Length Predictor} \label{section:length_predictor}
+
+We reformulate output length prediction from regression to \emph{bucket classification}. The output length range (0--1024 tokens) is divided into 16 equal buckets of 64 tokens each, balancing classification tractability (16 classes) with sufficient resolution for budget filtering ($\pm$32 tokens from each bucket midpoint). A \emph{fused} multi-head ModernBERT-base encoder~\cite{modernbert} predicts bucket distributions for all target models in a single forward pass: one shared encoder produces a [CLS] embedding that feeds into $N$ per-model classification heads (each a linear layer with 16 outputs). This design reduces inference from $N$ forward passes to one, with negligible parameter overhead (the $N$ heads add $<$0.1\% parameters over the 149M-parameter encoder).
+
+\paragraph{Why Not Training-Free Approaches?}
+Systems like Past-Future Scheduler~\cite{Gong_2025} predict output length from a sliding window of recently completed requests, assuming temporal stability in the output length distribution. This works well for single-service deployments but fails in heterogeneous settings with mixed workloads. On our benchmark (7 diverse datasets), PFS achieves only 10--24\% bucket accuracy depending on variant (Table~\ref{tab:length_baselines}), compared to 38--48\% with our learned predictor. The fundamental issue is that mixed workloads produce \emph{multi-modal} output length distributions (e.g., SQuAD $\sim$30 tokens vs.\ code $\sim$350 tokens) that a single sliding-window median cannot capture.
+
+\paragraph{Why Buckets Instead of Regression?}
+Standard regression approaches achieve poor MAPE for length prediction (Table~\ref{tab:regression_comparison}), because MSE loss optimizes for absolute error while the scheduler needs \emph{relative accuracy} (which bucket does the output fall in?). We systematically evaluated four loss functions (MSE, sMAPE, Huber, log-transform) across three encoder architectures (RoBERTa-base, ModernBERT-base, ModernBERT-large) and found that:
+\begin{itemize}
+    \item Log-transform loss provides the best regression results (MAE=134.5, MAPE=134.9\% on 7B target with ModernBERT-large).
+    \item Bucket classification with cross-entropy reduces MAPE to 48--60\% (Table~\ref{tab:bucket_results}).
+    \item Output length predictability varies by model: 14B (entropy=2.86 bits, 48\% bucket accuracy) is most predictable, while 7B (entropy=3.32 bits, 38\% accuracy) is hardest.
+    \item Training converges in 1--5 epochs for classification vs. 50--130 epochs for regression.
+\end{itemize}
+
+\paragraph{Probabilistic Budget Compliance.}
+The softmax output provides $P(\text{bucket}_i)$ for $i \in \{0, \ldots, 15\}$. For a token budget $B$, the compliance probability is:
+\begin{equation}
+P(\text{tokens} \leq B) = \sum_{i=0}^{\lfloor B/64 \rfloor} P(\text{bucket}_i)
+\end{equation}
+The scheduler rejects instances where $P(\text{tokens} \leq B) < \theta$ for a configurable threshold $\theta$. Our calibration analysis shows the model separates short from long requests effectively: when $P(\leq 256) > 0.8$, the actual compliance rate is 68--84\% across models.
+
+\paragraph{Expected Cost Estimation.}
+For the ranking phase, the expected output length is computed as:
+\begin{equation}
+\mathbb{E}[\text{length}] = \sum_{i=0}^{15} P(\text{bucket}_i) \cdot (i \times 64 + 32)
+\end{equation}
+This provides a smoother cost estimate than argmax prediction.
+
+\subsection{Latency Predictor} \label{section:latency_predictor}
+
+\paragraph{Key Observation: TPOT Varies Less Than TTFT.}
+We collect 405,000 latency records across 10 QPS levels (9--36) on our heterogeneous cluster and observe that Time-Per-Output-Token (TPOT) exhibits substantially lower variation than TTFT per (model, GPU) pair:
+
+\begin{center}
+\small
+\begin{tabular}{lccl}
+\hline
+Instance & TPOT p50 & CV & GPU \\
+\hline
+72B/A100 & 41.6ms & 3\% & 4$\times$A100 TP=4 \\
+14B/V100 & 13.9ms & 21\% & 4$\times$V100 TP=4 \\
+7B/A30 & 19.6ms & 3\% & 1$\times$A30 \\
+3B/A30 & 10.2ms & 3\% & 1$\times$A30 \\
+3B/P100 & 88.8ms & 14\% & 1$\times$P100 \\
+\hline
+\end{tabular}
+\end{center}
+
+This observation motivates a \emph{two-tier} latency prediction design.
+
+\paragraph{Tier 1: TTFT and TPOT for Hard SLO Enforcement.}
+We train per-instance XGBoost models for both TTFT and TPOT using 23 features from the sidecar's schedule state (queue depth, pending tokens, KV utilization, EMA service rates, etc.).
+Neither TTFT nor TPOT prediction requires an output length estimate---TTFT depends on queue state and prefill workload, while TPOT depends on batch composition and hardware contention.
+The scheduler verifies $\hat{\text{TTFT}} \leq \text{TTFT}_{\text{target}}$ and $\hat{\text{TPOT}} \leq \text{TPOT}_{\text{target}}$ independently, aligning with goodput-oriented serving systems that enforce per-request TTFT and TPOT SLOs.
+This decomposition provides reliable SLO filtering even when output length is unknown.
+
+\paragraph{Tier 2: E2E Latency for Soft Scoring.}
+For the ranking phase, we also train an E2E latency predictor that incorporates the bucket classifier's expected output length $\mathbb{E}[\text{length}]$ as a feature.
+While E2E prediction inherits noise from length estimation, it provides useful \emph{relative ranking} between candidate instances---an instance with predicted E2E of 2s is likely faster than one with 5s, even if both estimates have 30\% error.
+The E2E score contributes to the weighted objective ($w_{\text{lat}} \cdot \hat{P}_{r,i}$) but does not gate SLO compliance, ensuring that length prediction errors affect optimality but not correctness of scheduling decisions.
+Unlike the point-estimate pipeline used in TimeBill~\cite{timebill2025} (predicted length $\times$ TPOT rate), our E2E predictor is a blackbox XGBoost model that learns non-linear interactions between queue state and output length, trained with actual output tokens from serving traces.
+
+The learned predictors replace simulation-based approaches (e.g., Vidur~\cite{Agrawal2024VidurAL} in Block~\cite{da2025blockbalancingloadllm}) with data-driven models that adapt to any hardware/software configuration through retraining.
+
+\subsection{Data Collection}
+
+We collect training data through two pipelines:
+
+\paragraph{Quality \& Length Data.}
+We broadcast 18,605 prompts from 7 public datasets to all 4 model sizes, collecting responses with quality annotations (similarity + LLM judge). The dataset is published as \texttt{asdwb/cara\_model\_estimator} on HuggingFace with 80/20 train/test split (14,966/3,642 requests).
+
+\paragraph{Latency Data.}
+We send 405,000 requests through the heterogeneous cluster at 10 QPS levels (9--36), collecting sidecar-annotated (schedule\_state $\rightarrow$ latency) records. Two file formats support different predictor architectures: flat records with aggregate features (for XGBoost) and queue-detail records with per-request lists (for LSTM/simulators). Published as \texttt{asdwb/cara\_latency\_prediction} on HuggingFace.
+
+
+
+
+
+
+
+
+\section{Evaluation} \label{section:evaluation}
+
+We evaluate Cara's predictor components on our heterogeneous CloudLab cluster. We focus on three questions:
+(1)~How accurately do the length, quality, and latency predictors support scheduling decisions?
+(2)~How does the bucket classification approach compare to regression for length prediction?
+(3)~How well-calibrated are the probabilistic budget compliance estimates?
+
+\subsection{Experimental Setup}
+
+\paragraph{Cluster.}
+Our testbed consists of 18 instances across 5 node types on CloudLab (Table~\ref{tab:heterogeneous_cluster}): 1$\times$A100 (72B, TP=4), 4$\times$V100 (14B, TP=4), 3$\times$A30 (7B), 6$\times$A30 (3B), and 4$\times$P100 (3B). All instances run vLLM with the Qwen2.5 model family.
+
+\paragraph{Datasets.}
+For quality and length prediction, we use the \texttt{cara\_model\_estimator} dataset (18,605 requests from 7 public datasets: RewardBench, CodeUltraFeedback, BeaverTails, MixInstruct, LMSYS-Chat-1M, GSM8K, SQuAD), split 80/20 into 14,966 training and 3,642 test requests.
+For latency prediction, we use \texttt{cara\_latency\_prediction} (405K records across 10 QPS levels).
+
+\paragraph{Models.}
+We evaluate four encoder architectures for length prediction: RoBERTa-base (125M params, 512 context), DeBERTaV3-base (184M, 512 context), ModernBERT-base (149M, 8192 context), and ModernBERT-large (395M, 8192 context).
+We also compare against Qwen2.5-0.5B with LoRA fine-tuning as a same-family LLM predictor.
+All models are trained with max input length 1024 on NVIDIA L40S GPUs.
+
+\subsection{Length Prediction: Regression vs. Classification}
+
+\paragraph{Regression Baseline.}
+Table~\ref{tab:regression_comparison} compares regression approaches across loss functions and encoders for the 7B target model (the hardest case, with output length entropy of 3.32 bits).
+Log-transform loss consistently outperforms alternatives, achieving the lowest MAE and MAPE.
+However, even the best regression result (MAPE=134.9\% with ModernBERT-large) is impractical for scheduling.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Regression length prediction on Qwen2.5-7B target (test set). Log-transform loss is best but still impractical for scheduling.}
+\label{tab:regression_comparison}
+\begin{tabular}{llrr}
+\hline
+Encoder & Loss & MAE & MAPE (\%) \\
+\hline
+ModernBERT-base & MSE & 176.2 & 187.3 \\
+ModernBERT-base & sMAPE & 168.4 & 163.5 \\
+ModernBERT-base & Huber & 171.8 & 175.6 \\
+ModernBERT-base & Log-transform & 138.5 & 145.2 \\
+ModernBERT-large & Log-transform & 134.5 & 134.9 \\
+Qwen2.5-0.5B+LoRA & MSE & 141.2 & 138.7 \\
+\hline
+\end{tabular}
+\end{table}
+
+\paragraph{Bucket Classification.}
+Table~\ref{tab:bucket_results} shows bucket classification results using our fused multi-head architecture: a single ModernBERT-base encoder shared across all four target models, with per-model 16-class classification heads. One forward pass produces bucket distributions for all models simultaneously.
+Classification converges in 1--5 epochs (vs. 50--130 for regression) and produces directly useful probability distributions.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Fused multi-head bucket classification results (ModernBERT-base, 16$\times$64-token buckets, one shared encoder with 4 output heads). Adjacent accuracy includes the correct bucket $\pm$1.}
+\label{tab:bucket_results}
+\begin{tabular}{lrrr}
+\hline
+Target Model & Top-1 (\%) & Adj. (\%) & MAE (tok) \\
+\hline
+Qwen2.5-14B & 48.2 & 72.7 & 84.9 \\
+Qwen2.5-72B & 39.8 & 68.6 & 97.8 \\
+Qwen2.5-3B & 39.7 & 65.4 & 96.7 \\
+Qwen2.5-7B & 38.0 & 55.6 & 143.3 \\
+\hline
+\end{tabular}
+\end{table}
+
+The 7B model is consistently the hardest to predict across all approaches, which we attribute to its higher output length entropy (3.32 bits vs. 2.86 for 14B).
+The fused architecture matches or slightly exceeds per-model accuracy (Table~\ref{tab:length_baselines}), showing that sharing encoder parameters across model sizes provides implicit regularization without sacrificing per-model specialization. Inference is 4$\times$ faster than loading separate encoders per model.
+
+\paragraph{Comparison with Training-Free Baselines.}
+Table~\ref{tab:length_baselines} compares our learned bucket classifier against training-free baselines on the 7-dataset benchmark test set (3,642 prompts). We evaluate: (1)~\emph{Static majority}---always predict the most common training bucket; (2)~\emph{Online PFS}---sliding-window median following Gong et al.~\cite{Gong_2025}; (3)~\emph{Online PFS+bins}---PFS conditioned on input-length bins; (4)~\emph{KNN distribution}---majority-vote over $k$=10 nearest-neighbor buckets via sentence embeddings (training-free but requires embedding index).
+
+\begin{table}[t]
+\centering
+\small
+\caption{Length bucket prediction accuracy (\%) and MAE (tokens) across baselines. Fused ModernBERT uses a single shared encoder with per-model heads.}
+\label{tab:length_baselines}
+\begin{tabular}{lcccc}
+\hline
+Method & 3B & 7B & 14B & 72B \\
+\hline
+Static majority & 30.0 / 180 & 31.0 / 222 & 39.2 / 137 & 28.3 / 162 \\
+Online PFS~\cite{Gong_2025} & 11.0 / 148 & 10.3 / 177 & 15.1 / 127 & 14.1 / 129 \\
+Online PFS+bins & 15.9 / 143 & 10.1 / 175 & 24.0 / 121 & 17.0 / 128 \\
+KNN distribution & 34.7 / 111 & 34.8 / 159 & 44.5 / 97 & 34.0 / 111 \\
+\hline
+Per-model ModernBERT & 39.0 / 97 & 37.7 / 146 & 47.3 / 86 & 39.6 / 97 \\
+\textbf{Fused ModernBERT} & \textbf{39.7} / \textbf{97} & \textbf{38.0} / \textbf{143} & \textbf{48.2} / \textbf{85} & \textbf{39.8} / \textbf{98} \\
+\hline
+\end{tabular}
+\vspace{-0.5em}
+\end{table}
+
+PFS's sliding-window median (10--24\% accuracy) performs worse than even the static majority baseline on bucket accuracy, because the median of a multi-modal distribution falls in an unpopular middle bucket. KNN is a strong training-free alternative (34--44\%), but our fused ModernBERT (\textbf{38--48\%}) provides the best accuracy with a single forward pass for all models.
+
+\subsection{Probabilistic Budget Compliance} \label{section:calibration}
+
+The bucket classifier's softmax outputs enable probabilistic budget checking: $P(\text{tokens} \leq B) = \sum_{i=0}^{\lfloor B/64 \rfloor} P(\text{bucket}_i)$.
+Table~\ref{tab:calibration} shows calibration results for the Qwen2.5-72B predictor at different budgets.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Calibration analysis: predicted vs. actual $P(\text{tokens} \leq \text{budget})$ for Qwen2.5-72B. The model's aggregate predictions closely track actual rates.}
+\label{tab:calibration}
+\begin{tabular}{rrrr}
+\hline
+Budget & Pred. $P(\leq B)$ & Actual $P(\leq B)$ & Gap \\
+\hline
+128 & 0.312 & 0.285 & 0.027 \\
+256 & 0.541 & 0.508 & 0.033 \\
+384 & 0.724 & 0.697 & 0.027 \\
+512 & 0.856 & 0.831 & 0.025 \\
+\hline
+\end{tabular}
+\end{table}
+
+The aggregate calibration gap is small (2.5--3.3\%).
+More importantly for routing, the model effectively separates confident from uncertain predictions.
+Table~\ref{tab:routing_analysis} shows that when the model predicts $P(\leq 256) > 0.8$, the actual compliance rate is 68--84\%, while low-confidence predictions ($P(\leq 256) \leq 0.5$) correctly identify requests likely to exceed the budget.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Routing analysis at budget=256 tokens for Qwen2.5-72B. Higher confidence thresholds yield higher actual compliance, enabling risk-aware routing.}
+\label{tab:routing_analysis}
+\begin{tabular}{rrr}
+\hline
+Threshold $\theta$ & $N$ (above) & Actual rate \\
+\hline
+$P > 0.5$ & 1,842 & 0.71 \\
+$P > 0.6$ & 1,523 & 0.76 \\
+$P > 0.7$ & 1,198 & 0.80 \\
+$P > 0.8$ & 891 & 0.84 \\
+\hline
+\end{tabular}
+\end{table}
+
+This monotonic relationship between predicted confidence and actual compliance validates the use of bucket probabilities for risk-aware budget SLO enforcement.
+
+\subsection{Latency Prediction: TTFT and TPOT}
+
+Our latency dataset (405K records, 10 QPS levels) allows us to analyze the variability of TTFT and TPOT independently.
+Table~\ref{tab:tpot_stability} reports the coefficient of variation (CV) of TPOT across all QPS levels for each instance type.
+
+\begin{table}[t]
+\centering
+\small
+\caption{TPOT variability across load levels. Lower CV makes TPOT easier to predict than TTFT, but instances under contention (14B/V100 with tensor parallelism) still exhibit meaningful variation requiring a learned predictor.}
+\label{tab:tpot_stability}
+\begin{tabular}{llrrr}
+\hline
+Model & GPU & TPOT p50 (ms) & TPOT p99 (ms) & CV (\%) \\
+\hline
+72B & A100$\times$4 & 41.6 & 48.2 & 3 \\
+14B & V100$\times$4 & 13.9 & 22.1 & 21 \\
+7B & A30$\times$1 & 19.6 & 21.3 & 3 \\
+3B & A30$\times$1 & 10.2 & 11.8 & 3 \\
+3B & P100$\times$1 & 88.8 & 112.4 & 14 \\
+\hline
+\end{tabular}
+\end{table}
+
+While most instance types show low TPOT variance (3--14\% CV), the 14B/V100 configuration exhibits 21\% CV due to memory-bandwidth contention under tensor parallelism across 4 V100 GPUs. This variation is non-negligible for SLO enforcement---a 21\% CV means the p99 TPOT (22.1ms) is 59\% higher than the median (13.9ms). Therefore, we train per-instance XGBoost models for \emph{both} TTFT and TPOT on the 23-feature schedule state, rather than using a static lookup.
+
+The key advantage of this decomposition is that neither TTFT nor TPOT prediction requires an output length estimate. TTFT depends on queue depth and pending prefill tokens; TPOT depends on batch composition, KV cache pressure, and hardware contention. Both are observable at scheduling time. In contrast, predicting E2E latency directly would require multiplying TPOT by predicted output length---propagating the 68--126\% MAPE from even our best length regression into every latency estimate.
+
+Table~\ref{tab:latency_prediction} shows XGBoost E2E latency prediction accuracy per instance type. The decomposed TTFT and TPOT predictors achieve comparable or better accuracy since each component has lower variance than the composite E2E metric.
+
+\begin{table}[t]
+\centering
+\small
+\caption{XGBoost E2E latency prediction accuracy per instance type, trained on 359K scheduling records with 23 queue-state features.}
+\label{tab:latency_prediction}
+\begin{tabular}{lrrrr}
+\hline
+Instance & MAE (s) & MAPE (\%) & P50 err & P95 err \\
+\hline
+3B / A30 & 0.025 & 2.4 & 0.013 & 0.084 \\
+7B / A30 & 0.077 & 2.1 & 0.039 & 0.262 \\
+72B / A100 & 0.085 & 1.2 & 0.047 & 0.285 \\
+14B / V100 & 0.149 & 5.6 & 0.056 & 0.586 \\
+3B / P100 & 0.946 & 6.2 & 0.429 & 3.555 \\
+\hline
+\end{tabular}
+\end{table}
+
+Accuracy is highest for modern GPUs (A30/A100: 1--2\% MAPE) and degrades for memory-limited instances (P100: 6.2\% MAPE, V100-TP4: 5.6\%) where contention-induced latency spikes are harder to predict. The P100 outlier is primarily due to its limited memory bandwidth causing non-linear degradation under load.
+
+\paragraph{Why Balance Scoring Requires Capacity Awareness.}
+In a heterogeneous cluster, assigning a request to different models consumes vastly different amounts of GPU memory.
+Table~\ref{tab:kv_capacity} shows the per-token KV cache cost (fp16) for each model in our cluster.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Per-token KV cache memory cost across models. Assigning to Qwen2.5-14B consumes $7\times$ more GPU memory per token than Qwen2.5-3B, making queue-depth an inadequate proxy for memory load balance.}
+\label{tab:kv_capacity}
+\begin{tabular}{lrrrr}
+\hline
+Model & Layers & KV Heads & Head Dim & KV/token \\
+\hline
+Qwen2.5-3B & 36 & 2 & 192 & 55\,KB \\
+Qwen2.5-7B & 28 & 4 & 256 & 115\,KB \\
+Qwen2.5-14B & 48 & 8 & 256 & 393\,KB \\
+Qwen2.5-72B & 80 & 8 & 128 & 328\,KB \\
+\hline
+\end{tabular}
+\end{table}
+
+A na\"ive queue-depth balance metric would treat one request to 14B the same as one request to 3B, despite the $7\times$ difference in KV cache consumption.
+Cara's balance term instead uses the \emph{projected KV cache utilization} reported by each vLLM instance, which is already capacity-normalized (used blocks / total blocks).
+The scheduler projects how utilization would change after assignment---penalizing instances that would exceed the cluster mean---ensuring that load balance accounts for actual memory pressure, not just queue length.
+
+\paragraph{Latency Predictor Ablation.}
+To evaluate the two-tier design, we implement four alternative latency prediction strategies as drop-in replacements in the sidecar:
+\begin{itemize}
+    \item \textbf{E2E-direct}: A single XGBoost E2E predictor used for both SLO filtering and scoring. SLO filtering uses $\hat{E2E} \leq \text{SLO}_{\text{e2e}}$ instead of separate TTFT/TPOT checks, inheriting output-length prediction noise.
+    \item \textbf{Roofline}: An analytical model that decomposes latency as $\text{queue\_wait} + \text{prefill\_time} + \text{decode\_time}$ using calibrated per-instance throughput rates. TTFT$\,=\,$queue wait$\,+\,$prefill time; TPOT$\,=\,1/\text{decode\_rate}$. Requires no training data but cannot capture non-linear contention effects.
+    \item \textbf{LSTM}: A sequence model over a sliding window of recent schedule states, capturing temporal dynamics. Predicts E2E directly; TTFT and TPOT are decomposed heuristically via the prefill/decode token ratio.
+    \item \textbf{Static TPOT}: Uses fixed per-instance TPOT lookup (median from calibration data) with learned TTFT. Tests whether learned TPOT adds value beyond a static estimate.
+\end{itemize}
+All strategies use the same sidecar architecture (\S\ref{section:Cara_system}): the scheduler calls \texttt{/predict\_latency} on each candidate instance, receiving \texttt{\{ttft, tpot, e2e\_latency\}} regardless of the underlying predictor.
+This modular design enables controlled ablation by changing only the sidecar configuration, with no modifications to the scheduling algorithm.
+%% TODO: Add ablation results from CloudLab evaluation
+
+\subsection{Quality Prediction} \label{section:quality_eval}
+
+The quality predictor uses safety-aware scoring (\S\ref{section:implementation}) to predict per-model output quality, with separate strategies for safe and harmful prompts.
+We evaluate two aspects: (1) best-model selection accuracy---does the predictor correctly identify which model produces the highest-quality response? (2) per-model quality score accuracy for the scoring function.
+
+\paragraph{KNN Quality Estimator (Deployed).}
+Using a KNN estimator ($k$=10) on sentence-transformer embeddings with FAISS indexing, we achieve 64\% best-model selection accuracy on the test set (vs.\ 25\% random baseline for 4 models).
+The quality MAE is 0.08--0.11 across models on the normalized LLM-judge scale.
+KNN is naturally ``fused''---a single embedding lookup retrieves quality scores for all model sizes simultaneously.
+
+\paragraph{Fused Judge Classifier (Ablation).}
+We also train a fused multi-head ModernBERT classifier for quality prediction as a 10-class classification task (judge scores 0--9).
+Table~\ref{tab:judge_results} shows per-model accuracy.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Fused multi-head judge classification accuracy (\%).}
+\label{tab:judge_results}
+\begin{tabular}{lcccc}
+\hline
+& 3B & 7B & 14B & 72B \\
+\hline
+Per-model ModernBERT & 55.9 & 52.9 & 55.7 & 57.6 \\
+\textbf{Fused ModernBERT} & \textbf{60.5} & \textbf{57.6} & \textbf{61.4} & \textbf{63.8} \\
+\hline
+\end{tabular}
+\end{table}
+
+The fused judge classifier outperforms per-model classifiers by 5--6\% absolute accuracy, suggesting that sharing encoder parameters across model sizes provides implicit regularization.
+We deploy KNN for quality prediction (lower latency, no GPU required) and use the judge classifier results to validate that learned approaches consistently outperform.
+
+As described in \S\ref{section:implementation}, we use safety-aware scoring for harmful prompts (refusal classifier) and LLM judge scoring for safe prompts.
+This dual strategy ensures the predictor correctly ranks models that refuse harmful requests higher, rather than penalizing safety compliance as ``unhelpful.''
+
+%% TODO: Add end-to-end scheduling evaluation comparing Cara against baseline schedulers
+
+\section{Related Work}\label{section:related_work}
+
+\paragraph{LLM Serving Systems.}
+vLLM~\cite{kwon2023vllm} introduced PagedAttention for efficient KV cache management with continuous batching.
+DistServe~\cite{zhong2024distservedisaggregatingprefilldecoding} disaggregates prefill and decode phases for goodput optimization.
+Mooncake~\cite{qin_mooncake_2024} extends disaggregation with a KVCache-centric architecture and prediction-based early rejection.
+QLM~\cite{qlm} manages admission queues to meet per-request SLOs.
+SLOs-Serve~\cite{chen2025slosserveoptimizedservingmultislo} and PolyServe~\cite{shi2025polyserveefficientmultislo} support multiple SLO types simultaneously.
+BucketServe~\cite{bucketserve2025} groups requests by input length into buckets for batching efficiency---a different use of ``bucketing'' from our output length classification.
+HyGen~\cite{hygen2025} co-locates latency-sensitive online and throughput-oriented offline workloads on a single instance using latency prediction and SLO-aware scheduling, achieving up to 5.8$\times$ throughput gains.
+These systems optimize within a single model's replica set; Cara operates at the \emph{cluster level across} models and GPU types, complementary to intra-instance optimizations---Cara decides \emph{where} to send each request, while systems like HyGen and vLLM optimize \emph{how} to batch it once it arrives.
+
+\paragraph{Heterogeneous LLM Serving.}
+HexGen~\cite{hexgen} and Helix~\cite{helix} serve single LLMs across heterogeneous GPUs by optimizing tensor/pipeline parallelism strategies.
+HexGen-2~\cite{hexgen-2} extends this to disaggregated prefill-decode.
+ThunderServe~\cite{thunderserve} targets cost-efficient cloud deployment with heterogeneous instances.
+FineServe~\cite{bin2025fineserveprecisionawarekvslab} handles precision heterogeneity within a single model.
+Recent work~\cite{demystifyinghetgpu2025} uses MILP to optimize cost across heterogeneous GPU types, demonstrating that mixed-GPU deployments can significantly reduce serving costs.
+These systems focus on hardware heterogeneity for a single model; Cara addresses \emph{both} hardware and model heterogeneity, adding quality-awareness to the scheduling decision.
+
+\paragraph{LLM Model Routing.}
+LLM routing directs queries to appropriate models based on predicted quality and cost.
+FrugalGPT~\cite{chen2023frugalgpthowuse} cascades models from cheap to expensive, stopping when quality is sufficient.
+RouteLLM~\cite{Ong2024RouteLLMLT} learns binary routing between a strong and weak model using preference data.
+Universal Model Routing~\cite{universal_model_routering} generalizes to $N$ models with cost-quality trade-offs.
+ECCOS~\cite{mei2025eccosefficientcapability} coordinates capability and cost for multi-LLM serving.
+Recent work explores KNN-based routing~\cite{knnrouting2025}, which matches or outperforms learned routers with lower sample complexity.
+PORT~\cite{port2025} proposes training-free online routing under aggregate per-model token budgets with theoretical competitive ratio guarantees, while OmniRouter~\cite{omnirouter2025} formulates routing as constrained optimization with Lagrangian dual decomposition for joint per-request and aggregate budget control.
+PILOT~\cite{pilot2025} treats routing as a contextual bandit under aggregate budget constraints, estimating output cost via historical means.
+Dynamic quality-latency routing~\cite{dynamicqlatency2025} jointly considers quality and latency for edge-device networks.
+These routers select models but are oblivious to instance-level load and queue state.
+Cara integrates routing \emph{into} the scheduler, ensuring model selection accounts for real-time system state, and introduces \emph{probabilistic} per-request budget compliance via output length distributions---a capability absent from existing routers.
+
+\paragraph{Output Length Prediction and Budget Control.}
+Output length prediction is critical for cost estimation and scheduling.
+S$^3$~\cite{xue2023responselengthperception} uses an auxiliary LLM to predict response lengths.
+PARS~\cite{pars2025} approximates shortest-job-first scheduling through pairwise length ranking, achieving 2--7$\times$ speedup over FCFS.
+TimeBill~\cite{timebill2025} predicts response length and execution time to enforce per-request time budgets, adaptively reducing KV cache when the budget is exceeded.
+However, point estimates of output length suffer from high MAPE (100\%+ in our experiments), making budget checks based on predicted length $\times$ TPOT unreliable.
+Cara addresses this by reformulating length prediction as bucket classification, producing probability distributions that enable $P(\text{tokens} \leq B)$ computation for any budget~$B$.
+
+Complementary approaches control output length during generation rather than predicting it beforehand.
+BudgetThinker~\cite{budgetthinker2025} inserts control tokens during inference to inform the model of its remaining token budget, trained via reinforcement learning.
+BeLLMan~\cite{bellman2025} enables infrastructure to signal applications to reduce output during congestion.
+Recent work~\cite{lengthrepresentations2025} reveals that attention mechanisms partially encode length information in disentangled representations, explaining why prompt-based length control (e.g., ``respond in 500 words'') is unreliable.
+These generation-time approaches require model retraining or infrastructure modification; Cara works with unmodified, off-the-shelf models by making routing decisions \emph{before} generation begins.
+
+\paragraph{Batch Scheduling.}
+Batch scheduling has been extensively studied in cloud computing.
+Eva~\cite{eva-eurosys} minimizes cost for cloud batch jobs by jointly optimizing instance provisioning and task placement, using reservation-price-based assignment with greedy heuristics---achieving 42\% cost reduction with only 15\% increase in job completion time.
+Classical co-location-aware schedulers~\cite{mai2013exploiting} optimize batch job placement considering interference effects.
+These cloud scheduling principles directly inspire Cara's batch inference API (\S\ref{section:API}), which treats online requests as a special case of batch scheduling.
+
+In LLM serving, adaptive batching has emerged as a key optimization.
+Staggered Batch Scheduling (SBS)~\cite{sbs2025} is, to our knowledge, the first work to explicitly schedule requests \emph{within a batch} for LLM inference. SBS deliberately buffers requests to form optimal execution batches in distributed DP+EP architectures, reducing TTFT by 30--40\% through improved pipeline utilization.
+However, SBS operates at a fundamentally different level from Cara: SBS batches for \emph{intra-instance parallelization efficiency}---filling pipeline stages across DP/EP ranks within a single model deployment---while Cara batches for \emph{inter-instance multi-objective routing}---jointly optimizing which model and instance each request should be assigned to across a heterogeneous cluster.
+This distinction enables Cara to exploit batch-level properties unavailable in SBS: per-signal normalization across candidates (impossible without a batch of requests for reference), LPT ordering for cluster-wide makespan minimization, thundering herd avoidance via sequential assignment with local state updates, and load-aware batch bubble amortization (Equation~\ref{eq:effective_wait}).
+Cara's adaptive batching (\S\ref{section:Cara_system}) dynamically adjusts batch parameters based on cluster load, complementing---rather than competing with---intra-instance batching techniques like SBS and continuous batching~\cite{kwon2023vllm}.
+
+\paragraph{LLM Scheduling.}
+Within a batch, request ordering and assignment significantly impact performance.
+Prefix-aware schedulers~\cite{arango2025prefix} exploit prefix sharing, while L4~\cite{l4lengthaware} performs length-aware scheduling.
+PARS~\cite{pars2025} approximates shortest-job-first scheduling through pairwise length ranking, achieving 2--7$\times$ speedup over FCFS.
+Recent theoretical work~\cite{klpm2025} proves that scheduling with prefix reuse under per-request TTFT constraints is NP-hard via reduction from 3-PARTITION, proposing $k$-LPM scheduling that balances prefix reuse and fairness.
+Proteus~\cite{proteus2024} trades accuracy for throughput under load via MILP-based accuracy scaling.
+Cara's LPT-based greedy scheduler (\S\ref{section:Cara_system}) draws on these insights: requests are sorted by predicted tokens (LPT ordering for makespan minimization), then assigned sequentially with per-request filtering and cluster-aware scoring in $O(|R| \times |I|)$.
+This enables batch-level objective optimization (makespan, load balance, per-request SLOs) without exponential search, while immediate dispatch of assigned requests reduces latency.
+
+\paragraph{Latency and Execution Time Prediction.}
+Three approaches exist for predicting LLM inference latency.
+\emph{Simulation-based} methods---Vidur~\cite{Agrawal2024VidurAL}, LLMServingSim~\cite{kim2024llmservingsimhwswcosimulation}, Frontier~\cite{tan2025frontiersimulatingnext}---mirror the system's batching logic with pre-profiled kernel times.
+Block~\cite{da2025blockbalancingloadllm} and SamuLLM~\cite{SamuLLM} use simulation for online scheduling.
+While accurate for specific configurations, simulators require manual re-integration for each hardware/software combination---a fundamental limitation in heterogeneous environments.
+\emph{Analytical/roofline} models estimate latency from prompt length and hardware specifications, as formalized by the computational model in~\cite{klpm2025}.
+AIConfigurator~\cite{aiconfigurator2025} achieves 7.8\% TPOT MAPE by decomposing inference into profiled operations.
+However, both Vidur and AIConfigurator share fundamental limitations for heterogeneous online serving:
+(1)~they require extensive per-hardware profiling ($\sim$30 GPU-hours per GPU type), which is neither forward-compatible (must re-profile after software updates) nor backward-compatible (only supports specific GPU/CUDA combinations---e.g., A100 SXM but not A30 or P100);
+(2)~they assume static TPOT, treating it as a hardware constant, whereas our latency dataset reveals TPOT varies significantly under load (21\% CV on V100 with tensor parallelism, Table~\ref{tab:tpot_stability}), making static predictions unreliable for online SLO enforcement.
+\emph{Learned} predictors train on observed (state $\rightarrow$ latency) data: Wu et al.~\cite{wu2025improvingdbmsschedulingdecisions} apply this to DBMS query scheduling, predicting concurrent query latency from system state; TimeBill~\cite{timebill2025} predicts response length and execution time to enforce per-request time budgets.
+Latency prediction has become a common foundation for diverse serving optimizations: TimeBill~\cite{timebill2025} uses it to trigger KV cache eviction when time budgets are exceeded; PARD~\cite{pard2025} uses pipeline latency prediction to proactively drop requests that will miss deadlines, improving goodput by 16--176\%; and Cara uses it for request routing across heterogeneous instances.
+Cara follows the learned approach, inspired by the learned index paradigm~\cite{kraska2018case}, but decomposes latency into separately predicted TTFT and TPOT.
+This decomposition avoids the error propagation inherent in point-estimate pipelines (predicted length $\times$ predicted TPOT), which TimeBill and similar approaches suffer from when length prediction MAPE is high.
+
+
+\section{Conclusion}
+
+We presented Cara, a quality-aware scheduling system for heterogeneous LLM serving that unifies model routing and request scheduling into a single multi-objective optimization.
+Cara's design rests on three technical contributions.
+First, we reformulate output length prediction from regression to bucket classification using a fused multi-head encoder that produces probability distributions for all target models in a single forward pass, achieving 38--48\% bucket accuracy and enabling probabilistic budget compliance checking with 2.5--3.3\% calibration gap---substantially outperforming training-free approaches like PFS~\cite{Gong_2025} (10--24\%).
+Second, we decompose latency SLO checking into separate learned TTFT and TPOT predictors (1.2--6.2\% MAPE), avoiding dependence on output length prediction whose high MAPE (68--126\%) would propagate into E2E latency estimates.
+Third, we design a unified scheduling framework with request-specific objectives (RSOs) and an LPT-based greedy algorithm with cluster-aware scoring that jointly optimizes per-request SLOs and batch-level load balance in $O(|R| \times |I|)$.
+
+We implement Cara as a 5,000-line Python system deployed on an 18-instance heterogeneous CloudLab cluster spanning four GPU types and four Qwen2.5 model sizes.
+We release two datasets---\texttt{cara\_model\_estimator} (18.6K quality-annotated requests) and \texttt{cara\_latency\_prediction} (405K scheduling records)---to support reproducibility.
+
+%% TODO: Add end-to-end results paragraph when scheduling evaluation completes
+
+
+{\bibliographystyle{acm}
+\bibliography{sample}
+
+
+\appendix
+\section{System Model Extension}
+\subsection{Extension of Dynamic Instance Deployment and Scheduling} \label{append:dynamic-scheduling}
+\begin{equation}
+\begin{aligned}
+\min_{x_{m, n, r,f}} \quad & \sum_{r,m,n,f} x_{r,m,n,f} \cdot \Big(w_{\text{lat}}(r) P_{r,m,n,f} + w_{\text{cost}}(r) C_{r,m,n,f} - w_{\text{qual}}(r) Q_{r,m} \Big) \nonumber \\
+& + w_{\text{m}} \cdot \max_{m,n,f} \left( \sum_{r \in R_B} x_{r,m,n,f} \cdot P_{r,m,n,f} \right) \nonumber \\
+& + w_{\text{u}} \cdot \sum_i\left( \frac{\sum_{r\in R_B} x_{r,i} \, M_r}{\mathrm{Cap}_i} - \frac{\sum_{r \in R_B} M_r}{\sum_{i \in I} \mathrm{Cap}_i}\right) \\
+& \text{s.t.} \\
+& \sum_{m,n,f} x_{r,m,n,f} = 1,\\
+& \sum_{r,m,f} x_{r,m,n,f} \cdot m_r \le \text{Cap}_n,  \nonumber \\
+& \sum_{i} x_{r,i} \, P_{r,i} \le \mathrm{SLO}_{\text{lat}}(r), \nonumber\\
+& \sum_{i} x_{r,i} \, Q_{r,i} \ge \mathrm{SLO}_{\text{qual}}(r), \nonumber\\
+& \sum_{i} x_{r,i} \, C_{r,i} \le \mathrm{SLO}_{\text{budget}}(r), \nonumber\\
+& x_{r,m,n,f} \le y_{m,n,f}, \nonumber \\
+& y_{m,n,f} \le \text{compat}_{m,n,f} \nonumber \\
+& x_{r,m,n,f}, y_{m,n,f} \in \{0,1\}\\
+\end{aligned}
+\end{equation}
+
+\subsection{Extension to Prefill-Decode Disaggregation} \label{appendix:pd}
+
+Prefill-decode (P-D) disaggregation~\cite{zhong2024distservedisaggregatingprefilldecoding} separates prefill and decode phases onto dedicated instance pools, eliminating interference between compute-bound prefill and memory-bound decode.
+Cara's two-tier latency prediction architecture (\S\ref{section:latency_predictor}) naturally supports this extension: the TTFT predictor scores \emph{prefill} candidates while the TPOT predictor scores \emph{decode} candidates, with each operating on its respective instance pool.
+
+\paragraph{Formulation.}
+We decompose the scheduling problem into two sequential assignments.
+For the prefill phase, the scheduler assigns each request to a prefill instance $i \in I_p$ minimizing TTFT and cost while satisfying quality constraints:
+\begin{equation}
+\begin{aligned}
+\min_{x_{r,i}} \quad
+& \sum_{r\in R_B}\sum_{i\in I_{p}} x_{r,i} \cdot \Big(w_{\text{ttft}}(r) \, P_{r,i} + w_{\text{cost}}(r) \, C_{r,i} - w_{\text{qual}}(r) \, Q_{r,i} \Big) \nonumber \\
+& + w_{\text{m}} \cdot \max_{r \in R_B} \left( \sum_{i \in I_{p}} x_{r,i} \, P_{r,i} \right) \nonumber + w_{\text{u}} \cdot \sum_{i\in I_{p}}\left( \frac{\sum_{r\in R_B} x_{r,i} \, M_r}{\mathrm{Cap}_i}\right) \\
+\text{s.t.}\quad
+& \sum_{i} x_{r,i} = 1, \quad
+\sum_{i} x_{r,i} \, P_{r,i} \le \mathrm{SLO}_{\text{ttft}}(r), \\
+& \sum_{i} x_{r,i} \, Q_{r,i} \ge \mathrm{SLO}_{\text{qual}}(r), \quad
+\sum_{i} x_{r,i} \, C_{r,i} \le \mathrm{SLO}_{\text{budget}}(r), \\
+& \sum_{r} x_{r,i} \, M_r \le \mathrm{Cap}_i, \quad
+x_{r,i} \in \{0,1\}.
+\end{aligned}
+\end{equation}
+
+For the decode phase, after KV cache transfer, the scheduler assigns each request to a decode instance $i \in I_{d}$ minimizing TPOT:
+\begin{equation}
+\begin{aligned}
+\min_{x_{r,i}} \quad
+& \sum_{r\in R_B}\sum_{i\in I_{d}} x_{r,i} \cdot w_{\text{tpot}}(r) \, P_{r,i} \nonumber \\
+& + w_{\text{m}} \cdot \max_{r \in R_B} \left( \sum_{i \in I_{d}} x_{r,i} \, P_{r,i} \right) \nonumber + w_{\text{u}} \cdot \sum_{i \in I_{d}}\left( \frac{\sum_{r\in R_B} x_{r,i} \, M_r}{\mathrm{Cap}_i}\right) \\
+\text{s.t.}\quad
+& \sum_{i} x_{r,i} = 1, \quad
+\sum_{i} x_{r,i} \, P_{r,i} \le \mathrm{SLO}_{\text{tpot}}(r), \\
+& \sum_{r} x_{r,i} \, M_r \le \mathrm{Cap}_i, \quad
+x_{r,i} \in \{0,1\}.
+\end{aligned}
+\end{equation}
+
+Note that the quality term $Q_{r,i}$ appears only in the prefill assignment---model selection happens during prefill, and the decode instance serves the same model.
+The KV transfer time between prefill and decode instances adds a latency component that we model analytically.
+
+\paragraph{KV Transfer Time Model.}
+We estimate KV cache transfer time as:
+\begin{equation}
+t_{\text{transfer}} = \frac{n_{\text{prompt}} \times \text{KV}_{\text{bytes/token}}}{\text{bandwidth}}
+\end{equation}
+where $\text{KV}_{\text{bytes/token}}$ is a per-model constant (e.g., 115\,KB for Qwen2.5-7B with 28 layers, fp16) and bandwidth depends on the interconnect.
+This analytical model avoids the profiling overhead of simulation-based approaches while being trivially adaptable to different hardware by changing the bandwidth constant.
+
+\paragraph{Preliminary Validation.}
+We validated P-D disaggregation on our CloudLab testbed using two A30 nodes connected via 10\,GbE (measured 1.67\,GB/s via iperf3).
+Both nodes run Qwen2.5-7B with vLLM's built-in NixlConnector~\cite{nixl} for GPU-to-GPU KV cache transfer---no external KV cache system (e.g., lmcache) is required.
+The Cara P-D scheduler runs as a separate service, loading the same ModelEstimator for quality and length prediction, and routing prefill to one node and decode to the other.
+
+\begin{table}[H]
+\centering
+\small
+\caption{P-D disaggregation preliminary results on 2$\times$A30 (cross-node, 10\,GbE). Qwen2.5-7B, 5 requests.}
+\label{tab:pd_results}
+\begin{tabular}{lrr}
+\hline
+Component & Mean & Range \\
+\hline
+Prefill (TTFT + KV transfer) & 28\,ms & 27--33\,ms \\
+Scheduling overhead & 20\,ms & 19--23\,ms \\
+KV transfer (analytical) & 1.2\,ms & --- \\
+Decode (generation) & 764\,ms & 558--1242\,ms \\
+\hline
+Total E2E & 812\,ms & 603--2153\,ms \\
+\hline
+\end{tabular}
+\end{table}
+
+The prefill phase (28\,ms mean) includes both compute and KV transfer.
+The analytical transfer estimate (1.2\,ms for $\sim$18 prompt tokens) indicates that network overhead is negligible relative to prefill compute on the 10\,GbE interconnect.
+On A100 with NVLink ($\sim$300\,GB/s), the same transfer would take $<$0.01\,ms, making P-D disaggregation essentially free for the KV transfer component.
+
+The key insight for Cara's P-D extension is that the existing predictor infrastructure requires \emph{no modification}: the TTFT XGBoost predictor scores prefill candidates using the same schedule-state features (queue depth, pending tokens, KV utilization), and the TPOT XGBoost predictor scores decode candidates using the same batch-composition features.
+The \texttt{/instance\_stats} API returns the full feature set regardless of instance role---the scheduler simply reads different subsets for prefill vs.\ decode scoring.
+This architectural compatibility enables P-D support as a thin scheduling layer ($\sim$300 lines) on top of the existing Cara framework.
+
+
+\end{document}
+
+
+
+
+
+
+
+

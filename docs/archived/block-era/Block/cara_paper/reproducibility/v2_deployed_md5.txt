@@ -1,0 +1,35 @@
+## Deployed predictor models (cara v2)
+6ac8995f751bb66db4460ddda3fea38f  models/cara/latency/deploy_e2e/qwen2.5-14b_v100.xgb
+1819cb65ce126ef4e5f23027b80fbdc1  models/cara/latency/deploy_e2e/qwen2.5-3b_a30.xgb
+828b111c058c8638f39885d2d55fd35f  models/cara/latency/deploy_e2e/qwen2.5-3b_p100.xgb
+e3b00a4a6ff2f10034e25d4fe41a8cc0  models/cara/latency/deploy_e2e/qwen2.5-72b_a100.xgb
+6388f9a72f948fb006abfe7f2c307679  models/cara/latency/deploy_e2e/qwen2.5-7b_a30.xgb
+63b1129ffe690a3b67e422e79ed24d6c  models/cara/latency/deploy_tpot/qwen2.5-14b_v100.xgb
+c5caf54d5dc04d238d0126240f92390c  models/cara/latency/deploy_tpot/qwen2.5-3b_a30.xgb
+a79f70a2f6d58cf79a26feb6bef48fc3  models/cara/latency/deploy_tpot/qwen2.5-3b_p100.xgb
+da715c2cb7a3f22302c753383acf8285  models/cara/latency/deploy_tpot/qwen2.5-72b_a100.xgb
+45eaaf9895608892333004cf0ff04d21  models/cara/latency/deploy_tpot/qwen2.5-7b_a30.xgb
+17680cbe486208194f4a2360ecbcb7e3  models/cara/latency/deploy_tpot/unknown_unknown.xgb
+db7b4afb0c0bc4a3e10325a0f7d0d1ba  models/cara/latency/deploy_ttft/qwen2.5-14b_v100.xgb
+acd32b51d2e2b30f1d9332e833140372  models/cara/latency/deploy_ttft/qwen2.5-3b_a30.xgb
+7332c061d934dcfcc3e7ade2b7b09df0  models/cara/latency/deploy_ttft/qwen2.5-3b_p100.xgb
+ea18e3ef5db36fc80614c6f1d2cb319b  models/cara/latency/deploy_ttft/qwen2.5-72b_a100.xgb
+0ba69f94642598275d7596f54b41fb4e  models/cara/latency/deploy_ttft/qwen2.5-7b_a30.xgb
+741f13e055f24e0999cc067ebb4a5ff9  models/cara/latency/deploy_ttft/unknown_unknown.xgb
+## Quality KNN (deepeval k10) — top-level files
+d41d8cd98f00b204e9800998ecf8427e  -
+## Baselines
+6257cdebfe0656344ea0a28bb96a39d9  models/cara/best_route_4way_qwen/special_tokens_map.json
+ae4b77636d053baa8038849eea4763b8  models/cara/best_route_4way_qwen/config.json
+e1c5c36050e65902c8c1a6f7c7eef490  models/cara/best_route_4way_qwen/tokenizer_config.json
+models/cara/avengers_pro_qwen_v2_lc0.20/:
+cluster_rankings.json
+config.json
+## Data
+0318916065c1c7713cd20c0002574d0e  data/cara/scored/test_scored_filtered.jsonl
+cd0db7bf5ed06944633df238aecbb1b4  data/cara/scored/gemma3_scored_full.jsonl
+15ed0e67ffa50e0d17955127c144a566  data/cara/best-route-v3-test-3534-eval.jsonl
+## Configs
+c5f5eecd2353bb8723165e2458b9903a  block/config/cara/scheduler_config_qn_minmax.json
+79bd5abfd1ed726cabd44c3f2835ccf7  block/config/cara/predictor_xgboost_3model.json
+7a5e95222aaa993737a8bdfa1efcff54  block/config/cara/model_deployment.json

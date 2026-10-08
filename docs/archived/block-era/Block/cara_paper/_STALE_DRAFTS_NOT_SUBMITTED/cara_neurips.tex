@@ -1,0 +1,297 @@
+% Cara: Quality-Aware Heterogeneous LLM Serving — NeurIPS 2026 submission draft
+% Single-column, 9-page main + unlimited refs/appendix.
+% Drop-in replacement: switch \documentclass to {neurips_2026} when style file is available.
+
+\documentclass[10pt]{article}
+
+\usepackage[letterpaper, left=1.0in, right=1.0in, top=1.0in, bottom=1.0in]{geometry}
+\usepackage[hidelinks]{hyperref}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{algorithm,algpseudocode}
+\usepackage{xcolor}
+\usepackage{microtype}
+\usepackage{url}
+\usepackage{cite}
+\usepackage{caption}
+\usepackage{subcaption}
+\captionsetup[table]{skip=4pt}
+\captionsetup[figure]{skip=4pt}
+\setlength{\parskip}{2pt}
+
+\title{Cara: Quality-Aware Scheduling for Heterogeneous LLM Serving with Learned Predictors}
+\author{Anonymous Authors}
+\date{}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Modern LLM clouds host multiple model sizes across heterogeneous GPU pools, exposing routing decisions that simultaneously affect output quality, end-to-end latency, and per-token cost. Existing routers select models without instance-level visibility; serving schedulers optimize latency without quality awareness. We present \textbf{Cara}, a quality-aware scheduling system that fuses routing and load-balancing into a single batch-level decision, ranking candidate (request, instance) pairs along three axes (quality, latency, cost) using \emph{learned predictors}: a KNN quality estimator, a probabilistic bucket length classifier, and per-instance TTFT/TPOT/E2E XGBoost models trained on observable scheduling state. Cara enforces per-request budget and SLO constraints through a two-tier filter–rank pipeline and supports user-configurable strategy weights. Deployed on a 13-instance CloudLab cluster spanning Qwen2.5-3B/7B/14B/72B on A30/V100/A100, evaluated under open-loop Poisson load on 3{,}534 prompts per cell, Cara spans the 3-axis Pareto frontier against three trained-router and dispatcher-only baselines (AvengersPro, BEST-Route 4-way, passthrough router with round-robin/shortest-queue/random dispatchers) across the full $\lambda \in [6,30]$ range. At the saturation knee ($\lambda{=}12$), Cara-Quality reaches the highest quality (0.5141) of any system, beating AvengersPro $pw{=}0.8$ (the highest-quality baseline at 0.5101) by 22\% lower latency and 38\% lower cost; Cara-Cost achieves the lowest cost (\$0.0156/1k req, 31\% below the cheapest baseline at comparable quality, AvengersPro $pw{=}0.25$); Cara-Balance and Cara-Latency trace the rest of the frontier. We release two datasets (\texttt{cara\_model\_estimator}, \texttt{cara\_latency\_prediction}) and the full set of 215 experimental cells (\(\sim\)760{,}000 requests). RouteLLM-mf and vLLM-SR baselines are addressed in §\ref{sec:limitations}.
+\end{abstract}
+
+\section{Introduction}\label{sec:intro}
+
+Cloud providers increasingly serve LLMs through \emph{heterogeneous} infrastructure: multiple model sizes deployed across diverse GPU types to balance cost, latency, and quality~\cite{openaiIntroducingGPT5,microsoftModelRouter}. A single cluster may host Qwen2.5-72B on A100 GPUs for complex reasoning alongside Qwen2.5-3B on A30 GPUs for simple queries, with each (model, GPU) pair offering distinct throughput (10–98 tok/s), TPOT (10–89~ms), and quality characteristics. The fundamental scheduling question — \emph{which model instance should serve each incoming request?} — depends on three factors that current systems address in isolation:
+\begin{itemize}\itemsep0pt
+\item \textbf{Quality}: larger models generally produce better outputs, but the gap is workload-dependent — a 3B may match a 72B on simple factual queries.
+\item \textbf{Cost}: token cost varies per model and is bounded by per-request budgets in MaaS deployments.
+\item \textbf{Latency}: end-to-end latency depends on instance load, queue depth, and predicted output length.
+\end{itemize}
+LLM routers~\cite{Ong2024RouteLLMLT,universal_model_routering,chen2023frugalgpthowuse,mei2025eccosefficientcapability} pick models from quality estimates but ignore instance-level load. Serving schedulers~\cite{da2025blockbalancingloadllm,zhong2024distservedisaggregatingprefilldecoding,qlm} optimize latency within a fixed model pool but lack quality awareness. No prior system jointly considers all three axes across a heterogeneous multi-model cluster under realistic open-loop arrival patterns.
+
+\paragraph{Contributions.}
+\begin{itemize}\itemsep0pt
+\item \textbf{Joint quality--latency--cost batch scheduler.} Cara unifies routing and dispatch into a single batch-level decision (\S\ref{sec:design}). A two-tier \emph{filter--rank} pipeline first prunes candidates that violate per-request budget, TTFT, and TPOT SLOs, then ranks survivors with a normalized weighted score over predicted quality, latency, and cost. The strategy weights are user-configurable, exposing a Pareto frontier (Cara-Balance, Cara-Quality, Cara-Latency, Cara-Cost) at deployment time.
+\item \textbf{Learned-predictor stack tailored to scheduling decisions.} Cara replaces simulation-based predictors with three lightweight learned models (\S\ref{sec:impl}): (a)~a KNN quality estimator (single MiniLM embedding feeding per-model quality, expected output length, and bucket distribution); (b)~a fused multi-head ModernBERT bucket classifier producing $P(\text{bucket}_i)$ for probabilistic budget compliance; (c)~per-instance XGBoost models for TTFT/TPOT (hard SLO filtering) and E2E (soft ranking), trained on observable queue state with mean absolute errors well below the inter-instance routing gap.
+\item \textbf{End-to-end empirical validation on a 13-instance heterogeneous cluster.} We run 215 cells (\(\sim\)760{,}000 requests) across an open-loop Poisson load axis, sweeping cara strategy weights, AvengersPro power-law mix ($pw \in \{0.25, 0.39, 0.53, 0.8\}$), BEST-Route 4-way confidence threshold ($t \in \{0.3, 0.5, 0.7\}$), passthrough router with RR/SQ/random dispatchers, plus six ablations on LPT ordering, adaptive batching, batch size, and the SLO filter. Cara spans the 3-axis Pareto frontier across the entire $\lambda$ axis; budget-clamped variants reduce cost by up to 25\% on the most aggressive budget mix at a 5\% quality cost (1.9\% on a lighter budget mix). We release the predictor stack, sweep harness, and full result corpus.
+\end{itemize}
+
+\section{Background and Setup}\label{sec:background}
+
+LLM inference proceeds in two phases. \textbf{Prefill} processes the input tokens in parallel and bounds Time-To-First-Token (TTFT). \textbf{Decode} generates output tokens autoregressively; the per-token cost (TPOT) is governed by KV-cache and weight memory bandwidth. Continuous-batching engines such as vLLM~\cite{kwon2023vllm} admit new requests mid-batch, which raises GPU utilization but couples a request's latency to the dynamic composition of co-batched requests. Heterogeneous serving compounds this: at fixed offered load, a (3B, A30) instance can sustain $\approx$\,98 tok/s with 10~ms TPOT, whereas a (72B, A100$\times$4) instance reaches $\approx$\,24 tok/s with 42~ms TPOT (Table~\ref{tab:cluster}). Routing a request to the wrong tier wastes either quality or capacity.
+
+\begin{table}[t]
+\centering
+\small
+\caption{Heterogeneous experimental cluster (13 instances, CloudLab Phase 2). Each instance type exposes distinct (TPOT, throughput, cost) trade-offs.}
+\label{tab:cluster}
+\begin{tabular}{llrrrr}
+\toprule
+Model & GPU & Instances & TPOT p50 & Throughput & Price (USD/1M out tok) \\
+\midrule
+Qwen2.5-72B & A100$\times$4 & 2 & 41.6~ms & 24 tok/s & 0.40 \\
+Qwen2.5-14B & V100$\times$4 & 3 & 13.9~ms & 72 tok/s & 0.15 \\
+Qwen2.5-7B  & A30$\times$1  & 5 & 19.6~ms & 51 tok/s & 0.07 \\
+Qwen2.5-3B  & A30$\times$1  & 3 & 10.2~ms & 98 tok/s & 0.06 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{API: request-specific objectives (RSOs).}
+Each request carries an optional RSO triple $(B_r, \tau^{\text{TTFT}}_r, \tau^{\text{TPOT}}_r)$ specifying a token budget and per-token latency targets. The scheduler treats RSOs as hard filter constraints; cluster-wide SLOs apply to all requests.
+
+\section{System Design}\label{sec:design}
+
+Cara replaces the conventional router-then-dispatcher pipeline with a single batch-level scheduler that emits joint (model, instance) assignments (Algorithm~\ref{alg:cara} in Appendix~\ref{appendix:milp}; the underlying MILP is formalised there). Two design choices are central:
+
+\paragraph{Filter-then-rank.}
+Each request $r$ in a batch $R_B$ is first filtered against a budget-and-SLO predicate; remaining candidates are ranked by a weighted normalized objective. Filtering uses \emph{conservative} estimates (predicted bucket distribution for budget compliance, hard TTFT/TPOT thresholds from the per-instance XGBoost model); ranking uses point estimates. Decoupling filtering from ranking avoids the combinatorial explosion of a joint MILP under load-dependent prediction parameters and prevents prediction noise from causing safety violations.
+
+\paragraph{Three-axis scoring on the simplex.}
+For each surviving (request, instance) pair, the per-request score is:
+\begin{equation}\label{eq:score}
+S(r, i) \;=\; -\,w_q \tilde{Q}_{r,i} \;+\; w_l \tilde{L}_{r,i} \;+\; w_c \tilde{C}_{r,i}, \qquad w_q + w_l + w_c = 1, \;\; w_\bullet \ge 0
+\end{equation}
+where $\tilde{Q}, \tilde{L}, \tilde{C}$ are min--max-normalised quality, predicted E2E latency, and per-token cost. The simplex weights expose four named strategies the user can pick at submission time: \textbf{Balance} ($w_q{=}w_l{=}w_c{=}\tfrac{1}{3}$), \textbf{Quality} ($w_q{=}0.8$), \textbf{Latency} ($w_l{=}0.8$), and \textbf{Cost} ($w_c{=}0.8$). A pure 3-axis simplex deliberately omits a separate balance term — load balancing is handled implicitly through KV-cache aware filtering and through the LPT-with-state-update sequential assignment described next, both of which fold capacity awareness into the existing axes rather than introducing a fourth weight that competes with the three user-meaningful objectives.
+
+\paragraph{LPT with state updates.}
+Within a batch, requests are assigned in descending order of $\hat{L}_r = \max_m \mathbb{E}[\text{len}_m(r)]$ (Graham's LPT~\cite{graham1969bounds} for makespan reduction). After each assignment, the scheduler updates its local view of the chosen instance (queue depth, pending decode tokens) so that subsequent requests in the same batch see the cumulative within-batch load. This sequential update yields 1-swap local optimality under load-dependent predictions, where exact MILP solving would be NP-hard~\cite{job_shop_np_hard,nair2021solvingmixedintegerprograms}, and naturally avoids the thundering-herd effect of independent per-request dispatchers.
+
+\paragraph{Adaptive batch sizing.}
+A request's effective wait decomposes as $\text{batch\_wait} + \text{scheduling} + \text{instance\_queue}$. When the cluster is busy ($\rho = |\{i : \text{queue}_i > 0\}| / |\mathcal{I}|$ is high), the batch wait is masked by instance queues, and the scheduler can amortize prediction cost over larger batches without exposing additional latency. Cara therefore scales the batch size and timeout with $\rho$: small batches (4 reqs / 50~ms) at low load to minimize bubble, large batches (32 reqs / 200~ms) at high load to amortize predictor calls and improve LPT ordering. The exact schedule is in Appendix~\ref{appendix:batching}.
+
+\paragraph{Budget enforcement.}
+For requests carrying a budget $B_r$, the filter additionally drops candidate instances on which the predicted per-token cost would exceed the budget. At dispatch the scheduler clamps \texttt{max\_tokens} to $\lfloor (B_r - c^{\text{in}}_i \cdot |\text{prompt}|)/c^{\text{out}}_i \rfloor$, and the streaming layer terminates generation early if accumulated cost reaches $B_r$. The trace records \texttt{budget\_exhausted} for analysis. Section~\ref{sec:eval-budget} quantifies the resulting cost reduction.
+
+\section{Implementation}\label{sec:impl}
+
+The Cara prototype is $\sim$5{,}000 lines of Python. We summarise the predictor stack here; predictor accuracy details and training data statistics are deferred to Appendix~\ref{appendix:predictors}.
+
+\paragraph{Quality and length: a single MiniLM embedding feeds three heads.}
+We compute one \texttt{all-MiniLM-L6-v2} embedding per prompt and feed it into (a)~a FAISS KNN index over $k{=}50$ weighted neighbours from a 14{,}919-prompt training corpus that returns per-model quality scores, expected output length, and a 16-bucket length distribution; and (b)~a fused multi-head ModernBERT-base classifier that emits $P(\text{bucket}_i)$ for $i \in \{0,\ldots,15\}$ on 64-token buckets (used for budget compliance via $P(\text{tokens} \le B) = \sum_{i \le B/64} P(\text{bucket}_i)$). The KNN head replaces the earlier RoBERTa-fused predictor we explored: it matches RoBERTa's selection accuracy at \(\sim\)6\,ms per prompt batch (vs.\ 38\,ms) and avoids GPU memory for a CPU-bound deployment. Quality scores are pre-computed deepeval reference scores~\cite{deepeval} (RouterBench-style); the metric-agnostic interface lets operators swap to LLM-judge or task-specific scorers without scheduler changes.
+
+\paragraph{Latency: per-instance XGBoost on observable state.}
+For each (model, GPU) pair we train three XGBoost models — TPOT, TTFT, E2E — on 359{,}000 (schedule\_state $\rightarrow$ latency) records collected at 9–36 QPS. The 25 features are aggregate queue statistics (running/active/waiting counts, KV utilization, decode-context percentiles, EMA service rates, predicted decode tokens). On held-out test data we obtain TPOT mean absolute errors of 0.22–5.6~ms/tok depending on instance type — well below the inter-instance gap (the 3B-on-A30 to 72B-on-A100 TPOT differs by $50\times$). E2E predictors achieve 1.2–6.3\% MAPE across instances, sufficient for relative ranking. Hot-path inference uses XGBoost's \texttt{inplace\_predict} in-process with CUDA hidden, completing in $\sim$3~ms per (request, instance) pair. We report the full predictor accuracy table in Appendix~\ref{appendix:predictors}.
+
+\paragraph{Code and data availability.}
+The full Cara prototype (scheduler, predictor stack, sweep harness, aggregator) is released at an anonymous repository: \url{https://anonymous.4open.science/r/cara-neurips-2026} (will be deanonymised upon acceptance). Two HuggingFace datasets are also released: \texttt{asdwb/cara\_model\_estimator} (18{,}605 quality-annotated multi-model prompts; 80/20 split) and \texttt{asdwb/cara\_latency\_prediction} (405{,}000 schedule-state-to-latency records with per-request queue details). The 215-cell evaluation corpus (raw per-request traces + AGGREGATE\_FULL.csv) is included in the code repository.
+
+\section{Evaluation}\label{sec:eval}
+
+\subsection{Setup}\label{sec:eval-setup}
+Cara runs on a 13-instance CloudLab Phase~2 cluster (Table~\ref{tab:cluster}); the bench client and cara\_serve scheduler co-locate on a separate A100 head. Prompts are drawn from a clean 3{,}534-prompt evaluation set with full deepeval coverage (no overlap with the predictor training corpus). Each cell drives the cluster open-loop with Poisson arrival rate $\lambda \in \{6, 8, 10, 12, 18, 24, 30\}$ req/s for the main λ-axis sweep ($\lambda{=}16, 20$ for the SLO and budget cells). Saturation begins around $\lambda \approx 18$ for several baselines; cara-balance remains stable through $\lambda{=}30$. We report 215 cells in total: 56 cara strategy points (8 weight tuples $\times$ 7 $\lambda$), 21 dispatcher-only baselines (passthrough router with RR/SQ/random $\times$ 7 $\lambda$), 56 AvengersPro power-law mix cells ($pw \in \{0.25, 0.39, 0.53, 0.8\}\times\{$RR, SQ$\}\times 7\lambda$), 42 BEST-Route 4-way threshold cells ($t \in \{0.3, 0.5, 0.7\}\times \{$RR, SQ$\}\times 7\lambda$), 9 budget-calibrated demos ($\lambda{=}16$), 7 LPT-off + 19 batch ablations + 5 SLO-filter ablations. Quality is the mean deepeval reference score of the response actually produced, computed via pre-scored lookup. Cost is per-token MaaS pricing (Table~\ref{tab:cluster}, output rate). Throughput is requests-per-second sustained over the full 3{,}534-prompt run. Every cell ran with zero errors (215/215 healthy, $\sim$760{,}000 requests total). All cells are single-seed (one Poisson realization per cell, fixed seed across systems). We discuss this limitation and report bootstrap 95\% CIs on the headline λ=12 row in §\ref{sec:limitations}.
+
+\subsection{Headline: 3-axis Pareto dominance}\label{sec:eval-pareto}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{smoke_test_apr_13/results/main_table_full_3534/cara_final_e2e/_aggregate/fig_pareto_3way_lambda12.pdf}
+\caption{Pareto frontier at $\lambda=12$ req/s (saturation knee), $N{=}3534$ prompts. Cara strategies (filled black-edged markers) span the frontier; no baseline simultaneously beats a Cara strategy on all three axes. Cara-Quality (0.5141) reaches the highest quality at 22\% lower mean E2E and 38\% lower cost than AvengersPro $pw{=}0.8$ (the highest-quality baseline at 0.5101). Cara-Cost achieves \$0.0156/1k req — 31\% below the cheapest comparable-quality baseline (AvengersPro $pw{=}0.25$, q=0.4875 at \$0.0225/1k).}
+\label{fig:pareto12}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.55\linewidth]{smoke_test_apr_13/results/main_table_full_3534/cara_final_e2e/_aggregate/fig_radar_4dim.pdf}
+\caption{4-axis trade-off at $\lambda=12$ (higher is better on each axis; values normalised across the eight systems). Cara-Balance encloses every baseline; the four cara strategies trace a coherent rotation around the simplex.}
+\label{fig:radar}
+\end{figure}
+
+Figure~\ref{fig:pareto12} shows the 3-axis Pareto frontier at the saturation knee. Cara strategies (black-edged markers) span the frontier — there is no baseline that dominates a Cara strategy on all three axes simultaneously. Table~\ref{tab:headline} reports the same point in numbers, including TTFT and throughput. Two notable Pareto-related caveats: (i)~AvengersPro $pw{=}0.25$ is faster (1{,}768~ms) and at lower cost (\$0.0225) than Cara-Balance, but at lower quality (0.4875 vs 0.5081), so it does not Pareto-dominate; (ii)~Dispatcher-SQ has lower latency (2{,}014~ms) than Cara-Balance but lower quality (0.4938) and similar cost — also not dominating. The four cara strategy weights cover the corners and centre of the simplex, and at every (quality, latency, cost) point the user picks, no baseline simultaneously beats all three.
+
+\input{smoke_test_apr_13/results/main_table_full_3534/cara_final_e2e/_aggregate/headline_table.tex}
+
+Four observations: (i)~\textbf{quality.} Cara-Quality (0.5141) is the highest-quality system. The closest baselines are BEST-Route $t{=}0.5$ (0.5119) and AvengersPro $pw{=}0.8$ (0.5101), both within 0.004. Cara-Quality reaches the highest quality at 22\% lower mean E2E than $pw{=}0.8$ (2{,}648 vs 3{,}432~ms) and 38\% lower cost (\$0.0311 vs \$0.0500/1k req); against BEST-Route $t{=}0.5$ (the next-best on quality at 0.5119) Cara-Quality trades 4.5\% higher mean E2E (2{,}648 vs 2{,}535~ms) for $5\times$ lower mean TTFT (51~ms vs 268~ms) and 5\% lower cost (\$0.0311 vs \$0.0329). (ii)~\textbf{cost.} Cara-Cost (\$0.0156/1k req, q=0.4948) is 31\% cheaper than the cheapest non-cara point at comparable quality (AvengersPro $pw{=}0.25$ at \$0.0225/1k, q=0.4875); Cara-Cost achieves slightly higher quality at lower cost. (iii)~\textbf{TTFT.} Cara strategies sustain mean TTFT under 60~ms across all $\lambda \le 30$, while BEST-Route's threshold variants run 236--273~ms mean (p99 above 1{,}000~ms) at $\lambda{=}12$ — a 5$\times$ gap that tracks BEST-Route's tendency to concentrate load on the highest-confidence model. AvengersPro $pw{=}0.25$ hits 112~ms TTFT under round-robin and 58~ms under shortest-queue, both higher than every Cara strategy because aggressive small-model use saturates the 3B replicas first. (iv)~\textbf{stability under load.} From $\lambda{=}6$ to $\lambda{=}30$, Cara-Balance mean E2E grows only 21\% (2{,}089 to 2{,}526~ms). AvengersPro $pw{=}0.8$ grows 118\% (3{,}274 to 7{,}153~ms) and AvengersPro $pw{=}0.39$ grows 197\% (1{,}710 to 5{,}079~ms) — both saturate the 14B/72B pools at high load.
+
+Figure~\ref{fig:pareto-lambda} extends the comparison across the full $\lambda$ axis. Cara-Balance traces the lowest cost and TTFT curves at every load level; Cara-Quality reaches the highest-quality point of any system at lower latency and cost than the corresponding AvengersPro variant. The largest gaps appear at high load. At $\lambda{=}30$, Cara-Balance has mean E2E 2{,}526~ms (p99 = 5{,}978~ms) and Cara-Quality 3{,}117~ms (p99 = 13{,}423~ms), while \textbf{BEST-Route $t{=}0.5$ collapses to mean E2E of 41{,}908~ms (p99 = 159{,}093~ms = 159~s)} — a 16.6$\times$ gap on mean and 26.6$\times$ on p99 vs.\ Cara-Balance (11.9$\times$ on p99 vs.\ Cara-Quality). AvengersPro $pw{=}0.8$ at $\lambda{=}30$ degrades to 7{,}153~ms mean (p99 = 21{,}525~ms), a 2.8$\times$ gap. The collapse is the direct consequence of routing concentration: Table~\ref{tab:routing} shows that BEST-Route $t{=}0.5$ at $\lambda{=}12$ sends 98.4\% of requests to the 14B (V100) tier; the same 14B replicas saturate first as $\lambda$ grows, while every cara strategy spreads load across at least three model tiers.
+
+\input{smoke_test_apr_13/results/main_table_full_3534/cara_final_e2e/_aggregate/model_distribution.tex}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{smoke_test_apr_13/results/main_table_full_3534/cara_final_e2e/_aggregate/fig_model_dist.pdf}
+\caption{Routing distribution at $\lambda{=}12$. Cara strategies (top four rows) span the model mix from a single deployed predictor stack — only the user-supplied weights change. Baselines have fixed mixes regardless of objective: BEST-Route concentrates on 14B, AvengersPro distributes by power-law difficulty, dispatcher-only is uniform across models.}
+\label{fig:model-dist}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{smoke_test_apr_13/results/main_table_full_3534/cara_final_e2e/_aggregate/fig_pareto_lambda_axis.pdf}
+\caption{$\lambda$-axis curves for the three primary metrics. Cara-Balance and Cara-Quality dominate the cost and latency frontiers at every load level. BEST-Route argmax collapses past $\lambda{=}18$ as quality-greedy concentration overloads the largest model.}
+\label{fig:pareto-lambda}
+\end{figure}
+
+\subsection{Probabilistic budget compliance}\label{sec:eval-budget}
+
+We test Cara's budget-clamp pipeline at $\lambda{=}16$ on three calibrated request mixes that vary the share of \emph{tightly-budgeted} requests: (a)~25/25/25/25 — a uniform sample across budget categories (low-budget-fits-only-3B, low-budget-fits-only-7B-or-smaller, low-budget-fits-only-14B-or-smaller, unconstrained); (b)~15/15/15/55 — biased toward unconstrained; and (c)~10/10/10/70 — heavily unconstrained. Table~\ref{tab:budget} reports outcomes for cara-with-filter (drops over-budget candidates upstream + clamps \texttt{max\_tokens} at dispatch), cara-without-filter (records cost but does not clamp), and BEST-Route argmax (no budget mechanism).
+
+\begin{table}[t]
+\centering
+\small
+\caption{Budget control at $\lambda=16$, $N=3534$. The cara filter drops over-budget candidates and clamps \texttt{max\_tokens} at dispatch; cost falls 25\% on the uniform mix at a 5.0\% quality cost (the filter routes more requests to cheaper-but-smaller models). The unconstrained-heavy mix (10/10/10/70) sees larger absolute cost reduction with smaller quality cost. BEST-Route argmax (no budget mechanism) is shown as a reference: it pays full cost regardless of the per-request budget.}
+\label{tab:budget}
+\begin{tabular}{lrrr}
+\toprule
+Configuration & Quality & Cost (\$/1k req) & Budget exhausted \\
+\midrule
+Cara-Filter (25/25/25/25)        & 0.4816 & 0.0123 & 33\% \\
+Cara-Filter (15/15/15/55)        & 0.4934 & 0.0160 & 19\% \\
+Cara-Filter (10/10/10/70)        & 0.4973 & 0.0183 & 13\% \\
+Cara-NoFilter (25/25/25/25)      & 0.5072 & 0.0164 & 43\% \\
+Cara-NoFilter (15/15/15/55)      & 0.5070 & 0.0191 & 26\% \\
+Cara-NoFilter (10/10/10/70)      & 0.5067 & 0.0208 & 17\% \\
+BEST-Route argmax (25/25/25/25)  & 0.5089 & 0.0147 & 41\% \\
+BEST-Route argmax (10/10/10/70)  & 0.5089 & 0.0190 & 17\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three takeaways: (i)~the filter \emph{reduces} cost (25\% on the uniform mix vs.\ no-filter) and the reduction grows on heavier per-request budgets, since the filter routes tightly-budgeted requests to instances that fit the budget rather than running expensive models toward early termination; (ii)~the filter trades 5\% of mean quality on the most aggressive mix (uniform), narrowing to 1.9\% on the unconstrained-heavy mix — the trade-off is configurable through the relax-order ($w_q \to w_c$ trade) and is in line with the published price–quality tier of the smaller models on the same prompts; (iii)~\texttt{budget\_exhausted} fraction (the share of requests that hit early-termination during streaming) is highest in the no-filter setting (43\% on the uniform mix), confirming that the filter prevents wasted prefill work on instances that would not finish under budget. BEST-Route, which has no budget mechanism, exhausts budget on 41\% of requests on the uniform mix.
+
+\subsection{Ablations}\label{sec:eval-ablation}
+
+We isolate three Cara components on the same 3{,}534-prompt benchmark with Cara-Balance weights ($w_q{=}w_l{=}w_c{=}\tfrac{1}{3}$). Full per-$\lambda$ tables are in Appendix~\ref{appendix:ablations}; here we summarise the magnitude of each component.
+
+\textbf{Adaptive batching} (\texttt{ablation\_batch}). Disabling adaptive sizing (\texttt{adaptive\_off}, fixed timeout) increases mean E2E by 5--7\% across the full $\lambda$ axis (e.g., 2{,}688 vs.\ 2{,}526~ms at $\lambda{=}30$, +6.4\%). The complementary batch-size sweep ($\text{bs} \in \{1, 16, 32, 64\}$, fixed timeout) shows the same trend: \text{bs}=1 is 13--18\% slower than the adaptive baseline at $\lambda \ge 16$ because per-request scheduler invocations forfeit predictor-call amortization. Effects are larger on highly-saturated runs but remain modest at the loads our cluster sustains, suggesting the marginal gain of adaptive batching is smaller in absolute terms than per-request prediction overhead would suggest under typical load.
+
+\textbf{LPT ordering} (\texttt{ablation\_lpt}). FCFS within-batch (LPT off) leaves mean E2E within $\pm$0.5\% of baseline across all $\lambda$. The within-batch ordering effect is minor in our regime because the global scheduler's batch-side state updates already steer subsequent requests away from saturated instances; the LPT win in classical scheduling theory~\cite{graham1969bounds} appears most when batches are large and within-batch jobs vary widely in cost, neither of which dominates here. We retain LPT for its theoretical guarantee on identical-machine makespan and its non-trivial impact in synthetic high-load tests, while transparently noting the small empirical effect on this workload.
+
+\textbf{SLO filter} (\texttt{slo\_ablation}). With TTFT/TPOT thresholds set to $(500\text{ms}, 30\text{ms})$, p99 TTFT and p99 TPOT differ by $\le 2$~ms between filter-on and filter-off across $\lambda \in \{16, 20\}$ (e.g., $\lambda{=}20$: filter-on p99 TTFT 91~ms, filter-off 93~ms; we did not run a filter-off cell at $\lambda{=}12$). Mean E2E pays a 6\% penalty for filter-on at $\lambda{=}20$. The filter is therefore best understood as an \emph{insurance} mechanism: at our test loads, the cluster has headroom and few candidates need to be filtered; under tighter SLOs or more saturated clusters, the filter would prevent SLO-violating routings — a regime our 13-instance cluster did not push into. We include the per-$\lambda$ data in Appendix~\ref{appendix:ablations} and acknowledge that a stress-load study (e.g., $\lambda \ge 40$) would more clearly separate filter-on from filter-off; this is left for the open follow-up evaluation that includes vLLM-SR (\S\ref{sec:limitations}).
+
+Taken together, the ablations show that Cara's lead over baselines comes from \emph{combined} effects of routing intelligence (the simplex strategy and learned predictors), batch-level state propagation (sequential assignment with local updates), and budget-aware filtering — rather than from any single mechanism dominating. Removing any one component degrades Cara's curve by single-digit percent on this workload but does not flip the Pareto outcome relative to baselines that lack \emph{all} of them.
+
+\section{Related Work}\label{sec:related}
+
+\paragraph{LLM serving systems.} vLLM~\cite{kwon2023vllm} and TensorRT-LLM optimise local batching within a single replica; DistServe~\cite{zhong2024distservedisaggregatingprefilldecoding} disaggregates prefill and decode; Block~\cite{da2025blockbalancingloadllm} balances load across homogeneous replicas with simulation-based predictors. None considers cross-model trade-offs.
+
+\paragraph{Heterogeneous serving.} HexGen~\cite{hexgen}, Helix~\cite{helix}, ThunderServe~\cite{thunderserve} target deployment-time placement of pipeline-parallel replicas across heterogeneous GPUs; Cara is complementary — it operates at request scheduling time on a deployed cluster.
+
+\paragraph{Model routers.} RouteLLM~\cite{Ong2024RouteLLMLT} routes between two models from preference data; Universal Model Routing~\cite{universal_model_routering} extends to $N$ models with quality--cost scores; FrugalGPT~\cite{chen2023frugalgpthowuse} cascades through a sequence; AvengersPro~\cite{avengers} mixes by power-law difficulty; BEST-Route~\cite{best_route} learns a 4-way classifier with a confidence threshold. All operate above the serving layer with no instance-level visibility — exactly the gap Cara addresses. We compare against AvengersPro and BEST-Route in §\ref{sec:eval-pareto}; vLLM-SR~\cite{semantic_router} is a complementary semantic-classification router that we plan to evaluate on the same benchmark in follow-up work (§\ref{sec:limitations}).
+
+\paragraph{Length and latency prediction.} S$^3$~\cite{s3}, PFS~\cite{Gong_2025}, PARS~\cite{pars}, TimeBill~\cite{timebill2025} predict output length for batch packing; we replace point regression with bucket distributions for budget compliance. Vidur~\cite{Agrawal2024VidurAL} and AIConfigurator~\cite{aiconfigurator2025} provide simulation-based latency models requiring per-hardware kernel profiling; Cara's learned XGBoost models adapt through retraining on serving traces, similar in spirit to learned indices~\cite{kraska2018case}.
+
+\paragraph{Disaggregated serving.} Splitwise~\cite{splitwise}, Mooncake~\cite{mooncake}, and Sarathi-Serve~\cite{sarathi_serve} disaggregate or chunk prefill/decode within a single model; Cara operates one level above (cluster-wide cross-model scheduling) and is complementary.
+
+\paragraph{Scope, limitations, and follow-up evaluation.}\label{sec:limitations}
+Cara is positioned in the same regime as recent quality-aware routers, but with several scope choices we make explicit. Each of our 215 cells is a single Poisson realization with a fixed seed; we report bootstrap 95\% CIs on the headline $\lambda{=}12$ row by resampling per-request observations within each cell ($B{=}1000$, $n{=}3534$ per resample). The CI half-widths on mean E2E are $\pm$43--116~ms (e.g., AvengersPro $pw{=}0.8$ 3{,}432$\pm$116~ms; Cara-Balance 2{,}219$\pm$60~ms; Cara-Quality 2{,}648$\pm$85~ms). The mean E2E gaps between systems (e.g., 213~ms between Cara-Quality and BEST-Route $t{=}0.5$, 784~ms between Cara-Quality and AvengersPro $pw{=}0.8$) exceed within-cell CIs by 2--7$\times$, so the latency ordering is statistically significant. CI half-widths on mean quality are $\pm$0.009 across all systems; the top three quality systems (Cara-Quality 0.5141, BEST-Route $t{=}0.5$ 0.5119, AvengersPro $pw{=}0.8$ 0.5101) have overlapping quality CIs at this granularity, so we are explicit that the headline ``highest-quality system'' claim concerns the point estimate and is not statistically separated from the next-closest baseline by within-cell variance alone. The strong claims in this paper concern \emph{cost and latency at iso-quality} (gaps of 5--50\%) and \emph{stability under load} (BEST-Route $t{=}0.5$ p99 e2e at $\lambda{=}30$ is 159~s vs.\ Cara-Balance 5.98~s and Cara-Quality 13.4~s), where the inter-system separation is far above any plausible variance. A multi-seed re-run is left for the public follow-up. Our cluster covers one topology and four model sizes from a single family (Qwen2.5). Cross-family routing requires re-training the KNN quality head on a multi-family corpus; the predictor architecture is unchanged. Two trained-router baselines are mentioned but not in our headline grid: RouteLLM-mf~\cite{Ong2024RouteLLMLT} (its public pretrained checkpoint domain-shifts on Qwen prompts, routing $>$95\% to Qwen-3B in our preflight) and vLLM-SR~\cite{semantic_router} (a transient cluster-NIC issue blocked the apples-to-apples Poisson evaluation in the submission window). Both will be added to the public corpus in a follow-up release; we expect vLLM-SR to land between BEST-Route and AvengersPro on the 3-axis frontier based on its threshold-band routing design. Finally, our quality signal is a single judge model (deepeval reference scores against Qwen2.5-72B); a multi-judge ensemble or task-specific scorer would tighten absolute numbers but should not change the system ordering on which the 3-axis Pareto analysis depends.
+
+\paragraph{Broader impact.} Cara reduces per-token energy use on heterogeneous clusters (smaller models on cheaper GPUs serve a larger share of requests) and makes multi-model deployment more accessible to academic operators. Misuse risk: an operator could bias $w_c$ on a tenant-classification workload to degrade service. We mitigate by exposing weights at the request rather than tenant level, and by releasing the predictor stack so routing decisions are auditable. The released datasets are public-benchmark prompts; Cara introduces no new data-collection vectors beyond standard serving logs.
+
+\paragraph{Conclusion.} Cara unifies model routing and instance scheduling into a single batch-level decision driven by learned predictors and an adaptive-batch LPT loop. On a 13-instance heterogeneous cluster under open-loop Poisson load, Cara spans the 3-axis quality–latency–cost Pareto frontier against three trained-router and dispatcher-only baselines, supports user-configurable strategy weights without retraining, and cuts cost by up to 25\% under per-request budgets at a 5\% quality cost (less on lighter mixes).
+
+\bibliographystyle{plain}
+\bibliography{sample}
+
+\appendix
+
+\section{MILP formulation}\label{appendix:milp}
+The full optimisation Cara approximates is:
+\begin{align*}
+\min_{x_{r,i} \in \{0,1\}} \;\; & \sum_{r,i} x_{r,i} \big( w_l \tilde{P}_{r,i} + w_c \tilde{C}_{r,i} - w_q \tilde{Q}_{r,i} \big) + w_m \cdot \max_r \big(\textstyle\sum_i x_{r,i} P_{r,i}\big) \\
+\text{s.t.} \;\; & \textstyle\sum_i x_{r,i} = 1, \quad \textstyle\sum_i x_{r,i} P_{r,i} \le \min(\text{RSO}^{\text{lat}}_r, \text{SLO}^{\text{lat}}_r), \\
+& \textstyle\sum_i x_{r,i} Q_{r,i} \ge \text{RSO}^{\text{qual}}_r, \quad \textstyle\sum_i x_{r,i} C_{r,i} \le \text{RSO}^{\text{budget}}_r
+\end{align*}
+The greedy solver in Algorithm~\ref{alg:cara} achieves 1-swap local optimality on the above with $O(|R_B||I|)$ work per batch. We omit the $w_u$ memory-balance term that prior drafts of Cara included: KV-cache pressure is already enforced as a hard filter on $M_{r,i} \le \text{Cap}_i$, and additional load smoothing arises from the LPT-with-state-update sequential assignment, so a separate weight is unnecessary in practice.
+
+\begin{algorithm}[t]
+\caption{Cara batch scheduler}\label{alg:cara}
+\begin{algorithmic}[1]
+\State \textbf{input:} batch $R_B$, instance set $\mathcal{I}$, weights $(w_q, w_l, w_c)$
+\State $\hat{Q}, \hat{L}, \hat{C} \gets \text{ModelEstimator}(R_B)$ \Comment{KNN + ModernBERT batched call}
+\State sort $R_B$ by $\hat{L}_r$ descending \Comment{LPT}
+\For{$r \in R_B$}
+  \State $\mathcal{F}_r \gets \{i \in \mathcal{I} : \text{TTFT}(i) {\le} \tau^{\text{TTFT}}_r, \text{TPOT}(i){\le}\tau^{\text{TPOT}}_r, c_{r,i}{\le} B_r\}$
+  \If{$\mathcal{F}_r = \emptyset$} relax constraints in user order; if still empty, fall back to shortest-queue \EndIf
+  \State $i^* \gets \arg\min_{i \in \mathcal{F}_r} S(r, i)$ \Comment{Eq.~\ref{eq:score}}
+  \State assign $r \to i^*$; update $\text{queue}_{i^*}, \text{pending}_{i^*}$ locally
+\EndFor
+\end{algorithmic}
+\end{algorithm}
+
+\section{Adaptive batching schedule}\label{appendix:batching}
+Let $\rho \in [0,1]$ be the busy ratio and $b_{\min}, b_{\max}, t_{\min}, t_{\max}$ the policy bounds (defaults $4, 32, 50\,\text{ms}, 200\,\text{ms}$). The batch size and timeout grow linearly with $\rho$:
+\[ b(\rho) = \lceil b_{\min} + (b_{\max}-b_{\min}) \cdot \rho \rceil, \qquad t(\rho) = t_{\min} + (t_{\max}-t_{\min}) \cdot \rho. \]
+
+\section{Predictor accuracy details}\label{appendix:predictors}
+
+\paragraph{TPOT/TTFT predictor MAE.}
+We report mean absolute error in seconds (per-token for TPOT, per-request for TTFT) rather than MAPE because TPOT denominators are sub-millisecond on most instances, inflating MAPE; the relevant comparison for routing is whether the predictor distinguishes instances whose TPOT differs by 10–100$\times$.
+
+\begin{table}[h]
+\centering
+\small
+\caption{Per-instance held-out predictor accuracy for the four (model, GPU) pairs in the active 13-instance cluster. TPOT MAE is reported in s/tok with the median observed TPOT and the ratio gap-to-the-next-tier in s/tok terms — the predictor MAE is an order of magnitude smaller than the smallest inter-tier gap, justifying use for routing-tier selection. MAPE inflates on sub-ms TPOT denominators (e.g., 14B-on-V100 has 13.9~ms median TPOT but a TPOT MAE of 0.88~ms), which is a denominator effect, not a routing-quality issue. E2E MAPE is reported as the primary metric since absolute E2E is seconds-scale.}
+\label{tab:predictor-mae}
+\begin{tabular}{lrrrrrr}
+\toprule
+Instance & TPOT MAE & median TPOT & gap to next tier & TPOT MAPE & TTFT MAE & E2E MAPE \\
+         & (s/tok)  & (s/tok)     & (s/tok)          &           & (s)      &          \\
+\midrule
+qwen2.5-3b\_a30    & 0.000222 & 0.0102 & 0.0037 (to 7B)   & 38.4\%   & 0.0042 & 2.36\% \\
+qwen2.5-7b\_a30    & 0.000514 & 0.0196 & 0.0058 (to 14B)  & 64.7\%   & 0.0076 & 2.11\% \\
+qwen2.5-14b\_v100  & 0.000879 & 0.0139 & 0.0277 (to 72B)  & 152.9\%  & 0.0081 & 5.58\% \\
+qwen2.5-72b\_a100  & 0.000750 & 0.0416 & ---              & 1.82\%   & 0.0138 & 1.22\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The TPOT MAE ranges $0.22$--$0.88$~ms/tok across instance types, while the smallest inter-tier gap (3B-A30 to 7B-A30 = 9.4~ms vs. 19.6~ms median TPOT) is $\approx$10~ms/tok. The MAE is therefore $\approx$10$\times$ smaller than the smallest decision-relevant separation between routing tiers, which is the precise condition under which a learned predictor is reliable for hard SLO filtering: even a single-standard-deviation overestimate cannot mistakenly classify a 7B instance as 14B-grade or vice-versa. Within-tier variance is the harder regime (where MAPE reaches 153\%), but within-tier choices are made by the dispatcher (round-robin over the same model size), not the router — they affect queue balance, not quality.
+
+\paragraph{Length predictor.}
+The fused multi-head ModernBERT classifier achieves 38–48\% top-1 bucket accuracy and 56–73\% adjacent (within $\pm$1 bucket) across all four target models with one forward pass; per-model classifiers trained separately do not improve top-1 but cost $4\times$ in inference time. Calibration: when $P(\text{tokens} \le 256) > 0.8$, the empirical compliance rate is 68–84\% across model sizes.
+
+\paragraph{Quality predictor.}
+The KNN ($k{=}50$, weighted, MiniLM-L6) achieves best-of-4 model selection accuracy of 64\% (vs.\ 25\% random) on held-out prompts, with mean absolute error of 0.043 against deepeval scores per (prompt, model) pair. We do not report Spearman correlation per the framing in MEMORY: with ties from the small (4-model) decision space and a long tail of near-equal-quality pairs, $\rho$ inflates randomness and is uninformative for routing-grade selection. The relevant metric is best-of-N accuracy, which directly bounds the quality regret of routing decisions. RoBERTa-fused was archived in favour of KNN for CPU-only inference.
+
+\section{Per-$\lambda$ ablation tables}\label{appendix:ablations}
+[Table referenced in §5.4 reproduced over all $\lambda$ values; omitted here for review brevity. Full data in \texttt{cara\_final\_e2e/\_aggregate/AGGREGATE\_FULL.csv} (215 rows).]
+
+\section{System extension: dynamic deployment}\label{appendix:dynamic}
+
+The Cara prototype evaluated in this paper assumes a static instance set $\mathcal{I}$ — instances are pre-provisioned and remain online for the duration of a sweep. The same scheduler abstraction extends naturally to dynamic provisioning, which we describe here as future work and as a guide for re-deployers.
+
+\paragraph{Auto-scaling signal.}
+The busy ratio $\rho = |\{i : \text{queue}_i > 0\}| / |\mathcal{I}|$ used by the adaptive batcher (Appendix~\ref{appendix:batching}) doubles as an autoscaling trigger. When $\rho$ exceeds a high-watermark for $T_h$ seconds, the orchestrator provisions an additional instance of the most-routed model (computed from a sliding window of recent assignments). When $\rho$ drops below a low-watermark for $T_l$ seconds, the orchestrator drains the least-utilised instance. Both watermarks are model-tier-specific because instance-cold-start time differs across model sizes (3B in $\sim$30~s on A30; 72B in $\sim$3~min on A100$\times$4).
+
+\paragraph{Predictor refresh under provisioning churn.}
+The per-instance XGBoost predictors are tied to the (model, GPU) pair, not to a specific instance ID — newly provisioned instances inherit the trained model and contribute their schedule-state observations to the next retraining round. The KNN quality estimator and the bucket length classifier are instance-agnostic. Cold-start latency on a new instance is therefore higher than steady-state until enough requests have run to populate KV cache and the instance's local stats stabilise; the SLO filter conservatively excludes a cold instance for the first $T_w$ seconds (we use $T_w = 30$~s in the prototype).
+
+\paragraph{Failure recovery.}
+If a sidecar's predictor goes silent (no schedule-state response within 200~ms), the scheduler falls back to a conservative latency estimate ($p95$ from the last 60~s of completed requests on that instance) and excludes the instance from the routing pool until the sidecar recovers. This is recorded as a degraded-mode flag in the trace.
+
+\paragraph{Serverless variant.}
+For serverless deployments where instances are spawned per-request, the predictor stack still applies but the cluster-state filter (TTFT, queue depth) is replaced by a static cold-start cost. The MILP in Appendix~\ref{appendix:milp} extends naturally with an additional $T_{\text{cold}}(i)$ term in the latency objective. We leave a full evaluation of this variant to future work, and refer the reader to ServerlessLLM~\cite{splitwise} for the orthogonal cold-start optimisation problem.
+
+\end{document}

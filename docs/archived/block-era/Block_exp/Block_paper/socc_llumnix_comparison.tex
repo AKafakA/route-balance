@@ -1,0 +1,20 @@
+% SoCC Revision: Llumnix Comparison Experiment
+% Include this file in main.tex with: \input{socc_llumnix_comparison}
+
+\subsection{End-to-end Comparison with Llumnix}\label{section:llumnix_comparison}
+
+We compare Astrolabe with full Llumnix~\cite{sun2024llumnix}, which performs dynamic load rebalancing via live KV-cache migration. As noted in \S\ref{section:experiment_setting}, our A30 cluster (single-GPU-per-host) is unsuitable for Llumnix migration: KV-cache transfers would traverse inter-node links and frequently trigger client timeouts. We therefore use a 2-node A100 cluster with fast intra-node interconnects, mirroring Llumnix's original 4-GPU-per-VM testbed. Llumnix implements KV movement using Ray RPC with CPU shared memory (rather than GPU-direct transfers), consistent with its evaluation environment on multi-A10 hosts without NVLink. Llumnix 0.1.1 also does not support chunked prefill: enabling it triggers explicit runtime exceptions, likely because migration assumes atomic KV states that chunked prefill can violate. To address the resulting fairness concern of comparing Astrolabe (with chunked prefill enabled) against Llumnix (without), we evaluate both Astrolabe-with-CP and Astrolabe-without-CP against Llumnix across an identical QPS sweep.
+
+With larger GPU memory (40~GB vs 24~GB on A30), we increase batch size from 48 to 96. All configurations serve Llama-2-7B across 8 instances (4 per node, TP=1), using FlashInfer as the attention backend and \texttt{rayrpc} as Llumnix's migration backend (its default). We follow Llumnix's default configuration otherwise and tune only vLLM batching to align both systems.
+
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=\linewidth]{figure/SoCC_revision/llumnix_comparison_v1_fanout.png}
+    \caption{Astrolabe vs Llumnix across load levels on the A100 cluster. Astrolabe is shown with and without chunked prefill (denoted \textbf{CP}); Llumnix does not support chunked prefill.}
+    \Description{Comparison of throughput, mean request latency, mean per-token latency, and mean scheduling overhead for Astrolabe-Fanout with CP, Astrolabe-Fanout without CP, and Llumnix across QPS 16-36 on the A100 cluster.}
+    \label{fig:llumnix_comparison}
+\end{figure}
+
+Figure~\ref{fig:llumnix_comparison} reports the comparison across four metrics. Three observations stand out. First, Astrolabe incurs a higher mean scheduling overhead than Llumnix at low load (27--35~ms vs 5--7~ms at QPS~$\le$~19): Llumnix's Ray-based dispatch is a single fast RPC, whereas Astrolabe runs a short prediction + instance-probing phase for each request. Second, at low load both systems serve comparably on throughput and mean request latency, though chunked prefill gives Astrolabe a small but consistent edge (e.g., at QPS=19: 5.5~s vs 6.3~s mean e2e). Third, Llumnix collapses at QPS=20: mean request latency jumps from 6.3~s to 106~s, and mean per-token latency from 21~ms to 1{,}151~ms, while Astrolabe continues to serve stably. Profiling indicates the collapse is driven by network contention on the PCIe/NIC path that Llumnix uses to migrate KV cache across instances; as load rises, migration storms interleave with regular traffic and amplify tail delays.
+
+Once Llumnix enters this migration-induced regime, Astrolabe's one-shot predictive dispatch clearly pays off. At QPS=36, Astrolabe-Fanout (no CP) sustains 2.57$\times$ higher throughput (18{,}688 vs 7{,}273~tok/s), 35$\times$ lower mean request latency (8.7~s vs 300~s), and 116$\times$ lower mean per-token latency (27.5~ms vs 3{,}204~ms) than Llumnix. The CP and no-CP Astrolabe curves remain within $\sim$15\% of each other throughout the sweep, indicating Astrolabe's advantage is driven by dispatching quality rather than CP. Overall, these results suggest Astrolabe is a practical alternative for commodity deployments where migration is unavailable, costly, or undesirable---it pays a small predictor-dispatch overhead for dramatically better placement under load.

@@ -1,0 +1,13 @@
+% Burstiness - Po2 vs Llumnix across arrival variance
+\subsection{Ablation Study Under Bursty Workloads}\label{section:burstiness}
+Real-world LLM traffic exhibits bursty patterns~\cite{burstgpt}. We vary burstiness with gamma-distributed arrivals and set the shape parameter $\alpha$ to 0.25, 0.5, 1.0, and 2.0. Lower $\alpha$ produces burstier, higher-variance inter-arrival times; at $\alpha{=}1.0$, the arrival process reduces to the Poisson case with exponential inter-arrival times. All experiments run at QPS=32 on the A30 cluster against Llumnix-, and we record E2E latencies.
+
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=0.90\linewidth]{figure/revision/burstiness_lines.png}
+    \caption{Latency under bursty workloads}
+    \Description{E2E latency under gamma arrival processes with varying burstiness for Astrolabe and Llumnix-.}
+    \label{fig:burstiness}
+\end{figure}
+
+Figure~\ref{fig:burstiness} shows Astrolabe matching or beating Llumnix- across all four levels. Under high burstiness ($\alpha{=}0.25$), Astrolabe's mean E2E latency is about 9\% lower than Llumnix-; under near-regular arrivals ($\alpha{=}2.0$), the gap narrows but Astrolabe retains a small edge. This pattern is consistent with randomized probing decorrelating placement decisions under bursts, reducing request herding while keeping per-request probing cost fixed at two predictors. Moving from $\alpha{=}2.0$ to $\alpha{=}0.25$ raises mean E2E by $\sim$13\% for Astrolabe vs $\sim$22\% for Llumnix-. Thus, Astrolabe's Po2 dispatch is more robust to burstiness because randomized probing decorrelates placement decisions.

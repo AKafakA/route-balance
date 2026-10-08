@@ -1,0 +1,12 @@
+% CPU overhead — Po2 vs Fanout, direct measurement
+\subsection{CPU Overhead: Po2 vs Fanout}\label{section:cpu_overhead}
+
+Astrolabe's Predictor runs CPU-side simulation off the GPU-bound inference path. The control-plane cost is governed by the number of predictor probes per dispatch: Fanout queries all 12 predictors, while Astrolabe's default Po2 policy queries only two. We measure per-predictor CPU utilization and RSS memory on the A30 cluster.
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=0.90\linewidth]{figure/revision/cpu_overhead.png}
+    \caption{Per-predictor CPU utilization and memory across QPS}
+    \Description{Bar charts of mean CPU utilization and RSS memory per predictor across QPS for Po2 and Fanout.}
+    \label{fig:cpu_overhead}
+\end{figure}
+Figure~\ref{fig:cpu_overhead} shows that at QPS=20, mean per-predictor CPU is \cpuPoTwoMeanAtTwenty{}\% for Po2 and \cpuFanoutMeanAtTwenty{}\% for Fanout, a \cpuPoTwoVsFanoutRatio{}$\times$ reduction. The gap persists across QPS 20, 24, 28, 32, and 36 because Fanout sends every request to all 12 predictors, whereas Po2 sends each request to only two. In contrast, per-predictor RSS is stable across QPS within each variant: at QPS=20, Po2 uses 1225\,MB and Fanout uses 1773\,MB. Taken together, these measurements show that the scaling difference is CPU-bound: predictor RSS is a stable fixed cost, while Fanout's aggregate predictor CPU grows with cluster size because it probes every instance. Po2 keeps the per-request control-plane fanout constant at two probes.

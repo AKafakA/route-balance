@@ -1,0 +1,21 @@
+% SoCC Revision: Prediction Error Sensitivity
+% Include this file in main.tex with: \input{socc_error_heatmap}
+
+\subsection{Sensitivity to Prediction Errors}\label{section:error_sensitivity}
+
+We systematically evaluate Astrolabe's robustness by injecting Gaussian noise into predictions. For each prediction value $v$, we compute $v' = v \cdot (1 + \mathcal{N}(0, \sigma))$ with $\sigma \in \{0\%, 25\%, 50\%, 100\%\}$, clamped to $[0.1v, 5.0v]$ to avoid invalid/negative or unreasonable predictions. This creates a 4$\times$4 grid of 16 configurations tested at QPS=30 with 10,000 requests.
+
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=\linewidth]{figure/SoCC_revision/prediction_error_heatmap.png}
+    \caption{Prediction Error Sensitivity}
+    \Description{Heatmap showing how mean and P99 latency change as Gaussian noise is injected into length and latency predictions, evaluating Astrolabe's robustness to prediction errors.}
+    \label{fig:error_heatmap}
+\end{figure}
+
+Figure~\ref{fig:error_heatmap} shows Astrolabe is robust on the prediction errors. With 100\% error on \emph{both} predictions, mean latency degrades by only 1.2\% and P99 by 2.6\%. Even Astrolabe(100\%,100\%) remains within 2\% of Llumnix-, demonstrating simulation provides value even with highly imperfect predictions. 
+
+We notice length prediction errors cause less degradation and can be attributed to three reasons: (1)~length is only one simulation input while hardware performance, batching strategy, and prompt length remain fixed during inference; (2)~under-estimation is mitigated by Astrolabe's auto-extension mechanism (\S\ref{section:model_instance}); and (3)~the same noisy length is sent to all instances, acting as constant noise that preserves relative rankings. Latency errors, injected \emph{independently} per instance, could theoretically alter rankings. Yet Astrolabe remains robust because any underlying latency differences between loaded and idle instances are typically large (e.g., 2s vs 10s), so moderate noise rarely reverses the ordering.
+
+
+

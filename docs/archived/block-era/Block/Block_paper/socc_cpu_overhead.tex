@@ -1,0 +1,17 @@
+% SoCC Revision: CPU Overhead Analysis
+% Include this file in main.tex with: \input{socc_cpu_overhead}
+
+\subsection{CPU Overhead Analysis}\label{section:cpu_overhead}
+
+Astrolabe's simulation runs entirely on CPU, separate from GPU-bound inference. We analyze CPU overhead on the 12-node A30 cluster, where each node has 32 CPU cores and runs 16 predictors.
+
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=\linewidth]{figure/SoCC_revision/cpu_overhead.png}
+    \caption{Predictor CPU utilization across QPS levels. Each predictor uses 21--32\% of a single core; 16 predictors consume $\sim$4 cores (12.5\% of node capacity).}
+    \Description{CPU utilization measurements for Astrolabe predictor processes across QPS levels, showing per-predictor and aggregate CPU consumption on each node.}
+    \label{fig:cpu_overhead}
+\end{figure}
+
+Figure~\ref{fig:cpu_overhead} shows per-predictor CPU usage ranges from 21\% to 32\% across QPS levels 20--32. With 16 predictors, aggregate consumption is $\sim$4 cores (12.5\% of 32-core capacity), leaving ample headroom for the vLLM frontend. Memory usage is $\sim$1.8~GB per predictor (29~GB total), well within the 128~GB available.Llumnix- and other heuristic schedulers require negligible CPU since they perform simple arithmetic rather than simulation.
+

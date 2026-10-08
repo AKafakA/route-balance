@@ -1,0 +1,25 @@
+% SoCC Revision: Llumnix Comparison Experiment
+% Include this file in main.tex with: \input{socc_llumnix_comparison}
+
+\subsection{End-to-end Comparison with Llumnix}\label{section:llumnix_comparison}
+
+We compare Astrolabe with full Llumnix~\cite{sun2024llumnix}, which performs dynamic load rebalancing via live KV-cache migration. As noted in \S\ref{section:experiment_setting}, our A30 cluster (single-GPU-per-host) is unsuitable for Llumnix migration: KV-cache transfers would traverse inter-node links and frequently trigger client timeouts and failures. We therefore use a 2-node A100 cluster with fast intra-node interconnects, which mirrors Llumnix original 4-GPU-per-VM testbed setting. Llumnix implements KV movement using Ray RPC with CPU shared memory by default (rather than GPU-direct transfers), consistent with their evaluation environment on multi-A10 hosts without NVLink. Moreover, Llumnix does not support chunked prefill: enabling it triggers explicit runtime exceptions during deployment, likely because migration/rescheduling assumes atomic KV states that chunked prefill can violate.
+
+With larger GPU memory (40~GB vs 24~GB on A30), we increase batch size from 48 to 96. All configurations serve Llama-2-7B across 8 instances (4 per node, TP=1). We conduct a best-effort head-to-head comparison using the latest Llumnix release (vLLM v0.6.3.post1, the highest version it supports) and Astrolabe (vLLM v0.7.2) with FlashInfer as attention backend for both. We follow Llumnix default configuration and only tune vLLM parameters to align batching settings. Chunked prefill remains unsupported in Llumnix, while we keep it enabled in Astrolabe because it materially affects prediction accuracy (\S\ref{section:predicting accuracy}).
+
+
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=\linewidth]{figure/SoCC_revision/llumnix_comparison.png}
+    \caption{Astrolabe vs Llumnix on A100 cluster.}
+    \Description{Comparison of end-to-end serving performance between Astrolabe and Llumnix on the A100 cluster across load levels, showing Astrolabe's advantage and Llumnix instability under heavy migration.}
+    \label{fig:llumnix_comparison}
+\end{figure}
+
+Figure~\ref{fig:llumnix_comparison} shows Astrolabe outperforms Llumnix with the performance gap widening at higher loads. Under heavy load, Llumnix triggers massive migrations between instances, causing network congestion on PCIe and NIC that further delays both migration completion and normal request processing. In particular, Astrolabe achieves a 45\% throughput increase and an 8$\times$ tail-latency reduction over Llumnix under highest QPS given Llumnix current configuration constraints. Overall, these results suggest Astrolabe is a practical alternative for commodity deployments where migration is unavailable, costly, or undesirable.
+
+
+
+
+
+% We deployed the latest Llumnix released version \cite{llumnix-github} and noticed some key differences between Llumnx and Block implemenation. Llumnix is developed and closely coupled with vLLM 0.62 while Block is applied vLLM 0.72, both is using FlashInfer as the attention backend. While Llumnix explictly reject deploy vLLM instance with chunked prefill and using the RayRPC as the backend by default for GPU communication which not leverage the NVlink even it is available (Also, in the testbed of Llumnix with A10, such NVlink also not available).  While Block is allowed to deploy with chunked prefill and benefits from both the improvment of itself and the prediction error reduction as shown in \S \ref{section:predicting accuracy}. We ran the experiment 

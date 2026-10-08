@@ -1,0 +1,19 @@
+% SoCC Revision: Power-of-Two Choices Ablation
+% Include this file in main.tex with: \input{socc_po2_ablation}
+
+\subsection{Scalability: Power-of-Two Choices}\label{section:po2_ablation}
+
+Astrolabe's prediction fanout is parallel and thus the scheduling \emph{latency} is $O(1)$, but the control-plane \emph{message cost} is $O(N)$ in the number of instances (\S\ref{section:schedulers}). We evaluate whether Astrolabe can maintain effectiveness under reduced fanout using the \emph{power-of-two-choices} strategy (Astrolabe-Po2), which samples two random instances and selects the one with lower predicted latency.
+
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=\linewidth]{figure/SoCC_revision/po2_comparison.png}
+    \caption{Power-of-two Choice Astrolabe Experiment}
+    \Description{Performance comparison between full fanout Astrolabe and Astrolabe-Po2 (power-of-two choices) across QPS levels, reporting capacity and latency trade-offs under reduced control-plane message cost.}
+    \label{fig:po2_comparison}
+\end{figure}
+
+Figure~\ref{fig:po2_comparison} shows Astrolabe-Po2 achieves 97.1\% of Astrolabe's capacity (30.2 vs 31.1 QPS) and 98.4\% of Llumnix-'s capacity (30.2 vs 30.7 QPS). Surprisingly, Po2 achieves \emph{better} mean latency than both Astrolabe and Llumnix- in 11 of 17 QPS levels, particularly at high loads where Po2 is 4--6\% faster. This stems from two factors: \emph{(1) reduced overhead:} at QPS=30, Astrolabe-Po2's scheduling overhead is 55.4ms compared to Astrolabe's 120.2ms and Llumnix-'s 115.5ms, resulting in a 54\% reduction versus Astrolabe and 52\% versus Llumnix-. \emph{(2) Reduced thundering herd: } under high QPS, closely-arriving requests observing identical states select the same ``optimal'' instance, causing transient overload. This race condition, also known as the thundering herd problem, affects both Astrolabe and Llumnix-, since deterministic selection from identical state yields identical decisions. Astrolabe-Po2's randomness distributes requests across different instance pairs, mitigating conflicts.
+
+We also note the coefficient of variation of per-request E2E latency is 73.8\% for Astrolabe-Po2, 72.8\% for Astrolabe, and 72.9\% for Llumnix- at QPS=30. The nearly identical values confirm Po2's sampling does not sacrifice consistency and validates Astrolabe-Po2 as a practical scaling strategy for large clusters.
+

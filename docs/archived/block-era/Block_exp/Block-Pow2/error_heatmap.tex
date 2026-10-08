@@ -1,0 +1,14 @@
+% Prediction-error sensitivity heatmap (Po2-est × length_err × latency_err)
+\subsection{Sensitivity to Prediction Errors}\label{section:error_sensitivity}
+
+A key design question is whether length-prediction error (24.4\%, Table~\ref{table:length_prediction}) and simulator error (10--15\%, Figure~\ref{fig:latency_prediction}) undermine dispatch quality. We answer this by injecting noise well beyond both: $v' = v \cdot (1 + \epsilon)$ with $\epsilon \sim \mathcal{N}(0, \sigma)$, clamped to $[0.1v, 5.0v]$ to avoid invalid values (e.g., negative lengths). We inject noise independently into the length estimate and each instance's simulated latency. We sweep $\sigma$ over 0\%, 25\%, 50\%, and 100\% on each axis separately, producing a 4$\times$4 grid at QPS=32 with 10k requests per cell to demonstrate the robustness of Po2 dispatch across a wide range of error profiles, including extreme cases where noise dominates the signal.
+
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=0.90\linewidth]{figure/revision/prediction_error_heatmap.png}
+    \caption{Sensitivity of Latency to Prediction Error}
+    \Description{Heatmaps of mean and P99 E2E degradation as length-estimation and latency-prediction noise increase.}
+    \label{fig:error_heatmap}
+\end{figure}
+
+Figure~\ref{fig:error_heatmap} shows mean (left) and P99 (right) E2E degradation vs the noise-free baseline. The largest mean degradation is +6.3\% at (100\%,\,25\%), while the extreme (100\%,\,100\%) cell is +5.1\%; most cells remain within the $\pm$4\% single-deploy noise floor. Figure~\ref{fig:error_heatmap} overlays Llumnix-'s degradation (+4.0\% mean, +4.1\% P99) as a colorbar reference. Astrolabe stays below this line at moderate noise; at high length-error settings, several mean-latency cells exceed it modestly, but P99 degradation remains below Llumnix- in every cell (maximum +3.7\%). Thus predictor-guided dispatch retains value across the injected-noise range. Three factors keep Po2 robust: (i) dispatch uses \emph{relative} ranking between the two sampled probes, so common-mode length error cancels and only large per-instance latency noise can flip a ranking; (ii) underlying latency gaps between loaded and idle instances are usually 2--10\,s, so moderate noise rarely reverses orderings; (iii) Po2's random probe set prevents one bad ranking from systematically steering later requests to the same overloaded instance, which is the same randomization principle that mitigates herding in~\S\ref{section:po2_ablation}. Length underestimation is also mitigated by the auto-extension (\S\ref{section:model_instance}), which applies the same 10-token extension rule across candidate simulations.

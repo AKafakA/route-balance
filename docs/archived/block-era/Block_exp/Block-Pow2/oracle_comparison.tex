@@ -1,0 +1,13 @@
+% Oracle-length upper bounds (§6.7): est vs oracle × Po2 vs Fanout
+\subsection{Oracle-Length Upper Bounds}\label{section:oracle_bounds}
+
+Astrolabe uses a RoBERTa length estimator (MAPE 24.4\%, \S\ref{section:predicting accuracy}). Replacing it with ground-truth (``oracle'') lengths gives an upper bound on the gains Po2 and Fanout can obtain from a perfect length predictor. Length-controllable workloads do exist, such as constrained decoding~\cite{geng2025jsonschemabench,beurerkellner2022lmql,willard2023efficient} and length-adaptive applications~\cite{reddy2025bellman}, which can provide the exact length of each request at dispatch time. In addition, applications with standard output formats can have highly deterministic output lengths even without model-based prediction, making the oracle mode realistic for these scenarios.
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=0.90\linewidth]{figure/revision/oracle_comparison.png}
+    \caption{Oracle-length upper bounds}
+    \Description{Capacity, mean E2E latency, mean TTFT, and scheduling overhead comparing estimated and oracle lengths for Po2 and Fanout.}
+    \label{fig:oracle_comparison}
+\end{figure}
+
+Figure~\ref{fig:oracle_comparison} compares the four variants across capacity, mean E2E latency, mean TTFT, and scheduling overhead. Oracle adds $\sim$0.8\,QPS for Po2 (\capPoTwoEst{}\,$\to$\,\capPoTwoOracle{}) and $\sim$0.9\,QPS for Fanout (\capFanoutEst{}\,$\to$\,\capFanoutOracle{}) at SLO\,=\,\sloSec{}s, a $\sim$3\% capacity gain. The default Astrolabe Po2 variant has the lowest scheduling overhead, while Fanout-oracle has the highest. Based on our observation, one candidate explanation is that estimated lengths are more uniform than actual lengths, which may increase the simulator's cache hit rate for repeated batch-latency lookups; the oracle variants expose more exact length diversity and therefore incur higher simulation overhead. Even for Fanout-oracle, however, scheduling overhead stays below 3\% of total E2E latency in this sweep and tends to decrease once capacity is reached, as E2E latency then spikes more rapidly.

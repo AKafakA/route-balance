@@ -1,0 +1,16 @@
+% k-tunable ablation — power-of-choices family (Po2 default, Po4, Po8, Fanout)
+\subsection{\texorpdfstring{$k$-tunable Dispatch: from Po2 to Fanout}{k-tunable Dispatch: from Po2 to Fanout}}\label{section:po2_ablation}
+
+Astrolabe's core dispatch policy is \emph{power-of-$k$ choices}: for each request, sample $k$ random instances, query each Predictor in parallel, and route to the one with the lowest predicted latency. Increasing $k$ trades higher control-plane fanout cost (linear in $k$) for better load-balancing quality and stronger mitigation of herding~\cite{mitzenmacher2001,10.1137/S0097539795288490}. We evaluate $k \in \{2, 4, 8, 12\}$; $k{=}12$ recovers full Fanout.
+
+\begin{figure}[!tb]
+    \centering
+    \includegraphics[width=0.90\linewidth]{figure/revision/po2_comparison.png}
+    \caption{Power-of-$k$ choices ablation}
+    \Description{Capacity, E2E latency, throughput, and scheduling overhead for power-of-k choices variants from k=2 to full fanout.}
+    \label{fig:po2_comparison}
+\end{figure}
+
+Figure~\ref{fig:po2_comparison} shows capacity, mean/P99 E2E latency at each scheduler's own capacity, throughput, and per-request scheduling overhead. Capacity is effectively tied from $k{=}2$ upward: Po2-est reaches \capPoTwoEst{} QPS vs Po4-est \capPoFourEst{} (the maximum), Po8-est \capPoEightEst{}, and Fanout-est \capFanoutEst{}, all within a $\pm$0.3\,QPS band at SLO\,=\,\sloSec{}s. Scheduling overhead grows with $k$ through $k{=}8$ and then plateaus, because each dispatch fans out to more predictors and is bounded by the slowest reply.
+
+Randomized probing also mitigates herding. When many bursty requests arrive within one round trip, a deterministic Fanout scheduler can compute identical predictions and overload the same instance, while a power-of-$k$ policy breaks this correlation by randomizing each request's candidate set. This helps the sampled variants maintain lower E2E latency and higher throughput than Fanout in Figure~\ref{fig:po2_comparison}. In this sweep, $k{=}4$ gives the best empirical tradeoff: it has the highest capacity and throughput, while retaining the second-lowest E2E latency and scheduling overhead. We nevertheless use Po2 as the default in the main evaluation to follow the standard power-of-two-choices convention without tuning $k$ on the evaluation workload.

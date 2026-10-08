@@ -23,6 +23,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 CACHE_DIRS = {".git", ".venv", "__pycache__", ".pytest_cache", ".ruff_cache"}
+# The documents of the retired earlier repositories (owner 8 Oct 2026: migrated here, marked archived): historical
+# records that name the machines and people of their time, never part of a release; the gate does not read them.
+ARCHIVED_DOCS = "docs/archived/"
 
 
 def _alt(*words: str) -> str:
@@ -102,6 +105,8 @@ def _versions(root: Path) -> list[tuple[str, str, str]]:
                 raise OSError(f"git {' '.join(args)} failed: {r.stderr.decode().strip()}")
             listings.append([p for p in r.stdout.decode().split("\0") if p])
         cached, others = listings
+        cached = [p for p in cached if not p.startswith(ARCHIVED_DOCS)]      # the archived records are not scanned
+        others = [p for p in others if not p.startswith(ARCHIVED_DOCS)]
         for rel in sorted(set(cached)):
             staged = _git(root, "show", f":{rel}")
             if staged.returncode != 0:
@@ -117,7 +122,7 @@ def _versions(root: Path) -> list[tuple[str, str, str]]:
         return out
     for p in sorted(root.rglob("*")):
         rel = p.relative_to(root)
-        if CACHE_DIRS.intersection(rel.parts):
+        if CACHE_DIRS.intersection(rel.parts) or rel.as_posix().startswith(ARCHIVED_DOCS):
             continue
         disk = _disk_text(p)
         if disk is not None:

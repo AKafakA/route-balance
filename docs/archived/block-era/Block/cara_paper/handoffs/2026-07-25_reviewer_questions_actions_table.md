@@ -1,0 +1,41 @@
+# Reviewer questions & weaknesses — master action table (2026-07-25, pre-execution check)
+
+> ⚠ SUPERSEDED by `2026-07-25_reviewer_actions_table_v2_and_drafts.md` (ChatGPT 16-point pass adopted + 4 code verifications). Keep for history.
+
+Legend: ✅READY = answer text can be written now from existing verified evidence · 🌙P2/🌅P1 = lands
+from tonight's/tomorrow's cells · 🔄FOLLOW-UP = Phase-2 post (family etc.) · 📝CR = camera-ready
+commitment · 🔍VERIFY = number must be traced to a file before posting.
+
+| # | Rev | Question / weakness | Answer strategy | Evidence / experiment | Status → reply |
+|---|---|---|---|---|---|
+| 1 | **AC-M1** | "design choices such as XGBoost estimator need better justification" | Four-arm isolation: within-tier prediction is a wash; value is cross-tier latency-in-model-selection; static prior reproduces the frontier → formulation-not-estimator framing; k-insensitivity | arm1-4 (`P1_fusion_triangle.json`, `arm4_static_prior_result.json`: 2408 vs 2615 @λ18, q 0.369 vs 0.370, overload 3123 vs 3788; mix 14→1%) + R5 (k∈{5..50} band 0.013) + **P2 extension grid (v1 config)** | ✅+🌙P2 → initial, top of gTfM + AC note |
+| 2 | **AC-M2** | "comparisons with general-purpose dispatchers can be added" | SQ ≡ least-connections under LLM semantics (argue) + run Po2: passthrough×Po2×5λ + {AP,BR}×Po2 combos + in-session SQ/RR references | `dispatch/block_style.py` Po2 flag (exists) + **P1 ~11–16 cells** | 🌅P1 → initial, all three replies reference |
+| 3 | 287j-W1 | Batching vs continuous batching — "do you delay requests?" | Two independent layers, both active; scheduler batch = assignment only; size-OR-timeout trigger, timer starts at FIRST arrival, no holding, no minimum size; instance-side vLLM continuous batching untouched; wait charged in E2E | `cara_serve.py:142-198` (verified identical semantics in v1-era code) | ✅ → initial 287j |
+| 4 | 287j-W2 | Adaptive batch-size mechanism "never discussed" | Exact formula: busy-instance ratio <0.3→bs4/50ms, <0.7→16/100ms, else 32/200ms; + existing ablation: adaptive-off costs 5.1–6.9% E2E; bs=1 collapse 45.4/74.6s **measured on the submitted implementation** (serial ~85–90ms/req ceiling; qualitative claim generalizes) | `cara_serve.py:204-240` (identical in v1 code `e2d9f4d`) + ablation_batch traces | ✅ → initial 287j |
+| 5 | 287j-W3 | Model choice → KV-cache hit rate? TTFT effects? | **APC was OFF cluster-wide in all evaluated runs** → no prefix-locality confound; TTFT modeled by dedicated XGB head (features: kv_free_blocks, kv_cache_utilization, prefill-est, num_running/waiting); concede prefix-affinity term as future work; TTFT = serving-side definition only | `2026-05-04_design_pivots.md:187-189,258`; `deploy_ttft/training_metrics.json` | ✅ → initial 287j (+gTfM-Q2 cross-ref) |
+| 6 | 287j-W4 | Fig-1 walkthrough + datasets in appendix | Commit specifically: per-component Fig-1 walkthrough; dataset construction + 7 sources appendix | — | 📝CR → initial 287j |
+| 7 | 287j-W5 | Fig 3 (radar) takes space, says little | Commit: cut/reduce radar; keep operating-points table | — | 📝CR → initial 287j |
+| 8 | 287j-W6 | Move Table 2 next to Eq. 1–2 | Commit: reposition | — | 📝CR → initial 287j |
+| 9 | 287j-W7 | Fig-1 defects: RoBERTa box never discussed; "estimate" returns nothing | RoBERTa = alternate implementation behind the pluggable estimator interface, **not used in any reported run**; redraw with return path (also fixing P100/missing-3B internally found) | figure inspected; `roberta_fused_*` archived, deployed = MiniLM+KNN | ✅ ack + 📝CR → initial 287j |
+| 10 | 287j-W8 | Appendix: LPT, baselines detail, "dead-reckoning" not standard term | Commit: LPT appendix (HEURISTIC framing — no 4/3-guarantee claim), full baseline configs, dead-reckoning defined at first use | — | 📝CR → initial 287j |
+| 11 | gTfM-Q1 | XGBoost TPOT vs simpler calibrated/lookup + live queue? (= #1) | Same as #1, ordered: "right question, we ran the isolation" → 3 findings → strengthens-not-weakens; learned head stays for calibration/SLO headroom, explicitly not load-bearing | #1 evidence + P2 | ✅+🌙P2 → initial gTfM |
+| 12 | gTfM-Q2 | TTFT/prefill/KV allocation accounted? prefix-cache effects? | TTFT head + analytic E2E = TPOT×(pending/decode-batch + own tokens); APC-OFF fact; cross-ref #5 | `cara_serve.py` latency path; predictor tables | ✅ → initial gTfM |
+| 13 | gTfM-Q3 | Is the scheduler centralized? | Yes, by design — global dead-reckoned state is what enables within-batch retargeting; bounded: decision compute ≈24–33ms and amortizes; residual sub-linear 141→220ms; 🔍scaling-microbench triplet (12.8/14.3/22.5µs @ \|I\|=13/100/500) must be traced to its file before use | traces + 🔍 locate microbench JSON in v2-pack | ✅(+🔍) → initial gTfM |
+| 14 | gTfM-Q4 | Is the cluster fixed (static model-to-instance)? | Deliberate layering: RouteBalance operates a given deployment per-request; composable with deployment planners (HexGen/Helix cited in submitted RW); evidence the boundary is safe: tier-removal (0 fails, renormalize, uniform 44/27/29) + **cross-lease re-provisioning replication (R1 reference cells tonight, quantified "reproduce within X%")** | `tier_removal/` + 🌙R1 | ✅+🌙 → initial gTfM |
+| 15 | faAU-W1 | Single family + single topology limit generality | **Family**: sampled Gemma (12 cells, 2 rates, incl. arm-4-on-Gemma) post-gate; fallback chain Gemma-3→Gemma-2→Llama→5k-subset→topology. **Topology**: tier-removal + re-provisioning replication + ceiling statement now; topology-B reallocation ({1×72B,2×14B,3×7B,5×3B}) in Jul-29–31 bonus | G0–G5 + T-stack (audit §7) | 🔄FOLLOW-UP (promised in initial; tables Jul 28–30) |
+| 16 | faAU-W2 +Lim | Cold-start: labeling scale, **training time**, degradation curve | Facts: 18,608 G-Eval calls/model ≈ ~13 min/column at ~24 calls/s (4×A100); FAISS build 52.3s; XGB per-tier `train_time_s`; degradation: R5 (k) + R4 (prompt-blind bound) + **P4 training-size curve** + **live-measured Gemma onboarding wall-clock (G1–G3)** | `deploy/train.log:44`, R5/R4 JSONs, P4 offline, G-track | ✅facts + 🔄curve/wall-clock → initial + follow-up |
+| 17 | faAU-W3 | Dispatcher baselines basic; add least-connections/Po2 (= #2) | Structural: dispatchers act within the router's chosen pool; arm-2 = "strong dispatcher, weak router" is 26–31% slower; SQ≡least-connections; Po2 cells added | #2 + arm-2 numbers | ✅+🌅P1 → initial faAU |
+| 18 | faAU-W4a | Tuning burden: 3 weights re-tuned as workload drifts | Mix is rate-independent (flat λ6→30, 72B pinned 1%) → no re-tuning with load, only with workload composition; bounded under bursts (≤+14% vs stationary; serial-scoring baseline +74%); SLO-driven weight controller = future work | `uniform_mix_vs_lambda.json`, `P3_nonstationary_3x3.json` | ✅ → initial faAU |
+| 19 | faAU-W4b | "Budget contribution lives in the filter, not the simplex" | Concede + reframe: the mechanism (admission filter) is the claim; converts exhaustion→quality on any router; runtime-flag based, evaluator-independent; 🔍served-text budget re-judge deltas (+0.015/+0.012/+0.006) must be traced before posting | budget runtime flags; 🔍v2 budget re-judge file | ✅(+🔍) → initial faAU |
+| 20 | implied (all) | Single Poisson realization per cell (submitted App-A admits) | In-window **2-seed replicates on P1/P2 headline cells (v1 stack, same basis)** — cite as repeated-run stability without touching v2 multiseed | Day-2 replicate cells | 🌙 → follow-up (or initial if ready) |
+
+**Cross-cutting rules for every reply (from the audits):** ⛔ never re-assert: the +0.006 peak-vs-BR win ·
+"upper envelope at every throughput level" · blanket iso-quality-latency win · AP separation as
+statistical (paired CI includes 0). Format: per-review ≤10k chars, markdown, **no links**, inline
+tables, **no coverage column**. Numbers: dual-pass aggregator only (`reagg_v1_zerofix.py`); every value
+traced to a file; both-bases gate on every claim. Comparisons within-session. Freeze → submission by
+**Jul 28 11:59 BST**. 🔍 open verifications: microbench µs triplet; budget re-judge deltas; (LODO fold
+numbers if used).
+
+**Tonight (T-0): P0 provision → G0 compat probe → Qwen deploy + md5 + reproduction smoke → KNN replay
+gate → launch P2 overnight.**

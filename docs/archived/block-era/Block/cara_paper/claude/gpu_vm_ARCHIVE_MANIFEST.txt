@@ -1,0 +1,54 @@
+# cara_exp archive manifest — generated 2026-05-16T23:11:54Z
+# Conservative pass: clearly-dead artifacts only. MOVED (not deleted) — restore with: mv <archive-path> <orig-path>
+
+ARCHIVED  models/cara/lstm_v2_enriched  size=762K  orig_mtime=2026-04-10 02:04:24.952405112 +0100  -> cara_exp/archive/models/cara/lstm_v2_enriched
+ARCHIVED  models/cara/knn_with_ref  size=23M  orig_mtime=2026-03-27 09:04:51.185464521 +0000  -> cara_exp/archive/models/cara/knn_with_ref
+ARCHIVED  models/cara/qwen_lora_fused  size=36M  orig_mtime=2026-04-09 16:03:05.493312791 +0100  -> cara_exp/archive/models/cara/qwen_lora_fused
+ARCHIVED  models/cara/knn  size=23M  orig_mtime=2026-03-27 17:05:57.160190368 +0000  -> cara_exp/archive/models/cara/knn
+
+# === REMOVAL pass 2026-05-16T23:38:37Z — weights deleted, HP metadata kept; reproduce recipe in cara_paper/claude/model_training_index.md ===
+RM dir   models/cara/deepeval_models/roberta_multitarget_A  (479M)
+RM dir   models/cara/deepeval_models/roberta_multitarget_B  (478M)
+RM dir   models/cara/length_regression  (570M)
+RM dir   models/cara/length_bucket  (571M)
+RM dir   models/cara/latency  (3.6M)
+RM dir   models/cara/xgboost_enriched  (1.4M)
+RM dir   models/cara/xgboost_enriched_tpot  (704K)
+RM dir   models/cara/xgboost_enriched_ttft  (996K)
+TRIM     models/cara/roberta_fused_5ep  weights removed (4 files, 1.9G -> 7.7M; kept *.json)
+TRIM     models/cara/deepeval_models/roberta_fused_deepeval  weights removed (1 files, 478M -> 2.0M; kept *.json)
+TRIM     models/cara/deepeval_models/modernbert_fused_deepeval  weights removed (13 files, 3.8G -> 1.1M; kept *.json)
+
+# === ~root baseline cleanup 2026-05-16T23:40:38Z ===
+RM   ~/best_route_4way_faithful.bak.20260503_100601 (2.7G) — verified near-exact dup of live
+RM   ~/best_route_4way_faithful/checkpoint-233 (545M) — intermediate ckpt; checkpoint-best kept + VPS canonical
+RM   ~/best_route_4way_faithful/checkpoint-349 (545M) — intermediate ckpt; checkpoint-best kept + VPS canonical
+RM   ~/best_route_4way_faithful/checkpoint-466 (545M) — intermediate ckpt; checkpoint-best kept + VPS canonical
+RM   ~/best_route_4way_faithful/checkpoint-580 (545M) — intermediate ckpt; checkpoint-best kept + VPS canonical
+RM   ~/best-route-llm (277M) — not in submitted paper / re-cloneable, reproducible
+RM   ~/llmrouter_out (147M) — not in submitted paper / re-cloneable, reproducible
+KEPT(copied) ~/avengers_4model_recluster.py -> cara_exp/scripts/avengers_4model_recluster.py
+KEPT(copied) ~/avengers_4model_recluster_v2.py -> cara_exp/scripts/avengers_4model_recluster_v2.py
+KEPT(copied) ~/avengers_4model_recluster_v3.py -> cara_exp/scripts/avengers_4model_recluster_v3.py
+KEPT(copied) ~/cara_to_bestroute_data.py -> cara_exp/scripts/cara_to_bestroute_data.py
+KEPT(copied) ~/cara_to_bestroute_data_v2.py -> cara_exp/scripts/cara_to_bestroute_data_v2.py
+KEPT(copied) ~/llmrouter_data_prep.py -> cara_exp/scripts/llmrouter_data_prep.py
+KEPT(copied) ~/mfrouter_balanced_train.sh -> cara_exp/scripts/mfrouter_balanced_train.sh
+KEPT(copied) ~/run_best_route_training.sh -> cara_exp/scripts/run_best_route_training.sh
+
+# === ~root final organize 2026-05-16T23:44:50Z: move cara/baseline items into cara_exp/ ===
+MOVED ~/best_route_4way_faithful (545M) -> cara_exp/baselines/best_route_4way_faithful
+MOVED ~/best_route_data (53M) -> cara_exp/baselines/best_route_data
+MOVED ~/avengers_4model_out (581K) -> cara_exp/baselines/avengers_4model_out
+MOVED ~/avengers_4model_out_v3 (581K) -> cara_exp/baselines/avengers_4model_out_v3
+MOVED ~/avengers_4model_out_v3_novita (581K) -> cara_exp/baselines/avengers_4model_out_v3_novita
+RM ~/avengers_4model_recluster.py (identical copy already in cara_exp/scripts/)
+RM ~/avengers_4model_recluster_v2.py (identical copy already in cara_exp/scripts/)
+RM ~/avengers_4model_recluster_v3.py (identical copy already in cara_exp/scripts/)
+RM ~/cara_to_bestroute_data.py (identical copy already in cara_exp/scripts/)
+RM ~/cara_to_bestroute_data_v2.py (identical copy already in cara_exp/scripts/)
+RM ~/llmrouter_data_prep.py (identical copy already in cara_exp/scripts/)
+RM ~/mfrouter_balanced_train.sh (identical copy already in cara_exp/scripts/)
+RM ~/run_best_route_training.sh (identical copy already in cara_exp/scripts/)
+RMDIR ~/vpipe (empty)
+CORRECTION 2026-05-16T23:49:07Z: ~/vpipe was OUT OF SCOPE (not cara/baseline; likely a VPipe mountpoint). It was empty so no data lost; recreated. Do not remove again without asking.

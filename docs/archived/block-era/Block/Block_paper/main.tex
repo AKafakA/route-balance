@@ -1,0 +1,494 @@
+\UseRawInputEncoding
+\documentclass[sigconf, review, anonymous]{acmart}
+% \documentclass[sigplan,nonacm]{acmart}
+% enable page numbers
+% \settopmatter{printfolios=true}
+% Optional: Remove the ACM reference between the abstract and the main text.
+% Optional: Comment out the CCS concepts and keywords.
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{amsmath}
+\usepackage{stfloats}
+\usepackage[export]{adjustbox}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage[justification=centering]{caption}
+\usepackage{subcaption}
+\usepackage{listings}
+\usepackage{url}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{circledsteps}
+\usepackage[normalem]{ulem} % provides \sout (cross-out)
+
+
+\DeclareRobustCommand{\legendsquare}[1]{%
+  \textcolor{#1}{\rule{1ex}{1ex}}%
+}
+\usepackage{booktabs, multirow} % for borders and merged ranges
+\usepackage{soul}% for underlines
+\usepackage{changepage,threeparttable} % for wide tables
+\settopmatter{printfolios=true}
+\newcommand{\column}[2]{%
+  \begin{tabular}[b]{@{}c@{}}#1\\#2\end{tabular}%
+}
+% EK comments (disabled for submission)
+\newcommand{\EK}[1]{}
+\begin{document}
+\title[Research Full]{Astrolabe: Balancing Load in LLM Serving with Context, Knowledge, and Prediction-Guided Scheduling\\\subtitle{Research Full}}
+\acmConference{SoCC'26}{Nov 2026}{Singapore}
+\acmBooktitle{SoCC'26, Nov 2026, Singapore}
+
+\author{Wei Da}
+\affiliation{%
+  \institution{University of Cambridge}
+  \country{United Kingdom}}
+
+\author{Evangelia Kalyvianaki}
+\affiliation{%
+  \institution{University of Cambridge}
+  \country{United Kingdom}}  
+
+
+
+% Use the following at camera-ready time to suppress page numbers.
+% Comment it out when you first submit the paper for review.
+% \thispagestyle{empty}
+
+
+\begin{CCSXML}
+<ccs2012>
+   <concept>
+       <concept_id>10010520.10010521.10010537.10003100</concept_id>
+       <concept_desc>Computer systems organization~Cloud computing</concept_desc>
+       <concept_significance>500</concept_significance>
+       </concept>
+   <concept>
+       <concept_id>10010147.10010178.10010179.10010182</concept_id>
+       <concept_desc>Computing methodologies~Natural language generation</concept_desc>
+       <concept_significance>300</concept_significance>
+       </concept>
+ </ccs2012>
+\end{CCSXML}
+
+\ccsdesc[500]{Computer systems organization~Cloud computing}
+\ccsdesc[300]{Computing methodologies~Natural language generation}
+
+
+\begin{abstract}
+This paper presents Astrolabe, a prediction-guided scheduler for one-shot request dispatch in multi-instance large language model (LLM) serving, targeting commodity clusters (e.g., Ethernet-connected GPU fleets without high-speed interconnects) where migration-based rebalancing can be impractical.
+Astrolabe selects the instance for each incoming request by combining (i) response-length estimation and (ii) per-instance, simulation-based latency prediction. By avoiding KV-cache migration, Astrolabe reduces data-plane overhead and network contention, improving end-to-end tail latency.
+Evaluation on a 12-GPU cluster across different models and datasets shows that Astrolabe outperforms baselines and related work schedulers, boosting serving capacity by 1.3-13.8\% depending on the configuration and reducing the mean and P99 tail latency by up to 1.53\%/7.15\%. Additional experiments show that Astrolabe remains robust under bursty arrivals and injected prediction noise, can reduce control-plane cost via power-of-two choices, and incurs modest CPU overhead. On a 2-node A100 multi-GPU cluster, Astrolabe outperforms Llumnix, a state-of-the-art migration-based LLM serving load balancer, achieving up to 45\% throughput increase and an 8$\times$ tail-latency reduction under highest QPS with Llumnix current design constraints. Code and data have been open sourced.
+\end{abstract}
+\keywords{LLM serving, scheduling, load balancing, latency prediction, simulation, KV cache}
+
+\maketitle
+
+\section{Introduction} \label{section:introduction}
+
+The rise of large language models (LLMs) like GPT-4 \cite{chatgpt}, Llama~\cite{llama}, and Gemini \cite{Gemini} has revolutionized modern applications, such as chatbots \cite{chatgpt}, virtual assistants~\cite{guan2023intelligentvirtualassistantsllmbased}, code generation~\cite{jiang2024surveylargelanguagemodels}, and creative writing~\cite{gómezrodríguez2023confederacymodelscomprehensiveevaluation}. This places immense pressure on LLM inference serving systems, which must meet stringent latency requirements for a seamless user experience and to maximize throughput to handle growing demand \cite{shen2025accelgenheterogeneoussloguaranteedhighthroughput, cheng2025scootsloorientedperformancetuning, vllm, orca}. To this end, in recent years, we have observed significant progress in the development of LLM serving systems. Several key techniques, such as continuous batching~\cite{orca}, Paged Attention~\cite{vllm}, chunked prefill~\cite{agrawal2023sarathiefficientllminference}, and FlashAttention~\cite{flashattentionv2}, have been proposed to improve throughput and tail latency by increasing GPU utilization and reducing KV-cache/memory overheads.
+
+However, despite the above advances, LLM inference is often characterized as unpredictable~\cite{sun2024llumnix}. For example, the autoregressive nature of LLMs, which generates tokens sequentially based on preceding ones until a stop signal is reached, leads to variable response lengths and decoding steps~\cite{schuurmans2024autoregressivelargelanguagemodels}.
+Paged Attention~\cite{vllm}, which dynamically allocates memory resources and allows for request preemption, further contributes to the dynamic nature of runtime memory consumption. Further, the latency of decoding step also exhibits high variance, due to variances of batch sizes.
+
+The above uncertainties challenge both scheduling LLM requests and scaling model instances, since widely used runtime metrics such as latency, throughput, and memory no longer accurately represent end-to-end execution loads in the case of LLM serving~\cite{sun2024llumnix}. Moreover, scheduled requests with unexpectedly long responses can further increase memory load on overloaded hosts to aggravate load imbalance and block subsequent requests from being launched, known as head-of-line (HOL) blocking~\cite{QLMQueue, ELIS}. In practice multi-instance serving frameworks in production, such as~\cite{nvidiaTritonInference, deepspeed}, employ scheduling heuristics like round-robin for request dispatching which offer no guarantee on scheduling performance.  Alternative solutions, such as Llumnix~\cite{sun2024llumnix}, schedule tasks while aligning with dynamic rebalancing through live migration, demonstrating improvements in overall cluster serving performance. However, such solutions require transferring requests' KV cache~\cite{kang2024gearefficientkvcache} across instances with extra cost of network bandwidth and memory, which may not be preferable in a resource-constrained cluster.
+
+In parallel to the above optimizations we observe a series of works that aim to mitigate such uncertainties with the help of purpose-built assistant models.
+For example, the length of responses and duration of execution can be accurately predicted with a pretrained regression model~\cite{length_estimation}, and via an inference simulation framework~\cite{vidur}.  This presents an unexplored opportunity to improve load balancing in inference systems by exploiting such approaches. For instance, consider the request to ``\emph{explain the theory of relativity}", which involves short prompts but generates lengthy responses. Our hypothesis is that predicting a request's length and latency allows the scheduler to proactively route it to less-loaded devices, which would improve cluster balance. To the best of our knowledge, we are the first to combine simulation-based latency prediction with online response-length estimation to guide one-shot request dispatch in multi-instance LLM serving, proactively routing long-running requests to less-loaded instances. 
+
+In this paper, we present \emph{Astrolabe}, a prediction-guided scheduler for multi-instance LLM inference clusters. Astrolabe leverages query context and static properties of LLM serving backends (e.g., hardware capability and batching strategy) to schedule requests based on runtime length and latency predictions. We primarily target commodity, network-constrained clusters (e.g., PCIe-only GPU servers connected via Ethernet, without NVLink/InfiniBand), which are common in cost-sensitive on-prem deployments and small/medium GPU clusters.  In this setting, Astrolabe improves performance without requiring live migration, which can introduce bandwidth and orchestration overhead and may worsen tail latency when the interconnect is constrained.
+
+% We primarily target commodity, network-constrained clusters where high-speed interconnects are unavailable and KV-cache migration can be impractical; \EK{add examples of such setups. where are they used?} in this setting, Astrolabe improves performance without requiring live migration. \EK{why is this a good thing? Is live migration the best known technique so far?}
+
+Astrolabe operates in the following way. A lightweight LLM-based regression model is first applied to estimate the length of responses based on the request contexts. Then, a simulation framework is used to predict key target metrics for each request. Finally, the Astrolabe task scheduler dispatches requests based on these simulation-based predictions. Following the above steps, Astrolabe can estimate real serving load and metrics for each request during scheduling, thereby improving overall performance by maximizing both throughput and resource utilization while minimizing latency and preemptions.
+Accurate, per-instance latency prediction enables a simple one-shot dispatch policy that improves load balancing, without relying on migration or other complex instance-side mechanisms. In our evaluation (\S\ref{section:evaluation}), Astrolabe achieves accurate latency prediction with modest overhead. Also, its Predictor interface is designed to be pluggable, allowing it to work with different simulation-based prediction backends (e.g., Vidur~\cite{vidur} or SimAI~\cite{simAI}).
+
+We evaluate Astrolabe against widely used heuristic schedulers on a 12-GPU cluster using ShareGPT end-to-end, and BurstGPT in a trace-driven (with real output length) setting, across two LLMs (Qwen and Llama). Results demonstrate Astrolabe's improved performance: it increases serving capacity by up to 13.8\% under constrained batching configurations and boosts throughput by up to 2.07\% at QPS=32 against the Llumnix dispatcher. Critically, Astrolabe reduces average request latency by 1.53\% and P99 tail latency by up to 7.15\% compared to the state-of-the-art baseline at QPS=36. Astrolabe's performance gains are more pronounced for Time-To-First-Token (TTFT): average and P99 TTFT are reduced by 42.71\% and 44.72\% at QPS=31, respectively.
+
+Beyond steady Poisson arrivals, we further evaluate Astrolabe under bursty traffic, under injected prediction errors, and under a power-of-two-choices variant to reduce $O(N)$ fanout message cost. We also compare Astrolabe against full Llumnix with migration on a multi-GPU A100 cluster, which is comparable to Llumnix original evaluation setup.
+
+% Further, Astrolabe improves resource utilization and achieves a 20.1\% reduction in P99 latency when using prediction for auto-provisioning.
+
+In summary, this paper makes the following main contributions. First, we characterize the reasons why load in multi-instance LLM serving is difficult to infer from runtime metrics alone and show how this leads to mis-dispatch and head-of-line (HOL) blocking (\S\ref{section:motivation}--\S\ref{section:scheduling_issues}). Second, we design and implement \emph{Astrolabe}, a prediction-guided one-shot scheduler that combines response-length estimation with per-instance, simulation-based latency prediction via stateless predictor sidecars, that enables proactive request placement without KV-cache migration (\S\ref{section:system_design}, \S\ref{section:implementation}).
+Third we evaluate Astrolabe on commodity and multi-GPU clusters, to quantify prediction accuracy and overhead, end-to-end latency/throughput improvements over heuristic and migration-based baselines, and robustness under bursty arrivals, injected prediction noise, and a power-of-two-choices variant (\S\ref{section:evaluation}).
+
+
+% In summary, this paper makes the following contributions. First, we thoroughly motivate our approach to using predictive scheduling for LLM serving with the integration of response length estimation and inference simulation techniques in \S\ref{section:motivation}. Second, we design (\S\ref{section:system_design}) and implement(\S\ref{section:implementation}) Block, a distributed scheduling framework with predictive scheduling. Third, we conduct a comprehensive evaluation on a 12 GPUs cluster with real-world datasets/models to demonstrate the superior effectiveness of Block on load balancing and auto-provisioning, as presented in \S\ref{section:evaluation}. Finally, Block paves the way for a new class of predictive LLM schedulers for online serving. Block's code and dataset are open-sourced at \url{https://anonymous.4open.science/r/Block-463B}. 
+
+
+\section{Background}\label{section:motivation}
+In this section, we provide an overview of LLM inference development and key techniques, such as Continuous Batching, Paged Attention, and Chunked Prefill, that are foundational to our design.
+
+\paragraph{LLM Inference} Modern large language models (LLMs) are mainly built on transformer architectures~\cite{transformer}. Each query contains a variable-length prompt (context), which is tokenized into embeddings and processed by transformer blocks (e.g., attention and multilayer perceptrons) to produce intermediate representations (encoding). LLMs then generate an output sequence autoregressively, one token at a time (decoding), until an end-of-sequence token is produced or a maximum length constraint is reached. Because prompt and generated tokens are repeatedly reused across decoding steps, the intermediate key and value tensors for attention can be cached to avoid recomputation, known as KV cache~\cite{kang2024gearefficientkvcache}.
+
+LLM execution is often separated into \emph{prefill} and \emph{decode}. Prefill is the prompt-only forward pass that materializes the KV cache for the context sequence, while decode performs subsequent token-by-token generation; due to the autoregressive dependency, decode cannot be parallelized across tokens and requires caching all tokens until completion. As a result, prefill is typically compute-bound, whereas decode is often memory-bandwidth-bound~\cite{podAttention}.
+
+\paragraph{Continuous Batching and Paged Attention}
+
+Modern GPUs can efficiently process large matrix manipulations, so requests are typically grouped into batches to fully leverage GPU resources. Each decoding step generates one token for all requests within the batch, and each new token increases GPU memory consumption due to KV cache growth. Static batching was first applied by early inference frameworks~\cite{lightseqhighperformanceinference, turbotransformersefficientgpuserving}, which group and process a fixed set of requests. However, with variable response lengths, shorter requests may finish early while their batch slots remain occupied until the slowest request completes. Continuous Batching~\cite{orca} addresses this by letting completed requests exit and admitting new successors (typically in FCFS order) up to a maximum batch size. A local scheduler in inference frameworks is responsible for forming these execution batches.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.9\linewidth]{figure/introduction/preemption.png}
+    \caption{Paged Attention and Preemption}%
+    \Description{Illustration of vLLM's Paged Attention memory blocks and the preemption mechanism when GPU memory becomes insufficient; the newest request is preempted, its KV-cache blocks are released, and it is later recomputed and resumed.}
+    \label{fig:pageAttention}%
+\end{figure}
+
+A key challenge in Continuous Batching is memory allocation. Because response lengths are unknown at runtime, naive pre-allocation for the maximum sequence length leads to fragmentation and wasted memory, especially for short responses. Paged Attention~\cite{vllm}, implemented in vLLM, addresses this by partitioning GPU memory into fixed-size blocks and tracking each request's KV cache via a page table, allowing non-contiguous placement. As shown in Figure~\ref{fig:pageAttention}, when memory becomes insufficient for the next decoding step, vLLM preempts the newest request in the batch, releases its blocks, and later resumes it by recomputing its KV cache. This dynamic memory allocation significantly improves the LLM serving instance's capacity and throughput, making vLLM a leading framework in research and industry applications. 
+
+\paragraph{Chunked Prefill} A new key challenge that has recently emerged for LLM serving frameworks is efficiently scheduling and allocating memory for requests that involve both prefill and decoding, as mentioned above. The original vLLM scheduler often addresses this by creating separate batches for prefill and decoding requests, implementing a prefill priority strategy. This means prefill-only batches are created and executed as soon as new prefill requests arrive, potentially delaying or interrupting ongoing decoding batches. This approach effectively improves overall throughput and reduces TTFT. However, as shown in Figure~\ref{fig:chunked_prefill}, prioritizing prefill can interrupt ongoing decoding batches, leading to noticeable decoding stall bubbles and degraded tail latency.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=0.9\linewidth]{figure/introduction/chunked_prefill.png}
+    \caption{Original vLLM and Chunked Prefill}
+    \Description{Comparison of vLLM's original prioritized prefill scheduling with chunked prefill, highlighting how chunked prefill interleaves prefill chunks with decode to reduce decode stalls and tail latency.}
+    \label{fig:chunked_prefill}
+\end{figure}
+
+
+To mitigate this trade-off, Chunked Prefill with stall-free local scheduler is proposed~\cite{agrawal2023sarathiefficientllminference, agrawal2024tamingthroughputlatencytradeoffllm}. It divides prompt processing (prefill) into equal-sized chunks executed across multiple scheduling steps and forms hybrid batches that interleave decode steps with prefill chunks under a token budget. Results confirm it can significantly improve the tail latency by reducing decode stalls with only minor throughput loss. Consequently, prominent serving frameworks like vLLM and SGLang~\cite{sglang} use it as their default option. Furthermore, new execution kernels, such as PODAttention~\cite{podAttention} focus to optimize the execution of these hybrid batches.
+
+In addition, Prefill-Decode (P-D) disaggregation~\cite{disServe, patel2024splitwiseefficientgenerativellm, qin2024mooncakekvcachecentricdisaggregatedarchitecture} mitigates prefill/decode interference by using separate instances, but requires transferring KV cache between them. Recent studies show aggregated execution can still be preferable in some cases~\cite{wang2025prefilldecodeaggregationdisaggregationunifying}, and similar isolation can also be achieved on shared GPUs via multiplexing~\cite{gao2025duetserveharmonizingprefilldecode}.
+
+\section{Related Work and Motivation}\label{section:scheduling_issues}
+
+Current LLM inference with dynamic batching and memory allocation as discussed above, introduces new cloud-based challenges for task scheduling and resource management. Accordingly, this section first elaborates on these issues and then summarizes applicable techniques, leading to the proposed solution discussed in \S\ref{section:system_design}.
+
+\paragraph{Unpredictability in LLM Serving Scheduling} \label{section:unpredicatblity} Figure~\ref{fig:llm-inference-workflow} shows a typical architecture for LLM inference serving.  Firstly, a user interacts with an API, which serves as the entry point to the inference framework. A local scheduler within the framework then batches these incoming requests for parallel execution. The LLM inference process is composed of a series of layers, primarily involving attention mechanisms and linear projections. To optimize performance, these operations are often accelerated by highly efficient kernel implementations~\cite{flashattentionv2, ye2025flashinfer}. Besides, for real-world applications served on cloud~\cite{wang_gemini_2023, chatgpt, claude}, deploying multiple framework instances is typically necessary to ensure high availability under heavy request volume. This multi-instance setup requires an external global scheduler to distribute incoming requests effectively across the available instances for load balancing. While implementing a global scheduler may seem straightforward, it presents significant challenges due to the unpredictable nature of LLM inferences.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=\linewidth]{figure/introduction/inference_workflow.png}
+    \caption{LLM Inference Systems}
+    \Description{High-level workflow of an LLM inference serving system, including the user/API frontend, local batching scheduler, model execution, and a global scheduler routing requests across multiple instances.}
+    \label{fig:llm-inference-workflow}
+\end{figure}
+
+LLM inference systems are typically characterized by high unpredictability in both the final outputs and overall system performance over time, as noted in~\cite{sun2024llumnix}. This unpredictability is primarily attributed to: 1) variable memory demands resulting from unknown decoding lengths, which can trigger accidental preemption and lead to unexpected performance degradation; and 2) resource competition, which can further cause interference between requests and degrade runtime performance.
+
+This inherent unpredictability in resource requirements and execution behavior makes dispatching requests across LLM serving instances more challenging than generally dynamic task scheduling~\cite{dynamic_task_scheduling}. For example, a standard scheduler like Kubernetes might filter compute nodes based on initially available resources and then selects the node with the lowest current utilization. However, such static filtering and simple utilization metrics are often inadequate for LLM inference workloads because memory demands of requests are dynamic, varying with the decoding length. Additionally, the actual performance when executing a request can still be impacted by interference from other colocated requests~\cite{sun2024llumnix}. For example, unexpected preemption due to contentions for GPU memory can lead to serving request reset and successors blocked. In contrast, traditional cloud-based task execution utilizes isolation mechanisms with static resource allocation (such as Docker container \cite{docker}) that largely reduce the risk of such interference. Furthermore, such isolated and static resource allocations allow tasks' lifetimes to be predicted using historical modeling, as demonstrated by schedulers like Apollo\cite{Apollo},  LAVA~\cite{ling2025lavalifetimeawarevmallocation}.
+
+These factors make it difficult to accurately predict resource demands and duration of a request on a given instance. Consequently, many existing dispatching strategies for routing requests across LLM instances rely on relatively simple heuristic approaches such as round-robin employed by systems like DeepSpeed-MII~\cite{deepspeed} and Triton Inference Server~\cite{nvidiaTritonInference}. Other frameworks take different approaches. For instance, vLLM often delegates the responsibility of cross-instance routing to the user or a higher-level orchestrator. In contrast, frameworks like SGLang implement their own heuristic-based routers that are tightly coupled with internal optimizations and features, such as RadixAttention. ServerlessLLM ~\cite{serverlessLLM} processes LLM requests as serverless functions and schedules them to instances with the least estimated model-loading startup time. LLM-d ~\cite{githubGitHubLlmdllmd} serves LLM models in Kubernetes and supports P-D disaggregation with separate customized schedulers. 
+
+Such frameworks with rule-based heuristic schedulers could be carefully tuned to perform well under specific settings, e.g., configurations, workloads, or models. However, these schedulers are susceptible to performance degradation in dynamic environments and lack the quantifiable metrics needed to clearly explain how the internal parameters/rules impact user-facing metrics.
+
+% \paragraph{Auto-provisioning in LLM serving} \label{section:scaling} 
+% To ensure a stable application and a good user experience in serving clusters with variable workloads, effective resource management must go beyond scheduling to include auto-provisioning to handle peak loads and guarantees performance under established SLOs.
+% We notice auto-provisioning and load balancing can be treated as different but complementary problems that are both critical and can be impacted by LLM inference's unpredictability. While load balancing optimizes the spatial placement of requests across existing resources, auto-provisioning manages temporal capacity adjustments. Although highly desirable and well-studied in other cloud applications, auto-provisioning is often overlooked in LLM serving systems. Asynchronous cold starts in serverless computing \cite{serverless_real_world} exemplify the issue. While a new instance is being provisioned and initialized, incoming requests continue to be routed to existing instances, exacerbating tail latency. The effect is even more pronounced for LLM serving. In addition to new arrivals, ongoing inference requests also continue generating tokens and consuming additional memory on already overloaded instances. This prolongs latency and increases load, even as the newly provisioned instances remain underutilized. Finally, the resulting load imbalance wastes resources and degrades serving performance.
+
+% Llumnix~\cite{sun2024llumnix} can mitigate such imbalances through dynamic re-balancing. Initially, it dispatches requests using a heuristic scheduler. Subsequently, Llumnix performs continuous dynamic load rebalancing across instances by migrating active requests along with their KV caches. While dynamic rebalancing can mitigate runtime load imbalances, it necessitates transferring associated token caches, which consumes inter-GPU network bandwidth and introduces transient memory duplication that can impact model parallelism performance. This resource contention can even intensify in either: 1) when auto-provisioning is triggered due to cold start issues, to re-balance load between heavily utilized existing hosts and newly provisioned ones; or 2) when other network-heavy features are applied, such as P-D disaggregation and tensor/pipeline parallelism~\cite{shoeybi2020megatronlmtrainingmultibillionparameter, huang2019gpipeefficienttraininggiant}. 
+
+% Despite the significant challenges caused by unpredictability in LLM scheduling and provisioning, recent research offers promising mitigation techniques that can improve scheduler design, which we explore below.
+
+
+\paragraph{Offline Performance Simulator} \label{section:performance simulation}
+
+With the rapid development and expansion of new LLM models, devices, and use cases, setting up an appropriate LLM serving cluster has become a critical yet challenging task for developers, particularly due to the high trial-and-error costs associated with GPU pricing. To address this, Vidur, the first LLM cluster simulation framework, has been proposed~\cite{vidur}. It aims to reduce potential hardware costs when searching for the optimal cluster configuration based on a given model, trace, and Service Level Objective (SLO) requirements. The insight behind Vidur is that since the local scheduler and batching logic are deterministic, and response lengths are typically available in the replay trace used to evaluate cluster performance, it is feasible to simulate the entire replay process if the execution time for each batch can be inferred. Additionally, by profiling low-level operators like attention and linear projection for a specific GPU, Vidur trains linear models to interpolate execution times for various batches. It finally achieves less than 9\% error for key metrics such as throughput and latencies across a diverse set of models and GPU types. Besides, SimAI~\cite{simAI} also provides modeling and simulation for the entire LLM training process with average 98\% accuracy.
+
+\paragraph{Response Length Prediction} \label{section:length_prediction}  While some methods predict inference performance assuming known response lengths, alternative approaches also predict the initially unknown lengths to enhance inference itself. Recognizing that the variable length of responses is a key challenge, these techniques leverage prediction to improve local scheduler efficiency. For instance, Sequence Scheduling~\cite{length_estimation} proposes instruction tuning a smaller LLM specifically to predict the response length of the main serving LLM. This prediction allows their local scheduler to be optimized by grouping requests with similar expected lengths into the same batch. Such grouping minimizes computational waste and improves single instances' throughput by 85\%. Similarly, $s^3$ \cite{s3} use a fine-tuned Distilbert \cite{sanh2020distilbertdistilledversionbert} to predict output length and improve batching scheduler by solving a single-bin packing problem. LightLLM~\cite{lightLLM} predicts output lengths using historical distributions and then infers the peak memory requirement for running batches, enabling the local scheduler to proactively avoid preemption.  ELIS's \cite{ELIS} local scheduler apply such predicted lengths to address the HOL blocking issue. While QLM \cite{QLMQueue} mitigate the same issue by reordering requests in message queue to be dispatched based on their waiting time estimated by statistical sampling.
+
+Length estimation has also been utilized for global scheduling, primarily as a filtering mechanism prior to scheduling tasks. For instance, TetriServe~\cite{TetriServe} deploys a lightweight length-estimation model to filter out decoding candidate instances without sufficient GPU memory to accommodate the estimated number of tokens and then applies the Power-of-Two method~\cite{poweroftwo} to select decoding instances with fewer pending requests. DynamoLLM~\cite{dynamollm} classifies requests into three distinct pools based on their estimated lengths, scheduling them separately with associated host pools. To summarize, our insight is that by combining simulation techniques with length prediction, the unpredictability can be largely eliminated, which in turn creates an opportunity to improve multi-instance LLM serving performance.
+
+\section{Astrolabe System Design} \label{section:system_design}
+
+In this section, we present \emph{Astrolabe}, a prediction-guided task scheduler that leverages query context and cluster knowledge for load balancing in LLM serving clusters. Astrolabe builds on the key insight from \S\ref{section:motivation} that LLM serving scheduling is challenging due to response-length uncertainty, evolving KV-cache memory pressure, and batching-induced interference. Astrolabe is, to our knowledge, among the first systems to combine response-length estimation with per-instance simulation for online global request dispatch in LLM serving.
+
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=\linewidth]{figure/block_diargram.png}
+    \caption{Astrolabe Architecture}
+    \Description{System architecture of Astrolabe, showing four components (query length tagger, global scheduler, predictor sidecars attached to each model instance, and the inference framework backend) and the flow from incoming requests through prediction, scheduling, execution, and returning results.}
+    \label{fig:scheduling_framework}
+\end{figure}
+
+
+
+Astrolabe, as shown in Figure~\ref{fig:scheduling_framework}, comprises four services: a query length tagger, a global scheduler, per-instance Predictor sidecars, and an inference framework backend. The query length tagger is the entry point and predicts (or looks up) the anticipated response length for each request (\Circled{1}). Requests are then forwarded to the global scheduler (\Circled{2}), which selects a target model instance.
+For each incoming request, the global scheduler \emph{fans out} \texttt{predict} RPCs to the Predictor sidecars (\Circled{3}) (i.e., it queries all instances in parallel by default, and can optionally query only a subset via power-of-$k$ choices). Each Predictor queries its colocated backend via a \texttt{status} API to obtain the instance's current runtime state (e.g., running/waiting requests, batching state, and memory availability), and then runs a lightweight simulation to estimate the request's target metric (e.g., end-to-end latency or TTFT) if dispatched to that instance (\Circled{4}). The global scheduler aggregates these per-instance predictions and dispatches the request to the selected backend instance according to the configured scheduling policy (\Circled{5}). Finally, the inference backend (e.g., vLLM, SGLang, or LightLLM~\cite{vllm, sglang, lightLLM}) executes the request on the GPU and returns the response. Astrolabe is designed as an add-on scheduling layer and is agnostic to models, hardware, inference frameworks, and dispatch policies.
+
+
+\subsection{Model Instance} \label{section:model_instance}
+
+In Astrolabe, we define a model instance as the collection of services deployed on a GPU host that uses one or more GPUs for model execution and response generation. It consists of two primary components: the main services of the inference framework and a sidecar service called the Predictor. Astrolabe is designed to be framework-agnostic and it can support various different frameworks with dynamic batching, such as~\cite{vllm, sglang, TetriServe, orca, deepspeed}. %Similar to Vidur, Astrolabe is designed to be a framework-agnostic, supporting various frameworks with dynamic batching. 
+Each inference framework used by Astrolabe can be integrated by supporting a new \texttt{status} API to export its internal status, such as request lists and GPU memory blocks, for metrics prediction.
+
+The Predictor's main role is to predict key performance metrics, such as end-to-end latency or TTFT, for incoming requests to be used by Astrolabe scheduling via simulation.
+As shown in Figure~\ref{fig:scheduling_framework}, the Predictor service runs locally on each instance and aggregates runtime data exported by the \texttt{status} API and transforms it into a scalar metric prediction via the \texttt{predict} API, consumed by the global scheduler.
+In cases where a request's decoded length exceeds its predicted length at runtime, the simulator extends the current prediction by assuming the request will complete within the next 10 tokens (by default).
+
+Astrolabe is designed to allow working with different simulation approaches. In our current prototype implementation of the Predictor's simulator we integrate the Vidur~\cite{vidur} simulation framework in the following way. We redesign the Vidur simulator for single-instance prediction and encapsulate it within the Predictor service. As illustrated in Figure~\ref{fig:scheduling_framework}, this simulation involves a two-stage process. First, a local scheduler simulator models the batching strategy for a given inference backend. Second, a linear model predicts the execution times for the batches generated in the first stage. Since the model is static and inputs are received on-demand from the \texttt{status} API, the Predictor service does not maintain scheduling state and can be replicated per instance to reduce simulation-related overhead through parallelization. Furthermore, the Predictor service is designed with an extendable interface, which could be implemented by alternative simulation frameworks such as SimAI~\cite{simAI} while keeping their core simulation strategies.
+
+\subsection{Global Scheduler} \label{section:schedulers}
+
+\begin{algorithm}[t]
+\caption{Astrolabe one-shot dispatch (default: latency)}
+\label{alg:astrolabe_dispatch}
+\begin{algorithmic}[1]
+\Require Incoming request $r$ with prompt $p$
+\Require Instances $\mathcal{I}=\{i_1,\dots,i_N\}$, sample size $n$ (default $n{=}N$), timeout $\tau$
+\Ensure Dispatched instance $i^\star$
+\State \textbf{Estimate response length:} $\hat{L} \gets \textsc{LengthTagger}(p)$
+\State \textbf{Select candidates:} $\mathcal{I}' \gets \textsc{Sample}(\mathcal{I}, n)$ \Comment{$n{=}N$ means full fanout}
+\State \textbf{Query predictors in parallel:} $\mathsf{cand} \gets \emptyset$
+\ForAll{$i \in \mathcal{I}'$ \textbf{in parallel}}
+    \State $s_i \gets \textsc{GetStatus}(i)$
+    \State $\hat{\ell}_i \gets \textsc{PredictMetric}(i, r, \hat{L}, s_i)$ \Comment{default metric: latency}
+    \If{$\hat{\ell}_i$ returned before $\tau$}
+        \State $\mathsf{cand} \gets \mathsf{cand} \cup \{(i,\hat{\ell}_i)\}$
+    \EndIf
+\EndFor
+\State \textbf{Choose best candidate:}
+\If{$\mathsf{cand}=\emptyset$}
+    \State $i^\star \gets \textsc{Fallback}(r)$
+\Else
+    \State $i^\star \gets \arg\min_{(i,\hat{\ell}_i)\in \mathsf{cand}} \hat{\ell}_i$
+\EndIf
+\State \textbf{Dispatch request:} \textsc{Dispatch}$(i^\star, r)$
+\end{algorithmic}
+\end{algorithm}
+
+
+The global scheduler service is stateless and lightweight: it does not maintain a cached, global table of instance statuses. Instead, as illustrated in Figure~\ref{fig:scheduling_framework}, upon each request arrival the scheduler issues a \texttt{predict} RPC to per-instance Predictor sidecars and then dispatches the request to the instance with the lowest predicted metric. In this paper, we use end-to-end latency as the default target metric throughout, while keeping the interface configurable to support other objectives if needed.
+
+This differs from centralized predictors that rely on a global view of per-instance status. In Astrolabe, prediction is executed on each instance in parallel using its local scheduler state, and each Predictor returns only a scalar metric (e.g., predicted latency). As a result, decision time is bounded by the slowest Predictor reply in current scheduling round, while avoiding the bandwidth cost of exporting heavy instance-local state (e.g., request lists) to a central simulator. Because each Predictor simulates the incoming request on top of its current execution queue, the prediction naturally reflects the computational load from both running and pending requests.
+
+\textbf{Scaling option.} Although decision time is bounded by the slowest Predictor response, the scheduler-side messaging cost (e.g., de/serialization of prediction messages) is still $O(N)$ in the number of instances. To reduce this cost at larger scale, instead of full fanout, Astrolabe can sample $k$ candidate instances (power-of-$k$ choices) and query Predictors only on that subset, then select the candidate with the lowest predicted metric. We evaluate $k=2$ (Astrolabe-Po2) in \S\ref{section:po2_ablation}. The scheduling algorithm is shown in Algorithm~\ref{alg:astrolabe_dispatch}, with full fanout as default.
+
+Furthermore, our design does not require instance-side features such as live migration for dynamic rebalancing~\cite{sun2024llumnix}. Such features can be complementary to prediction-guided dispatching, but they introduce additional complexity (e.g., orchestration and state movement). In this work, we focus exclusively on one-shot dispatch and evaluate it accordingly.
+
+\subsection{Query Length Tagger}\label{section:query_tagger}
+The query length tagger is an online service that estimates the response length of each request from its prompt and the target serving model. It runs in parallel with request handling and uses a lightweight proxy model to keep overhead low; the estimator is modular and can be replaced with alternatives such as the model-free, sampling-based approach used in LightLLM~\cite{lightLLM}. If a request already includes a response-length hint, or if the selected scheduler does not require predicted metrics, the request bypasses the tagger and is forwarded directly to the global scheduler. The predicted length is used only for metric prediction and scheduling decisions and does not change the inference results.
+
+\section{Implementation} \label{section:implementation} 
+ 
+
+Astrolabe is an online scheduling system that implements the global scheduler, per-instance Predictor sidecars, and the length-tagger service described in \S\ref{section:system_design}. We implemented these components as lightweight microservices in FastAPI~\cite{tiangoloServerWorkers} and exposed a simple RPC/REST interface that can integrate with common LLM serving stacks (e.g., vLLM~\cite{vllm}, SGLang~\cite{sglang}, and LightLLM~\cite{lightLLM}). Internally, Astrolabe reuses Vidur's offline simulator codebase~\cite{vidur} as a starting point for Predictor-side simulation, due to its high-fidelity modeling, broad backend support, and extensibility, and substantially adapts it for online, per-request metric prediction.
+
+
+
+\paragraph{Simulation-based prediction}
+Astrolabe's Predictor is a per-instance sidecar service that takes the instance-local scheduler state (\S\ref{section:model_instance}) and the incoming request, and returns a scalar prediction (e.g., E2E latency) used by the global scheduler. Internally, the Predictor invokes a backend-specific simulator. Our current prototype reuses Vidur's simulators as a starting point (e.g., for Sarathi-Serve, vLLM, and LightLLM), and extended them with online-facing RPC, caching, and key performance optimizations.
+
+Although Vidur supports different simulators for offline analysis, our performance analysis identified inefficiencies that are negligible offline but become critical for Astrolabe's real-time predictions (e.g., object duplication and suboptimal list operations such as \texttt{list.pop(0)}). To mitigate this, we improved the primary simulation hot paths and integrated a caching mechanism into the Predictor. This cache memoizes latency predictions for previously seen batch configurations (defined by batch size and token count), substantially reducing the per-request simulation cost.
+
+
+\paragraph{Framework Integration}
+Astrolabe is designed to be backend-agnostic and decoupled from any specific inference framework. As an external scheduling layer, it does not modify model execution or require changes inside the serving framework beyond exposing a read-only \texttt{status} API (\S\ref{section:model_instance}). This decoupling improves both backward and forward compatibility with rapidly evolving inference stacks. The current Astrolabe prototype integrates with vLLM~0.7.2. Integrating an additional backend involves exposing \texttt{status} and implementing a local scheduler simulator to model the backend's batching strategy. This separation also makes it straightforward to extend Astrolabe to new serving features (e.g., P-D disaggregation). Such extensions require updating the simulator and, if needed, exporting additional state via \texttt{status}. In our vLLM-based prototype, we enabled vLLM's multi-process frontend (separating the inference engine and API frontend processes) to reduce API overhead and improve prediction fidelity.
+
+
+% However, parsing dynamic JSON messages between services could still incurs constant scheduling overhead (as presented in \S\ref{section:request_performance}), due to Python's GIL constraints on thread-level parallelism. 
+
+% To further mitigate this overhead, the framework could be migrated to an alternative RPC protocol like gRPC \cite{grpcGRPC}, or it could leverage Python's GIL-free features once they become available in FastAPI and vLLM.
+
+
+\paragraph{Global Scheduler Implementation} \label{section:baselinescheduler}
+Astrolabe's global scheduler is designed for high flexibility. Both its target SLO metric and scheduling strategy are configurable, allowing for the easy implementation of various scheduling strategies, from single- to multi-SLO optimization as \cite{chen2025slosserveoptimizedservingmultislo}. In our prototype we implemented a scheduler that selects the instance with the lowest predicted metric. For comparisons in evaluation, we also implemented the following baseline and related work schedulers within the same Astrolabe framework.
+\begin{itemize}
+    \item Random: randomly picks one instance;
+    \item Round-Robin: schedules in a round-robin fashion, which is widely used by multiple production-grade model serving systems as ~\cite{nvidiaTritonInference, rayServeScalable};
+    \item Min QPM (Queries Per Minute): the default scheduling policy in LiteLLM~\cite{litellm}, a popular open-source library for routing LLM requests in the cloud, which selects instances with minimal latest QPM.
+    \item INFaaS++: the optimized version of INFaaS~\cite{infaas} implemented by Llumnix~\cite{sun2024llumnix}. Its load function is defined as $usedMemory / batchSize$, and the instance with the lowest load is selected.
+    \item Llumnix-: refers solely to the improved heuristic dispatcher component of Llumnix~\cite{sun2024llumnix}, excluding its continuous rebalancing feature (see \S\ref{section:scheduling_issues}). Building on INFaaS++, it introduces a correction item by summing the required memory to prefill all pending requests as $prefillMemory$, to better measure the memory load with request prefill context. Its load is defined as $(usedMemory + prefillMemory)/ batchSize$. 
+\end{itemize}
+
+\paragraph{Length Estimation Model}
+The query length tagger (\S\ref{section:query_tagger}) uses a response-length estimator to provide the predicted output length required by Astrolabe's Predictor. We fine-tuned a RoBERTa-base~\cite{roberta} regression model (125M parameters) for response-length estimation, which is lightweight and has low serving overhead.~\footnote{We initially considered the 7B model from Sequence Scheduling~\cite{length_estimation}, but its training and serving costs were prohibitive.} We observed that similar lightweight fine-tuned BERT-based models have been widely adopted in LLM serving systems for auxiliary tasks, ranging from response quality estimation in model routing \cite{wang2025reasonsemanticroutervllm, ong2025routellmlearningroutellms, ding2025bestrouteadaptivellmrouting} to response length prediction in recent frameworks such as ELIS \cite{ELIS} and $S^3$ \cite{s3}.
+
+Current Astrolabe implementation comprises about 4,000 LoC and is released at \textcolor{blue}{\url{https://anonymous.4open.science/r/Astrolabe-BA60/README.md}} with data and training, deployment and benchmarking scripts.
+
+\section{Evaluation} \label{section:evaluation} 
+We evaluate Astrolabe against five baseline schedulers (\S\ref{section:baselinescheduler}). We firstly introduce the experimental setup at \S\ref{section:experiment_setting}, then validate prediction accuracy at \S\ref{section:predicting accuracy}, and quantify end-to-end gains (\S\ref{section:request_performance}, including a head-to-head evaluation against Llumnix (latest release, default configuration) on a multi-GPU cluster (\S\ref{section:llumnix_comparison}). Finally, we analyze GPU memory/resource dynamics (\S\ref{section:gpu_resources}) and present additional analyses on power-of-two choices (\S\ref{section:po2_ablation}), burstiness (\S\ref{section:burstiness}), prediction-noise sensitivity (\S\ref{section:error_sensitivity}), and CPU overhead (\S\ref{section:cpu_overhead}).
+
+
+\begin{figure*}[htb]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figure/exp_plots/cluster_metrics/profiling.png}
+    \caption{Latency Prediction Metrics}
+    \Description{Metrics summarizing latency prediction accuracy and scheduling effectiveness, including prediction error and the rank of the instance selected by the scheduler among all candidates.}
+    \label{fig:latency_prediction}
+\end{figure*}
+
+\subsection{Experimental Setup} \label{section:experiment_setting}
+
+\paragraph{Testbed} We evaluate Astrolabe on the CloudLab platform~\cite{cloudlab} using two clusters. The primary cluster consists of 12 d7525 nodes, each equipped with two 16-core AMD 7302 CPUs (3.00 GHz), 128~GB ECC memory, one NVIDIA A30 GPU (24~GB), and 25~Gbps effective bandwidth due to mandatory best-effort network provisioning. This single-GPU-per-host configuration is used for the majority of experiments. Due to network constraints rendering live KV-cache migration impractical, we implement and evaluate all baseline schedulers within the Astrolabe framework on this cluster (\S\ref{section:implementation}).
+
+Additionally, we deploy another 2-node cluster (CloudLab d8545) with 4$\times$ A100-40GB GPUs per node and 100~Gbps NICs. This 4-GPU-per-node configuration is comparable to Llumnix original testbed~\cite{sun2024llumnix} (4-GPU VMs with 64~Gbps network). The multi-GPU cluster enables: (1)~comparison with full Llumnix migration (\S\ref{section:llumnix_comparison}), which requires high-speed intra-node communication for KV-cache transfers; and (2)~evaluation of prediction accuracy on larger models with tensor parallelism (\S\ref{section:predicting accuracy}).
+
+We run the length estimation model on a dedicated host with an L40 GPU to process datasets offline. Such lightweight BERT-based models are capable of seamless online execution, as evidenced by their adoption in production LLM services~\cite{wang2025reasonsemanticroutervllm, ong2025routellmlearningroutellms}.
+
+\paragraph{Data, Configuration and Model}
+
+We use ShareGPT~\cite{shareGPTData}, a real-world dataset consisting of 52K conversations sampled.  During our experiments, the prompts in the conversation from ShareGPT are sent to the global scheduler in order following the Poisson distribution under varying arrival rates. We refer to this arrival rate as external QPS.
+
+When serving LLM on vLLM, FlashInfer~\cite{ye2025flashinfer} is used as the attention library. Also, greedy decoding~\cite{jm3} is used with temperature set as 0. The maximum request batch size is set to 48, and chunk size for Chunked Prefill as 512. This combination shows best performance among all tested configuration sets. To reduce the overhead caused by simulation, each instance's node runs 16 Predictors to simulate and predict latencies in parallel. We observe such replication reduces total scheduling overhead, up to 50\%.
+
+Since each testing node in our testbed is equipped with a single GPU and limited bandwidth between nodes, co-serving across GPUs using tensor and pipeline parallelism ~\cite{narayanan2021efficientlargescalelanguagemodel} is infeasible. So, we perform our evaluation using a medium-sized model that fits within a single node's capacity. LLaMA2-7B~\cite{llama} with FP16 precision is used for the evaluation. We choose LLaMA2 to stay aligned with Vidur~\cite{vidur}, which lets us reuse Vidur's published model configuration when profiling operators for our simulator; moreover, LLaMA is one of the most widely used open-source LLMs in prior AI/systems papers.
+The total model weight occupies 12.5 GB of GPU memory, split to 1056 memory blocks with vLLM's default block size for KV cache. Furthermore, our large-model experiment (Llama-2-70B with 4 GPUs in tensor parallelism in \S\ref{section:predicting accuracy}) shows comparable latency-prediction accuracy (with MAPE 16.6\%) to our 7B setting, suggesting that Astrolabe's predictor can generalize to production-scale deployments. Vidur~\cite{vidur} further reports that simulation accuracy can even be improved with larger models as the inference CPU overhead accounts for a smaller fraction of end-to-end latency.
+
+\subsection{Prediction Accuracy} \label{section:predicting accuracy}
+
+\begin{table}[tb]
+    \caption{Response Length Prediction}
+    \centering
+    \begin{tabular}{ccc}
+    \toprule
+    Metric & Roberta Regressor & Prompt-based LLM  \\ \midrule
+    MAE & 78.755 & 62 \\
+    MAPE & 24.4\% & Not reported \\
+    Acc-50 & 69.93\% & 59\% \\
+    Acc-100 & 77.15\% & 81\% \\ 
+    \bottomrule
+    \end{tabular}
+    \caption*{Acc-X: percentage of data points with absolute error of predicted tokens less than X.}
+    \label{table:length_prediction}
+\end{table}%
+
+\subsubsection{Length Prediction}
+To train and evaluate our length prediction model, we divide the ShareGPT dataset into 40k training and 10k evaluation samples. We use the served model to generate responses and record the actual output lengths, which serve as labels for fine-tuning the RoBERTa-base model on a host equipped with an L40 GPU.
+
+The RoBERTa-base regression model (125M parameters) achieves accuracy comparable to the 7B prompt-based model reported in Sequence Scheduling~\cite{length_estimation} (presented in Table \ref{table:length_prediction} and Sequence-Scheduling results are updated and reported in \cite{githubGitHubZhengzangwSequenceScheduling}) to predict the number of responses' tokens,  resulting in the mean absolute error (MAE) to 78.755 and the mean absolute percentage error (MAPE) as 24.4\%. The Sequence Scheduling study also derives its metrics from 10k conversation requests, sampled from another conversation dataset~\cite{lmsysVicunaOpenSource}. The offline evaluation of our 10k requests using PyTorch completes in only 4.8 seconds, demonstrating that online serving overhead from length estimation can be negligible. This is further supported by other research involving a BERT-based length estimator experimented online. For instance, \( S^3 \) measures the prediction latency of DistilBERT at only 3.7 ms, while ELIS reports an average overhead, including batching and length estimation, of 11.4 ms. We use all 10k requests, tagged with both their real and estimated lengths for the evaluation.  While this model was trained on a limited dataset, its performance is sufficient for our purposes. Also, its accuracy could be further improved significantly in a production environment with extensive, real-world data.
+
+
+\begin{figure*}[htb]
+        \centering % <-- added
+          \includegraphics[width=0.95\linewidth]{figure/exp_plots/cluster_metrics/qps.png}
+        \caption{Request Metrics Under Different QPS}
+        \Description{Key serving metrics (e.g., end-to-end latency, TTFT, tail latency, throughput, and scheduling overhead) measured across different external query-per-second (QPS) levels for Astrolabe and baseline schedulers.}
+        \label{fig:request_metrics}
+\end{figure*}
+
+\subsubsection{Simulation-based Metric Prediction}
+First, we assess the accuracy of the runtime simulator in predicting metrics and its effectiveness for scheduling, as shown in Figure~\ref{fig:latency_prediction}. In this experiment, Astrolabe processes requests with real length under varying QPS from 20 to 36 using a random scheduler, recording both predicted and actual serving latencies. Online requests have a 1\% probability to be sampled. When triggered, a sampled request initiates two actions: 1) reporting the accumulated prediction error for all preceding requests, and 2) broadcasting itself to all instances and marking the instance with minimal predicted latency as selected. 
+
+
+% \begin{figure}
+%     \includegraphics[width=\linewidth]{figure/exp_plots/cluster_metrics/cdf.png}
+%     \caption{CDF for Latency Metrics}
+%     \label{fig:cdf}
+% \end{figure}
+
+The top row in the figure reports the prediction error rate. We observe that enabling Chunked Prefill yields significantly lower error than the vLLM's default Prioritized Prefill. This is because Prioritized Prefill causes decoding stalls triggered by future request arrivals, and such events are unknown at the moment of prediction. Consequently, the simulator cannot model these random interruptions. Chunked Prefill mitigates this by interleaving prefill and decode phases as explained in \S\ref{section:motivation}, aligning runtime behavior with the simulator's linear model. The middle and bottom rows further validate the scheduling effectiveness. The scatter plots in the middle row show that the latency of the selected instance (red line) consistently tracks the bottom area of the latency distribution (blue dots) and remains significantly below the cluster mean (black line). This demonstrates that even when the scheduler does not select the absolute optimal instance, it consistently avoids overloaded nodes and routes to a high-performance candidate. The bottom row displays the 'Real Latency Position', denoting the rank of the selected instance among all candidates (where 1 is optimal). While the absolute prediction error ranges from 10 to 15\%, Astrolabe mainly relies on \emph{relative} latency ranking for instance selection: the scheduler maintains a high probability (40 to 80\%) of selecting the Rank-1 instance. This is because a large fraction of prediction error manifests as near-constant system noise (e.g., RPC overhead) that affects all instances similarly and therefore does not change their relative ordering; as a result, Astrolabe can still avoid overloaded nodes even when absolute errors are non-trivial.
+
+To validate that Astrolabe's simulation accuracy extends to larger models with tensor parallelism, we evaluate Llama-2-70B on the 2-node A100 cluster with TP=4 (4 GPUs per instance, 2 instances total). At QPS=3 with a 10\% sampling rate, the simulator achieves a latency-prediction error of 16.6\%. This is relevant because Astrolabe relies on the predictor for scheduling, and production systems can serve larger models. Prior work (Vidur~\cite{vidur}) observes that, under the same serving stack, simulator accuracy tends to improve at larger model scales because unmodeled per-request CPU/framework overhead becomes a smaller fraction of end-to-end latency; thus, our 70B result provides evidence that Astrolabe's predictor remains effective under production-scale deployments.
+
+% Graphs in the top row show that the prediction error rate is stabilized and is consistently lower when using Chunked Prefill compared to prioritized prefill. This shows the effectiveness of Chunked Prefill in mitigating the disruptive stall bubbles that affect latency prediction. Further, overall error rates between 10\% to 15\% confirm the simulator's high accuracy. Also, this 10-15\% prediction error is not expected to entirely skew instance selection, as it includes a constant errors caused by CPU/messaging overhead that uniformly impacts all instances and therefore does not alter their relative latency rankings.
+
+% Scatter plots in the middle row show serving latencies for sampled requests across all instances, demonstrate the correlation between predicted and actual latencies. These findings are further supported by the graphs in the bottom row which present the rank distribution of the same selected instances as above. Results indicate a high probability (40\% to 80\% with increasing QPS) that the scheduler selects the best-performing instance. 
+
+\subsection{Request Latency Performance} \label{section:request_performance}
+Figure~\ref{fig:request_metrics} assesses Astrolabe's effectiveness. It compares Astrolabe against different baseline schedulers, namely random, round robin, Min QPM, INFaaS++, and Llumnix- as described in \S\ref{section:implementation}, at varying external QPS.
+
+We present results on the following performance metrics: (1) end-to-end (E2E) request latency; (2) TTFT, measured from request arrival to first-token generation; (3) scheduling overhead, defined as the difference between end-to-end latency and time spent inside inference back; (4) capacity as the max QPS under an SLO: following Vidur~\cite{vidur}, capacity is the maximum QPS meeting a predefined SLO, and we set this SLO to P99 TTFT $<$ 3 seconds; and (5) request throughput, defined as the number of completed requests divided by the total experiment time.
+
+This section focuses on comparing Astrolabe against the Llumnix dispatcher heuristic (denoted Llumnix- in \S\ref{section:implementation}). This is because full Llumnix (v0.1) with live migration could not run stably on our single-GPU-per-host A30 cluster due to the absence of high-speed intra-node interconnects required for KV-cache migration. A comprehensive comparison with full Llumnix on appropriate multi-GPU hardware is presented in \S\ref{section:llumnix_comparison}.
+
+
+We use \textsc{Astrolabe} to denote the scheduler operating with predicted output lengths, and \textsc{Astrolabe-len-oracle} to denote an oracle-length variant that uses ground-truth output lengths. We report \textsc{Astrolabe-len-oracle} as a best-case reference point for the benefits of accurate length information, while \S\ref{section:error_sensitivity} evaluates robustness under injected prediction noise over Astrolabe.
+The oracle-length assumption can be a reasonable approximation in practical settings where output length is effectively known or controllable, e.g., (i) structured-generation applications that enforce fixed schemas/patterns via constrained decoding (e.g., JSON-schema-guided decoding~\cite{geng2025jsonschemabench,beurerkellner2022lmql,willard2023efficient}), or (ii) applications that actively adapt response length under congestion via length-control mechanisms~\cite{reddy2025bellman}. To measure capacity with finer granularity, we conduct a search around integer QPS values bracketing the SLO.
+
+\begin{figure*}[htb]
+        \centering % <-- added
+        \includegraphics[width=0.95\linewidth]{figure/exp_plots/cluster_metrics/linear.png}
+         \caption{Average/Variance of GPU memory Blocks and Total Number of Preemption Under different QPS}
+         \Description{These time-related figures have been smoothed using a unified gaussian filter to reduce noise and enhance readability.}
+         \label{fig:resource}
+\end{figure*}
+
+% --- Original version (commented out for comparison) ---
+
+% As shown in Figure~\ref{fig:request_metrics}, Astrolabe and Astrolabe-len-oracle consistently outperform baseline schedulers across nearly every metric. They achieve the lowest mean and tail TTFT/E2E latency, along with the highest throughput. 
+
+% Astrolabe-len-oracle shows additional overhead latencies (approximately 80 ms within capacity) compared to baseline schedulers. This extra overhead is primarily incurred by simulation for metrics' predictions, whereas in other schedulers, overheads are attributed to data transferring and parsing. Predictors execute in parallel, so each scheduling round is gated by the slowest Predictor response, while the control-plane fanout is linear in the number of instances (and can be reduced via power-of-k choices; \S \ref{section:schedulers}). Once offered load exceeds capacity, end-to-end latency becomes queueing-dominated: it is driven primarily by the longest waiting queue among instances and grows rapidly under overload.
+
+% Astrolabe slightly underperforms compared to Astrolabe-len-oracle due to the error of length estimation but with less simulation overhead addition (while the overhead for length estimator also need to be included). This discrepancy in simulation overhead is due to the greater uniformity of the estimated output length relative to the actual length, causing higher hit rate on cached batch latencies during simulation. The overhead is below 3\% of the E2E latency and tends to decrease once capacity is reached, as E2E latency then spikes more rapidly. Furthermore, INFaaS++ outperforms three basic schedulers under low QPS, but exhibits significant performance degradation with QPS increasing, particularly in tail latencies. Llumnix- mitigates this issue and outperforms other baselines by applying prefill length of pending queries as correction items over INFaaS++ load calculation as detailed in \S\ref{section:implementation}. Taking QPS 32 as an example, our system reduces average/P99 TTFT by 88.07\%/78.6\% (Astrolabe-len-oracle) and 23.58\%/10.84\%(Astrolabe) respectively.
+% For E2E latency, Astrolabe-len-oracle/Astrolabe achieve reductions of 19.87\%/12.56\% on mean and 3.55\%/0.82\% at tails. These improvements ultimately lead to throughput gains of 4.44\%/2.53\%, as the reduction of total experiment duration. Similar trends hold across QPS and get more pronounced at higher QPS. These improvements ultimately translate into increased serving capacity under SLO, rising from 30.7 QPS (Llumnix-) to 31.1 QPS (Astrolabe) and 32.0 QPS (Astrolabe-len-oracle), representing gains of 1.3\% and 4.2\%, respectively. 
+
+% Paragraph 1: Primary System Performance & Scalability
+As shown in Figure~\ref{fig:request_metrics} Astrolabe consistently outperforms baseline schedulers across nearly every metric while maintaining a scheduling overhead comparable to heuristic approaches. INFaaS++ performs well under low QPS but exhibits significant tail latency degradation as load increases; Llumnix- mitigates this by applying prefill-length corrections, yet Astrolabe achieves superior performance by leveraging simulation to prevent overloading instances. Taking QPS 33 as an example, Astrolabe reduces average/P99 TTFT by 11.53\%/12.94\% compared to Llumnix-. For end-to-end (E2E) latency, Astrolabe reduces the mean by 2.83\% and the tail by 4.23\%. It achieves the largest TTFT improvements at QPS=31, reducing the mean and tail by 42.71\% and 44.72\%, respectively. At QPS=36, it also delivers the strongest E2E latency gains, reducing the mean and tail by 1.53\% and 7.15\%, which increases SLO-satisfying serving capacity from 30.7 QPS (Llumnix-) to 31.1 QPS (Astrolabe).
+
+We additionally evaluate Astrolabe-len-oracle alongside the baselines. Compared to Llumnix- at QPS=33, Astrolabe-len-oracle reduces average/P99 TTFT by 47.40\%/50.13\% and reduces mean/P99 E2E latency by 15.81\%/12.78\%. At QPS=32, it delivers even larger improvements across all metrics except tail E2E latency, reducing mean/tail TTFT by 88.07\%/78.64\% and mean/tail E2E latency by 19.87\%/12.55\%. These improvements translate into a higher serving capacity by 32.0 QPS (a 4.2\% gain over Llumnix-), suggesting that production-scale, non-deduplicated traffic could further improve length estimation.
+
+Both Astrolabe and Astrolabe-len-oracle rely on per-instance simulation for metric prediction; within capacity, the oracle-length variant can incur higher scheduling overhead (under $\sim$80\;ms) and correspondingly higher predictor-side CPU load (\S\ref{section:cpu_overhead}). This discrepancy in simulation overhead is due to the greater uniformity of the estimated output length relative to the actual length, causing a higher hit rate on cached batch latencies during simulation. In our implementation, the overhead remains below 3\% of E2E latency and becomes less significant as the system approaches capacity, where E2E latency becomes queueing-dominated.
+
+
+\subsection{GPU Memory Utilization} \label{section:gpu_resources}
+
+The probed free memory blocks are not only required for Llumnix- and INFaaS++ dispatchers but also aid in investigating memory management behavior. We also modify vLLM to export the cumulative number of preemptions. Results are shown in Figure~\ref{fig:resource}, which are smoothed with gaussian filter to enhance readability. Plots in the first row refer to the average number of free blocks across instances before each scheduling followed by its variance as a measure of balance in the second row. The third row reports the accumulated preemption numbers for the cluster before receiving each query. Query ID in the plot reflects the order in which queries are sent to the global scheduler.
+
+Results show that Astrolabe effectively balances memory usage across the cluster and can explain why comparison schedulers exhibit degraded performance. They tend to maintain high variance in GPU resources across instances, leading to preemption even when cluster-wide memory is sufficient. When QPS is low, schedulers tend to prioritize latency, resulting in lower variance and more free blocks as requests complete quickly and preemption can be avoided. As QPS increases beyond cluster capacity, the cluster becomes saturated and all schedulers drive GPUs closer to full utilization, leaving fewer free blocks and increasing preemptions. In particular, Astrolabe-len-oracle may exhibit more preemptions at high QPS (e.g., 32 to 36) because it attains higher effective utilization and admits more work under overload, which reduces the slack available for subsequent requests and increases the likelihood of memory pressure and preemption. This phenomenon only appears in the overload regime and does not contradict the overall TTFT/E2E improvements reported in \S\ref{section:request_performance}.
+
+
+% === SoCC 2025 Revision: Additional Experiments ===
+\input{socc_llumnix_comparison}   % Comparison with Migration-based Scheduling
+\input{socc_po2_ablation}         % Scalability: Power-of-Two Choices
+\input{socc_burstiness}           % Robustness to Bursty Workloads
+\input{socc_error_heatmap}        % Sensitivity to Prediction Errors
+\input{socc_cpu_overhead}         % CPU Overhead Analysis
+% === End SoCC 2025 Revision ===
+
+\subsection{Generality Study}\label{section:general_study}
+\begin{table}[htb]
+\caption{Scheduler Capacities with Setting Variables}
+\small
+\begin{tabular}{lccccl}
+\toprule
+Scheduler& bs=24 & cs=2048 & qwen & burstgpt \\
+\midrule
+Astrolabe-len-oracle & 27.9  & 31.5    & 68.3    & 59.0    \\
+Astrolabe & 27.2  & 30.8    & 67.9    &  /   \\
+Llumnix- & 23.9  & 29.8    & 62.0      & 55.1    \\
+Gain  &  16.7\%/13.8\%  & 5.7\%/3.4\%    & 10.2\%/9.5\%      & 7.1\%    \\
+\bottomrule
+\end{tabular}
+\caption*{bs/cs means batch size and chunk size}
+\label{tab:scheduler_perf_scaled}
+\end{table}
+
+Any dynamic changes in LLM inference settings (e.g., backend configuration, model, and data) are usually ignored by heuristic schedulers' static rules and can cause performance drift, as discussed in \S\ref{section:scheduling_issues}. In contrast, Astrolabe automatically integrates such changes into its simulations to fill the gap, and we conduct a generality study comparing Astrolabe to the best baseline, Llumnix-, with different setting variables, as detailed in Table \ref{tab:scheduler_perf_scaled}.
+
+We first experiment with sub-optimal configurations by varying the batch size or chunk size. Both changes lead to greater performance degradation on Llumnix- and enhance the advantage of Astrolabe-len-oracle/Astrolabe, from the original 4.2\%/1.3\% gains in \S\ref{section:request_performance} to 16.7\%/13.8\% and 5.7\%/3.4\%. Then we extend the evaluation by incorporating new model (Qwen2-7B\cite{yang2024qwen2technicalreport}) and dataset (BurstGPT~\cite{burstgpt}), observing both replacements generate shorter responses, which enhances capacity and highlights the advantages of Astrolabe. When testing with Qwen2-7B with retraining the length estimation model for Astrolabe, we observe an improvement in capacity by 10.2\% for Astrolabe-len-oracle and 9.5\% for Astrolabe, showing their improvement on E2E and TTFT latencies. In contrast, BurstGPT provides only length traces without actual prompt content, making it impossible to train the length estimator model required for Astrolabe. So, we only test Astrolabe-len-oracle using dummy prompts and responses based on the traced lengths, similar to the vLLM benchmarking suite for BurstGPT, and achieve the 7.1\% gain.
+
+
+% \subsection{Auto Provisioning} \label{section:auto_provision}
+% As discussed in \S\ref{section:scheduling_issues}, provisioning based on runtime metrics could suffer from asynchronous cold start. Furthermore, accurate predicted metrics can be utilized for provisioning in a preemptive manner. To demonstrate this, we implement two simple latency-based auto-provisioning strategies. The \emph{preempt} strategy adds an instance when predicted latency (using ground-truth length with 15\% prediction accuracy in \S \ref{section:predicting accuracy}) reaches 70 seconds, while \emph{relief} strategy means provisioning only when actual latency hits the same threshold. We conduct experiments starting with six available instances under a QPS of 24. We also establish a baseline with a sufficient static cluster of 10 instances to allow all requests completed in time.
+
+%  \begin{figure*}[htb]
+%         \centering % <-- added
+%         \includegraphics[width=\linewidth]{figure/exp_plots/cluster_metrics/auto_provision.png}
+%          \caption{Auto Provisioning with Different Strategy Under QPS=24}
+%          \label{fig:auto_provsion}
+%          \subcaption*{Dotted lines at left-bottom figure indicate the change of scheduling instances when triggering provisioning.}
+% \end{figure*}
+
+% Figure ~\ref{fig:auto_provsion} presents the results, with the first column displaying the dot plot of request latencies and the changes of number of instances in the clusters along with Query IDs sent in order. The second column illustrates changes in the GPU free memory blocks of the clusters and the variances across instances
+
+% These results support our hypothesis that a \emph{relief} strategy causes over-provisioning.  As newly added hosts are unable to alleviate queued requests, which could trigger further provisioning, all backup instances become quickly exhausted. This situation causes memory imbalances and GPU resource wastage as more instances get provisioned in rush. In contrast, the \emph{preempt} strategy activates earlier, resulting in smoother changes in cluster size and ultimately provisioning only the necessary instances. Consequently, the second column shows lower variance and higher memory utilization over time. Also, the \emph{preempt} strategy ultimately leads to impressive results in the latency dot plots, reducing P99 latency by 20.1\% (from 89.2 to 71.2) and decreasing the number of requests exceeding 70 seconds by 81\% (from 627 to 129), even with fewer instances (from 12 to 10). We believe that the improvements from predictive-based provisioning can persist when applied to or extended into other complex and practical provisioning strategies in large-scale, real-world cluster management.  
+
+
+% \section{Future Work} 
+% Our current implementation already supports key components similarly to other LLM scheduling frameworks. As part of our future work, we plan to add features to align with the new key trends in LLM serving. While P-D disaggregation has not yet been integrated, we consider its support should be feasible. Similar to LLM-d~\cite{githubGitHubLlmdllmd}, it would involve dedicated schedulers for prefill and decode phases with inter-phase cache transferring enabled. Given that inter-instance cache transfer remains under active development within inference frameworks, and that aggregated architectures continue to achieve competitive performance through optimizations such as chunked-prefill \cite{agrawal2023sarathiefficientllminference}, optimized kernels \cite{podAttention}, and GPU multiplexing \cite{gao2025duetserveharmonizingprefilldecode}, we consider a comprehensive implementation of P-D disaggregation to be outside the scope of current work and reserve this exploration for future research.
+
+% Additionally, cache transfer enables the exploration of Block Scheduler combined with dynamic rebalancing. Nevertheless, we anticipate that when integrating the above features Block's performance advantages will persist, as the fundamental scheduling challenges discussed in \S\ref{section:scheduling_issues} remain pertinent in disaggregated settings. Furthermore, incorporating prefix caching~\cite{vllmAutomaticPrefix} can enhance simulator accuracy for real-world applications involving multi-turn conversations and repetitive prompts~\cite{sglang}. Since it has a negligible impact on experimental setup with de-duplicated dataset, we leave it for further exploration.
+
+% In addition to integrating the newly supported internal features from vLLM into Block, we plan to evaluate Block against larger models using other multi-GPU equipped hosts and model parallelism. As discussed in Section \ref{section:experiment_setting}, Vidur's evaluation indicates that larger models within the same classes achieve higher simulation accuracies. This could result in greater gains and more significant positive impacts from Block. We will also schedule future updates with the revised testbed setups in the future.
+
+\section{Conclusion}
+Astrolabe is a novel scheduler that incorporates length estimation and simulation techniques into scheduling in online LLM serving clusters. By one-shot, prediction-guided scheduling, Astrolabe significantly boosts cluster capacity and reduces request latencies. Our work shows the potential of prediction-guided scheduling, paving the way for more efficient, responsive, and scalable LLM serving.
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{reference}
+
+
+\end{document}
+
+
+
+
+
+
+
+
+

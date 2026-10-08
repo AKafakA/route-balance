@@ -1,0 +1,409 @@
+% TEMPLATE for Usenix papers
+\documentclass[letterpaper, anonymous, twocolumn, 10pt]{article}
+\usepackage{usenix,epsfig,endnotes}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{subcaption}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{stfloats}
+\usepackage[export]{adjustbox}
+\usepackage{xcolor}
+\usepackage{tabularx}
+\usepackage[justification=centering]{caption}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[usenames,dvipsnames]{xcolor}
+
+\DeclareRobustCommand{\legendsquare}[1]{\textcolor{#1}{\rule{1ex}{1ex}}}
+\DeclareUnicodeCharacter{03B2}{\ensuremath{\beta}}
+\newcommand{\Score}{\text{Score}}
+
+% COLOR DEFINITIONS
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.95}
+\definecolor{keywordblue}{rgb}{0.13, 0.13, 1}
+
+% JSON LANGUAGE DEFINITION
+\lstdefinelanguage{json}{
+    keywords={true, false, null},
+    keywordstyle=\color{keywordblue},
+    stringstyle=\color{codepurple},
+    string=[s]{"}{"},
+    commentstyle=\color{codegreen},
+    morecomment=[l]{//},
+    morecomment=[s]{/*}{*/}
+}
+
+\lstdefinestyle{jsonstyle}{
+    language=json,
+    backgroundcolor=\color{backcolour},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=tb,
+    captionpos=b,
+    showstringspaces=false,
+    numbers=left,
+    numberstyle=\tiny\color{gray}
+}
+
+\begin{document}
+
+\date{}
+
+\title{\Large \bf Cara: Co-optimizing Super Heterogeneous LLM Serving through Model Routing and Predictive Batch Scheduling}
+
+\author{{\rm Anonymous Authors}}
+
+\maketitle
+
+\subsection*{Abstract}
+% Abstract placeholder
+Modern LLM serving clusters are increasingly heterogeneous, combining diverse hardware generations (e.g., A100s, P100s) and software configurations. Existing schedulers struggle to balance this heterogeneity due to rigid cost models and control plane scalability bottlenecks. We introduce Cara, a high-throughput serving stack that unifies model routing and batch scheduling. Cara introduces a "Dead Reckoning" architecture that eliminates synchronous state polling, using a physics-informed shadow state to make $O(1)$ scheduling decisions. By modeling the interference dynamics of prefill/decode phases, Cara effectively utilizes older hardware for small tasks while preserving high-performance nodes for complex queries.
+
+\section{Introduction} \label{section:introduction}
+% Intro placeholder
+
+\section{Background and Motivation} \label{section:motivation}
+
+\subsection{LLM inference Process} \label{section:llm_inference_processes}
+\subsection{Task Scheduling and Model Routing}
+\subsection{Heterogeneity And Tradeoffs in LLM Serving}\label{section:heterogenity}
+
+\section{System Design} \label{section:design}
+
+This section presents the core design of Cara. First, \S \ref{section:API} introduces a new API allowing flexible request-level objectives. \S \ref{section:system_model} formalizes the scheduling task as a multi-objective optimization problem. Finally, \S \ref{section:Cara_system} details the high-performance architecture with \textbf{Dead Reckoning} control plane and physics-informed predictive modeling.
+
+\subsection{Batch Inference API with Request Specific Objective} \label{section:API}
+
+As discussed in § \ref{section:motivation}, modern LLM serving platforms typically provide two distinct APIs: a streaming online API for point-wise, latency-sensitive requests, and an offline batch API, which allows for delayed responses at a reduced cost \cite{googleBatchGemini, openaiOpenAIPlatform}. The latter enables the inference scheduler to prioritize throughput and cluster utilization, free from strict latency constraints. However, requests from both API types are often executed asynchronously through the same underlying inference instance, as detailed in § \ref{section:llm_inference_processes}. Consequently, even online requests incur delays that can still degrade user experience \cite{wang2024revisitingslogoodputmetrics}, necessitating the enforcement of strict Service-Level Objectives (SLOs) to maintain high "goodput" (the number of requests that meet their SLOs) and motivating LLM serving systems development \cite{liu2025turbospecclosedloopspeculationcontrol, zhong2024distservedisaggregatingprefilldecoding, wang2025prefilldecodeaggregationdisaggregationunifying} .
+
+Furthermore, contemporary LLM serving APIs have evolved beyond simple inference. They increasingly empower users to specify fine-grained directives within each request, which we term \textbf{Request-Specific Objectives (RSOs)}. For example, users can define completion deadlines for batch jobs or set model routing strategies \cite{openaiIntroducingGPT5, microsoftModelRouter} based on remaining budgets or quotas. Prevailing architectures are ill-equipped to handle these RSOs holistically. In a typical decoupled system, a high-level model router first selects a model pool based on some constraints, after which a separate, low-level scheduler attempts to load-balance requests across replicas to meet others, such as deadlines. This separation of concerns prevents global optimization.
+
+In Cara, we propose a new, unified API that generalizes the batch API to accept all customized RSOs as direct input to the inference predictive scheduler. As the pointwise online request is merely a special case of a batch request—specifically, a batch of size one with a highly restrictive latency RSO that is equal to or stricter than cluster's SLO, so the unified API subsumes both. We argue that scheduling requests individually is not always necessary to meet low-latency requirements. Instead, by adopting a batch inference and scheduling paradigm, which has been widely studied in cloud task scheduling \cite{eva-eurosys}, flexibility can be achieved to perform global load balancing and achieve superior trade-offs between performance and cost.  This API extend the existing batch API by introducing the new RSO, which empowers users to embed the quantified constraints and preferences directly within each individual request of a batch. The RSO field is designed to be extensible, allowing the scheduler to reason about diverse user intents. A simplified template for a single request is shown as
+\begin{minipage}{\linewidth}
+\begin{lstlisting}[style=jsonstyle, caption={Schema for Generate API request with RSOs.}, label={lst:api_schema}]
+[
+  {
+    "request_id": string,
+    "prompts": string,
+    "request_specific_objective": {
+      "latency_ms": int,
+      "model_quality_min": float,
+      "token_budget": int,
+      "relex_order": list
+    },
+    "sampling_params": dict
+  }
+]
+\end{lstlisting}
+\end{minipage}
+The current scheme's RSOs include the common objectives for scheduling and routing as end-to-end latency in milliseconds, normalized model quality score, and request budget charged based on tokens. Also, the framework can easily be extended to incorporate other critical objective metrics, such as a target for Time-to-First-Token (TTFT), providing a comprehensive view of user requirements to the Cara orchestrator.  The relax order field is used for constraint checking during scheduling as discussed in \S \ref{section:Cara_system}
+
+\subsection{Scheduling Model} \label{section:system_model}
+
+We formalize global scheduling as a multi-objective optimization problem  and be solved as general Mixed-integer linear programming (MILP) ideally. The goal is to assign requests to heterogeneous instances to minimize weighted penalties while respecting hard constraints.
+
+\paragraph{Sets and Indices:}
+\begin{itemize}
+    \item $R_B$: The set of requests in the current batch.
+    \item $I$: The set of pre-deployed heterogeneous model instances.
+\end{itemize}
+
+\paragraph{Prediction Parameters:}
+\begin{itemize}
+    \item $token_{r,i}$: The predicted total tokens for request $r$ when served by model of instance $i$.
+    \item $L_{i}$: The current Shadow Load (backlog of tokens) on instance $i$, tracked locally by the scheduler.
+    \item $U_{i}$: The Memory Utilization of instance $i$, defined as $L_i / \text{Cap}_i$.
+    \item $P_{r,i}(U_i)$: Predicted latency for request $r$ on instance $i$, which is normalized across instances to be mapped from 0 to 1. 
+    \item $C_{r,i}$: Normalized Predicted monetary cost for request $r$ on served model of instance $i$.
+    \item $Q_{r,i}$: Normalized Predicted quality score for request $r$ on served model of instance $i$.
+\end{itemize}
+
+\paragraph{Optimization Model:}
+With such modeling, we can design the objective as minimizes a weighted sum of latency, cost, quality loss, and makespan given instances and requests placements as.
+
+\begin{equation}
+\begin{aligned}
+\min_{x_{r,i}} \quad
+& \sum_{r\in R_B, i\in I} x_{r,i} \cdot \Big(w_{\text{lat}} P_{r,i}(U_i) + w_{\text{cost}} C_{r,i} - w_{\text{qual}} Q_{r,i} \Big) \\
+& \quad + w_{\text{m}} \cdot \max_{r \in R_B} \left( \sum_{i \in I} x_{r,i} P_{r,i}(U_i) \right) \\
+& \quad + w_{\text{u}} \cdot \sum_i \left( \frac{\sum_{r\in R_B} x_{r,i} \cdot \text{Tokens}_r + L_i}{\mathrm{Cap}_i}\right) \\
+\text{s.t.}\quad
+& \sum_{i \in I} x_{r,i} = 1, \\
+& \sum_{i \in I} x_{r,i} P_{r,i}(U_i) \le \min(\mathrm{RSO}_{\text{lat}}(r), \mathrm{SLO}_{\text{lat}}(r)), \\
+& \sum_{i \in I} x_{r,i} Q_{r,i} \ge \mathrm{RSO}_{\text{qual}}(r), \\
+& \sum_{i \in I} x_{r,i} C_{r,i} \le \mathrm{RSO}_{\text{budget}}(r), \quad \forall r \in R_B \\
+& \sum_{r \in R_B} x_{r,i} \cdot \text{Tokens}_r + L_i \le \mathrm{Cap}_i, \quad \forall i \in I
+\end{aligned}
+\end{equation}
+
+While the formulation above defines the theoretically optimal assignment, solving this MILP is computationally infeasible in a real-time serving loop, which is known to be NP-hard. A brute-force enumeration of the search space for a batch size of $|R_B|$ across $|I|$ instances scales exponentially as $O(|I|^{|R_B|})$. For a typical batch of 64 requests on 20 nodes, this search space is astronomical.
+
+Consequently, Cara does not attempt to solve the MILP exactly. Instead, in \S\ref{section:Cara_system}, we present a Greedy Batch scheduler using the priority-based streaming heuristic. This approach approximates the global objective by relaxing the combinatorial search into a sorted linear scan, achieving near-optimal placement with overhead comparable to traditional sequential scheduling ($O(|R_B| \cdot |I|)$).
+
+
+
+\subsection{Cara System Architecture} \label{section:Cara_system}
+
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{images/Cara.png}
+  \caption{\textbf{Cara System Architecture.} The centralized control plane use the  \textbf{Dead Reckoning} states of instances to make decisions locally. It utilizes \textbf{Opportunistic Synchronization} via periodic update to asynchronously correct state drift.}
+  \label{fig:cara}
+\end{figure}
+
+The architecture of Cara (Figure \ref{fig:cara}) is designed to overcome the control plane scalability bottlenecks inherent in standard polling-based schedulers. Cara adopts a \textbf{Centralized Shadow State} design with \textbf{Dead Reckoning}.
+
+The request lifecycle follows a Push-Based workflow:
+\begin{enumerate}
+    \item \textbf{Ingest:} Requests are appended to a global queue.
+    \item \textbf{Shadow Simulation:} The scheduler simulates placement using a physics-informed cost model, updating the local Shadow State immediately (Dead Reckoning).
+    \item \textbf{Opportunistic Correction:} Instead of polling, Cara relies on \textbf{Event-Driven Telemetry}. Workers piggyback aggregate load counters (e.g., \textit{pending\_tokens}) on standard HTTP streaming responses. This creates a self-regulating feedback loop: heavily loaded nodes provide frequent updates, while idle nodes incur zero control plane overhead.
+\end{enumerate}
+
+\subsubsection{Physics-Informed Adaptive Modeling} \label{sec:modeling}
+Prior works \cite{SamuLLM, da2025blockbalancingloadllm} rely on cycle-accurate simulation or deep learning (LSTMs) for performance prediction. While accurate, these approaches are either brittle (requiring re-profiling for every kernel update) or opaque (struggling to extrapolate to unseen batch sizes).
+
+Cara adopts a \textbf{"Gray Box" approach} via \textbf{Physics-Informed Adaptive Regression}. We observe that regardless of the specific software version (e.g., vLLM chunked vs. blocking), latency is governed by the hardware Roofline model. We decouple prediction into two components:
+
+\paragraph{1. Model Estimator (Black Box):}
+We use a Gradient Boosting Regressor (XGBoost) to predict the **Output Token Count** ($\hat{N}_{out}$) and **Quality** ($Q_{r,i}$) based on prompt features, as these semantic properties are non-linear and model-specific.
+
+\paragraph{2. Performance Predictor (Gray Box):}
+To map token counts to execution time, we use an \textbf{Interference-Aware Affine Model}. This explicitly models the interaction between prefill (compute-bound) and decode (memory-bound) phases.
+The latency $P_{lat}$ for a request is defined as:
+\begin{equation}
+    P_{lat} = \text{TTFT} + (\text{TPOT}_{avg} \times \hat{N}_{out})
+\end{equation}
+Where the components are regressed as:
+\begin{align}
+    \text{TTFT} &= \alpha_i \cdot N_{in} + C_{prefill} \\
+    \text{TPOT} &= \beta_i \cdot L_{kv} + \underbrace{\gamma_i \cdot (L_{kv} \times \mathbb{I}_{prefill})}_{\text{Interference Term}} + C_{step}
+\end{align}
+Here, $L_{kv}$ is the total KV-cache size. The **Interference Term** is crucial for hardware agnosticism:
+\begin{itemize}
+    \item On legacy \textbf{Blocking} engines (e.g., vLLM v0.4 on P100), prefill pauses decoding. The regression learns a large $\gamma_i$, penalizing mixed batches.
+    \item On modern \textbf{Chunked} engines (e.g., A100), prefill is interleaved. The regression learns a small $\gamma_i$.
+\end{itemize}
+This allows Cara to support heterogeneous schedulers without manual engineering.
+
+\paragraph{Online Calibration.}
+To handle dynamic variance (e.g., thermal throttling), Cara maintains a running performance scalar $\eta_i$ for each node, updated via an Exponential Moving Average (EMA) of the ratio between predicted and observed execution times from heartbeats. The final prediction is adjusted as $P_{final} = P_{lat} / \eta_i$.
+
+\subsubsection{Greedy Scheduler with Dead Reckoning} \label{section:alogrithm}
+
+To solve the optimization problem at runtime without network blocking, Algorithm \ref{alg:greedy} operates entirely on the local Shadow State, using time-decay simulation to estimate progress between heartbeats.
+
+\begin{algorithm}[t]
+\caption{Priority-Based Streaming Scheduler (v3)}\label{alg:streaming}
+\begin{algorithmic}[1]
+\Require $R_{batch}, \mathcal{I}, \Score, \text{ShadowState}$
+\Ensure $P^*$
+
+\Function{Schedule}{$R_{batch}, \mathcal{I}, \Score, \text{ShadowState}$}
+    \State $P \leftarrow \text{NewEmptyPlacement}()$
+    
+    % 1. Local copy of state for dead reckoning
+    \State $S_{local} \leftarrow \text{Copy}(\text{ShadowState})$
+    
+    % 2. Priority Sort: "Big Rocks First" (Heuristic for Heterogeneity)
+    % Sort by predicted cost (tokens) descending to minimize fragmentation
+    \State $R_{sorted} \leftarrow \Call{SortDescending}{R_{batch}, \text{key}=r.\text{cost}}$
+    
+    % 3. Streaming Greedy Assignment (O(N * M) complexity)
+    \For{$r \in R_{sorted}$}
+        \State $(s^*, i^*) \leftarrow (-\infty, \text{None})$
+        
+        \For{$i \in \mathcal{I}$}
+            % Apply Dead Reckoning decay to get current view
+            \State $L_{curr} \leftarrow \Call{ApplyDecay}{S_{local}[i]}$
+            
+            % Calculate Score: Latency + Cost + Quality - Penalty
+            \State $s' \leftarrow \Call{ScoreRequest}{r, i, L_{curr}}$
+            
+            \If{$s' > s^*$}
+                \State $(s^*, i^*) \leftarrow (s', i)$
+            \EndIf
+        \EndFor
+        
+        % 4. Commit and Dead Reckon
+        \State $P[r] \leftarrow i^*$
+        \State \Call{UpdateShadow}{$S_{local}[i^*], r$}
+    \EndFor
+    
+    \State \text{ShadowState} $\leftarrow S_{local}$
+    \State \Return $P$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+
+% \subsubsection{Extension: Prefill/Decode Disaggregation (PD) in Cara} \label{sec:pd_extension}
+
+% Cara's core design targets general multi-instance serving where each model instance performs both prefill and decoding. We further extend Cara to support \textbf{prefill/decode disaggregation (PD)}, where prompt processing (\textit{prefill}) and autoregressive generation (\textit{decode}) execute on separate instances. This extension is orthogonal to Cara's control plane: the scheduler still operates on a centralized \textbf{Shadow State} with \textbf{Dead Reckoning}, but the latency predictor and shadow updates become \textbf{two-stage}.
+
+% \paragraph{Two-Stage Latency Decomposition.}
+% In PD, the user-visible latency (including TTFT) depends on both stages. For a request $r$ with prompt length $N_{in}$ and predicted output length $\hat{N}_{out}$, mapped to a prefill instance $p$ and a decode instance $d$, we decompose:
+% \begin{align}
+% T_{P}(r,p) &= W_{P}(p) + C_{P}(r,p), \\
+% T_{KV}(r,p\!\rightarrow\!d) &= t_{0} + \frac{\text{KVBytes}(r)}{BW_{\text{eff}}(p\!\rightarrow\!d)}, \\
+% T_{D}(r,d) &= W_{D}(r,d) + C_{D,1}(d) + C_{D,rest}(r,d),
+% \end{align}
+% where $W_{P}$ and $W_{D}$ are queueing delays at prefill and decode, $C_{P}$ is prefill compute time, $C_{D,1}$ is the first decode step time, and $C_{D,rest}$ is the remaining decode time. The end-to-end latency predictor becomes:
+% \begin{equation}
+% P_{lat}^{PD}(r,p,d) \;=\; T_{P}(r,p) \;+\; T_{KV}(r,p\!\rightarrow\!d) \;+\; T_{D}(r,d).
+% \end{equation}
+% Note that in PD, \textbf{TTFT is not determined by prefill alone}: the first token is produced only after the request becomes runnable at the decode instance and completes its first decode step.
+
+% \paragraph{KV-Transfer Term.}
+% The transfer payload is the KV cache generated by prefill. Cara estimates:
+% \begin{equation}
+% \text{KVBytes}(r) \;\approx\; N_{in} \cdot \text{KVBytesPerToken}(m),
+% \end{equation}
+% where $\text{KVBytesPerToken}(m)$ is a model-specific constant (derived from model configuration and precision) that can be pre-profiled once per model family and reused across deployments. $BW_{\text{eff}}(p\!\rightarrow\!d)$ is the effective bandwidth between the two nodes; Cara can treat it as (i) a calibrated constant per link class (e.g., 100GbE), or (ii) an online-estimated value updated from observed KV transfer durations (similar in spirit to $\eta_i$ calibration).
+
+% \paragraph{Time-Shifted Decode Queueing via Shadow Finish Time.}
+% A key subtlety in PD is that decode queueing must be predicted at the time the request \emph{arrives} at decode, not at scheduling time. To make this robust, Cara maintains a per-decode-instance \textbf{shadow finish time} $F_d$ (in seconds), representing when decode is predicted to finish processing all work already assigned to $d$. For a candidate placement $(p,d)$, the predicted arrival time at decode is:
+% \begin{equation}
+% t_{\text{arr}}(r,p,d) \;=\; t_{\text{now}} + T_{P}(r,p) + T_{KV}(r,p\!\rightarrow\!d).
+% \end{equation}
+% Then the decode waiting time is:
+% \begin{equation}
+% W_{D}(r,d) \;=\; \max\!\big(0,\; F_d - t_{\text{arr}}(r,p,d)\big).
+% \end{equation}
+% After Cara commits $(p,d)$, it updates shadow state by dead reckoning:
+% \begin{align}
+% F_d &\leftarrow \max(F_d,\; t_{\text{arr}}(r,p,d)) \;+\; \underbrace{\big(C_{D,1}(d) + C_{D,rest}(r,d)\big)}_{\text{predicted decode service time}}, \\
+% L_p &\leftarrow L_p + N_{in}, \qquad L_d \leftarrow L_d + \hat{N}_{out},
+% \end{align}
+% where $L_p$ and $L_d$ are shadow backlog proxies (tokens/work units). This update ensures that \textbf{later placements in the same scheduling round} automatically account for earlier requests that will arrive at decode sooner.
+
+% \paragraph{Bundled vs. Flexible PD Pairing.}
+% In practice, PD deployments often restrict prefill-to-decode connectivity to a topology-aware \textbf{communication group} (e.g., within a rack or within a high-bandwidth fabric). Cara naturally supports this by limiting candidate $(p,d)$ pairs to a preconfigured feasible set. Within a group, Cara can still dynamically select the least-cost decode instance using the predictor above. We evaluate PD primarily as a side study (\S\ref{sec:eval_pd}), and leave large-scale global rematching across arbitrary $(p,d)$ pairs as future work.
+
+
+\section{Implementation} \label{section:implementation}
+The Cara prototype consists of 5000 lines of Python...
+
+\section{Evaluation} \label{section:evaluation}
+
+\subsection{Experimental Setup} \label{section:evaluation_setup}
+
+To evaluate Cara's ability to manage extreme hardware and model heterogeneity, we constructed a physical testbed on CloudLab \cite{cloudlab} representing a fragmented, multi-generation data center. The cluster explicitly targets the challenge of co-serving massive models (72B) alongside lightweight models (3B) on hardware ranging from legacy Pascal GPUs to modern Ampere accelerators.
+
+\subsubsection{Testbed and Hardware Constraints}
+Our cluster consists of 18 physical worker nodes spanning four GPU generations. As detailed in Table \ref{tab:testbed}, the deployment strategies were tailored to the physical constraints of each hardware tier.
+
+\paragraph{Legacy Tier Engineering (P100/Pascal):}
+Incorporating the Cisco C240-M5 nodes (Tesla P100, 16GB) presented significant system challenges. Modern inference kernels (e.g., FlashAttention-2, Marlin kernels) require Compute Capability $\ge$ 7.0 (Volta+), while the P100 is restricted to sm\_60. To integrate these nodes into the Cara mesh, we engineered a custom build of vLLM v0.4.2 before vLLM-v0 get cleaned:
+\begin{itemize}
+    \item \textbf{Kernel Pruning:} We modified the build configuration (`CMakeLists.txt`) to exclude unsupported kernels, specifically the `moe\_wna16.cu` and FlashAttention CUDA extensions, which fail to compile on sm\_60.
+    \item \textbf{Backend Downgrade:} As vLLM v1 dropped support for non-FlashAttention hardware, we forced to use the old V0-version to allow the downgrade the attention backend to \textbf{Xformers}. This creates a valuable experimental condition: our cluster simultaneously operates distinct software generations (v0.4 vs. v0.11) alongside distinct hardware architectures, exploring the multi-dimensional heterogeneity.
+    \item \textbf{Execution Model:} These nodes also operate in "Blocking Prefill" mode (v0.4 architecture), creating a distinct performance profile compared to the "Chunked Prefill" behavior of the modern nodes.
+\end{itemize}
+
+\paragraph{High-Density Tier (A100/Ampere):}
+Serving \textbf{Qwen-2.5-72B} on the Dell d8545 nodes (4x A100-40GB) required aggressive memory tuning. To fit the model weights and KV-cache within the 160GB aggregate pool, we set `gpu-memory-utilization` to 0.95 and enabled `enforce-eager` execution to reduce CUDA graph memory overhead.
+
+\begin{table}[h]
+\centering
+\small
+\resizebox{\linewidth}{!}{
+\begin{tabular}{l|l|c|l|l}
+\hline
+\textbf{Node Type} & \textbf{GPU Config} & \textbf{Qty} & \textbf{Model Served} & \textbf{Sys. Config} \\
+\hline
+Dell d8545 & 4 $\times$ A100 (40GB) & 2 & Qwen-2.5-72B & TP=4, Eager \\
+Dell C4130 & 4 $\times$ V100 (32GB) & 3 & Qwen-2.5-14B & TP=4, vLLM-v0.6 \\
+Dell d7525 & 1 $\times$ A30 (24GB) & 5 & Qwen-2.5-7B & vLLM-v0.6 \\
+Dell d7525 & 1 $\times$ A30 (24GB) & 3 & Qwen-2.5-3B & vLLM-v0.6 \\
+Cisco C240 & 1 $\times$ P100 (16GB) & 5 & Qwen-2.5-3B & \textbf{vLLM-v0.4 (Mod)} \\
+\hline
+\textbf{Total} & \textbf{33 GPUs} & \textbf{18} & \multicolumn{2}{l}{\textbf{Super-Heterogeneous Mix}} \\
+\hline
+\end{tabular}
+}
+\caption{\textbf{Super-Heterogeneous Testbed.} The cluster serves the Qwen-2.5 family. Notably, Qwen-3B is served on both modern A30s and legacy P100s to test Cara's ability to model intra-model performance variance across hardware generations.}
+\label{tab:testbed}
+\end{table}
+
+\subsubsection{Workload Construction}
+We evaluate Cara using a composite dataset derived from the \texttt{best-route} extension of the vLLM benchmarking suite. The workload is designed to represent uncorrelated, open-domain API traffic with strict length constraints.
+
+\paragraph{Dataset Composition:}
+We aggregate prompts from nine benchmarks (Table \ref{tab:dataset}). For multi-turn datasets like \textbf{ShareGPT}, we explicitly extract only the \textbf{first turn} (User Prompt $\to$ Assistant Response) to standardize the request format. This prevents the scheduler from benefiting from artificial prefix caching hits inherent in multi-turn request replay.
+
+\paragraph{Traffic Shape \& Constraints:}
+To align with the hardware constraints of the P100 nodes and standard benchmarking protocols, we enforce strict token limits:
+\begin{itemize}
+    \item \textbf{Length Filtering:} All requests are filtered such that $N_{prompt} < 1024$ and $N_{total} < 2048$. This mirrors the hardcoded constraints often found in serving benchmarks while ensuring requests fit within the limited context window of legacy hardware.
+    \item \textbf{Uncorrelated Arrival:} Request arrival follows a Poisson process with randomized input sources. The lack of shared system prompts or multi-turn history results in negligible prefix overlap ($<16$ tokens), isolating the evaluation to load balancing efficiency rather than cache locality.
+\end{itemize}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{l|l|r}
+\hline
+\textbf{Dataset Source} & \textbf{Domain} & \textbf{Ratio} \\
+\hline
+ShareGPT & Chat / Dialogue & $\approx 15\%$ \\
+CodeUltraFeedback & Code Generation & $\approx 15\%$ \\
+GSM8K & Math Reasoning & $\approx 10\%$ \\
+SQuAD / TriviaQA & QA / Knowledge & $\approx 15\%$ \\
+CNN / DailyMail & Summarization & $\approx 10\%$ \\
+Mix Instruct & General Instruction & $\approx 15\%$ \\
+Refusals / Safety & Safety / Red Teaming & $\approx 10\%$ \\
+AI2 ARC & Logic / Reasoning & $\approx 10\%$ \\
+\hline
+\textbf{Total Requests} & \textbf{Mixed} & \textbf{18970} \\
+\hline
+\end{tabular}
+\caption{\textbf{Workload Composition.} A diverse mix of tasks with varying output length distributions ($N_{out}$), challenging the Model Estimator's ability to predict decode duration.}
+\label{tab:dataset}
+\end{table}
+
+\subsection{Side Study: Prefill/Decode Disaggregation} \label{sec:eval_pd}
+
+While Cara is designed for general multi-instance serving, we additionally conduct a side study to evaluate Cara under \textbf{prefill/decode disaggregation (PD)}. The goal is not to claim that Cara is a specialized PD scheduler, but to validate that (i) Cara's shadow-state control plane remains effective under two-stage execution, and (ii) Cara's predictor can incorporate the KV-transfer term and time-shifted decode queueing described in \S\ref{sec:pd_extension}.
+
+\subsubsection{PD Testbed Configuration}
+To focus on realistic high-bandwidth KV transfer, we exclude the legacy P100 tier for this side study and use only nodes with 100Gb-class experiment NICs. We deploy PD instances for the Qwen-2.5 family with the following configurations (subject to hardware availability):
+\begin{itemize}
+    \item \textbf{14B on V100 (PD, 1P2D):} One prefill instance and two decode instances, each using TP=4. This configuration stresses \textbf{decode selection} and \textbf{stage imbalance} under load.
+    \item \textbf{7B on A30 (PD, 4$\times$1P1D):} Four independent PD pipelines (each 1P1D with TP=1), enabling Cara to load-balance across multiple PD bundles under heterogeneous request lengths.
+    \item \textbf{(Optional) 72B on A100 (PD, 1P1D):} One prefill instance (TP=4) and one decode instance (TP=4) across the two A100 nodes. This serves as a feasibility case to validate KV-transfer modeling at large KV sizes.
+\end{itemize}
+
+\subsubsection{Baselines}
+We compare Cara-PD against simple but representative dispatch policies:
+\begin{itemize}
+    \item \textbf{Static pairing + round-robin decode:} Requests are routed to a fixed prefill instance, then dispatched round-robin to decode replicas.
+    \item \textbf{Least-queue decode:} Requests are routed to prefill, then dispatched to the decode replica with the smallest instantaneous queue (using only current counters, without time-shifted arrival modeling).
+    \item \textbf{Decoupled routing + LB:} A two-step pipeline that selects a model pool first (e.g., 7B vs 14B) and then performs per-replica load balancing, without joint optimization.
+\end{itemize}
+
+\subsubsection{Metrics}
+We report:
+\begin{itemize}
+    \item \textbf{TTFT / TPOT / End-to-End Latency:} p50/p95/p99 under varying offered loads.
+    \item \textbf{Goodput under RSOs/SLOs:} fraction of requests meeting latency (and optional TTFT) objectives.
+    \item \textbf{Stage Balance:} utilization and backlog of prefill vs decode pools over time (to reveal P/D imbalance).
+    \item \textbf{KV Transfer Cost:} measured KV transfer time distribution and effective bandwidth $BW_{\text{eff}}$, and the prediction error of the KV-transfer term.
+    \item \textbf{Control-Plane Overhead:} scheduler decision time and telemetry volume, confirming Cara's network-free hot loop remains lightweight under PD.
+\end{itemize}
+
+
+\section{Related Work}\label{section:related_work}
+
+\section{Conclusion}
+
+{\bibliographystyle{acm}
+\bibliography{sample}
+}
+
+\appendix
+% (Appendices remain as provided in previous prompt)
+\end{document}

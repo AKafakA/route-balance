@@ -1,0 +1,17 @@
+% SoCC Revision: Burstiness Study
+% Include this file in main.tex with: \input{socc_burstiness}
+
+\subsection{Robustness to Bursty Workloads}\label{section:burstiness}
+
+Real-world LLM traffic exhibits bursty patterns~\cite{burstgpt}. We evaluate Astrolabe under varying burstiness using gamma-distributed arrivals with shape parameters $\alpha \in \{0.25, 0.5, 1.0, 2.0\}$, where lower $\alpha$ produces more bursty (higher variance) inter-arrival times; when $\alpha = 1.0$, the arrival process reduces to the Poisson case (exponential inter-arrival times). All experiments run at QPS=30.
+
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=\linewidth]{figure/SoCC_revision/burstiness_lines.png}
+    \caption{Latency under bursty workloads}
+    \Description{Mean and P99 latency results under gamma-distributed (bursty) arrivals with different shape parameters, comparing Astrolabe and Llumnix- at a fixed QPS.}
+    \label{fig:burstiness}
+\end{figure}
+
+Figure~\ref{fig:burstiness} shows Astrolabe performs comparably to Llumnix- across all burstiness levels. All the differences are within $\pm$1\% for mean and $\pm$1.1\% for P99. Astrolabe is slightly worse under high burstiness (e.g $\alpha=0.25$ leading +0.9\% on the average latency) but better under regular arrivals ($\alpha=2.0$ shows 1.1\% reduction on P99). This pattern aligns with our Astrolabe-Po2 findings (\S\ref{section:po2_ablation}): under bursts, Astrolabe's simulation overhead increases thundering herd likelihood when multiple requests observe identical instance states. Both systems show similar absolute sensitivity to burstiness, moving from $\alpha=2.0$ to $\alpha=0.25$ increases mean latency by $\sim$4\% for both Astrolabe and Llumnix-.
+

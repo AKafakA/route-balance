@@ -1,0 +1,430 @@
+% TEMPLATE for Usenix papers, specifically to meet requirements of
+%  USENIX '05
+% originally a template for producing IEEE-format articles using LaTeX.
+%   written by Matthew Ward, CS Department, Worcester Polytechnic Institute.
+% adapted by David Beazley for his excellent SWIG paper in Proceedings,
+%   Tcl 96
+% turned into a smartass generic template by De Clarke, with thanks to
+%   both the above pioneers
+% use at your own risk.  Complaints to /dev/null.
+% make it two column with no page numbering, default is 10 point
+
+% Munged by Fred Douglis <douglis@research.att.com> 10/97 to separate
+% the .sty file from the LaTeX source template, so that people can
+% more easily include the .sty file into an existing document.  Also
+% changed to more closely follow the style guidelines as represented
+% by the Word sample file. 
+
+% Note that since 2010, USENIX does not require endnotes. If you want
+% foot of page notes, don't include the endnotes package in the 
+% usepackage command, below.
+
+\documentclass[letterpaper, anonymous, twocolumn, 10pt]{article}
+\usepackage{usenix,epsfig,endnotes,}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{subcaption}
+\usepackage{amsmath}
+\usepackage{stfloats}
+\usepackage[export]{adjustbox}
+\usepackage{xcolor}
+\usepackage{tabularx}
+\usepackage[justification=centering]{caption}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[usenames,dvipsnames]{xcolor}
+\DeclareRobustCommand{\legendsquare}[1]{%
+  \textcolor{#1}{\rule{1ex}{1ex}}%
+}
+\DeclareUnicodeCharacter{03B2}{\ensuremath{\beta}}
+\newcommand{\Score}{\text{Score}}
+
+% 2. COLOR DEFINITIONS
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.95}
+\definecolor{keywordblue}{rgb}{0.13, 0.13, 1}
+
+% 3. NEW: DEFINE THE JSON LANGUAGE
+\lstdefinelanguage{json}{
+    keywords={true, false, null},
+    keywordstyle=\color{keywordblue},
+    stringstyle=\color{codepurple},
+    string=[s]{"}{"},
+    commentstyle=\color{codegreen},
+    morecomment=[l]{//},
+    morecomment=[s]{/*}{*/}
+}
+
+% 4. DEFINE THE STYLE THAT USES THE NEW LANGUAGE
+\lstdefinestyle{jsonstyle}{
+    language=json,
+    backgroundcolor=\color{backcolour},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=tb,
+    captionpos=b,
+    showstringspaces=false,
+    numbers=left,
+    numberstyle=\tiny\color{gray}
+}
+
+\begin{document}
+
+%don't want date printed
+\date{}
+
+%make title bold and 14 pt font (Latex default is non-bold, 16 pt)
+\title{\Large \bf Cara: Co-optimizing Super Heterogeneous LLM Serving through Model Routing and Predictive Batch Scheduling}
+
+\author{
+{\rm Anonymous Authors}
+}
+
+\maketitle
+
+% Use the following at camera-ready time to suppress page numbers.
+% Comment it out when you first submit the paper for review.
+% \thispagestyle{empty}
+
+
+\subsection*{Abstract}
+
+
+\section{Introduction} \label{section:introduction}
+
+
+\section{Background and Motivation} \label{section:motivation}
+
+\subsection{LLM inference Process} \label{section:llm_inference_processes}
+\subsection{Task Scheduling and Model Routing}
+
+\subsection{Heterogenesis And Tradeoffs in LLM Serving}\label{section:heterogenity}
+% Modern LLM serving stacks face a tension between efficiency and flexibility. At scale, providers must host multiple model variants (e.g., 7B, 13B, 70B), support heterogeneous execution frameworks (e.g., vLLM, Ollama), and deploy across diverse GPU clusters with different performance and cost profiles. Current systems address parts of the problem in isolation: inference engines such as vLLM optimize local batching within a single node; routing systems such as SageServe direct requests to models or clusters based on static heuristics; and schedulers such as DynamoLLM improve intra-cluster scheduling. However, none of these approaches \emph{jointly} coordinate routing and scheduling decisions across the entire cluster.
+
+% This decoupling introduces inefficiencies. Routers make placement decisions without visibility into system state, while local schedulers batch requests without considering global workload composition. As a result, clusters exhibit underutilized GPUs, increased tail latency, and unnecessary reliance on the largest models. Our key observation is that the missing control layer is \textbf{global batch orchestration}: the ability to form and schedule batches across the entire cluster, jointly considering request heterogeneity, model quality, and infrastructure constraints.
+
+% Cara addresses this gap by unifying router and scheduler into a single decision plane. By treating batch formation and scheduling as a global optimization problem, Cara can improve both system efficiency and application-level response quality.
+
+
+\section{System Design} \label{section:design}
+
+This section presents the core design and model of Cara. First, § \ref{section:API} introduces a new API that allows users to specify request-level objectives for each inference request, enabling flexible trade-offs across the heterogeneity discussed in § \ref{section:heterogenity}.Building on that, \S \ref{section:system_model} formalizes the request scheduling in Cara as an extendable and solvable mixed-integer linear programming optimization problem. Finally, § \ref{section:Cara_system} describes the high-level design of the scheduling system and explains how the scheduling problem feasibly solved at runtime using a greedy heuristic approach.
+
+\subsection{Batch Inference API with Request Specific Objective} \label{section:API}
+
+As discussed in § \ref{section:motivation}, modern LLM serving platforms typically provide two distinct APIs: a streaming online API for point-wise, latency-sensitive requests, and an offline batch API, which allows for delayed responses at a reduced cost \cite{googleBatchGemini, openaiOpenAIPlatform}. The latter enables the inference scheduler to prioritize throughput and cluster utilization, free from strict latency constraints. However, requests from both API types are often executed asynchronously through the same underlying inference workflow, as detailed in § \ref{section:llm_inference_processes}. Consequently, even online requests incur delays that can still degrade user experience \cite{wang2024revisitingslogoodputmetrics}, necessitating the enforcement of strict Service-Level Objectives (SLOs) to maintain high "goodput" (the number of requests that meet their SLOs) and motivating LLM serving systems development \cite{liu2025turbospecclosedloopspeculationcontrol, zhong2024distservedisaggregatingprefilldecoding, wang2025prefilldecodeaggregationdisaggregationunifying} .
+
+Furthermore, contemporary LLM serving APIs have evolved beyond simple inference. They increasingly empower users to specify fine-grained directives within each request, which we term \textbf{Request-Specific Objectives (RSOs)}. For example, users can define completion deadlines for batch jobs or set model routing strategies \cite{openaiIntroducingGPT5, microsoftModelRouter} based on remaining budgets or quotas. Prevailing architectures are ill-equipped to handle these RSOs holistically. In a typical decoupled system, a high-level model router first selects a model pool based on some constraints, after which a separate, low-level scheduler attempts to load-balance requests across replicas to meet others, such as deadlines. This separation of concerns prevents global optimization.
+
+In Cara, we propose a new, unified API that generalizes the batch API to accept all customized RSOs as direct input to the inference predictive scheduler. As the pointwise online request is merely a special case of a batch request—specifically, a batch of size one with a highly restrictive latency RSO that is equal to or stricter than cluster's SLO, so the unified API subsumes both. We argue that scheduling requests individually is not always necessary to meet low-latency requirements. Instead, by adopting a batch inference and scheduling paradigm, which has been widely studied in cloud task scheduling \cite{eva-eurosys}, flexibility can be achieved to perform global load balancing and achieve superior trade-offs between performance and cost.  This API extend the existing batch API by introducing the new RSO, which empowers users to embed the quantified constraints and preferences directly within each individual request of a batch. The RSO field is designed to be extensible, allowing the scheduler to reason about diverse user intents. A simplified template for a single request is shown as
+\begin{minipage}{\linewidth}
+\begin{lstlisting}[style=jsonstyle, caption={Schema for Generate API request with RSOs.}, label={lst:api_schema}]
+[
+  {
+    "request_id": string,
+    "prompts": string,
+    "request_specific_objective": {
+      "latency_ms": int,
+      "model_quality_min": float,
+      "token_budget": int,
+      "relex_order": list
+    },
+    "sampling_params": dict
+  }
+]
+\end{lstlisting}
+\end{minipage}
+The current schema's RSOs include the common objectives for scheduling and routing as end-to-end latency in milliseconds, normalized model quality score, and request budget charged based on tokens. Also, the framework can easily be extended to incorporate other critical objective metrics, such as a target for Time-to-First-Token (TTFT), providing a comprehensive view of user requirements to the Cara orchestrator.  The relax order field is used for constraint checking during scheduling as discussed in \S \ref{section:Cara_system}
+
+\subsection{Scheduling Model} \label{section:system_model}
+
+With user requests defined by RSOs and overall cluster performance governed by SLOs, the global scheduling task can be formalized as a multi-objective optimization problem. The central goal is to find an optimal assignment of incoming requests to pre-deployed model instances, balancing a variety of competing metrics that serve as both hard and soft constraints.
+
+\subsection{Problem Definition}
+We define the scheduling problem for a given batch of requests $R_B$ as follows:
+
+\paragraph{Sets and Indices:}
+\begin{itemize}
+    \item $R_B$: The set of requests to be scheduled in the current batch, where the batch will be selected as FCFS order with a dynamic batch size, discussed in \S \ref{section:Cara_system}.
+    \item $I$: The set of pre-deployed, heterogeneous model instances.
+\end{itemize}
+
+\paragraph{Prediction Parameters:}
+\begin{itemize}
+    \item $P_{r,i}$: The predicted metrics for request $r$ on instance $i$, 
+    We use the latency as the example metric here but could be extended to other single or multiple metrics set, e.g. TTFT and Time-Per-Output-Token  (TPOT)
+    \item $C_{r,i}$: The predicted monetary cost to serve request $r$ on instance $i$.
+    \item $Q_{r,i}$: The predicted quality score (e.g., model accuracy) for request $r$ on instance $i$.
+    \item $M_{r,i}$: The required memory (e.g., for KV cache) for request $r$ on instance $i$.
+    \item $\mathrm{Cap}_i$: The maximum memory capacity of instance $i$.
+    \item $w_j$: Pre-defined weights for objective function components (e.g., $w_{\text{lat}}, w_{\text{cost}}, w_{\text{qual}}, w_{\text{m}}, w_{\text{u}}$).
+\end{itemize}
+
+\paragraph{Decision Variable:}
+\begin{itemize}
+    \item $x_{r,i} \in \{0,1\}$: A binary variable that is $1$ if request $r$ is assigned to instance $i$, and $0$ otherwise.
+\end{itemize}
+
+\subsection{Optimization Model}
+The objective is to minimize a weighted function that aggregates request-level and batch-level metrics, subject to RSO, SLO, and resource constraints.
+
+\begin{equation}
+\begin{aligned}
+\min_{x_{r,i}} \quad
+& \sum_{r\in R_B, i\in I} x_{r,i} \cdot \Big(w_{\text{lat}} P_{r,i} + w_{\text{cost}} C_{r,i} - w_{\text{qual}} Q_{r,i} \Big) \\
+& \quad + w_{\text{m}} \cdot \max_{r \in R_B} \left( \sum_{i \in I} x_{r,i} P_{r,i} \right) \\
+& \quad + w_{\text{u}} \cdot \sum_i \left( \frac{\sum_{r\in R_B} x_{r,i} M_{r,i}}{\mathrm{Cap}_i}\right) \\
+\text{s.t.}\quad
+& \sum_{i \in I} x_{r,i} = 1, \\
+& \sum_{i \in I} x_{r,i} P_{r,i} \le \min(\mathrm{RSO}_{\text{lat}}(r), \mathrm{SLO}_{\text{lat}}(r)), \\
+& \sum_{i \in I} x_{r,i} Q_{r,i} \ge \mathrm{RSO}_{\text{qual}}(r), \\
+& \sum_{i \in I} x_{r,i} C_{r,i} \le \mathrm{RSO}_{\text{budget}}(r), && \forall r \in R_B \\
+& \sum_{r \in R_B} x_{r,i} M_{r, i} \le \mathrm{Cap}_i, && \forall i \in I
+\end{aligned}
+\end{equation}
+
+The weights in the objective function define the scheduling policy. The terms $w_{\text{lat}}$, $w_{\text{cost}}$, and $w_{\text{qual}}$ balance request-level metrics, extending concepts from existing LLM routers \cite{universal_model_routering}. We further introduce batch-level weights: $w_{\text{m}}$ prioritizes minimizing the batch makespan (a proxy for throughput), while $w_{\text{u}}$ encourages load balancing of memory usage across instances. This formulation effectively fuses task scheduling with model routing and unifies the handling of pointwise and batch requests to a Mixed-Integer Linear Program (MILP). (as the max term in the objective is linearized.) 
+
+
+For this study, we assume the scheduling weights are static and the set of instances $I$ is pre-deployed. This deliberate focus on the runtime assignment problem positions our scheduling layer as an orthogonal and complementary component to existing research on optimal deployment strategies \cite{helix, hexgen, hexgen-2, thunderserve}. In Appendix~\ref{append:dynamic-scheduling}, we discuss how this model can be extended to consider dynamic provisioning for use cases like serverless LLM inference \cite{serverlessllm, deepserve}.
+
+
+% TODO: Consider aligning or normalizing the scoring sub-components to ensure they are comparable. This will prevent any single component from disproportionately influencing the final score due to differences in magnitude. Either add normalization in the equation or state re-tuning needed for the weights in the paper.
+
+
+
+
+
+
+
+\subsection{Cara System} \label{section:Cara_system}
+\begin{figure}[htp]
+  \centering
+  \includegraphics[width=\linewidth]{images/Cara.png}
+  \caption{Cara Architecture}
+  \label{fig:cara}
+\end{figure}
+
+The architecture of Cara, illustrated in Figure \ref{fig:cara}, utilizes a split-deployment model. A centralized scheduler service act as the control plane comprises the Global Scheduler and Model Estimator. Each worker instance, in turn, runs the primary Inference Service, which is paired with a Performance Predictor deployed as a local side-car.
+
+Similar to QLM\cite{qlm}, the request lifecycle begins when request submitted through new API \S \ref{section:API} is appended to a global queue. The Global Scheduler periodically groups these requests into a batch for placement. To gather the necessary inputs for its decision, the scheduler first queries the Model Estimator for predictions on request-specific attributes (e.g., output length). It then consults the Performance Predictor to forecast execution metrics like latency for various scheduling possibilities. Armed with these predictions, the scheduler uses an approximation solver for the optimization problem detailed in \S \ref{section:system_model} to determine the final assignment.
+
+All components are built on a unified API and general interfaces. This modular design allows different implementations to be seamlessly interchanged, providing the flexibility to manage the trade-off between computational overhead and predictive accuracy. This section will focus on these interface-level designs, deferring most implementation choices to Section \ref{section:implementation}. However, we make an exception for the greedy batch scheduling algorithm. As the core runtime solver, its logic is fundamental to the system's design, and we detail it here as the primary practical approach for this complex optimization.
+
+\subsubsection{Model Instance Services and Local Predictor}
+
+Each worker node in the Cara architecture runs two co-located services: the primary model inference instance and a metric predictor. To enable prediction without disrupting inference, we extend existing inference engines (such as vLLM, and Ollama) with a non-intrusive \textit{status} API. This API exposes the engine's internal request queue, which we model as a sequence of tuples representing each request's token information as \textit{(request\_id, prompt\_tokens, generated\_tokens, predicted\_total\_tokens)}. The co-locating the Performance Predictor on each worker instance is a deliberate design choice for scalability. This approach eliminates the network overhead of transferring internal status data and allows prediction computations to run in parallel across the cluster.
+
+The prediction workflow begins when the Global Scheduler calls a worker node's \textit{prediction} API to evaluate a potential assignment. The local Predictor first queries the instance's \textit{status} API to fetch the current sequence of requests. It then appends the candidate request to this sequence, creating a hypothetical future state. Finally, this combined sequence is fed into its internal regression model, and the resulting performance prediction, $P_{r,i}$ in \S \ref{section:system_model},  is returned to the Global Scheduler.This entire process is decoupled from the main \textit{generate} API, which continues to process requests and stream responses without interruption.
+
+\paragraph{Model-Driven vs. Simulation-Based Prediction.}
+Approaches like Block\cite{da2025blockbalancingloadllm} and SamuLLM\cite{SamuLLM} have successfully used simulation to predict performance for online and offline scheduling. Set of simulators \cite{kumar2025simulatingllmtraining, tan2025frontiersimulatingnext, kim2024llmservingsimhwswcosimulation, Agrawal2024VidurAL} shows impressive high accuracy on prediction of inference performances, which typically work by mirroring the system's static, pre-known batching logic and using pre-profiled execution times for low-level kernels on specific hardware (e.g., an attention operation on an A100 GPU). However, this tight coupling to static system properties is their primary weakness. A simulation-based approach is inherently \textbf{forward-incompatible}. It requires a manual, per-component integration and profiling process for every combination of hardware, software, and model configuration. Any change—a software update, a kernel optimization, or even natural hardware performance degradation over time—could significantly reduce the simulator's fidelity invisiablely, necessitating a costly re-integration effort. This brittleness is fundamentally at odds with the dynamic, heterogeneous environment Cara is designed to manage.
+
+Drawing inspiration from the shift from manual feature engineering to representation learning in modern AI, we treat performance prediction as a general sequence-to-value regression task. This allows us to use adaptive sequence models, such as LSTMs\cite{lstm}, Transformers\cite{attentionIsAllUrneed} or Mamba \cite{mamaba}, which learn the complex performance interactions directly from observed data. A similar learning-based approach has proven effective for transaction's latency prediction in database scheduling \cite{wu2025improvingdbmsschedulingdecisions}. Furthermore, since performance depends primarily on request shapes (input/output lengths) rather than content, a virtually infinite amount of training data can be generated offline or accumulated online. For online data collection, the Predictor caches the input features (the request sequence) used for every prediction first. After a request finishes, the inference instance calls the Predictor's \textit{update} API, providing the ground-truth performance metrics to creates a new training sample, as the input/output pair . These samples are periodically flushed to storage, enabling the prediction model to be continuously retrained. This ensures it automatically adapts to changes in the underlying system, making it truly forward-compatible.
+
+\subsubsection{Global Model Estimator}
+
+In contrast to the instance-local Performance Predictor, model-related predictions are handled by a centralized microservice, the global model estimator, which is co-located with the scheduling orchestrator. This architectural separation is based on a key assumption: while performance metrics like latency are tightly coupled to hardware and the runtime environment, model outputs such as response length and quality are intrinsic properties of the model itself. This aligns with the Model-as-a-Service (MaaS) abstraction, where users are typically billed based on token usage and model choice, not the specific hardware executing the request.
+
+The Estimator is responsible for predicting two key metrics for a given request: (1) the expected \textbf{output length} in tokens, and (2) a normalized \textbf{quality score}, $Q_{r,i}$ in \S \ref{section:system_model}. The predicted length is a critical input for the downstream Performance Predictor and for calculating potential costs $C_{r,i}$. Predictions over these has been well-studied and forms the foundation of many existing LLM routers \cite{lakha2025faster, chen2023frugalgpthowuse, Ong2024RouteLLMLT, mei2025eccosefficientcapability, universal_model_routering, wu2025qualityofserviceawarellm, ye2025beyondgpt5making} and serving systems \cite{arango2025prefix, qlm, Gong_2025, xue2023responselengthperception, hu2024inferenceinterferencedisaggregatellm} and can be integrated directly as implementation of interfaces in Cara.
+
+However, Cara fundamentally differs from a traditional LLM router. While a router uses these predictions to make an immediate and final model selection, Cara uses them only as inputs for scheduler. The final decision of which model instance to use is deferred and integrated into the main scheduling problem, as detailed in \S~\ref{section:system_model}. For any given request, the Estimator produces a set of predictions mapping it to each compatible model variant. This is crucial for handling heterogeneity, as different versions of the same base model (e.g., with different precision heterogeneity \cite{bin2025fineserveprecisionawarekvslab}) are treated as distinct models with potentially unique quality and length characteristics.
+
+\subsubsection{Batch Scheduler and Orchestrator}
+The Global Scheduler is the central orchestrator of the Cara system, with three primary responsibilities. First, it performs batching for co-scheduling by grouping individual requests from a global pending queue. Second, it handles scheduling by approximately solving the optimization problem defined in \S~\ref{section:system_model}, querying the Model Estimator and Performance Predictors to gather the required parameters. Finally, it dispatches the optimized batch of requests to the appropriate model instances via their \textit{generate} API.
+
+\paragraph{Dynamic Adaptive Batching.}
+Requests arriving via the new API are appended to a pending queue. A naive batching strategy would be to collect requests in FCFS order until a fixed batch size, $B$, is reached. However, this can introduce significant head-of-line blocking as early requests wait for the batch to fill. A common improvement, inspired by the dynamic batcher in systems like NVIDIA Triton \cite{nvidiaTritonArchitecture} for batch deep learning inference requests to executed at single GPU, is to use a timeout, $d$. A batch is dispatched when its size reaches $B$ or when the oldest request has waited for $d$ milliseconds, whichever comes first.
+
+Cara introduces a further innovation based on a key insight: the latency cost of the batching timeout, $d$, is not constant but depends on the overall system load. If all worker nodes are busy and already have local queues, a new request would have to wait at the worker node anyway. In this high-load scenario, the batching delay at the central scheduler is effectively masked by the unavoidable queuing delay at the instance. Therefore, our scheduler employs \textbf{load-aware adaptive batching}. It dynamically adjusts its parameters based on the number of busy instances in the cluster. When worker nodes are free under low load, the scheduler uses a small batch size and a short timeout to minimize latency for incoming requests. As the number of busy instances spiking with load increasing, the scheduler progressively increases the maximum batch size (up to global limits $B$). This allows it to form larger batches that improve global throughput, leveraging the fact that requests would be queued at the instance level regardless.
+
+\paragraph{Scheduling Policy for Constraints.}
+Ideally, with perfect predictions and reasonable constraints, the scheduler would always find an optimal placement for every request. In practice, however, non-negligible prediction errors or overly strict user-defined RSOs can lead to scenarios where no available instance appears to satisfy a request's constraints. Similarly, cluster-wide SLOs can be violated during periods of high load. To handle these realities, Cara employs a set of configurable scheduling policies.
+
+For system-wide \textbf{SLO} violations, the orchestrator can be configured to perform early rejection based on predicted metrics, a strategy used in systems like Mooncake~\cite{qin_mooncake_2024} to preserve cluster stability. For user-defined \textbf{RSO} violations, control is given to the user via the API. Users can specify an "auto relax order" for unschedulable requests:
+\begin{itemize}
+    \item \textbf{Reject and Retry:} The request is immediately rejected if a empty relax order received, allowing the user to resubmit with more relaxed constraints.
+    \item \textbf{Auto-Relax:} The scheduler automatically relaxes the constraints in a predefined priority order in relax order list until a viable candidate instance is found.
+\end{itemize}
+
+To prevent viable instances from being incorrectly filtered out due to prediction errors, we decouple the values used for \textbf{constraint checking} from those used for \textbf{ranking} (in the objective function). While the raw point-prediction is used for ranking, a probabilistic confidence bound is used for filtering. For example, if we model the latency prediction error as a normal distribution, we can use the prediction minus three standard deviations (a 99.7\% confidence bound) for the constraint check. This significantly reduces the probability of discarding a suitable instance due to an overestimation of latency or cost, while still allowing the objective function to rank candidates based on the most likely outcome.
+Furthermore, for metrics like output length, active enforcement mechanisms could be used. Techniques like soft length control~\cite{Butcher_2025, gu-etal-2025-length} could dynamically guide the generation process to adhere to the predicted budget. We leave the integration of such controls as a promising area for future exploration.
+
+While the MILP formulation in \S~\ref{section:system_model} defines the optimal scheduling assignment, finding an exact solution is computationally infeasible for a real-time system. Solving MILP problems is NP-hard~\cite{nair2021solvingmixedintegerprograms},and the latency would be prohibitive even for moderately sized batches and clusters. Furthermore, gathering the prediction parameters for every possible assignment incurs significant overhead, as each requires its own inference call to the prediction models. Therefore, we employ a fast and effective heuristic for runtime scheduling.
+
+\paragraph{Greedy Mini-Batch Scheduling}
+Inspired by auto-gressive decoding in language models, we designed a greedy mini-batch scheduler, as Algorithm \ref{alg:greedy}, to find a high-quality placement for a large batch of requests, $B$, by making a series of locally optimal decisions. The algorithm processes requests sequentially in mini-batches $C$. For each mini-batch, the scheduler exhaustively evaluates every possible assignment of its requests to the available model instances. To score a potential assignment based on the objective function defined by the weights, it creates a temporary placement for the entire batch and evaluates it using the global objective function. After trying all permutations for the current mini-batch, the scheduler commits the assignment that yielded the highest score, permanently placing those requests. It then proceeds to the next mini-batch, making its decisions based on the updated state of the cluster. This sequential, locally-optimal decision-making process is analogous to greedy sampling in language models. This heuristic allows for the early dispatch of completed mini-batches and significantly reduces prediction overhead. For a full batch of size $|B|$, instead of evaluating an exponential number of placements ($|I|^{|B|}$), we only need to evaluate $|I|^{|C|}$ placements, $|B|/|C|$ times.
+
+The greedy method described is effectively a beam search with a beam size of one. For a more exhaustive search at the cost of higher latency, this can be extended to a larger beam size, as detailed in Appendix~\ref{appendix:beamsearch} similar to beam in LLM decoding. Beyond heuristic search, we also note that machine learning-based MILP approximators are a promising area of research. Techniques using reinforcement learning~\cite{lee2025rlsphlearningachievefeasible} or dedicated neural networks~\cite{nair2021solvingmixedintegerprograms} could be explored in future work.
+
+\begin{algorithm}[t]
+\caption{Greedy Mini-Batch Scheduler}\label{alg:greedy}
+\begin{algorithmic}[1]
+\Require $B, C, \mathcal{I}, \Score$
+\Ensure $P^*$
+
+\Function{Schedule}{$B, C, \mathcal{I}, \Score$}
+    \State $P \leftarrow \text{NewEmptyPlacement}(N)$ \Comment{instance -> Requests Set}
+    \For{$M \in \text{Partition}(B,C)$}
+        \State $(s^*, A^*) \leftarrow (-\infty, \text{NewEmptyPlacement}(N))$
+        \For{$A \in \text{Permutation}(\mathcal{I}, M)$}
+            \State $s' \leftarrow \text{EvaluatePlacement}(A, P, \Score)$
+            \If{$s' > s^*$}
+                \State $(s^*, A^*) \leftarrow (s', A)$
+            \EndIf
+        \EndFor
+        \State $P \leftarrow \text{ExtendPlacement}(P, A^*)$
+        \State \Call{Dispatch}{$A^*$}
+    \EndFor
+    \State \Return $P$
+\EndFunction
+
+\Statex
+\Function{EvaluatePlacement}{$A, P, \Score$}
+    \State $\text{Predictions} \leftarrow \emptyset$
+    \For{$n \in \text{domain}(A)$}
+        \State $\text{seq} \leftarrow \text{concatenate}(P(n), A(n))$
+        \State $\text{pred} \leftarrow n.\text{Predict}(\text{seq})$
+        \State $\text{Predictions}.\text{add}(\text{pred})$
+    \EndFor
+    \State \Return \Score(\text{Predictions})
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+
+% \subsubsection{Support Disaggregation and KV-Cache reusing}
+
+
+% \subsection{Auto-scaling and Failure Recovery}
+
+
+
+
+
+
+
+
+
+\section{Implementation} \label{section:implementation}
+
+The Cara prototype consist 5000 lines of python code and is located github/
+
+
+
+
+
+
+
+
+\section{Evaluation} \label{section:evaluation}
+
+\section{Related Work}\label{section:related_work}
+
+\section{Conclusion}
+
+
+{\bibliographystyle{acm}
+\bibliography{sample}
+
+
+\appendix
+\section{System Model Extension}
+\subsection{Extension of Dynamic Instance Deployment and Scheduling} \label{append:dynamic-scheduling}
+\begin{equation}
+\begin{aligned}
+\min_{x_{m, n, r,f}} \quad & \sum_{r,m,n,f} x_{r,m,n,f} \cdot \Big(w_{\text{lat}}(r) P_{r,m,n,f} + w_{\text{cost}}(r) C_{r,m,n,f} - w_{\text{qual}}(r) Q_{r,m} \Big) \nonumber \\
+& + w_{\text{m}} \cdot \max_{m,n,f} \left( \sum_{r \in R_B} x_{r,m,n,f} \cdot P_{r,m,n,f} \right) \nonumber \\
+& + w_{\text{u}} \cdot \sum_i\left( \frac{\sum_{r\in R_B} x_{r,i} \, M_r}{\mathrm{Cap}_i} - \frac{\sum_{r \in R_B} M_r}{\sum_{i \in I} \mathrm{Cap}_i}\right) \\
+& \text{s.t.} \\
+& \sum_{m,n,f} x_{r,m,n,f} = 1,\\
+& \sum_{r,m,f} x_{r,m,n,f} \cdot m_r \le \text{Cap}_n,  \nonumber \\
+& \sum_{i} x_{r,i} \, P_{r,i} \le \mathrm{SLO}_{\text{lat}}(r), \nonumber\\
+& \sum_{i} x_{r,i} \, Q_{r,i} \ge \mathrm{SLO}_{\text{qual}}(r), \nonumber\\
+& \sum_{i} x_{r,i} \, C_{r,i} \le \mathrm{SLO}_{\text{budget}}(r), \nonumber\\
+& x_{r,m,n,f} \le y_{m,n,f}, \nonumber \\
+& y_{m,n,f} \le \text{compat}_{m,n,f} \nonumber \\
+& x_{r,m,n,f}, y_{m,n,f} \in \{0,1\}\\
+\end{aligned}
+\end{equation}
+
+\subsection{Extension of P-D Disaggregation by isolating scheduling}
+
+\begin{equation}
+\begin{aligned}
+\min_{x_{r,i}} \quad 
+& \sum_{r\in R_B}\sum_{i\in I_{p}} x_{r,i} \cdot \Big(w_{\text{ttft}}(r) \, P_{r,i} + w_{\text{cost}}(r) \, C_{r,i} - w_{\text{qual}}(r) \, Q_{r,i} \Big) \nonumber \\ 
+& + w_{\text{m}} \cdot \max_{r \in R_B} \left( \sum_{i \in I_{p}} x_{r,i} \, P_{r,i} \right) \nonumber + w_{\text{u}} \cdot \sum_{i\in I_{p}}\left( \frac{\sum_{r\in R_B} x_{r,i} \, M_r}{\mathrm{Cap}_i}\right) \\
+\text{s.t.}\quad 
+& \sum_{i} x_{r,i} = 1, \\
+& \sum_{i} x_{r,i} \, P_{r,i} \le \mathrm{SLO}_{\text{ttft}}(r), \\
+& \sum_{i} x_{r,i} \, Q_{r,i} \ge \mathrm{SLO}_{\text{qual}}(r), \\
+& \sum_{i} x_{r,i} \, C_{r,i} \le \mathrm{SLO}_{\text{budget}}(r), \\
+& \sum_{r} x_{r,i} \, M_r \le \mathrm{Cap}_i, \\
+& x_{r,i} \in \{0,1\}, \forall r \in R_B, \, \forall i \in I_{p}.
+\end{aligned}
+\end{equation}
+
+\begin{equation}
+\begin{aligned}
+\min_{x_{r,i}} \quad 
+& \sum_{r\in R_B}\sum_{i\in I_{d,r}} x_{r,i} \cdot w_{\text{tpot}}(r) \, P_{r,i}   \nonumber \\ 
+& + w_{\text{m}} \cdot \max_{r \in R_B} \left( \sum_{i \in I_{d, r}} x_{r,i} \, P_{r,i} \right) \nonumber + w_{\text{u}} \cdot \sum_{i \in I_{d,r}}\left( \frac{\sum_{r\in R_B} x_{r,i} \, M_r}{\mathrm{Cap}_i}\right) \\
+\text{s.t.}\quad 
+& \sum_{i} x_{r,i} = 1, \\
+& \sum_{i} x_{r,i} \, P_{r,i} \le \mathrm{SLO}_{\text{tpot}}(r), \\
+& \sum_{r} x_{r,i} \, M_r \le \mathrm{Cap}_i, \\
+& x_{r,i} \in \{0,1\}, \forall r \in R_B, \, \forall i \in I_{d, r}.
+\end{aligned}
+\end{equation}
+
+
+\section{Extension of Greedy Batch Scheduler to Beam search Batch Scheduler} \label{appendix:beamsearch}
+\begin{algorithm}[H]
+\caption{Beam Search Mini-Batch Scheduler}\label{alg:beamsearch}
+\begin{algorithmic}[1]
+\Require $B, C, K, \mathcal{N}, \text{Score}$
+\Ensure $P^*$
+
+\Function{Schedule}{$B, C, K, \mathcal{N}, \text{Score}$}
+    \State $P_0 \leftarrow \text{NewEmptyPlacement}(\mathcal{N})$
+    \State $\text{Beams} \leftarrow \{ (0, P_0) \}$
+    \For{$M \in \text{Partition}(B,C)$}
+        \State $\text{Candidates} \leftarrow \emptyset$
+        \For{$(\_, P) \in \text{Beams}$}
+            \For{$A \in \text{Permutation}(\mathcal{N}, M)$}
+                \State $s' \leftarrow \text{EvaluatePlacement}(A, P, \text{Score})$
+                \State $P' \leftarrow \text{ExtendPlacement}(P, A)$
+                \State $\text{Candidates}.\text{add}((s', P'))$
+            \EndFor
+        \EndFor
+        \State $\text{Beams} \leftarrow \text{Top-K}(\text{Candidates}, K)$
+    \EndFor
+    \State $(\_, P^*) \leftarrow \text{Best}(\text{Beams})$
+    \State \Return $P^*$
+\EndFunction
+
+\Statex
+\Function{EvaluatePlacement}{$A, P, \text{Score}$}
+    \State $\text{Predictions} \leftarrow \emptyset$
+    \For{$n \in \text{domain}(A)$}
+        \State $\text{seq} \leftarrow \text{concatenate}(P(n), A(n))$
+        \State $\text{pred} \leftarrow n.\text{Predict}(\text{seq})$
+        \State $\text{Predictions}.\text{add}(\text{pred})$
+    \EndFor
+    \State \Return \text{Score}(\text{Predictions})
+\EndFunction
+
+\end{algorithmic}
+\end{algorithm}
+
+
+\end{document}
+
+
+
+
+
+
+

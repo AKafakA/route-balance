@@ -1,0 +1,1343 @@
+@inproceedings {orca,
+author = {Gyeong-In Yu and Joo Seong Jeong and Geon-Woo Kim and Soojeong Kim and Byung-Gon Chun},
+title = {Orca: A Distributed Serving System for {Transformer-Based} Generative Models},
+booktitle = {16th USENIX Symposium on Operating Systems Design and Implementation (OSDI 22)},
+year = {2022},
+isbn = {978-1-939133-28-1},
+address = {Carlsbad, CA},
+pages = {521--538},
+url = {https://www.usenix.org/conference/osdi22/presentation/yu},
+publisher = {USENIX Association},
+month = jul
+}
+
+@misc{length_estimation,
+      title={Response Length Perception and Sequence Scheduling: An LLM-Empowered LLM Inference Pipeline}, 
+      author={Zangwei Zheng and Xiaozhe Ren and Fuzhao Xue and Yang Luo and Xin Jiang and Yang You},
+      year={2023},
+      eprint={2305.13144},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2305.13144}, 
+}
+@misc{vidur,
+      title={Vidur: A Large-Scale Simulation Framework For LLM Inference}, 
+      author={Amey Agrawal and Nitin Kedia and Jayashree Mohan and Ashish Panwar and Nipun Kwatra and Bhargav Gulavani and Ramachandran Ramjee and Alexey Tumanov},
+      year={2024},
+      eprint={2405.05465},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2405.05465}, 
+}
+
+@inproceedings{borg,title	= {Large-scale cluster management at {Google} with {Borg}},author	= {Abhishek Verma and Luis Pedrosa and Madhukar R. Korupolu and David Oppenheimer and Eric Tune and John Wilkes},year	= {2015},booktitle	= {Proceedings of the European Conference on Computer Systems (EuroSys)},address	= {Bordeaux, France}
+}
+@inproceedings{omega,title	= {Omega: flexible, scalable schedulers for large compute clusters},author	= {Malte Schwarzkopf and Andy Konwinski and Michael Abd-El-Malek and John Wilkes},year	= {2013},booktitle	= {SIGOPS European Conference on Computer Systems (EuroSys)},pages	= {351--364},address	= {Prague, Czech Republic}}
+@article{quasar,
+author = {Delimitrou, Christina and Kozyrakis, Christos},
+title = {Quasar: resource-efficient and QoS-aware cluster management},
+year = {2014},
+issue_date = {April 2014},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {49},
+number = {4},
+issn = {0362-1340},
+url = {https://doi.org/10.1145/2644865.2541941},
+doi = {10.1145/2644865.2541941},
+abstract = {Cloud computing promises flexibility and high performance for users and high cost-efficiency for operators. Nevertheless, most cloud facilities operate at very low utilization, hurting both cost effectiveness and future scalability.We present Quasar, a cluster management system that increases resource utilization while providing consistently high application performance. Quasar employs three techniques. First, it does not rely on resource reservations, which lead to underutilization as users do not necessarily understand workload dynamics and physical resource requirements of complex codebases. Instead, users express performance constraints for each workload, letting Quasar determine the right amount of resources to meet these constraints at any point. Second, Quasar uses classification techniques to quickly and accurately determine the impact of the amount of resources (scale-out and scale-up), type of resources, and interference on performance for each workload and dataset. Third, it uses the classification results to jointly perform resource allocation and assignment, quickly exploring the large space of options for an efficient way to pack workloads on available resources. Quasar monitors workload performance and adjusts resource allocation and assignment when needed. We evaluate Quasar over a wide range of workload scenarios, including combinations of distributed analytics frameworks and low-latency, stateful services, both on a local cluster and a cluster of dedicated EC2 servers. At steady state, Quasar improves resource utilization by 47\% in the 200-server EC2 cluster, while meeting performance constraints for workloads of all types.},
+journal = {SIGPLAN Not.},
+month = feb,
+pages = {127--144},
+numpages = {18},
+keywords = {cloud computing, cluster management, datacenters, quality of service, resource allocation and assignment, resource efficiency}
+}
+@inproceedings {apollo,
+author = {Eric Boutin and Jaliya Ekanayake and Wei Lin and Bing Shi and Jingren Zhou and Zhengping Qian and Ming Wu and Lidong Zhou},
+title = {Apollo: Scalable and Coordinated Scheduling for {Cloud-Scale} Computing},
+booktitle = {11th USENIX Symposium on Operating Systems Design and Implementation (OSDI 14)},
+year = {2014},
+isbn = { 978-1-931971-16-4},
+address = {Broomfield, CO},
+pages = {285--300},
+url = {https://www.usenix.org/conference/osdi14/technical-sessions/presentation/boutin},
+publisher = {USENIX Association},
+month = oct
+}
+
+@inproceedings{vllm,
+author = {Kwon, Woosuk and Li, Zhuohan and Zhuang, Siyuan and Sheng, Ying and Zheng, Lianmin and Yu, Cody Hao and Gonzalez, Joseph and Zhang, Hao and Stoica, Ion},
+title = {Efficient Memory Management for Large Language Model Serving with PagedAttention},
+year = {2023},
+isbn = {9798400702297},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3600006.3613165},
+doi = {10.1145/3600006.3613165},
+abstract = {High throughput serving of large language models (LLMs) requires batching sufficiently many requests at a time. However, existing systems struggle because the key-value cache (KV cache) memory for each request is huge and grows and shrinks dynamically. When managed inefficiently, this memory can be significantly wasted by fragmentation and redundant duplication, limiting the batch size. To address this problem, we propose PagedAttention, an attention algorithm inspired by the classical virtual memory and paging techniques in operating systems. On top of it, we build vLLM, an LLM serving system that achieves (1) near-zero waste in KV cache memory and (2) flexible sharing of KV cache within and across requests to further reduce memory usage. Our evaluations show that vLLM improves the throughput of popular LLMs by 2--4\texttimes{} with the same level of latency compared to the state-of-the-art systems, such as FasterTransformer and Orca. The improvement is more pronounced with longer sequences, larger models, and more complex decoding algorithms. vLLM's source code is publicly available at https://github.com/vllm-project/vllm.},
+booktitle = {Proceedings of the 29th Symposium on Operating Systems Principles},
+pages = {611--626},
+numpages = {16},
+location = {Koblenz, Germany},
+series = {SOSP '23}
+}
+
+@misc{sglang,
+      title={SGLang: Efficient Execution of Structured Language Model Programs}, 
+      author={Lianmin Zheng and Liangsheng Yin and Zhiqiang Xie and Chuyue Sun and Jeff Huang and Cody Hao Yu and Shiyi Cao and Christos Kozyrakis and Ion Stoica and Joseph E. Gonzalez and Clark Barrett and Ying Sheng},
+      year={2024},
+      eprint={2312.07104},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2312.07104}, 
+}
+
+@misc{openaiapi,
+	author = {{OpenAI}},
+	title = {OpenAI API},
+	year = {2026},
+	note = {Accessed: 2026-02-03},
+	howpublished = {\url{https://openai.com/index/openai-api/}},
+}
+
+@misc{vllmBenchmarkSuites,
+	author = {{vLLM Project}},
+        title = {Benchmark Suites --- vLLM --- docs.vllm.ai},
+	year = {2026},
+	note = {Accessed: 2026-02-03},
+	howpublished = {\url{https://docs.vllm.ai/en/latest/performance/benchmarks.html}},
+}
+
+@misc{qiu2024efficientinteractivellmserving,
+      title={Efficient Interactive LLM Serving with Proxy Model-based Sequence Length Prediction}, 
+      author={Haoran Qiu and Weichao Mao and Archit Patke and Shengkun Cui and Saurabh Jha and Chen Wang and Hubertus Franke and Zbigniew T. Kalbarczyk and Tamer Başar and Ravishankar K. Iyer},
+      year={2024},
+      eprint={2404.08509},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2404.08509}, 
+}
+
+@misc{nvidiaTritonInference,
+	author = {{NVIDIA}},
+	title = {{T}riton {I}nference {S}erver --- developer.nvidia.com},
+	year = {2026},
+	note = {Accessed: 2026-02-03},
+	howpublished = {\url{https://developer.nvidia.com/triton-inference-server}}
+}
+
+@misc{s3,
+      title={S$^{3}$: Increasing GPU Utilization during Generative Inference for Higher Throughput}, 
+      author={Yunho Jin and Chun-Feng Wu and David Brooks and Gu-Yeon Wei},
+      year={2023},
+      eprint={2306.06000},
+      archivePrefix={arXiv},
+      primaryClass={cs.AR},
+      url={https://arxiv.org/abs/2306.06000}, 
+}
+
+@misc{TetriServe,
+      title={Inference without Interference: Disaggregate LLM Inference for Mixed Downstream Workloads}, 
+      author={Cunchen Hu and Heyang Huang and Liangliang Xu and Xusheng Chen and Jiang Xu and Shuang Chen and Hao Feng and Chenxi Wang and Sa Wang and Yungang Bao and Ninghui Sun and Yizhou Shan},
+      year={2024},
+      eprint={2401.11181},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2401.11181}, 
+}
+
+@misc{dynamollm,
+      title={DynamoLLM: Designing LLM Inference Clusters for Performance and Energy Efficiency}, 
+      author={Jovan Stojkovic and Chaojie Zhang and Íñigo Goiri and Josep Torrellas and Esha Choukse},
+      year={2024},
+      eprint={2408.00741},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2408.00741}, 
+}
+
+
+@misc{fu2024efficientllmschedulinglearning,
+      title={Efficient LLM Scheduling by Learning to Rank}, 
+      author={Yichao Fu and Siqi Zhu and Runlong Su and Aurick Qiao and Ion Stoica and Hao Zhang},
+      year={2024},
+      eprint={2408.15792},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2408.15792}, 
+}
+
+@misc{roberta,
+      title={RoBERTa: A Robustly Optimized BERT Pretraining Approach}, 
+      author={Yinhan Liu and Myle Ott and Naman Goyal and Jingfei Du and Mandar Joshi and Danqi Chen and Omer Levy and Mike Lewis and Luke Zettlemoyer and Veselin Stoyanov},
+      year={2019},
+      eprint={1907.11692},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/1907.11692}, 
+}
+
+@misc{litellm,
+	author = {{BerriAI}},
+	title = {{G}it{H}ub - {B}erri{A}{I}/litellm: {P}ython {S}{D}{K}, {P}roxy {S}erver ({L}{L}{M} {G}ateway) to call 100+ {L}{L}{M} {A}{P}{I}s in {O}pen{A}{I} format - [{B}edrock, {A}zure, {O}pen{A}{I}, {V}ertex{A}{I}, {C}ohere, {A}nthropic, {S}agemaker, {H}ugging{F}ace, {R}eplicate, {G}roq] --- github.com},
+	year = {2026},
+	note = {Accessed: 2026-02-03},
+	howpublished = {\url{https://github.com/BerriAI/litellm}}
+}
+@inproceedings{sun2024llumnix,
+  title={Llumnix: Dynamic Scheduling for Large Language Model Serving},
+  author={Biao Sun and Ziming Huang and Hanyu Zhao and Wencong Xiao and Xinyi Zhang and Yong Li and Wei Lin},
+  booktitle={18th USENIX Symposium on Operating Systems Design and Implementation (OSDI 24)},
+  year={2024}
+}
+
+@inproceedings {infaas,
+author = {Francisco Romero and Qian Li and Neeraja J. Yadwadkar and Christos Kozyrakis},
+title = {{INFaaS}: Automated Model-less Inference Serving},
+booktitle = {2021 USENIX Annual Technical Conference (USENIX ATC 21)},
+year = {2021},
+isbn = {978-1-939133-23-6},
+pages = {397--411},
+url = {https://www.usenix.org/conference/atc21/presentation/romero},
+publisher = {USENIX Association},
+month = jul
+}
+
+@misc{githubGitHubTritoninferenceserverserver,
+	author = {Nvidia},
+	title = {{G}it{H}ub - triton-inference-server/server: {T}he {T}riton {I}nference {S}erver provides an optimized cloud and edge inferencing solution. --- github.com},
+	howpublished = {\url{https://github.com/triton-inference-server/server}}
+}
+
+@misc{rayServeScalable,
+	author = {Anyscale},
+	title = {{R}ay {S}erve: {S}calable and {P}rogrammable {S}erving --- {R}ay 2.40.0 --- docs.ray.io},
+      year   = {2026},
+	howpublished = {\url{https://docs.ray.io/en/latest/serve/index.html}}
+}
+
+@article{poweroftwo,
+author = {Richa, Andréa and Mitzenmacher, Michael and Sitaraman, Ramesh},
+year = {2000},
+month = {10},
+title = {The Power of Two Random Choices: A Survey of Techniques and Results},
+isbn = {9781461348863},
+doi = {10.1007/978-1-4615-0013-1_9}
+}
+
+@misc{agrawal2024tamingthroughputlatencytradeoffllm,
+      title={Taming Throughput-Latency Tradeoff in LLM Inference with Sarathi-Serve}, 
+      author={Amey Agrawal and Nitin Kedia and Ashish Panwar and Jayashree Mohan and Nipun Kwatra and Bhargav S. Gulavani and Alexey Tumanov and Ramachandran Ramjee},
+      year={2024},
+      eprint={2403.02310},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2403.02310}, 
+}
+
+@misc{kleppmann2015critiquecaptheorem,
+      title={A Critique of the CAP Theorem}, 
+      author={Martin Kleppmann},
+      year={2015},
+      eprint={1509.05393},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/1509.05393}, 
+}
+
+@misc{f5NGINXPower,
+	author = {Owen Garrett},
+	title = {{N}{G}{I}{N}{X} and the "{P}ower of {T}wo {C}hoices" {L}oad-{B}alancing {A}lgorithm --- f5.com},
+	howpublished = {\url{https://www.f5.com/company/blog/nginx/nginx-power-of-two-choices-load-balancing-algorithm}},
+	year = {2018},
+}
+
+@misc{envoy,
+	author = {envoy},
+	title = {{E}nvoy proxy - home --- envoyproxy.io},
+	howpublished = {\url{https://www.envoyproxy.io/}},
+}
+
+@inproceedings{deepspeed,
+author = {Aminabadi, Reza Yazdani and Rajbhandari, Samyam and Awan, Ammar Ahmad and Li, Cheng and Li, Du and Zheng, Elton and Ruwase, Olatunji and Smith, Shaden and Zhang, Minjia and Rasley, Jeff and He, Yuxiong},
+title = {DeepSpeed-inference: enabling efficient inference of transformer models at unprecedented scale},
+year = {2022},
+isbn = {9784665454445},
+publisher = {IEEE Press},
+abstract = {The landscape of transformer model inference is increasingly diverse in model size, model characteristics, latency and throughput requirements, hardware requirements, etc. With such diversity, designing a versatile inference system is challenging. DeepSpeed-Inference addresses these challenges by (1) a multi-GPU inference solution to minimize latency while maximizing throughput for both dense and sparse transformers when the model fits in aggregate GPU memory, and (2) a heterogeneous inference solution that leverages CPU/NVMe/GPU memory to enable high-throughput inference for models larger than aggregate GPU memory. DeepSpeed-Inference reduces latency by 6.4\texttimes{} and increases throughput by 1.5\texttimes{} over the state-of-the-art. It enables trillion parameter scale inference under real-time latency constraints by leveraging hundreds of GPUs, an unprecedented scale for inference. It can inference 25\texttimes{} larger models than with GPU-only solutions, while delivering a high throughput of 84 TFLOPS (over 50\% of A6000 peak).},
+booktitle = {Proceedings of the International Conference on High Performance Computing, Networking, Storage and Analysis},
+articleno = {46},
+numpages = {15},
+keywords = {DeepSpeed, PyTorch, deep learning, distributed inference, mixture of experts, transformer models},
+location = {Dallas, Texas},
+series = {SC '22}
+}
+
+@misc{shareGPTData,
+	author = {Ming Xu},
+	title = {shibing624/sharegpt\_gpt4 {D}atasets at {H}ugging {F}ace --- huggingface.co},
+	howpublished = {\url{https://huggingface.co/datasets/shibing624/sharegpt_gpt4}},
+	year = {2023}
+}
+
+@misc{githubGitHubPytorchserve,
+	author = {},
+	title = {{G}it{H}ub - pytorch/serve: {S}erve, optimize and scale {P}y{T}orch models in production --- github.com},
+	howpublished = {\url{https://github.com/pytorch/serve}}
+}
+
+@misc{openaiOpenAIPlatform,
+	author = {},
+	title = {{O}pen{A}{I} {P}latform --- platform.openai.com},
+	howpublished = {\url{https://platform.openai.com/docs/guides/prompt-caching}}
+}
+
+@misc{githubGitHubMicrosoftvidur,
+	author = {},
+	title = {{G}it{H}ub - microsoft/vidur: {A} large-scale simulation framework for {L}{L}{M} inference --- github.com},
+	howpublished = {\url{https://github.com/microsoft/vidur}}
+}
+
+@misc{tiangoloServerWorkers,
+	author = {FastAPI},
+	title = {{S}erver {W}orkers - {U}vicorn with {W}orkers - {F}ast{A}{P}{I} --- fastapi.tiangolo.com},
+      year   = {2026},
+      note   = {Accessed: 2026-02-03},
+	howpublished = {\url{https://fastapi.tiangolo.com/deployment/server-workers/}}
+}
+
+@misc{simpletransformersSimpleTransformers,
+	author = {Thilina Rajapakse},
+	title = {{S}imple {T}ransformers --- simpletransformers.ai},
+	howpublished = {\url{https://simpletransformers.ai/}}
+}
+
+@misc{uvicornUvicorn,
+	author = {},
+	title = {{U}vicorn --- uvicorn.org},
+	howpublished = {\url{https://www.uvicorn.org/}}
+}
+
+@inproceedings{cloudlab,
+    title     = "The Design and Operation of {CloudLab}",
+    author    = "Dmitry Duplyakin and Robert Ricci and Aleksander Maricq and Gary Wong and Jonathon Duerig and Eric Eide and Leigh Stoller and Mike Hibler and David Johnson and Kirk Webb and Aditya Akella and Kuangching Wang and Glenn Ricart and Larry Landweber and Chip Elliott and Michael Zink and Emmanuel Cecchet and Snigdhaswin Kar and Prabodh Mishra",
+    booktitle = "Proceedings of the {USENIX} Annual Technical Conference (ATC)",
+    pages     = "1--14",
+    year      = 2019,
+    month     = jul,
+    url       = "https://www.flux.utah.edu/paper/duplyakin-atc19"
+}
+
+@misc{narayanan2021efficientlargescalelanguagemodel,
+      title={Efficient Large-Scale Language Model Training on GPU Clusters Using Megatron-LM}, 
+      author={Deepak Narayanan and Mohammad Shoeybi and Jared Casper and Patrick LeGresley and Mostofa Patwary and Vijay Anand Korthikanti and Dmitri Vainbrand and Prethvi Kashinkunti and Julie Bernauer and Bryan Catanzaro and Amar Phanishayee and Matei Zaharia},
+      year={2021},
+      eprint={2104.04473},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2104.04473}, 
+}
+
+@misc{llama,
+      title={LLaMA: Open and Efficient Foundation Language Models}, 
+      author={Hugo Touvron and Thibaut Lavril and Gautier Izacard and Xavier Martinet and Marie-Anne Lachaux and Timothée Lacroix and Baptiste Rozière and Naman Goyal and Eric Hambro and Faisal Azhar and Aurelien Rodriguez and Armand Joulin and Edouard Grave and Guillaume Lample},
+      year={2023},
+      eprint={2302.13971},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2302.13971}, 
+}
+
+@inbook{tail_latency,
+   title={Tell-Tale Tail Latencies: Pitfalls and Perils in Database Benchmarking},
+   ISBN={9783030944377},
+   ISSN={1611-3349},
+   url={http://dx.doi.org/10.1007/978-3-030-94437-7_8},
+   DOI={10.1007/978-3-030-94437-7_8},
+   booktitle={Performance Evaluation and Benchmarking},
+   publisher={Springer International Publishing},
+   author={Fruth, Michael and Scherzinger, Stefanie and Mauerer, Wolfgang and Ramsauer, Ralf},
+   year={2022},
+   pages={119--134} }
+
+
+@misc{chiang2024chatbotarenaopenplatform,
+      title={Chatbot Arena: An Open Platform for Evaluating LLMs by Human Preference}, 
+      author={Wei-Lin Chiang and Lianmin Zheng and Ying Sheng and Anastasios Nikolas Angelopoulos and Tianle Li and Dacheng Li and Hao Zhang and Banghua Zhu and Michael Jordan and Joseph E. Gonzalez and Ion Stoica},
+      year={2024},
+      eprint={2403.04132},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2403.04132}, 
+}
+
+@misc{apacheApacheThrift,
+	author = {},
+	title = {{A}pache {T}hrift - {H}ome --- thrift.apache.org},
+      year   = {2026},
+	howpublished = {\url{https://thrift.apache.org/}}
+}
+
+@misc{grpcGRPC,
+  author = {{gRPC Authors}},
+  title  = {gRPC --- grpc.io},
+  year   = {2026},
+  note   = {Accessed: 2026-02-03},
+  howpublished = {\url{https://grpc.io/}}
+}
+
+@article{DJSSP,
+title = {Dynamic scheduling in flexible job shop systems by considering simultaneously efficiency and stability},
+journal = {CIRP Journal of Manufacturing Science and Technology},
+volume = {2},
+number = {2},
+pages = {114--123},
+year = {2010},
+issn = {1755-5817},
+doi = {https://doi.org/10.1016/j.cirpj.2009.10.001},
+url = {https://www.sciencedirect.com/science/article/pii/S1755581709000455},
+author = {Parviz Fattahi and Alireza Fallahi},
+keywords = {Dynamic scheduling, Flexible job shop scheduling, Genetic algorithm, Stability, Efficiency},
+abstract = {Scheduling for the flexible job shop is very important in the fields of production management and combinatorial optimization. However, it is quite difficult to achieve an optimal solution to this problem in medium and actual size problems with traditional optimization approaches owing to the high computational complexity. In this paper, dynamic scheduling in flexible job shop is considered. The dynamic status intensifies the complexity of this problem. Nevertheless, there are many industries which have a dynamic status. Two objectives are considered to make a balance between efficiency and stability of the schedules. A multi-objective mathematical model for the considered problem is developed. Since the problem is well known as NP-hard, a meta-heuristic algorithm based on the genetic algorithm is developed. Numerical experiments are used to evaluate the performance and efficiency of the proposed algorithm. The experimental results show that the proposed algorithm is capable to achieve the optimal solutions for the small size problems and near optimal solutions for the medium size problems.}
+}
+
+@misc{disServe,
+      title={DistServe: Disaggregating Prefill and Decoding for Goodput-optimized Large Language Model Serving}, 
+      author={Yinmin Zhong and Shengyu Liu and Junda Chen and Jianbo Hu and Yibo Zhu and Xuanzhe Liu and Xin Jin and Hao Zhang},
+      year={2024},
+      eprint={2401.09670},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2401.09670}, 
+}
+
+@misc{hu2024inferenceinterferencedisaggregatellm,
+      title={Inference without Interference: Disaggregate LLM Inference for Mixed Downstream Workloads}, 
+      author={Cunchen Hu and Heyang Huang and Liangliang Xu and Xusheng Chen and Jiang Xu and Shuang Chen and Hao Feng and Chenxi Wang and Sa Wang and Yungang Bao and Ninghui Sun and Yizhou Shan},
+      year={2024},
+      eprint={2401.11181},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2401.11181}, 
+}
+
+@misc{patel2024splitwiseefficientgenerativellm,
+      title={Splitwise: Efficient generative LLM inference using phase splitting}, 
+      author={Pratyush Patel and Esha Choukse and Chaojie Zhang and Aashaka Shah and Íñigo Goiri and Saeed Maleki and Ricardo Bianchini},
+      year={2024},
+      eprint={2311.18677},
+      archivePrefix={arXiv},
+      primaryClass={cs.AR},
+      url={https://arxiv.org/abs/2311.18677}, 
+}
+
+@article{ye2025flashinfer,
+    title = {FlashInfer: Efficient and Customizable Attention Engine for LLM Inference Serving},
+    author = {
+      Ye, Zihao and
+      Chen, Lequn and
+      Lai, Ruihang and
+      Lin, Wuwei and
+      Zhang, Yineng and
+      Wang, Stephanie and
+      Chen, Tianqi and
+      Kasikci, Baris and
+      Grover, Vinod and
+      Krishnamurthy, Arvind and
+      Ceze, Luis
+    },
+    journal = {arXiv preprint arXiv:2501.01005},
+    year = {2025},
+    url = {https://arxiv.org/abs/2501.01005}
+}
+
+@misc{podAttention,
+      title={POD-Attention: Unlocking Full Prefill-Decode Overlap for Faster LLM Inference}, 
+      author={Aditya K Kamath and Ramya Prabhu and Jayashree Mohan and Simon Peter and Ramachandran Ramjee and Ashish Panwar},
+      year={2024},
+      eprint={2410.18038},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2410.18038}, 
+}
+
+@misc{dao2022flashattentionfastmemoryefficientexact,
+      title={FlashAttention: Fast and Memory-Efficient Exact Attention with IO-Awareness}, 
+      author={Tri Dao and Daniel Y. Fu and Stefano Ermon and Atri Rudra and Christopher Ré},
+      year={2022},
+      eprint={2205.14135},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2205.14135}, 
+}
+
+@misc{flashattentionv2,
+      title={FlashAttention-2: Faster Attention with Better Parallelism and Work Partitioning}, 
+      author={Tri Dao},
+      year={2023},
+      eprint={2307.08691},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2307.08691}, 
+}
+
+@misc{agrawal2023sarathiefficientllminference,
+      title={SARATHI: Efficient LLM Inference by Piggybacking Decodes with Chunked Prefills}, 
+      author={Amey Agrawal and Ashish Panwar and Jayashree Mohan and Nipun Kwatra and Bhargav S. Gulavani and Ramachandran Ramjee},
+      year={2023},
+      eprint={2308.16369},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2308.16369}, 
+}
+
+@misc{prabhu2024vattentiondynamicmemorymanagement,
+      title={vAttention: Dynamic Memory Management for Serving LLMs without PagedAttention}, 
+      author={Ramya Prabhu and Ajay Nayak and Jayashree Mohan and Ramachandran Ramjee and Ashish Panwar},
+      year={2024},
+      eprint={2405.04437},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2405.04437}, 
+}
+
+@misc{zhai2023bytetransformerhighperformancetransformerboosted,
+      title={ByteTransformer: A High-Performance Transformer Boosted for Variable-Length Inputs}, 
+      author={Yujia Zhai and Chengquan Jiang and Leyuan Wang and Xiaoying Jia and Shang Zhang and Zizhong Chen and Xin Liu and Yibo Zhu},
+      year={2023},
+      eprint={2210.03052},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2210.03052}, 
+}
+
+@misc{wu2024fastdistributedinferenceserving,
+      title={Fast Distributed Inference Serving for Large Language Models}, 
+      author={Bingyang Wu and Yinmin Zhong and Zili Zhang and Shengyu Liu and Fangyue Liu and Yuanhang Sun and Gang Huang and Xuanzhe Liu and Xin Jin},
+      year={2024},
+      eprint={2305.05920},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2305.05920}, 
+}
+
+@misc{borzunov2023petalscollaborativeinferencefinetuning,
+      title={Petals: Collaborative Inference and Fine-tuning of Large Models}, 
+      author={Alexander Borzunov and Dmitry Baranchuk and Tim Dettmers and Max Ryabinin and Younes Belkada and Artem Chumachenko and Pavel Samygin and Colin Raffel},
+      year={2023},
+      eprint={2209.01188},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2209.01188}, 
+}
+
+@misc{liu2024cachegenkvcachecompression,
+      title={CacheGen: KV Cache Compression and Streaming for Fast Large Language Model Serving}, 
+      author={Yuhan Liu and Hanchen Li and Yihua Cheng and Siddhant Ray and Yuyang Huang and Qizheng Zhang and Kuntai Du and Jiayi Yao and Shan Lu and Ganesh Ananthanarayanan and Michael Maire and Henry Hoffmann and Ari Holtzman and Junchen Jiang},
+      year={2024},
+      eprint={2310.07240},
+      archivePrefix={arXiv},
+      primaryClass={cs.NI},
+      url={https://arxiv.org/abs/2310.07240}, 
+}
+
+@misc{sheng2023flexgenhighthroughputgenerativeinference,
+      title={FlexGen: High-Throughput Generative Inference of Large Language Models with a Single GPU}, 
+      author={Ying Sheng and Lianmin Zheng and Binhang Yuan and Zhuohan Li and Max Ryabinin and Daniel Y. Fu and Zhiqiang Xie and Beidi Chen and Clark Barrett and Joseph E. Gonzalez and Percy Liang and Christopher Ré and Ion Stoica and Ce Zhang},
+      year={2023},
+      eprint={2303.06865},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2303.06865}, 
+}
+
+@misc{kang2024gearefficientkvcache,
+      title={GEAR: An Efficient KV Cache Compression Recipe for Near-Lossless Generative Inference of LLM}, 
+      author={Hao Kang and Qingru Zhang and Souvik Kundu and Geonhwa Jeong and Zaoxing Liu and Tushar Krishna and Tuo Zhao},
+      year={2024},
+      eprint={2403.05527},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2403.05527}, 
+}
+
+@misc{jiang2024neosavinggpumemory,
+      title={NEO: Saving GPU Memory Crisis with CPU Offloading for Online LLM Inference}, 
+      author={Xuanlin Jiang and Yang Zhou and Shiyi Cao and Ion Stoica and Minlan Yu},
+      year={2024},
+      eprint={2411.01142},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2411.01142}, 
+}
+
+@misc{ollamaOllama,
+	author = {},
+	title = {{O}llama --- ollama.com},
+	howpublished = {\url{https://ollama.com/}}
+}
+
+@misc{serverlessLLM,
+      title={ServerlessLLM: Low-Latency Serverless Inference for Large Language Models}, 
+      author={Yao Fu and Leyang Xue and Yeqi Huang and Andrei-Octavian Brabete and Dmitrii Ustiugov and Yuvraj Patel and Luo Mai},
+      year={2024},
+      eprint={2401.14351},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2401.14351}, 
+}
+
+@inproceedings{transformer,
+author = {Vaswani, Ashish and Shazeer, Noam and Parmar, Niki and Uszkoreit, Jakob and Jones, Llion and Gomez, Aidan N. and Kaiser, \L{}ukasz and Polosukhin, Illia},
+title = {Attention is all you need},
+year = {2017},
+isbn = {9781510860964},
+publisher = {Curran Associates Inc.},
+address = {Red Hook, NY, USA},
+abstract = {The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The best performing models also connect the encoder and decoder through an attention mechanism. We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.0 after training for 3.5 days on eight GPUs, a small fraction of the training costs of the best models from the literature.},
+booktitle = {Proceedings of the 31st International Conference on Neural Information Processing Systems},
+pages = {6000--6010},
+numpages = {11},
+location = {Long Beach, California, USA},
+series = {NIPS'17}
+}
+
+@misc{devlin2019bertpretrainingdeepbidirectional,
+      title={BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding}, 
+      author={Jacob Devlin and Ming-Wei Chang and Kenton Lee and Kristina Toutanova},
+      year={2019},
+      eprint={1810.04805},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/1810.04805}, 
+}
+
+@misc{pope2022efficientlyscalingtransformerinference,
+      title={Efficiently Scaling Transformer Inference}, 
+      author={Reiner Pope and Sholto Douglas and Aakanksha Chowdhery and Jacob Devlin and James Bradbury and Anselm Levskaya and Jonathan Heek and Kefan Xiao and Shivani Agrawal and Jeff Dean},
+      year={2022},
+      eprint={2211.05102},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2211.05102}, 
+}
+
+@misc{yang2024qwen2technicalreport,
+      title={Qwen2 Technical Report}, 
+      author={An Yang and Baosong Yang and Binyuan Hui and Bo Zheng and Bowen Yu and Chang Zhou and Chengpeng Li and Chengyuan Li and Dayiheng Liu and Fei Huang and Guanting Dong and Haoran Wei and Huan Lin and Jialong Tang and Jialin Wang and Jian Yang and Jianhong Tu and Jianwei Zhang and Jianxin Ma and Jianxin Yang and Jin Xu and Jingren Zhou and Jinze Bai and Jinzheng He and Junyang Lin and Kai Dang and Keming Lu and Keqin Chen and Kexin Yang and Mei Li and Mingfeng Xue and Na Ni and Pei Zhang and Peng Wang and Ru Peng and Rui Men and Ruize Gao and Runji Lin and Shijie Wang and Shuai Bai and Sinan Tan and Tianhang Zhu and Tianhao Li and Tianyu Liu and Wenbin Ge and Xiaodong Deng and Xiaohuan Zhou and Xingzhang Ren and Xinyu Zhang and Xipin Wei and Xuancheng Ren and Xuejing Liu and Yang Fan and Yang Yao and Yichang Zhang and Yu Wan and Yunfei Chu and Yuqiong Liu and Zeyu Cui and Zhenru Zhang and Zhifang Guo and Zhihao Fan},
+      year={2024},
+      eprint={2407.10671},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2407.10671}, 
+}
+
+@INPROCEEDINGS{dynamic_task_scheduling,
+  author={Savvas, I.K. and Kechadi, M.-T.},
+  booktitle={Third International Symposium on Parallel and Distributed Computing/Third International Workshop on Algorithms, Models and Tools for Parallel Computing on Heterogeneous Networks}, 
+  title={Dynamic task scheduling in computing cluster environments}, 
+  year={2004},
+  volume={},
+  number={},
+  pages={372--379},
+  keywords={Processor scheduling;Dynamic scheduling;Clustering algorithms;Computer networks;Resource management;Computational modeling;Computer science;Educational institutions;Scheduling algorithm;Workstations},
+  doi={10.1109/ISPDC.2004.21}
+}
+
+@article{achiam2023gpt,
+  title={Gpt-4 technical report},
+  author={Achiam, Josh and Adler, Steven and Agarwal, Sandhini and Ahmad, Lama and Akkaya, Ilge and Aleman, Florencia Leoni and Almeida, Diogo and Altenschmidt, Janko and Altman, Sam and Anadkat, Shyamal and others},
+  journal={arXiv preprint arXiv:2303.08774},
+  year={2023}
+}
+
+@misc{chatgpt_long_UNUSED,
+      title={GPT-4 Technical Report},
+      author={OpenAI and Josh Achiam and Steven Adler and Sandhini Agarwal and Lama Ahmad and Ilge Akkaya and Florencia Leoni Aleman and Diogo Almeida and Janko Altenschmidt and Sam Altman and Shyamal Anadkat and Red Avila and Igor Babuschkin and Suchir Balaji and Valerie Balcom and Paul Baltescu and Haiming Bao and Mohammad Bavarian and Jeff Belgum and Irwan Bello and Jake Berdine and Gabriel Bernadett-Shapiro and Christopher Berner and Lenny Bogdonoff and Oleg Boiko and Madelaine Boyd and Anna-Luisa Brakman and Greg Brockman and Tim Brooks and Miles Brundage and Kevin Button and Trevor Cai and Rosie Campbell and Andrew Cann and Brittany Carey and Chelsea Carlson and Rory Carmichael and Brooke Chan and Che Chang and Fotis Chantzis and Derek Chen and Sully Chen and Ruby Chen and Jason Chen and Mark Chen and Ben Chess and Chester Cho and Casey Chu and Hyung Won Chung and Dave Cummings and Jeremiah Currier and Yunxing Dai and Cory Decareaux and Thomas Degry and Noah Deutsch and Damien Deville and Arka Dhar and David Dohan and Steve Dowling and Sheila Dunning and Adrien Ecoffet and Atty Eleti and Tyna Eloundou and David Farhi and Liam Fedus and Niko Felix and Simón Posada Fishman and Juston Forte and Isabella Fulford and Leo Gao and Elie Georges and Christian Gibson and Vik Goel and Tarun Gogineni and Gabriel Goh and Rapha Gontijo-Lopes and Jonathan Gordon and Morgan Grafstein and Scott Gray and Ryan Greene and Joshua Gross and Shixiang Shane Gu and Yufei Guo and Chris Hallacy and Jesse Han and Jeff Harris and Yuchen He and Mike Heaton and Johannes Heidecke and Chris Hesse and Alan Hickey and Wade Hickey and Peter Hoeschele and Brandon Houghton and Kenny Hsu and Shengli Hu and Xin Hu and Joost Huizinga and Shantanu Jain and Shawn Jain and Joanne Jang and Angela Jiang and Roger Jiang and Haozhun Jin and Denny Jin and Shino Jomoto and Billie Jonn and Heewoo Jun and Tomer Kaftan and Łukasz Kaiser and Ali Kamali and Ingmar Kanitscheider and Nitish Shirish Keskar and Tabarak Khan and Logan Kilpatrick and Jong Wook Kim and Christina Kim and Yongjik Kim and Jan Hendrik Kirchner and Jamie Kiros and Matt Knight and Daniel Kokotajlo and Łukasz Kondraciuk and Andrew Kondrich and Aris Konstantinidis and Kyle Kosic and Gretchen Krueger and Vishal Kuo and Michael Lampe and Ikai Lan and Teddy Lee and Jan Leike and Jade Leung and Daniel Levy and Chak Ming Li and Rachel Lim and Molly Lin and Stephanie Lin and Mateusz Litwin and Theresa Lopez and Ryan Lowe and Patricia Lue and Anna Makanju and Kim Malfacini and Sam Manning and Todor Markov and Yaniv Markovski and Bianca Martin and Katie Mayer and Andrew Mayne and Bob McGrew and Scott Mayer McKinney and Christine McLeavey and Paul McMillan and Jake McNeil and David Medina and Aalok Mehta and Jacob Menick and Luke Metz and Andrey Mishchenko and Pamela Mishkin and Vinnie Monaco and Evan Morikawa and Daniel Mossing and Tong Mu and Mira Murati and Oleg Murk and David Mély and Ashvin Nair and Reiichiro Nakano and Rajeev Nayak and Arvind Neelakantan and Richard Ngo and Hyeonwoo Noh and Long Ouyang and Cullen O'Keefe and Jakub Pachocki and Alex Paino and Joe Palermo and Ashley Pantuliano and Giambattista Parascandolo and Joel Parish and Emy Parparita and Alex Passos and Mikhail Pavlov and Andrew Peng and Adam Perelman and Filipe de Avila Belbute Peres and Michael Petrov and Henrique Ponde de Oliveira Pinto and Michael and Pokorny and Michelle Pokrass and Vitchyr H. Pong and Tolly Powell and Alethea Power and Boris Power and Elizabeth Proehl and Raul Puri and Alec Radford and Jack Rae and Aditya Ramesh and Cameron Raymond and Francis Real and Kendra Rimbach and Carl Ross and Bob Rotsted and Henri Roussez and Nick Ryder and Mario Saltarelli and Ted Sanders and Shibani Santurkar and Girish Sastry and Heather Schmidt and David Schnurr and John Schulman and Daniel Selsam and Kyla Sheppard and Toki Sherbakov and Jessica Shieh and Sarah Shoker and Pranav Shyam and Szymon Sidor and Eric Sigler and Maddie Simens and Jordan Sitkin and Katarina Slama and Ian Sohl and Benjamin Sokolowsky and Yang Song and Natalie Staudacher and Felipe Petroski Such and Natalie Summers and Ilya Sutskever and Jie Tang and Nikolas Tezak and Madeleine B. Thompson and Phil Tillet and Amin Tootoonchian and Elizabeth Tseng and Preston Tuggle and Nick Turley and Jerry Tworek and Juan Felipe Cerón Uribe and Andrea Vallone and Arun Vijayvergiya and Chelsea Voss and Carroll Wainwright and Justin Jay Wang and Alvin Wang and Ben Wang and Jonathan Ward and Jason Wei and CJ Weinmann and Akila Welihinda and Peter Welinder and Jiayi Weng and Lilian Weng and Matt Wiethoff and Dave Willner and Clemens Winter and Samuel Wolrich and Hannah Wong and Lauren Workman and Sherwin Wu and Jeff Wu and Michael Wu and Kai Xiao and Tao Xu and Sarah Yoo and Kevin Yu and Qiming Yuan and Wojciech Zaremba and Rowan Zellers and Chong Zhang and Marvin Zhang and Shengjia Zhao and Tianhao Zheng and Juntang Zhuang and William Zhuk and Barret Zoph},
+      year={2024},
+      eprint={2303.08774},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2303.08774}, 
+}
+
+@article{team2023gemini,
+  title={Gemini: a family of highly capable multimodal models},
+  author={Team, Gemini and Anil, Rohan and Borgeaud, Sebastian and Alayrac, Jean-Baptiste and Yu, Jiahui and Soricut, Radu and Schalkwyk, Johan and Dai, Andrew M and Hauth, Anja and Millican, Katie and others},
+  journal={arXiv preprint arXiv:2312.11805},
+  year={2023}
+}
+
+@article{yang2025qwen3,
+  title={Qwen3 technical report},
+  author={Yang, An and Li, Anfeng and Yang, Baosong and Zhang, Beichen and Hui, Binyuan and Zheng, Bo and Yu, Bowen and Gao, Chang and Huang, Chengen and Lv, Chenxu and others},
+  journal={arXiv preprint arXiv:2505.09388},
+  year={2025}
+}
+
+@article{liu2025deepseek,
+  title={Deepseek-v3. 2: Pushing the frontier of open large language models},
+  author={Liu, Aixin and Mei, Aoxue and Lin, Bangcai and Xue, Bing and Wang, Bingxuan and Xu, Bingzheng and Wu, Bochao and Zhang, Bowei and Lin, Chaofan and Dong, Chen and others},
+  journal={arXiv preprint arXiv:2512.02556},
+  year={2025}
+}
+
+@misc{Gemini_long_UNUSED,
+      title={Gemini: A Family of Highly Capable Multimodal Models},
+      author={Gemini Team and Rohan Anil and Sebastian Borgeaud and Jean-Baptiste Alayrac and Jiahui Yu and Radu Soricut and Johan Schalkwyk and Andrew M. Dai and Anja Hauth and Katie Millican and David Silver and Melvin Johnson and Ioannis Antonoglou and Julian Schrittwieser and Amelia Glaese and Jilin Chen and Emily Pitler and Timothy Lillicrap and Angeliki Lazaridou and Orhan Firat and James Molloy and Michael Isard and Paul R. Barham and Tom Hennigan and Benjamin Lee and Fabio Viola and Malcolm Reynolds and Yuanzhong Xu and Ryan Doherty and Eli Collins and Clemens Meyer and Eliza Rutherford and Erica Moreira and Kareem Ayoub and Megha Goel and Jack Krawczyk and Cosmo Du and Ed Chi and Heng-Tze Cheng and Eric Ni and Purvi Shah and Patrick Kane and Betty Chan and Manaal Faruqui and Aliaksei Severyn and Hanzhao Lin and YaGuang Li and Yong Cheng and Abe Ittycheriah and Mahdis Mahdieh and Mia Chen and Pei Sun and Dustin Tran and Sumit Bagri and Balaji Lakshminarayanan and Jeremiah Liu and Andras Orban and Fabian Güra and Hao Zhou and Xinying Song and Aurelien Boffy and Harish Ganapathy and Steven Zheng and HyunJeong Choe and Ágoston Weisz and Tao Zhu and Yifeng Lu and Siddharth Gopal and Jarrod Kahn and Maciej Kula and Jeff Pitman and Rushin Shah and Emanuel Taropa and Majd Al Merey and Martin Baeuml and Zhifeng Chen and Laurent El Shafey and Yujing Zhang and Olcan Sercinoglu and George Tucker and Enrique Piqueras and Maxim Krikun and Iain Barr and Nikolay Savinov and Ivo Danihelka and Becca Roelofs and Anaïs White and Anders Andreassen and Tamara von Glehn and Lakshman Yagati and Mehran Kazemi and Lucas Gonzalez and Misha Khalman and Jakub Sygnowski and Alexandre Frechette and Charlotte Smith and Laura Culp and Lev Proleev and Yi Luan and Xi Chen and James Lottes and Nathan Schucher and Federico Lebron and Alban Rrustemi and Natalie Clay and Phil Crone and Tomas Kocisky and Jeffrey Zhao and Bartek Perz and Dian Yu and Heidi Howard and Adam Bloniarz and Jack W. Rae and Han Lu and Laurent Sifre and Marcello Maggioni and Fred Alcober and Dan Garrette and Megan Barnes and Shantanu Thakoor and Jacob Austin and Gabriel Barth-Maron and William Wong and Rishabh Joshi and Rahma Chaabouni and Deeni Fatiha and Arun Ahuja and Gaurav Singh Tomar and Evan Senter and Martin Chadwick and Ilya Kornakov and Nithya Attaluri and Iñaki Iturrate and Ruibo Liu and Yunxuan Li and Sarah Cogan and Jeremy Chen and Chao Jia and Chenjie Gu and Qiao Zhang and Jordan Grimstad and Ale Jakse Hartman and Xavier Garcia and Thanumalayan Sankaranarayana Pillai and Jacob Devlin and Michael Laskin and Diego de Las Casas and Dasha Valter and Connie Tao and Lorenzo Blanco and Adrià Puigdomènech Badia and David Reitter and Mianna Chen and Jenny Brennan and Clara Rivera and Sergey Brin and Shariq Iqbal and Gabriela Surita and Jane Labanowski and Abhi Rao and Stephanie Winkler and Emilio Parisotto and Yiming Gu and Kate Olszewska and Ravi Addanki and Antoine Miech and Annie Louis and Denis Teplyashin and Geoff Brown and Elliot Catt and Jan Balaguer and Jackie Xiang and Pidong Wang and Zoe Ashwood and Anton Briukhov and Albert Webson and Sanjay Ganapathy and Smit Sanghavi and Ajay Kannan and Ming-Wei Chang and Axel Stjerngren and Josip Djolonga and Yuting Sun and Ankur Bapna and Matthew Aitchison and Pedram Pejman and Henryk Michalewski and Tianhe Yu and Cindy Wang and Juliette Love and Junwhan Ahn and Dawn Bloxwich and Kehang Han and Peter Humphreys and Thibault Sellam and James Bradbury and Varun Godbole and Sina Samangooei and Bogdan Damoc and Alex Kaskasoli and Sébastien M. R. Arnold and Vijay Vasudevan and Shubham Agrawal and Jason Riesa and Dmitry Lepikhin and Richard Tanburn and Srivatsan Srinivasan and Hyeontaek Lim and Sarah Hodkinson and Pranav Shyam and Johan Ferret and Steven Hand and Ankush Garg and Tom Le Paine and Jian Li and Yujia Li and Minh Giang and Alexander Neitz and Zaheer Abbas and Sarah York and Machel Reid and Elizabeth Cole and Aakanksha Chowdhery and Dipanjan Das and Dominika Rogozińska and Vitaliy Nikolaev and Pablo Sprechmann and Zachary Nado and Lukas Zilka and Flavien Prost and Luheng He and Marianne Monteiro and Gaurav Mishra and Chris Welty and Josh Newlan and Dawei Jia and Miltiadis Allamanis and Clara Huiyi Hu and Raoul de Liedekerke and Justin Gilmer and Carl Saroufim and Shruti Rijhwani and Shaobo Hou and Disha Shrivastava and Anirudh Baddepudi and Alex Goldin and Adnan Ozturel and Albin Cassirer and Yunhan Xu and Daniel Sohn and Devendra Sachan and Reinald Kim Amplayo and Craig Swanson and Dessie Petrova and Shashi Narayan and Arthur Guez and Siddhartha Brahma and Jessica Landon and Miteyan Patel and Ruizhe Zhao and Kevin Villela and Luyu Wang and Wenhao Jia and Matthew Rahtz and Mai Giménez and Legg Yeung and James Keeling and Petko Georgiev and Diana Mincu and Boxi Wu and Salem Haykal and Rachel Saputro and Kiran Vodrahalli and James Qin and Zeynep Cankara and Abhanshu Sharma and Nick Fernando and Will Hawkins and Behnam Neyshabur and Solomon Kim and Adrian Hutter and Priyanka Agrawal and Alex Castro-Ros and George van den Driessche and Tao Wang and Fan Yang and Shuo-yiin Chang and Paul Komarek and Ross McIlroy and Mario Lučić and Guodong Zhang and Wael Farhan and Michael Sharman and Paul Natsev and Paul Michel and Yamini Bansal and Siyuan Qiao and Kris Cao and Siamak Shakeri and Christina Butterfield and Justin Chung and Paul Kishan Rubenstein and Shivani Agrawal and Arthur Mensch and Kedar Soparkar and Karel Lenc and Timothy Chung and Aedan Pope and Loren Maggiore and Jackie Kay and Priya Jhakra and Shibo Wang and Joshua Maynez and Mary Phuong and Taylor Tobin and Andrea Tacchetti and Maja Trebacz and Kevin Robinson and Yash Katariya and Sebastian Riedel and Paige Bailey and Kefan Xiao and Nimesh Ghelani and Lora Aroyo and Ambrose Slone and Neil Houlsby and Xuehan Xiong and Zhen Yang and Elena Gribovskaya and Jonas Adler and Mateo Wirth and Lisa Lee and Music Li and Thais Kagohara and Jay Pavagadhi and Sophie Bridgers and Anna Bortsova and Sanjay Ghemawat and Zafarali Ahmed and Tianqi Liu and Richard Powell and Vijay Bolina and Mariko Iinuma and Polina Zablotskaia and James Besley and Da-Woon Chung and Timothy Dozat and Ramona Comanescu and Xiance Si and Jeremy Greer and Guolong Su and Martin Polacek and Raphaël Lopez Kaufman and Simon Tokumine and Hexiang Hu and Elena Buchatskaya and Yingjie Miao and Mohamed Elhawaty and Aditya Siddhant and Nenad Tomasev and Jinwei Xing and Christina Greer and Helen Miller and Shereen Ashraf and Aurko Roy and Zizhao Zhang and Ada Ma and Angelos Filos and Milos Besta and Rory Blevins and Ted Klimenko and Chih-Kuan Yeh and Soravit Changpinyo and Jiaqi Mu and Oscar Chang and Mantas Pajarskas and Carrie Muir and Vered Cohen and Charline Le Lan and Krishna Haridasan and Amit Marathe and Steven Hansen and Sholto Douglas and Rajkumar Samuel and Mingqiu Wang and Sophia Austin and Chang Lan and Jiepu Jiang and Justin Chiu and Jaime Alonso Lorenzo and Lars Lowe Sjösund and Sébastien Cevey and Zach Gleicher and Thi Avrahami and Anudhyan Boral and Hansa Srinivasan and Vittorio Selo and Rhys May and Konstantinos Aisopos and Léonard Hussenot and Livio Baldini Soares and Kate Baumli and Michael B. Chang and Adrià Recasens and Ben Caine and Alexander Pritzel and Filip Pavetic and Fabio Pardo and Anita Gergely and Justin Frye and Vinay Ramasesh and Dan Horgan and Kartikeya Badola and Nora Kassner and Subhrajit Roy and Ethan Dyer and Víctor Campos Campos and Alex Tomala and Yunhao Tang and Dalia El Badawy and Elspeth White and Basil Mustafa and Oran Lang and Abhishek Jindal and Sharad Vikram and Zhitao Gong and Sergi Caelles and Ross Hemsley and Gregory Thornton and Fangxiaoyu Feng and Wojciech Stokowiec and Ce Zheng and Phoebe Thacker and Çağlar Ünlü and Zhishuai Zhang and Mohammad Saleh and James Svensson and Max Bileschi and Piyush Patil and Ankesh Anand and Roman Ring and Katerina Tsihlas and Arpi Vezer and Marco Selvi and Toby Shevlane and Mikel Rodriguez and Tom Kwiatkowski and Samira Daruki and Keran Rong and Allan Dafoe and Nicholas FitzGerald and Keren Gu-Lemberg and Mina Khan and Lisa Anne Hendricks and Marie Pellat and Vladimir Feinberg and James Cobon-Kerr and Tara Sainath and Maribeth Rauh and Sayed Hadi Hashemi and Richard Ives and Yana Hasson and Eric Noland and Yuan Cao and Nathan Byrd and Le Hou and Qingze Wang and Thibault Sottiaux and Michela Paganini and Jean-Baptiste Lespiau and Alexandre Moufarek and Samer Hassan and Kaushik Shivakumar and Joost van Amersfoort and Amol Mandhane and Pratik Joshi and Anirudh Goyal and Matthew Tung and Andrew Brock and Hannah Sheahan and Vedant Misra and Cheng Li and Nemanja Rakićević and Mostafa Dehghani and Fangyu Liu and Sid Mittal and Junhyuk Oh and Seb Noury and Eren Sezener and Fantine Huot and Matthew Lamm and Nicola De Cao and Charlie Chen and Sidharth Mudgal and Romina Stella and Kevin Brooks and Gautam Vasudevan and Chenxi Liu and Mainak Chain and Nivedita Melinkeri and Aaron Cohen and Venus Wang and Kristie Seymore and Sergey Zubkov and Rahul Goel and Summer Yue and Sai Krishnakumaran and Brian Albert and Nate Hurley and Motoki Sano and Anhad Mohananey and Jonah Joughin and Egor Filonov and Tomasz Kępa and Yomna Eldawy and Jiawern Lim and Rahul Rishi and Shirin Badiezadegan and Taylor Bos and Jerry Chang and Sanil Jain and Sri Gayatri Sundara Padmanabhan and Subha Puttagunta and Kalpesh Krishna and Leslie Baker and Norbert Kalb and Vamsi Bedapudi and Adam Kurzrok and Shuntong Lei and Anthony Yu and Oren Litvin and Xiang Zhou and Zhichun Wu and Sam Sobell and Andrea Siciliano and Alan Papir and Robby Neale and Jonas Bragagnolo and Tej Toor and Tina Chen and Valentin Anklin and Feiran Wang and Richie Feng and Milad Gholami and Kevin Ling and Lijuan Liu and Jules Walter and Hamid Moghaddam and Arun Kishore and Jakub Adamek and Tyler Mercado and Jonathan Mallinson and Siddhinita Wandekar and Stephen Cagle and Eran Ofek and Guillermo Garrido and Clemens Lombriser and Maksim Mukha and Botu Sun and Hafeezul Rahman Mohammad and Josip Matak and Yadi Qian and Vikas Peswani and Pawel Janus and Quan Yuan and Leif Schelin and Oana David and Ankur Garg and Yifan He and Oleksii Duzhyi and Anton Älgmyr and Timothée Lottaz and Qi Li and Vikas Yadav and Luyao Xu and Alex Chinien and Rakesh Shivanna and Aleksandr Chuklin and Josie Li and Carrie Spadine and Travis Wolfe and Kareem Mohamed and Subhabrata Das and Zihang Dai and Kyle He and Daniel von Dincklage and Shyam Upadhyay and Akanksha Maurya and Luyan Chi and Sebastian Krause and Khalid Salama and Pam G Rabinovitch and Pavan Kumar Reddy M and Aarush Selvan and Mikhail Dektiarev and Golnaz Ghiasi and Erdem Guven and Himanshu Gupta and Boyi Liu and Deepak Sharma and Idan Heimlich Shtacher and Shachi Paul and Oscar Akerlund and François-Xavier Aubet and Terry Huang and Chen Zhu and Eric Zhu and Elico Teixeira and Matthew Fritze and Francesco Bertolini and Liana-Eleonora Marinescu and Martin Bölle and Dominik Paulus and Khyatti Gupta and Tejasi Latkar and Max Chang and Jason Sanders and Roopa Wilson and Xuewei Wu and Yi-Xuan Tan and Lam Nguyen Thiet and Tulsee Doshi and Sid Lall and Swaroop Mishra and Wanming Chen and Thang Luong and Seth Benjamin and Jasmine Lee and Ewa Andrejczuk and Dominik Rabiej and Vipul Ranjan and Krzysztof Styrc and Pengcheng Yin and Jon Simon and Malcolm Rose Harriott and Mudit Bansal and Alexei Robsky and Geoff Bacon and David Greene and Daniil Mirylenka and Chen Zhou and Obaid Sarvana and Abhimanyu Goyal and Samuel Andermatt and Patrick Siegler and Ben Horn and Assaf Israel and Francesco Pongetti and Chih-Wei "Louis" Chen and Marco Selvatici and Pedro Silva and Kathie Wang and Jackson Tolins and Kelvin Guu and Roey Yogev and Xiaochen Cai and Alessandro Agostini and Maulik Shah and Hung Nguyen and Noah Ó Donnaile and Sébastien Pereira and Linda Friso and Adam Stambler and Adam Kurzrok and Chenkai Kuang and Yan Romanikhin and Mark Geller and ZJ Yan and Kane Jang and Cheng-Chun Lee and Wojciech Fica and Eric Malmi and Qijun Tan and Dan Banica and Daniel Balle and Ryan Pham and Yanping Huang and Diana Avram and Hongzhi Shi and Jasjot Singh and Chris Hidey and Niharika Ahuja and Pranab Saxena and Dan Dooley and Srividya Pranavi Potharaju and Eileen O'Neill and Anand Gokulchandran and Ryan Foley and Kai Zhao and Mike Dusenberry and Yuan Liu and Pulkit Mehta and Ragha Kotikalapudi and Chalence Safranek-Shrader and Andrew Goodman and Joshua Kessinger and Eran Globen and Prateek Kolhar and Chris Gorgolewski and Ali Ibrahim and Yang Song and Ali Eichenbaum and Thomas Brovelli and Sahitya Potluri and Preethi Lahoti and Cip Baetu and Ali Ghorbani and Charles Chen and Andy Crawford and Shalini Pal and Mukund Sridhar and Petru Gurita and Asier Mujika and Igor Petrovski and Pierre-Louis Cedoz and Chenmei Li and Shiyuan Chen and Niccolò Dal Santo and Siddharth Goyal and Jitesh Punjabi and Karthik Kappaganthu and Chester Kwak and Pallavi LV and Sarmishta Velury and Himadri Choudhury and Jamie Hall and Premal Shah and Ricardo Figueira and Matt Thomas and Minjie Lu and Ting Zhou and Chintu Kumar and Thomas Jurdi and Sharat Chikkerur and Yenai Ma and Adams Yu and Soo Kwak and Victor Ähdel and Sujeevan Rajayogam and Travis Choma and Fei Liu and Aditya Barua and Colin Ji and Ji Ho Park and Vincent Hellendoorn and Alex Bailey and Taylan Bilal and Huanjie Zhou and Mehrdad Khatir and Charles Sutton and Wojciech Rzadkowski and Fiona Macintosh and Konstantin Shagin and Paul Medina and Chen Liang and Jinjing Zhou and Pararth Shah and Yingying Bi and Attila Dankovics and Shipra Banga and Sabine Lehmann and Marissa Bredesen and Zifan Lin and John Eric Hoffmann and Jonathan Lai and Raynald Chung and Kai Yang and Nihal Balani and Arthur Bražinskas and Andrei Sozanschi and Matthew Hayes and Héctor Fernández Alcalde and Peter Makarov and Will Chen and Antonio Stella and Liselotte Snijders and Michael Mandl and Ante Kärrman and Paweł Nowak and Xinyi Wu and Alex Dyck and Krishnan Vaidyanathan and Raghavender R and Jessica Mallet and Mitch Rudominer and Eric Johnston and Sushil Mittal and Akhil Udathu and Janara Christensen and Vishal Verma and Zach Irving and Andreas Santucci and Gamaleldin Elsayed and Elnaz Davoodi and Marin Georgiev and Ian Tenney and Nan Hua and Geoffrey Cideron and Edouard Leurent and Mahmoud Alnahlawi and Ionut Georgescu and Nan Wei and Ivy Zheng and Dylan Scandinaro and Heinrich Jiang and Jasper Snoek and Mukund Sundararajan and Xuezhi Wang and Zack Ontiveros and Itay Karo and Jeremy Cole and Vinu Rajashekhar and Lara Tumeh and Eyal Ben-David and Rishub Jain and Jonathan Uesato and Romina Datta and Oskar Bunyan and Shimu Wu and John Zhang and Piotr Stanczyk and Ye Zhang and David Steiner and Subhajit Naskar and Michael Azzam and Matthew Johnson and Adam Paszke and Chung-Cheng Chiu and Jaume Sanchez Elias and Afroz Mohiuddin and Faizan Muhammad and Jin Miao and Andrew Lee and Nino Vieillard and Jane Park and Jiageng Zhang and Jeff Stanway and Drew Garmon and Abhijit Karmarkar and Zhe Dong and Jong Lee and Aviral Kumar and Luowei Zhou and Jonathan Evens and William Isaac and Geoffrey Irving and Edward Loper and Michael Fink and Isha Arkatkar and Nanxin Chen and Izhak Shafran and Ivan Petrychenko and Zhe Chen and Johnson Jia and Anselm Levskaya and Zhenkai Zhu and Peter Grabowski and Yu Mao and Alberto Magni and Kaisheng Yao and Javier Snaider and Norman Casagrande and Evan Palmer and Paul Suganthan and Alfonso Castaño and Irene Giannoumis and Wooyeol Kim and Mikołaj Rybiński and Ashwin Sreevatsa and Jennifer Prendki and David Soergel and Adrian Goedeckemeyer and Willi Gierke and Mohsen Jafari and Meenu Gaba and Jeremy Wiesner and Diana Gage Wright and Yawen Wei and Harsha Vashisht and Yana Kulizhskaya and Jay Hoover and Maigo Le and Lu Li and Chimezie Iwuanyanwu and Lu Liu and Kevin Ramirez and Andrey Khorlin and Albert Cui and Tian LIN and Marcus Wu and Ricardo Aguilar and Keith Pallo and Abhishek Chakladar and Ginger Perng and Elena Allica Abellan and Mingyang Zhang and Ishita Dasgupta and Nate Kushman and Ivo Penchev and Alena Repina and Xihui Wu and Tom van der Weide and Priya Ponnapalli and Caroline Kaplan and Jiri Simsa and Shuangfeng Li and Olivier Dousse and Fan Yang and Jeff Piper and Nathan Ie and Rama Pasumarthi and Nathan Lintz and Anitha Vijayakumar and Daniel Andor and Pedro Valenzuela and Minnie Lui and Cosmin Paduraru and Daiyi Peng and Katherine Lee and Shuyuan Zhang and Somer Greene and Duc Dung Nguyen and Paula Kurylowicz and Cassidy Hardin and Lucas Dixon and Lili Janzer and Kiam Choo and Ziqiang Feng and Biao Zhang and Achintya Singhal and Dayou Du and Dan McKinnon and Natasha Antropova and Tolga Bolukbasi and Orgad Keller and David Reid and Daniel Finchelstein and Maria Abi Raad and Remi Crocker and Peter Hawkins and Robert Dadashi and Colin Gaffney and Ken Franko and Anna Bulanova and Rémi Leblond and Shirley Chung and Harry Askham and Luis C. Cobo and Kelvin Xu and Felix Fischer and Jun Xu and Christina Sorokin and Chris Alberti and Chu-Cheng Lin and Colin Evans and Alek Dimitriev and Hannah Forbes and Dylan Banarse and Zora Tung and Mark Omernick and Colton Bishop and Rachel Sterneck and Rohan Jain and Jiawei Xia and Ehsan Amid and Francesco Piccinno and Xingyu Wang and Praseem Banzal and Daniel J. Mankowitz and Alex Polozov and Victoria Krakovna and Sasha Brown and MohammadHossein Bateni and Dennis Duan and Vlad Firoiu and Meghana Thotakuri and Tom Natan and Matthieu Geist and Ser tan Girgin and Hui Li and Jiayu Ye and Ofir Roval and Reiko Tojo and Michael Kwong and James Lee-Thorp and Christopher Yew and Danila Sinopalnikov and Sabela Ramos and John Mellor and Abhishek Sharma and Kathy Wu and David Miller and Nicolas Sonnerat and Denis Vnukov and Rory Greig and Jennifer Beattie and Emily Caveness and Libin Bai and Julian Eisenschlos and Alex Korchemniy and Tomy Tsai and Mimi Jasarevic and Weize Kong and Phuong Dao and Zeyu Zheng and Frederick Liu and Fan Yang and Rui Zhu and Tian Huey Teh and Jason Sanmiya and Evgeny Gladchenko and Nejc Trdin and Daniel Toyama and Evan Rosen and Sasan Tavakkol and Linting Xue and Chen Elkind and Oliver Woodman and John Carpenter and George Papamakarios and Rupert Kemp and Sushant Kafle and Tanya Grunina and Rishika Sinha and Alice Talbert and Diane Wu and Denese Owusu-Afriyie and Cosmo Du and Chloe Thornton and Jordi Pont-Tuset and Pradyumna Narayana and Jing Li and Saaber Fatehi and John Wieting and Omar Ajmeri and Benigno Uria and Yeongil Ko and Laura Knight and Amélie Héliou and Ning Niu and Shane Gu and Chenxi Pang and Yeqing Li and Nir Levine and Ariel Stolovich and Rebeca Santamaria-Fernandez and Sonam Goenka and Wenny Yustalim and Robin Strudel and Ali Elqursh and Charlie Deck and Hyo Lee and Zonglin Li and Kyle Levin and Raphael Hoffmann and Dan Holtmann-Rice and Olivier Bachem and Sho Arora and Christy Koh and Soheil Hassas Yeganeh and Siim Põder and Mukarram Tariq and Yanhua Sun and Lucian Ionita and Mojtaba Seyedhosseini and Pouya Tafti and Zhiyu Liu and Anmol Gulati and Jasmine Liu and Xinyu Ye and Bart Chrzaszcz and Lily Wang and Nikhil Sethi and Tianrun Li and Ben Brown and Shreya Singh and Wei Fan and Aaron Parisi and Joe Stanton and Vinod Koverkathu and Christopher A. Choquette-Choo and Yunjie Li and TJ Lu and Abe Ittycheriah and Prakash Shroff and Mani Varadarajan and Sanaz Bahargam and Rob Willoughby and David Gaddy and Guillaume Desjardins and Marco Cornero and Brona Robenek and Bhavishya Mittal and Ben Albrecht and Ashish Shenoy and Fedor Moiseev and Henrik Jacobsson and Alireza Ghaffarkhah and Morgane Rivière and Alanna Walton and Clément Crepy and Alicia Parrish and Zongwei Zhou and Clement Farabet and Carey Radebaugh and Praveen Srinivasan and Claudia van der Salm and Andreas Fidjeland and Salvatore Scellato and Eri Latorre-Chimoto and Hanna Klimczak-Plucińska and David Bridson and Dario de Cesare and Tom Hudson and Piermaria Mendolicchio and Lexi Walker and Alex Morris and Matthew Mauger and Alexey Guseynov and Alison Reid and Seth Odoom and Lucia Loher and Victor Cotruta and Madhavi Yenugula and Dominik Grewe and Anastasia Petrushkina and Tom Duerig and Antonio Sanchez and Steve Yadlowsky and Amy Shen and Amir Globerson and Lynette Webb and Sahil Dua and Dong Li and Surya Bhupatiraju and Dan Hurt and Haroon Qureshi and Ananth Agarwal and Tomer Shani and Matan Eyal and Anuj Khare and Shreyas Rammohan Belle and Lei Wang and Chetan Tekur and Mihir Sanjay Kale and Jinliang Wei and Ruoxin Sang and Brennan Saeta and Tyler Liechty and Yi Sun and Yao Zhao and Stephan Lee and Pandu Nayak and Doug Fritz and Manish Reddy Vuyyuru and John Aslanides and Nidhi Vyas and Martin Wicke and Xiao Ma and Evgenii Eltyshev and Nina Martin and Hardie Cate and James Manyika and Keyvan Amiri and Yelin Kim and Xi Xiong and Kai Kang and Florian Luisier and Nilesh Tripuraneni and David Madras and Mandy Guo and Austin Waters and Oliver Wang and Joshua Ainslie and Jason Baldridge and Han Zhang and Garima Pruthi and Jakob Bauer and Feng Yang and Riham Mansour and Jason Gelman and Yang Xu and George Polovets and Ji Liu and Honglong Cai and Warren Chen and XiangHai Sheng and Emily Xue and Sherjil Ozair and Christof Angermueller and Xiaowei Li and Anoop Sinha and Weiren Wang and Julia Wiesinger and Emmanouil Koukoumidis and Yuan Tian and Anand Iyer and Madhu Gurumurthy and Mark Goldenson and Parashar Shah and MK Blake and Hongkun Yu and Anthony Urbanowicz and Jennimaria Palomaki and Chrisantha Fernando and Ken Durden and Harsh Mehta and Nikola Momchev and Elahe Rahimtoroghi and Maria Georgaki and Amit Raul and Sebastian Ruder and Morgan Redshaw and Jinhyuk Lee and Denny Zhou and Komal Jalan and Dinghua Li and Blake Hechtman and Parker Schuh and Milad Nasr and Kieran Milan and Vladimir Mikulik and Juliana Franco and Tim Green and Nam Nguyen and Joe Kelley and Aroma Mahendru and Andrea Hu and Joshua Howland and Ben Vargas and Jeffrey Hui and Kshitij Bansal and Vikram Rao and Rakesh Ghiya and Emma Wang and Ke Ye and Jean Michel Sarr and Melanie Moranski Preston and Madeleine Elish and Steve Li and Aakash Kaku and Jigar Gupta and Ice Pasupat and Da-Cheng Juan and Milan Someswar and Tejvi M. and Xinyun Chen and Aida Amini and Alex Fabrikant and Eric Chu and Xuanyi Dong and Amruta Muthal and Senaka Buthpitiya and Sarthak Jauhari and Nan Hua and Urvashi Khandelwal and Ayal Hitron and Jie Ren and Larissa Rinaldi and Shahar Drath and Avigail Dabush and Nan-Jiang Jiang and Harshal Godhia and Uli Sachs and Anthony Chen and Yicheng Fan and Hagai Taitelbaum and Hila Noga and Zhuyun Dai and James Wang and Chen Liang and Jenny Hamer and Chun-Sung Ferng and Chenel Elkind and Aviel Atias and Paulina Lee and Vít Listík and Mathias Carlen and Jan van de Kerkhof and Marcin Pikus and Krunoslav Zaher and Paul Müller and Sasha Zykova and Richard Stefanec and Vitaly Gatsko and Christoph Hirnschall and Ashwin Sethi and Xingyu Federico Xu and Chetan Ahuja and Beth Tsai and Anca Stefanoiu and Bo Feng and Keshav Dhandhania and Manish Katyal and Akshay Gupta and Atharva Parulekar and Divya Pitta and Jing Zhao and Vivaan Bhatia and Yashodha Bhavnani and Omar Alhadlaq and Xiaolin Li and Peter Danenberg and Dennis Tu and Alex Pine and Vera Filippova and Abhipso Ghosh and Ben Limonchik and Bhargava Urala and Chaitanya Krishna Lanka and Derik Clive and Yi Sun and Edward Li and Hao Wu and Kevin Hongtongsak and Ianna Li and Kalind Thakkar and Kuanysh Omarov and Kushal Majmundar and Michael Alverson and Michael Kucharski and Mohak Patel and Mudit Jain and Maksim Zabelin and Paolo Pelagatti and Rohan Kohli and Saurabh Kumar and Joseph Kim and Swetha Sankar and Vineet Shah and Lakshmi Ramachandruni and Xiangkai Zeng and Ben Bariach and Laura Weidinger and Tu Vu and Alek Andreev and Antoine He and Kevin Hui and Sheleem Kashem and Amar Subramanya and Sissie Hsiao and Demis Hassabis and Koray Kavukcuoglu and Adam Sadovsky and Quoc Le and Trevor Strohman and Yonghui Wu and Slav Petrov and Jeffrey Dean and Oriol Vinyals},
+      year={2024},
+      eprint={2312.11805},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2312.11805}, 
+}
+@misc{bai2023qwentechnicalreport,
+      title={Qwen Technical Report}, 
+      author={Jinze Bai and Shuai Bai and Yunfei Chu and Zeyu Cui and Kai Dang and Xiaodong Deng and Yang Fan and Wenbin Ge and Yu Han and Fei Huang and Binyuan Hui and Luo Ji and Mei Li and Junyang Lin and Runji Lin and Dayiheng Liu and Gao Liu and Chengqiang Lu and Keming Lu and Jianxin Ma and Rui Men and Xingzhang Ren and Xuancheng Ren and Chuanqi Tan and Sinan Tan and Jianhong Tu and Peng Wang and Shijie Wang and Wei Wang and Shengguang Wu and Benfeng Xu and Jin Xu and An Yang and Hao Yang and Jian Yang and Shusheng Yang and Yang Yao and Bowen Yu and Hongyi Yuan and Zheng Yuan and Jianwei Zhang and Xingxuan Zhang and Yichang Zhang and Zhenru Zhang and Chang Zhou and Jingren Zhou and Xiaohuan Zhou and Tianhang Zhu},
+      year={2023},
+      eprint={2309.16609},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2309.16609}, 
+}
+
+@misc{zheng2024lmsyschat1mlargescalerealworldllm,
+      title={LMSYS-Chat-1M: A Large-Scale Real-World LLM Conversation Dataset}, 
+      author={Lianmin Zheng and Wei-Lin Chiang and Ying Sheng and Tianle Li and Siyuan Zhuang and Zhanghao Wu and Yonghao Zhuang and Zhuohan Li and Zi Lin and Eric P. Xing and Joseph E. Gonzalez and Ion Stoica and Hao Zhang},
+      year={2024},
+      eprint={2309.11998},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2309.11998}, 
+}
+
+@misc{replic_scheduler_vidur,
+	author = {},
+	title = {vidur/vidur/scheduler/replica\_scheduler at main · microsoft/vidur --- github.com},
+	howpublished = {\url{https://github.com/microsoft/vidur/tree/main/vidur/scheduler/replica_scheduler}}
+}
+
+@misc{arxiv-summarization,
+      title={A Discourse-Aware Attention Model for Abstractive Summarization of Long Documents}, 
+      author={Arman Cohan and Franck Dernoncourt and Doo Soon Kim and Trung Bui and Seokhwan Kim and Walter Chang and Nazli Goharian},
+      year={2018},
+      eprint={1804.05685},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/1804.05685}, 
+}
+
+@misc{wolf2020huggingfacestransformersstateoftheartnatural,
+      title={HuggingFace's Transformers: State-of-the-art Natural Language Processing}, 
+      author={Thomas Wolf and Lysandre Debut and Victor Sanh and Julien Chaumond and Clement Delangue and Anthony Moi and Pierric Cistac and Tim Rault and Rémi Louf and Morgan Funtowicz and Joe Davison and Sam Shleifer and Patrick von Platen and Clara Ma and Yacine Jernite and Julien Plu and Canwen Xu and Teven Le Scao and Sylvain Gugger and Mariama Drame and Quentin Lhoest and Alexander M. Rush},
+      year={2020},
+      eprint={1910.03771},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/1910.03771}, 
+}
+
+@misc{chunked_prefill_vllm,
+	author = {SangBin Cho},
+	title = {[{R}{F}{C}] {U}pstream {C}hunked {P}refill · {I}ssue \#3130 · vllm-project/vllm --- github.com},
+	howpublished = {\url{https://github.com/vllm-project/vllm/issues/3130}}
+}
+
+@inproceedings{lightLLM,
+author = {Gong, Ruihao and Bai, Shihao and Wu, Siyu and Fan, Yunqian and Wang, Zaijun and Li, Xiuhong and Yang, Hailong and Liu, Xianglong},
+title = {Past-Future Scheduler for LLM Serving under SLA Guarantees},
+year = {2025},
+isbn = {9798400710797},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3676641.3716011},
+doi = {10.1145/3676641.3716011},
+abstract = {The exploration and application of Large Language Models (LLMs) is thriving. To reduce deployment costs, continuous batching has become an essential feature in current service frameworks. The effectiveness of continuous batching relies on an accurate estimate of the memory requirements of requests. However, due to the diversity in request output lengths, existing frameworks tend to adopt aggressive or conservative schedulers, which often result in significant overestimation or underestimation of memory consumption. Consequently, they suffer from harmful request evictions or prolonged queuing times, failing to achieve satisfactory throughput under strict Service Level Agreement (SLA) guarantees (a.k.a. goodput), across various LLM application scenarios with differing input-output length distributions. To address this issue, we propose a novel Past-Future scheduler that precisely estimates the peak memory resources required by the running batch via considering the historical distribution of request output lengths and calculating memory occupancy at each future time point. It adapts to applications with all types of input-output length distributions, balancing the trade-off between request queuing and harmful evictions, thereby consistently achieving better goodput. Furthermore, to validate the effectiveness of the proposed scheduler, we developed a high-performance LLM serving framework, LightLLM, that implements the Past-Future scheduler. Compared to existing aggressive or conservative schedulers, LightLLM demonstrates superior goodput, achieving up to 2-3\texttimes{} higher goodput than other schedulers under heavy loads. LightLLM is open source to boost the research in such direction (https://github.com/ModelTC/lightllm).},
+booktitle = {Proceedings of the 30th ACM International Conference on Architectural Support for Programming Languages and Operating Systems, Volume 2},
+pages = {798--813},
+numpages = {16},
+keywords = {llm inference, scheduling optimization},
+location = {Rotterdam, Netherlands},
+series = {ASPLOS '25}
+}
+
+
+@misc{githubGitHubIjlorjson,
+	author = {},
+	title = {GitHub - ijl/orjson: Fast, correct Python JSON library supporting dataclasses, datetimes, and numpy --- github.com},
+	howpublished = {\url{https://github.com/ijl/orjson}}
+}
+
+@misc{lmsysVicunaOpenSource,
+      title={Judging LLM-as-a-Judge with MT-Bench and Chatbot Arena}, 
+      author={Lianmin Zheng and Wei-Lin Chiang and Ying Sheng and Siyuan Zhuang and Zhanghao Wu and Yonghao Zhuang and Zi Lin and Zhuohan Li and Dacheng Li and Eric P. Xing and Hao Zhang and Joseph E. Gonzalez and Ion Stoica},
+      year={2023},
+      eprint={2306.05685},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2306.05685}, 
+}
+
+@misc{burstgpt,
+      title={BurstGPT: A Real-world Workload Dataset to Optimize LLM Serving Systems}, 
+      author={Yuxin Wang and Yuhan Chen and Zeyu Li and Xueze Kang and Zhenheng Tang and Xin He and Rui Guo and Xin Wang and Qiang Wang and Amelie Chi Zhou and Xiaowen Chu},
+      year={2024},
+      eprint={2401.17644},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2401.17644}, 
+}
+
+@inproceedings{serverless_real_world,
+author = {Liu, Qingyuan and Du, Dong and Xia, Yubin and Zhang, Ping and Chen, Haibo},
+title = {The Gap Between Serverless Research and Real-world Systems},
+year = {2023},
+isbn = {9798400703874},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3620678.3624785},
+doi = {10.1145/3620678.3624785},
+abstract = {With the emergence of the serverless computing paradigm in the cloud, researchers have explored many challenges of serverless systems and proposed solutions such as snapshot-based booting. However, we have noticed that some of these optimizations are based on oversimplified assumptions that lead to infeasibility and hide real-world issues. This paper aims to analyze the gap between current serverless research and real-world systems from a perspective of industry, and present new observations, challenges, opportunities, and insights that may address the discrepancies.},
+booktitle = {Proceedings of the 2023 ACM Symposium on Cloud Computing},
+pages = {475--485},
+numpages = {11},
+keywords = {cloud computing, scheduling, serverless, sidecar},
+location = {Santa Cruz, CA, USA},
+series = {SoCC '23}
+}
+
+@misc{githubGitHubLlmdllmd,
+	author = {llm-d},
+	title = {{G}it{H}ub - llm-d/llm-d: llm-d is a {K}ubernetes-native high-performance distributed {L}{L}{M} inference framework --- github.com},
+      year   = {2026},
+      note   = {Accessed: 2026-02-03},
+	howpublished = {\url{https://github.com/llm-d/llm-d}},
+}
+
+@inproceedings {simAI,
+author = {Xizheng Wang and Qingxu Li and Yichi Xu and Gang Lu and Dan Li and Li Chen and Heyang Zhou and Linkang Zheng and Sen Zhang and Yikai Zhu and Yang Liu and Pengcheng Zhang and Kun Qian and Kunling He and Jiaqi Gao and Ennan Zhai and Dennis Cai and Binzhang Fu},
+title = {{SimAI}: Unifying Architecture Design and Performance Tuning for {Large-Scale} Large Language Model Training with Scalability and Precision},
+booktitle = {22nd USENIX Symposium on Networked Systems Design and Implementation (NSDI 25)},
+year = {2025},
+isbn = {978-1-939133-46-5},
+address = {Philadelphia, PA},
+pages = {541--558},
+url = {https://www.usenix.org/conference/nsdi25/presentation/wang-xizheng-simai},
+publisher = {USENIX Association},
+month = apr
+}
+
+@inproceedings{bang-2023-gptcache,
+    title = "{GPTC}ache: An Open-Source Semantic Cache for {LLM} Applications Enabling Faster Answers and Cost Savings",
+    author = "Bang, Fu",
+    editor = "Tan, Liling  and
+      Milajevs, Dmitrijs  and
+      Chauhan, Geeticka  and
+      Gwinnup, Jeremy  and
+      Rippeth, Elijah",
+    booktitle = "Proceedings of the 3rd Workshop for Natural Language Processing Open Source Software (NLP-OSS 2023)",
+    month = dec,
+    year = "2023",
+    address = "Singapore",
+    publisher = "Association for Computational Linguistics",
+    url = "https://aclanthology.org/2023.nlposs-1.24/",
+    doi = "10.18653/v1/2023.nlposs-1.24",
+    pages = "212--218",
+    abstract = "The rise of ChatGPT1 has led to the development of artificial intelligence (AI) applications, particularly those that rely on large language models (LLMs). However, recalling LLM APIs can be expensive, and the response speed may slow down during LLMs' peak times, causing frustration among developers. Potential solutions to this problem include using better LLM models or investing in more computing resources. However, these options may increase product development costs and decrease development speed. GPTCache2 is an open-source semantic cache that stores LLM responses to address this issue. When integrating an AI application with GPTCache, user queries are first sent to GPTCache for a response before being sent to LLMs like ChatGPT. If GPTCache has the answer to a query, it quickly returns the answer to the user without having to query the LLM. This approach saves costs on API recalls and makes response times much faster. For instance, integrating GPTCache with the GPT service offered by OpenAI can increase response speed 2-10 times when the cache is hit. Moreover, network fluctuations will not affect GPTCache{'}s response time, making it highly stable. This paper presents GPTCache and its architecture, how it functions and performs, and the use cases for which it is most advantageous."
+}
+
+@misc{vllmAutomaticPrefix,
+	author = {},
+	title = {{A}utomatic {P}refix {C}aching --- v{L}{L}{M} --- docs.vllm.ai},
+	howpublished = {\url{https://docs.vllm.ai/en/v0.8.3/features/automatic_prefix_caching.html}},
+}
+
+@misc{pytorchTorchServex2014,
+	author = {},
+	title = {{T}orch{S}erve --- {P}y{T}orch/{S}erve master documentation --- docs.pytorch.org},
+	howpublished = {\url{https://docs.pytorch.org/serve/}},
+}
+
+@misc{joosen2024serverlesscoldstarts,
+      title={Serverless Cold Starts and Where to Find Them}, 
+      author={Artjom Joosen and Ahmed Hassan and Martin Asenov and Rajkarn Singh and Luke Darlow and Jianfeng Wang and Qiwen Deng and Adam Barker},
+      year={2024},
+      eprint={2410.06145},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2410.06145}, 
+}
+
+@misc{shoeybi2020megatronlmtrainingmultibillionparameter,
+      title={Megatron-LM: Training Multi-Billion Parameter Language Models Using Model Parallelism}, 
+      author={Mohammad Shoeybi and Mostofa Patwary and Raul Puri and Patrick LeGresley and Jared Casper and Bryan Catanzaro},
+      year={2020},
+      eprint={1909.08053},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/1909.08053}, 
+}
+
+@misc{huang2019gpipeefficienttraininggiant,
+      title={GPipe: Efficient Training of Giant Neural Networks using Pipeline Parallelism}, 
+      author={Yanping Huang and Youlong Cheng and Ankur Bapna and Orhan Firat and Mia Xu Chen and Dehao Chen and HyoukJoong Lee and Jiquan Ngiam and Quoc V. Le and Yonghui Wu and Zhifeng Chen},
+      year={2019},
+      eprint={1811.06965},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/1811.06965}, 
+}
+
+@misc{guan2023intelligentvirtualassistantsllmbased,
+      title={Intelligent Virtual Assistants with LLM-based Process Automation}, 
+      author={Yanchu Guan and Dong Wang and Zhixuan Chu and Shiyu Wang and Feiyue Ni and Ruihua Song and Longfei Li and Jinjie Gu and Chenyi Zhuang},
+      year={2023},
+      eprint={2312.06677},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2312.06677}, 
+}
+@misc{jiang2024surveylargelanguagemodels,
+      title={A Survey on Large Language Models for Code Generation}, 
+      author={Juyong Jiang and Fan Wang and Jiasi Shen and Sungju Kim and Sunghun Kim},
+      year={2024},
+      eprint={2406.00515},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2406.00515}, 
+}
+
+@misc{gómezrodríguez2023confederacymodelscomprehensiveevaluation,
+      title={A Confederacy of Models: a Comprehensive Evaluation of LLMs on Creative Writing}, 
+      author={Carlos Gómez-Rodríguez and Paul Williams},
+      year={2023},
+      eprint={2310.08433},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2310.08433}, 
+}
+
+@misc{cheng2025scootsloorientedperformancetuning,
+      title={SCOOT: SLO-Oriented Performance Tuning for LLM Inference Engines}, 
+      author={Ke Cheng and Zhi Wang and Wen Hu and Tiannuo Yang and Jianguo Li and Sheng Zhang},
+      year={2025},
+      eprint={2408.04323},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2408.04323}, 
+}
+
+@misc{shen2025accelgenheterogeneoussloguaranteedhighthroughput,
+      title={AccelGen: Heterogeneous SLO-Guaranteed High-Throughput LLM Inference Serving for Diverse Applications}, 
+      author={Haiying Shen and Tanmoy Sen},
+      year={2025},
+      eprint={2503.13737},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2503.13737}, 
+}
+
+@misc{qin2024mooncakekvcachecentricdisaggregatedarchitecture,
+      title={Mooncake: A KVCache-centric Disaggregated Architecture for LLM Serving}, 
+      author={Ruoyu Qin and Zheming Li and Weiran He and Mingxing Zhang and Yongwei Wu and Weimin Zheng and Xinran Xu},
+      year={2024},
+      eprint={2407.00079},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2407.00079}, 
+}
+
+@misc{schuurmans2024autoregressivelargelanguagemodels,
+      title={Autoregressive Large Language Models are Computationally Universal}, 
+      author={Dale Schuurmans and Hanjun Dai and Francesco Zanini},
+      year={2024},
+      eprint={2410.03170},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2410.03170}, 
+}
+
+@misc{lightseqhighperformanceinference,
+      title={LightSeq: A High Performance Inference Library for Transformers}, 
+      author={Xiaohui Wang and Ying Xiong and Yang Wei and Mingxuan Wang and Lei Li},
+      year={2021},
+      eprint={2010.13887},
+      archivePrefix={arXiv},
+      primaryClass={cs.MS},
+      url={https://arxiv.org/abs/2010.13887}, 
+}
+
+@misc{turbotransformersefficientgpuserving,
+      title={TurboTransformers: An Efficient GPU Serving System For Transformer Models}, 
+      author={Jiarui Fang and Yang Yu and Chengduo Zhao and Jie Zhou},
+      year={2021},
+      eprint={2010.05680},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2010.05680}, 
+}
+@inproceedings{wang_gemini_2023,
+    address = {Koblenz Germany},
+    title = {{GEMINI}: {Fast} {Failure} {Recovery} in {Distributed} {Training} with {In}-{Memory} {Checkpoints}},
+    isbn = {9798400702297},
+    shorttitle = {{GEMINI}},
+    url = {https://dl.acm.org/doi/10.1145/3600006.3613145},
+    doi = {10.1145/3600006.3613145},
+    language = {en},
+    urldate = {2023-10-24},
+    booktitle = {Proceedings of the 29th {Symposium} on {Operating} {Systems} {Principles}},
+    publisher = {ACM},
+    author = {Wang, Zhuang and Jia, Zhen and Zheng, Shuai and Zhang, Zhen and Fu, Xinwei and Ng, T. S. Eugene and Wang, Yida},
+    month = oct,
+    year = {2023},
+    pages = {364--381},
+}
+
+@misc{claude,
+      title={From LLM to NMT: Advancing Low-Resource Machine Translation with Claude}, 
+      author={Maxim Enis and Mark Hopkins},
+      year={2024},
+      eprint={2404.13813},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2404.13813}, 
+}
+
+@misc{zheng2023judging,
+      title={Judging LLM-as-a-judge with MT-Bench and Chatbot Arena},
+      author={Lianmin Zheng and Wei-Lin Chiang and Ying Sheng and Siyuan Zhuang and Zhanghao Wu and Yonghao Zhuang and Zi Lin and Zhuohan Li and Dacheng Li and Eric. P Xing and Hao Zhang and Joseph E. Gonzalez and Ion Stoica},
+      year={2023},
+      eprint={2306.05685},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+
+@Book{jm3,
+  author =       "Daniel Jurafsky and James H. Martin",
+  title =        "Speech and Language Processing: An Introduction to
+                 Natural Language Processing, Computational Linguistics,
+                 and Speech Recognition with Language Models",
+  year =         "2025",
+  url = {https://web.stanford.edu/~jurafsky/slp3/},
+  note = "Online manuscript released January 12, 2025",
+  edition = "3rd",
+  pages= {207--210},  
+  }
+
+@misc{vllmSamplingParameters,
+	author = {},
+	title = {{S}ampling {P}arameters --- v{L}{L}{M} --- docs.vllm.ai},
+	howpublished = {\url{https://docs.vllm.ai/en/v0.6.4/dev/sampling_params.html}},
+	year = {},
+	note = {[Accessed 25-07-2025]},
+}
+
+@misc{ELIS,
+      title={ELIS: Efficient LLM Iterative Scheduling System with Response Length Predictor}, 
+      author={Seungbeom Choi and Jeonghoe Goo and Eunjoo Jeon and Mingyu Yang and Minsung Jang},
+      year={2025},
+      eprint={2505.09142},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2505.09142}, 
+}
+
+@inproceedings{QLMQueue,
+author = {Patke, Archit and Reddy, Dhemath and Jha, Saurabh and Qiu, Haoran and Pinto, Christian and Narayanaswami, Chandra and Kalbarczyk, Zbigniew and Iyer, Ravishankar},
+title = {Queue Management for SLO-Oriented Large Language Model Serving},
+year = {2024},
+isbn = {9798400712869},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3698038.3698523},
+doi = {10.1145/3698038.3698523},
+abstract = {Large language model (LLM) serving is becoming an increasingly critical workload for cloud providers. Existing LLM serving systems focus on interactive requests, such as chatbots and coding assistants, with tight latency SLO requirements. However, when such systems execute batch requests that have relaxed SLOs along with interactive requests, it leads to poor multiplexing and inefficient resource utilization. To address these challenges, we propose QLM, a queue management system for LLM serving. QLM maintains batch and interactive requests across different models and SLOs in a request queue. Optimal ordering of the request queue is critical to maintain SLOs while ensuring high resource utilization. To generate this optimal ordering, QLM uses a Request Waiting Time (RWT) Estimator that estimates the waiting times for requests in the request queue. These estimates are used by a global scheduler to orchestrate LLM Serving Operations (LSOs) such as request pulling, request eviction, load balancing, and model swapping. Evaluation on heterogeneous GPU devices and models with real-world LLM serving dataset shows that QLM improves SLO attainment by 40-90\% and throughput by 20-400\% while maintaining or improving device utilization compared to other state-of-the-art LLM serving systems. QLM's evaluation is based on the production requirements of a cloud provider. QLM is publicly available at https://www.github.com/QLM-project/QLM.},
+booktitle = {Proceedings of the 2024 ACM Symposium on Cloud Computing},
+pages = {18--35},
+numpages = {18},
+keywords = {large language models, machine learning inference, queuing},
+location = {Redmond, WA, USA},
+series = {SoCC '24}
+}
+
+@misc{chen2025slosserveoptimizedservingmultislo,
+      title={SLOs-Serve: Optimized Serving of Multi-SLO LLMs}, 
+      author={Siyuan Chen and Zhipeng Jia and Samira Khan and Arvind Krishnamurthy and Phillip B. Gibbons},
+      year={2025},
+      eprint={2504.08784},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2504.08784}, 
+}
+
+@misc{gao2025duetserveharmonizingprefilldecode,
+      title={DuetServe: Harmonizing Prefill and Decode for LLM Serving via Adaptive GPU Multiplexing}, 
+      author={Lei Gao and Chaoyi Jiang and Hossein Entezari Zarch and Daniel Wong and Murali Annavaram},
+      year={2025},
+      eprint={2511.04791},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2511.04791}, 
+}
+
+@misc{wang2025prefilldecodeaggregationdisaggregationunifying,
+      title={Prefill-Decode Aggregation or Disaggregation? Unifying Both for Goodput-Optimized LLM Serving}, 
+      author={Chao Wang and Pengfei Zuo and Zhangyu Chen and Yunkai Liang and Zhou Yu and Ming-Chang Yang},
+      year={2025},
+      eprint={2508.01989},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2508.01989}, 
+}
+
+@article{docker,
+   title={Navigating the Docker Ecosystem: A Comprehensive Taxonomy and Survey},
+   volume={17},
+   ISSN={2581-8260},
+   url={http://dx.doi.org/10.9734/AJRCOS/2024/v17i1411},
+   DOI={10.9734/ajrcos/2024/v17i1411},
+   number={1},
+   journal={Asian Journal of Research in Computer Science},
+   publisher={Sciencedomain International},
+   author={Muzumdar, Prathamesh and Bhosale, Amol and Basyal, Ganga Prasad and Kurian, George},
+   year={2024},
+   month=jan, pages={42--61} }
+
+@misc{sanh2020distilbertdistilledversionbert,
+      title={DistilBERT, a distilled version of BERT: smaller, faster, cheaper and lighter}, 
+      author={Victor Sanh and Lysandre Debut and Julien Chaumond and Thomas Wolf},
+      year={2020},
+      eprint={1910.01108},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/1910.01108}, 
+}
+
+@misc{wang2025reasonsemanticroutervllm,
+      title={When to Reason: Semantic Router for vLLM}, 
+      author={Chen Wang and Xunzhuo Liu and Yuhan Liu and Yue Zhu and Xiangxi Mo and Junchen Jiang and Huamin Chen},
+      year={2025},
+      eprint={2510.08731},
+      archivePrefix={arXiv},
+      primaryClass={cs.ET},
+      url={https://arxiv.org/abs/2510.08731}, 
+}
+
+@misc{ong2025routellmlearningroutellms,
+      title={RouteLLM: Learning to Route LLMs with Preference Data}, 
+      author={Isaac Ong and Amjad Almahairi and Vincent Wu and Wei-Lin Chiang and Tianhao Wu and Joseph E. Gonzalez and M Waleed Kadous and Ion Stoica},
+      year={2025},
+      eprint={2406.18665},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2406.18665}, 
+}
+
+@misc{ding2025bestrouteadaptivellmrouting,
+      title={BEST-Route: Adaptive LLM Routing with Test-Time Optimal Compute}, 
+      author={Dujian Ding and Ankur Mallick and Shaokun Zhang and Chi Wang and Daniel Madrigal and Mirian Del Carmen Hipolito Garcia and Menglin Xia and Laks V. S. Lakshmanan and Qingyun Wu and Victor Rühle},
+      year={2025},
+      eprint={2506.22716},
+      archivePrefix={arXiv},
+      primaryClass={cs.LG},
+      url={https://arxiv.org/abs/2506.22716}, 
+}
+
+@misc{githubGitHubZhengzangwSequenceScheduling,
+      author = {Zangwei Zheng},
+      title  = {GitHub - zhengzangw/Sequence-Scheduling: PyTorch implementation of paper "Response Length Perception and Sequence Scheduling: An LLM-Empowered LLM Inference Pipeline". --- github.com},
+      year   = {2023},
+      note   = {Accessed: 2025-02-12},
+      howpublished = {\url{https://github.com/zhengzangw/Sequence-Scheduling}}
+}
+
+
+@misc{ling2025lavalifetimeawarevmallocation,
+      title={LAVA: Lifetime-Aware VM Allocation with Learned Distributions and Adaptation to Mispredictions}, 
+      author={Jianheng Ling and Pratik Worah and Yawen Wang and Yunchuan Kong and Anshul Kapoor and Chunlei Wang and Clifford Stein and Diwakar Gupta and Jason Behmer and Logan A. Bush and Prakash Ramanan and Rajesh Kumar and Thomas Chestna and Yajing Liu and Ying Liu and Ye Zhao and Kathryn S. McKinley and Meeyoung Park and Martin Maas},
+      year={2025},
+      eprint={2412.09840},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2412.09840}, 
+}
+
+@misc{llumnix-github,
+	author = {},
+	title = {{G}it{H}ub - {A}libaba{P}{A}{I}/llumnix: {E}fficient and easy multi-instance {L}{L}{M} serving --- github.com},
+	howpublished = {\url{https://github.com/{A}libaba{P}{A}{I}/llumnix}},
+	year = {},
+	note = {[Accessed 02-02-2026]},
+}
+
+@misc{reddy2025bellman,
+      title={BeLLMan: Controlling LLM Congestion}, 
+      author={Tella Rajashekhar Reddy and Atharva Deshmukh and Karan Tandon and Rohan Gandhi and Anjaly Parayil and Debopam Bhattacherjee},
+      year={2025},
+      eprint={2510.15330},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2510.15330},
+}
+
+@misc{beurerkellner2022lmql,
+   title={Prompting Is Programming: A Query Language for Large Language Models},
+   volume={7},
+   ISSN={2475-1421},
+   url={http://dx.doi.org/10.1145/3591300},
+   DOI={10.1145/3591300},
+   number={PLDI},
+   journal={Proceedings of the ACM on Programming Languages},
+   publisher={Association for Computing Machinery (ACM)},
+   author={Beurer-Kellner, Luca and Fischer, Marc and Vechev, Martin},
+   year={2023},
+   month=jun, pages={1946--1969} 
+}
+
+@misc{willard2023efficient,
+      title={Efficient Guided Generation for Large Language Models}, 
+      author={Brandon T. Willard and Rémi Louf},
+      year={2023},
+      eprint={2307.09702},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2307.09702},
+}
+
+@misc{geng2025jsonschemabench,
+      title={JSONSchemaBench: A Rigorous Benchmark of Structured Outputs for Language Models}, 
+      author={Saibo Geng and Hudson Cooper and Michał Moskal and Samuel Jenkins and Julian Berman and Nathan Ranchin and Robert West and Eric Horvitz and Harsha Nori},
+      year={2025},
+      eprint={2501.10868},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL},
+      url={https://arxiv.org/abs/2501.10868}, 
+}
+@article{mitzenmacher2001,
+  author = {Mitzenmacher, Michael},
+  title = {The Power of Two Choices in Randomized Load Balancing},
+  journal = {IEEE Transactions on Parallel and Distributed Systems},
+  volume = {12},
+  number = {10},
+  pages = {1094--1104},
+  year = {2001}
+}
+
+@article{10.1137/S0097539795288490,
+author = {Azar, Yossi and Broder, Andrei Z. and Karlin, Anna R. and Upfal, Eli},
+title = {Balanced Allocations},
+year = {1999},
+issue_date = {Feb. 2000},
+publisher = {Society for Industrial and Applied Mathematics},
+address = {USA},
+volume = {29},
+number = {1},
+issn = {0097-5397},
+url = {https://doi.org/10.1137/S0097539795288490},
+doi = {10.1137/S0097539795288490},
+abstract = {Suppose that we sequentially place $n$ balls into n boxes by putting each ball into a randomly chosen box.  It is well known that when we are done, the fullest box has with high probability (1 + o(1))ln n/ln ln n balls in it.  Suppose instead that for each ball we choose two boxes at random and place the ball into the one which is less full at the time of placement.  We show that with high probability, the fullest box contains only ln ln n/ln 2 + O(1) balls---exponentially less than before.  Furthermore, we show that a similar gap exists in the infinite process, where at each step one ball, chosen uniformly at random, is deleted,  and one ball is added in the manner above. We discuss consequences of this and related theorems for dynamic resource allocation, hashing, and on-line load balancing.},
+journal = {SIAM J. Comput.},
+month = sep,
+pages = {180–200},
+numpages = {21},
+keywords = {urn models, resource allocation, on-line algorithms, occupancy problems, load balancing, hashing}
+}
+
+@inproceedings{prequal,
+author = {Wydrowski, Bartek and Kleinberg, Robert and Rumble, Stephen M. and Archer, Aaron},
+title = {Load is not what you should balance: introducing Prequal},
+year = {2024},
+isbn = {978-1-939133-39-7},
+publisher = {USENIX Association},
+address = {USA},
+abstract = {We present Prequal (Probing to Reduce Queuing and Latency), a load balancer for distributed multi-tenant systems. Prequal aims to minimize real-time request latency in the presence of heterogeneous server capacities and non-uniform, time-varying antagonist load. It actively probes server load to leverage the power of d choices paradigm, extending it with asynchronous and reusable probes. Cutting against received wisdom, Prequal does not balance CPU load, but instead selects servers according to estimated latency and active requests-in-flight (RIF). We explore its major design features on a testbed system and evaluate it on YouTube, where it has been deployed for more than two years. Prequal has dramatically decreased tail latency, error rates, and resource use, enabling YouTube and other production systems at Google to run at much higher utilization.},
+booktitle = {Proceedings of the 21st USENIX Symposium on Networked Systems Design and Implementation},
+articleno = {71},
+numpages = {15},
+location = {Santa Clara, CA, USA},
+series = {NSDI'24}
+}
+
+@inproceedings{sparrow,
+author = {Ousterhout, Kay and Wendell, Patrick and Zaharia, Matei and Stoica, Ion},
+title = {Sparrow: distributed, low latency scheduling},
+year = {2013},
+isbn = {9781450323888},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/2517349.2522716},
+doi = {10.1145/2517349.2522716},
+abstract = {Large-scale data analytics frameworks are shifting towards shorter task durations and larger degrees of parallelism to provide low latency. Scheduling highly parallel jobs that complete in hundreds of milliseconds poses a major challenge for task schedulers, which will need to schedule millions of tasks per second on appropriate machines while offering millisecond-level latency and high availability. We demonstrate that a decentralized, randomized sampling approach provides near-optimal performance while avoiding the throughput and availability limitations of a centralized design. We implement and deploy our scheduler, Sparrow, on a 110-machine cluster and demonstrate that Sparrow performs within 12\% of an ideal scheduler.},
+booktitle = {Proceedings of the Twenty-Fourth ACM Symposium on Operating Systems Principles},
+pages = {69–84},
+numpages = {16},
+location = {Farminton, Pennsylvania},
+series = {SOSP '13}
+}
+
+@misc{dodoor,
+      title={Dodoor: Efficient Randomized Decentralized Scheduling with Load Caching for Heterogeneous Tasks and Clusters}, 
+      author={Wei Da and Evangelia Kalyvianaki},
+      year={2025},
+      eprint={2510.12889},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2510.12889}, 
+}
+
+@inproceedings{hawk,
+author = {Delgado, Pamela and Dinu, Florin and Kermarrec, Anne-Marie and Zwaenepoel, Willy},
+title = {Hawk: hybrid datacenter scheduling},
+year = {2015},
+isbn = {9781931971225},
+publisher = {USENIX Association},
+address = {USA},
+abstract = {This paper addresses the problem of efficient scheduling of large clusters under high load and heterogeneous workloads. A heterogeneous workload typically consists of many short jobs and a small number of large jobs that consume the bulk of the cluster's resources.Recent work advocates distributed scheduling to overcome the limitations of centralized schedulers for large clusters with many competing jobs. Such distributed schedulers are inherently scalable, but may make poor scheduling decisions because of limited visibility into the overall resource usage in the cluster. In particular, we demonstrate that under high load, short jobs can fare poorly with such a distributed scheduler.We propose instead a new hybrid centralized/ distributed scheduler, called Hawk. In Hawk, long jobs are scheduled using a centralized scheduler, while short ones are scheduled in a fully distributed way. Moreover, a small portion of the cluster is reserved for the use of short jobs. In order to compensate for the occasional poor decisions made by the distributed scheduler, we propose a novel and efficient randomized work-stealing algorithm.We evaluate Hawk using a trace-driven simulation and a prototype implementation in Spark. In particular, using a Google trace, we show that under high load, compared to the purely distributed Sparrow scheduler, Hawk improves the 50th and 90th percentile runtimes by 80\% and 90\% for short jobs and by 35\% and 10\% for long jobs, respectively. Measurements of a prototype implementation using Spark on a 100-node cluster confirm the results of the simulation.},
+booktitle = {Proceedings of the 2015 USENIX Conference on Usenix Annual Technical Conference},
+pages = {499–510},
+numpages = {12},
+location = {Santa Clara, CA},
+series = {USENIX ATC '15}
+}
+
+@article{cho2025llmservingsim,
+   title={LLMServingSim2.0: A Unified Simulator for Heterogeneous Hardware and Serving Techniques in LLM Infrastructure},
+   volume={24},
+   ISSN={2473-2575},
+   url={http://dx.doi.org/10.1109/LCA.2025.3628325},
+   DOI={10.1109/lca.2025.3628325},
+   number={2},
+   journal={IEEE Computer Architecture Letters},
+   publisher={Institute of Electrical and Electronics Engineers (IEEE)},
+   author={Cho, Jaehong and Choi, Hyunmin and Park, Jongse},
+   year={2025},
+   month={July}, pages={361–364} 
+}
+
+@inproceedings{feng2025frontier,
+  title={Frontier: Simulating the Next Generation of LLM Inference Systems},
+  author={Feng, Yicheng and Tan, Xin and Sew, Kin Hang and Jiang, Yimin and Zhu, Yibo and Xu, Hong},
+  booktitle={Proceedings of the 4th Workshop on Practical Adoption Challenges of ML for Systems},
+  pages={25--30},
+  year={2025}
+}
+
+@misc{agrawal2026revati,
+      title={Revati: Transparent GPU-Free Time-Warp Emulation for LLM Serving}, 
+      author={Amey Agrawal and Mayank Yadav and Sukrit Kumar and Anirudha Agrawal and Garv Ghai and Souradeep Bera and Elton Pinto and Sirish Gambhira and Mohammad Adain and Kasra Sohrab and Chus Antonanzas and Alexey Tumanov},
+      year={2026},
+      eprint={2601.00397},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2601.00397}, 
+}
+
+@misc{da2026llmemunativeruntimeemulation,
+      title={LLM-Emu: Native Runtime Emulation of LLM Inference via Profile-Driven Sampling}, 
+      author={Wei Da and Evangelia Kalyvianaki},
+      year={2026},
+      eprint={2605.00616},
+      archivePrefix={arXiv},
+      primaryClass={cs.DC},
+      url={https://arxiv.org/abs/2605.00616}, 
+}
