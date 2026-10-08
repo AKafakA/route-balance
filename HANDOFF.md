@@ -6,7 +6,7 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## Where the project stands
 
-- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc8 (8 Oct, evening). The final runs (the lease of 28 Sept
+- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc9 (8 Oct, night). The final runs (the lease of 28 Sept
   to 5 Oct: 1,457 runs, all valid) are archived. The code is released in three branches, and the reviewer packs are
   built. Every backup was checked by sha256 on 8 Oct. Nothing is running on any machine.
 - **Before submitting: the paper's code link.** The abstract links `https://anonymous.4open.science/r/route-balance-3ECA`.
@@ -17,8 +17,8 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## The paper
 
-- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc8 (8 Oct): commit
-  c4b5347, tag `v1.1-rc8`, snapshot `versions/1.1.0-rc8/` (reader PDFs, the Overleaf ZIP, every check's output, the
+- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc9 (8 Oct): commit
+  04ae1af, tag `v1.1-rc9`, snapshot `versions/1.1.0-rc9/` (reader PDFs, the Overleaf ZIP, every check's output, the
   round's reviews, `SHA256SUMS`). The body ends on page 10. rc6 over rc5: no paragraph ends in a single-word line, ALPS
   is cited among the request schedulers, the Testbed sentence gives the V100's reason (`reviews/2026-10-08_runts-alps/`).
   rc7 over rc6: the round's range measured on the archived decision logs (`tools/round_range.py`,
@@ -26,7 +26,12 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
   duplicate sentences removed, so page 10 is unchanged; the day's audit, MLSys review, triage and rebuttal notes in
   `reviews/2026-10-08_mlsys-review-audit/`. rc8 over rc7: the review round on rc7 by the three plain readers (MLSys 4 of 6,
   readability 7, story 8, AI style 3, visual 0, desk rejection 0): Table A8's lead column defined, a restating clause and
-  a pronoun fixed; the readers' adopt candidates wait for the owner in that folder's `ROUND_LOG.md`. The paper
+  a pronoun fixed; the readers' adopt candidates wait for the owner in that folder's `ROUND_LOG.md`. rc9 over rc8
+  (owner 8 Oct): BOute (MLSys 2026) named in §2's Placement paragraph as the offline deployment search that brings in
+  model routing (a fixed workload trace, a cluster simulator, P95 latency against quality under a price budget), its
+  reference added, no Table 1 row; for the fit Figure 4 (Gemma) is drawn at 2.20 in, no `\looseness`, the body still
+  ends on page 10 (`ROUND_LOG.md`, ledger rows L123 and L124). The figure script's change alters a paper data pack
+  output (`figures/frontier_gemma.pdf`): the pack is at v1.2 for rc8 and needs a v1.3 build for rc9. The paper
   repository's Drive bundle predates rc7.
 - Its `HANDOFF.md` was last updated on 5 Oct (rc2). The rounds since (rc3 to rc5: the rc2 review's fixes, the
   related-work audit, the flow rewrite, the page fit, the merged figures, Table 5 as a figure, the two-column
@@ -105,7 +110,10 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
   the lease-time run copies of `local/` (13 GB: packs `lease-local-pack-01` to `06` on CSD3
   `route-balance-lease-20260928/operator-local-packs/` and on Drive `routebalance-backup/lease-operator-local/`,
   both verified by sha256; the pack records stay in `~/data/backup-staging-rb/packs/`), the pip, uv and npm caches, the replay venv and
-  the SWE-bench Docker images. `local/` keeps its scripts, logs, manifests, renders and calibration tables (161 MB).
+  the SWE-bench Docker images. `local/` keeps its scripts, logs, manifests, renders and calibration tables (161 MB), plus the eight pinned inputs of
+  the paper's dataset table restored from the CSD3 packs on 8 Oct night (`local/lease/data/` six prompt and corpus
+  files, `local/lease/bundle/inputs/` the two training-row files, 188 MB, every pin checked): the paper's
+  `tools/snapshot.py` regenerates `generated/datasets.tex` from them and stops without them.
   Never copy run folders here; size before copying.
 - **The GPU VM:** idle (no engine, container or proof). `~/rb-analysis-nfs` 22 GB (the final runs and the packs: keep);
   `~/rb-ref` 21 GB and `~/rb-gpu` 28 GB (the ref proofs: tree copies, outputs, the scheduler and engine environments,
