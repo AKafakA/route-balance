@@ -6,7 +6,7 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## Where the project stands
 
-- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc7 (8 Oct, evening). The final runs (the lease of 28 Sept
+- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc8 (8 Oct, evening). The final runs (the lease of 28 Sept
   to 5 Oct: 1,457 runs, all valid) are archived. The code is released in three branches, and the reviewer packs are
   built. Every backup was checked by sha256 on 8 Oct. Nothing is running on any machine.
 - **Before submitting: the paper's code link.** The abstract links `https://anonymous.4open.science/r/route-balance-3ECA`.
@@ -17,14 +17,17 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## The paper
 
-- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc7 (8 Oct): commit
-  8f14b87, tag `v1.1-rc7`, snapshot `versions/1.1.0-rc7/` (reader PDFs, the Overleaf ZIP, every check's output, the
+- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc8 (8 Oct): commit
+  c4b5347, tag `v1.1-rc8`, snapshot `versions/1.1.0-rc8/` (reader PDFs, the Overleaf ZIP, every check's output, the
   round's reviews, `SHA256SUMS`). The body ends on page 10. rc6 over rc5: no paragraph ends in a single-word line, ALPS
   is cited among the request schedulers, the Testbed sentence gives the V100's reason (`reviews/2026-10-08_runts-alps/`).
   rc7 over rc6: the round's range measured on the archived decision logs (`tools/round_range.py`,
   `data/round_range.json`, both reviews) and explained in two sentences of §5.4 with a table in Appendix I; four
   duplicate sentences removed, so page 10 is unchanged; the day's audit, MLSys review, triage and rebuttal notes in
-  `reviews/2026-10-08_mlsys-review-audit/`. The paper repository's Drive bundle predates rc7.
+  `reviews/2026-10-08_mlsys-review-audit/`. rc8 over rc7: the review round on rc7 by the three plain readers (MLSys 4 of 6,
+  readability 7, story 8, AI style 3, visual 0, desk rejection 0): Table A8's lead column defined, a restating clause and
+  a pronoun fixed; the readers' adopt candidates wait for the owner in that folder's `ROUND_LOG.md`. The paper
+  repository's Drive bundle predates rc7.
 - Its `HANDOFF.md` was last updated on 5 Oct (rc2). The rounds since (rc3 to rc5: the rc2 review's fixes, the
   related-work audit, the flow rewrite, the page fit, the merged figures, Table 5 as a figure, the two-column
   appendix) are in its commit log and in `reviews/2026-10-05_related-audit/` and `reviews/2026-10-06_flow-rewrite/`.
@@ -80,7 +83,8 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 | what | where | checked |
 |---|---|---|
 | the final runs (1,457) | the raw bundle `rb-runs-v1.1.tar.zst` (sha256 `27e989fb…`): the GPU VM `~/rb-analysis-nfs/packs/raw-v1.1/`, the HPC cluster, Drive `raw-bundle-v1.1/`. Unpacked: the GPU VM `~/rb-analysis-nfs/packs/rb-runs-v1.1/` and `~/rb-analysis-nfs/final36/` | Drive = the GPU VM, 7 of 7 files (8 Oct) |
-| the reviewer packs | the GPU VM `~/rb-analysis-nfs/packs/release-v1.1/` with `SHA256SUMS`; Drive `release-v1.1/` | code `f1b969d7…`, paper data `81ca72e8…`, meta-analysis `983dc622…`; Drive = the GPU VM, 4 of 4 (8 Oct) |
+| the reviewer packs, version 1.2 (8 Oct evening, for the paper at rc8) | the GPU VM `~/rb-analysis-nfs/packs/release-v1.2/` with `SHA256SUMS`; Drive `release-v1.2/` | code `f1b969d7…` (unchanged, commit 984eb1a), paper data `bc9bf151…` (gains `round_range.json`, the generator at rc8, Table A8), meta-analysis `a3bc3c4d…` (gains the round-range tool and the 18 decision logs it reads); each built twice to the same bytes, verified from a fresh unpack on the GPU VM (24 reference outputs, 19 files), masked identity scan as v1.1; Drive sha256 = local, 3 of 3 (8 Oct) |
+| the reviewer packs, version 1.1 (6 Oct, superseded) | the GPU VM `~/rb-analysis-nfs/packs/release-v1.1/` with `SHA256SUMS`; Drive `release-v1.1/` | code `f1b969d7…`, paper data `81ca72e8…`, meta-analysis `983dc622…`; Drive = the GPU VM, 4 of 4 (8 Oct) |
 | the lease's record | the HPC cluster's work folder `route-balance-lease-20260928/` (the incremental archives, the bundles, the cell trees, the logs); Drive, every folder as one tar (30, listed in `BACKUP_INDEX.md`); the GPU VM's `~/rb-lease-fallback-20261005/` (9 of the tars) | per-file sha256 in `local/lease/backup-records/manifests/`; read `ARCHIVE_NOTE_2026-10-05` before using the 70 reruns' files |
 | the code and the records | GitHub (`route-balance`); Drive `code-pack-02-git-bundles/` (route-balance, route-balance-paper, the paper repository, the private release tools, the earlier campaigns' repository, as git bundles) | Drive = local, 9 of 9 (8 Oct) |
 
