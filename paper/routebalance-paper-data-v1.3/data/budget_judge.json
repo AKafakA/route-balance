@@ -1,0 +1,9 @@
+{
+  "what": "the judge's stores for the budget runs' served texts (the texts themselves stay in the private bundle)",
+  "judge": "deepeval-llama3.1-8b-it_reference",
+  "stores": {
+    "store.s1.jsonl": {"records": 9948, "sha256": "08a7e64e44f27e87ac36e9b0378d9812fc800bded917ff48b64164fb36a33512"},
+    "store.s2-zero.jsonl": {"records": 5, "sha256": "f80a4432e824a65b8e588ec67f3b6df9284bb8eb460722a74ed41b4a5cee1ad7",
+                            "note": "served texts the judge could not score, each scored 0"}
+  }
+}

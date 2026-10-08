@@ -1,0 +1,253 @@
+{
+ "qwen.disp.rr__l6__s1": {
+  "model_mix": {
+   "Qwen/Qwen2.5-14B": 0.23103057757644394,
+   "Qwen/Qwen2.5-3B": 0.23103057757644394,
+   "Qwen/Qwen2.5-72B": 0.15402038505096263,
+   "Qwen/Qwen2.5-7B": 0.38391845979614947
+  },
+  "problems": [],
+  "summary": {
+   "budget_exhausted": null,
+   "cell_id": "qwen.disp.rr__l6__s1",
+   "corpus_gap": 0,
+   "cost_decode_per_1k": 0.02744780294450736,
+   "cost_total_per_1k": 0.04121937429218573,
+   "coverage": 1.0,
+   "e2e_ms": {
+    "mean": 4237.306402957528,
+    "p50": 2594.03512001154,
+    "p99": 23366.399230893916
+   },
+   "matched": 3532,
+   "max_send_lag_ms": 2.387934140529069,
+   "n_failed": 0,
+   "n_ok": 3532,
+   "n_requests": 3532,
+   "n_zero": 921,
+   "off_instance_ms": {
+    "mean": 2.00159453780746,
+    "p50": 1.905250028357841,
+    "p99": 4.039560639939737
+   },
+   "overhead_ms": {
+    "dispatch_ms": {
+     "mean": 0.012268990974758339,
+     "p50": 0.01045949466060847,
+     "p99": 0.025260524998884662
+    },
+    "router_ms": {
+     "mean": 0.01155045928491811,
+     "p50": 0.010670017218217254,
+     "p99": 0.029887388518545777
+    },
+    "telemetry_ms": {
+     "mean": 0.13654801273822104,
+     "p50": 0.13374700210988522,
+     "p99": 0.34543730522273136
+    }
+   },
+   "problems": [],
+   "prompt_token_mismatches": 0,
+   "quality": 0.3740939977349943,
+   "quality_zeros_excluded": 0.5060513213328226,
+   "slo_attainment_loose": 1.0,
+   "slo_attainment_tight": 1.0,
+   "throughput_rps": 5.892955449596019,
+   "unmatched": 0,
+   "unscored": 0
+  },
+  "valid": true
+ },
+ "qwen.rb-static.q80l10c10__l6__s1": {
+  "model_mix": {
+   "Qwen/Qwen2.5-14B": 0.3456964892412231,
+   "Qwen/Qwen2.5-3B": 0.18403171007927518,
+   "Qwen/Qwen2.5-72B": 0.4229898074745187,
+   "Qwen/Qwen2.5-7B": 0.04728199320498301
+  },
+  "problems": [],
+  "summary": {
+   "budget_exhausted": null,
+   "cell_id": "qwen.rb-static.q80l10c10__l6__s1",
+   "corpus_gap": 0,
+   "cost_decode_per_1k": 0.04150527463193658,
+   "cost_total_per_1k": 0.06146362967157418,
+   "coverage": 1.0,
+   "e2e_ms": {
+    "mean": 5011.459843261692,
+    "p50": 2903.9459904997784,
+    "p99": 31594.740175678246
+   },
+   "matched": 3532,
+   "max_send_lag_ms": 5.527217490406411,
+   "n_failed": 0,
+   "n_ok": 3532,
+   "n_requests": 3532,
+   "n_zero": 666,
+   "off_instance_ms": {
+    "mean": 112.53095451986817,
+    "p50": 107.72529999667313,
+    "p99": 193.84714401727257
+   },
+   "overhead_ms": {
+    "estimator_ms": {
+     "mean": 38.22476134628273,
+     "p50": 35.58602799967048,
+     "p99": 110.55566600407474
+    },
+    "round_wait_ms": {
+     "mean": 51.68421359486601,
+     "p50": 50.145654000516515,
+     "p99": 115.8506299036526
+    },
+    "schedule_ms": {
+     "mean": 0.5734772632447112,
+     "p50": 0.549849501112476,
+     "p99": 1.031820779608097
+    },
+    "stats_fetch_ms": {
+     "mean": 19.78108753461553,
+     "p50": 19.553686997824116,
+     "p99": 23.171997711106087
+    }
+   },
+   "problems": [],
+   "prompt_token_mismatches": 0,
+   "quality": 0.4324462061155153,
+   "quality_zeros_excluded": 0.5329378925331473,
+   "slo_attainment_loose": 0.9997168742921857,
+   "slo_attainment_tight": 0.9977349943374858,
+   "throughput_rps": 5.816327504621789,
+   "unmatched": 0,
+   "unscored": 0
+  },
+  "valid": true
+ },
+ "qwen.vsr.mom-balance__l6__s1": {
+  "model_mix": {
+   "Qwen/Qwen2.5-14B": 0.6843148357870895,
+   "Qwen/Qwen2.5-3B": 0.16194790486976218,
+   "Qwen/Qwen2.5-72B": 0.15373725934314836
+  },
+  "problems": [],
+  "summary": {
+   "budget_exhausted": null,
+   "cell_id": "qwen.vsr.mom-balance__l6__s1",
+   "corpus_gap": 0,
+   "cost_decode_per_1k": 0.03198456681766704,
+   "cost_total_per_1k": 0.049035410532276336,
+   "coverage": 1.0,
+   "e2e_ms": {
+    "mean": 483974.5181976577,
+    "p50": 472385.8820655005,
+    "p99": 1034455.1479884912
+   },
+   "matched": 3532,
+   "max_send_lag_ms": 37.528248282654886,
+   "n_failed": 0,
+   "n_ok": 3532,
+   "n_requests": 3532,
+   "n_zero": 768,
+   "off_instance_ms": {
+    "mean": 0.48481299001335587,
+    "p50": 0.40654049735167064,
+    "p99": 1.596491723685178
+   },
+   "overhead_ms": {
+    "decision": {
+     "mean": 0.015288788221970554,
+     "p50": 0.0,
+     "p99": 0.0
+    },
+    "routing": {
+     "mean": 479333.2454699887,
+     "p50": 466576.5,
+     "p99": 1031981.59
+    },
+    "signals": {
+     "mean": 479329.71970554924,
+     "p50": 466573.0,
+     "p99": 1031974.9400000001
+    }
+   },
+   "problems": [],
+   "prompt_token_mismatches": 0,
+   "quality": 0.4016987542468856,
+   "quality_zeros_excluded": 0.5133140376266281,
+   "slo_attainment_loose": 0.00028312570781426955,
+   "slo_attainment_tight": 0.00028312570781426955,
+   "throughput_rps": 3.3055139819453747,
+   "unmatched": 0,
+   "unscored": 0
+  },
+  "valid": true
+ },
+ "qwen.vsr.mom-balance__l9__s1": {
+  "model_mix": {
+   "Qwen/Qwen2.5-14B": 0.5625,
+   "Qwen/Qwen2.5-3B": 0.125,
+   "Qwen/Qwen2.5-72B": 0.3125
+  },
+  "problems": [
+   "3516/3532 requests failed",
+   "the scheduler identity could not be read after the run: ConfigError: docker exec vllm-sr-router-container python3 failed (1): Error response from daemon: container 6159051091cc125cb85a83af1554496bacdfde1672b7803c8242291d253e2552 is not running\n",
+   "the replay store failed: ConfigError: docker exec vllm-sr-router-container python3 failed (1): Error response from daemon: container 6159051091cc125cb85a83af1554496bacdfde1672b7803c8242291d253e2552 is not running\n",
+   "the live checks after the run failed: ConfigError: docker exec vllm-sr-router-container python3 failed (1): Error response from daemon: container 6159051091cc125cb85a83af1554496bacdfde1672b7803c8242291d253e2552 is not running\n"
+  ],
+  "summary": {
+   "budget_exhausted": null,
+   "cell_id": "qwen.vsr.mom-balance__l9__s1",
+   "corpus_gap": 0,
+   "cost_decode_per_1k": 0.035023124999999995,
+   "cost_total_per_1k": 0.043192499999999995,
+   "coverage": 1.0,
+   "e2e_ms": {
+    "mean": 8194.929788375703,
+    "p50": 6702.423276503396,
+    "p99": 15974.69851944952
+   },
+   "matched": 16,
+   "max_send_lag_ms": 182.59624588665702,
+   "n_failed": 3516,
+   "n_ok": 16,
+   "n_requests": 3532,
+   "n_zero": 2,
+   "off_instance_ms": {
+    "mean": 0.6757200640095107,
+    "p50": 0.5400615009421017,
+    "p99": 1.8758327540126627
+   },
+   "overhead_ms": {
+    "decision": {
+     "mean": 0.0,
+     "p50": 0.0,
+     "p99": 0.0
+    },
+    "routing": {
+     "mean": 3840.125,
+     "p50": 3735.5,
+     "p99": 6231.299999999999
+    },
+    "signals": {
+     "mean": 3834.6875,
+     "p50": 3731.0,
+     "p99": 6226.75
+    }
+   },
+   "problems": [
+    "the scheduler identity could not be read after the run: ConfigError: docker exec vllm-sr-router-container python3 failed (1): Error response from daemon: container 6159051091cc125cb85a83af1554496bacdfde1672b7803c8242291d253e2552 is not running\n",
+    "3516/3532 requests failed"
+   ],
+   "prompt_token_mismatches": 0,
+   "quality": 0.34375,
+   "quality_zeros_excluded": 0.39285714285714285,
+   "slo_attainment_loose": 0.0,
+   "slo_attainment_tight": 0.0,
+   "throughput_rps": 0.037650845149853875,
+   "unmatched": 0,
+   "unscored": 0
+  },
+  "valid": false
+ }
+}

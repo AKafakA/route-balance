@@ -1,0 +1,24 @@
+{
+  "tiers": {
+    "gemma-3-1b_a30": {"model": "google/gemma-3-1b-it", "gpu": "a30", "cost_in": 5e-08, "cost_out": 5e-08, "max_num_seqs": 256, "stop_token_ids": []},
+    "gemma-3-4b_a30": {"model": "google/gemma-3-4b-it", "gpu": "a30", "cost_in": 5e-08, "cost_out": 1e-07, "max_num_seqs": 256, "stop_token_ids": []},
+    "gemma-3-12b_a100": {"model": "google/gemma-3-12b-it", "gpu": "a100", "cost_in": 5e-08, "cost_out": 1.5e-07, "max_num_seqs": 256, "stop_token_ids": []},
+    "gemma-3-27b_a100": {"model": "google/gemma-3-27b-it", "gpu": "a100", "cost_in": 8e-08, "cost_out": 4.5e-07, "max_num_seqs": 256, "stop_token_ids": []}
+  },
+  "instances": [
+    {"instance_id": "Gemma-3-1B_0", "tier": "gemma-3-1b_a30", "node": "a30-0", "port": 8000},
+    {"instance_id": "Gemma-3-1B_1", "tier": "gemma-3-1b_a30", "node": "a30-1", "port": 8000},
+    {"instance_id": "Gemma-3-1B_2", "tier": "gemma-3-1b_a30", "node": "a30-2", "port": 8000},
+    {"instance_id": "Gemma-3-4B_0", "tier": "gemma-3-4b_a30", "node": "a30-3", "port": 8000},
+    {"instance_id": "Gemma-3-4B_1", "tier": "gemma-3-4b_a30", "node": "a30-4", "port": 8000},
+    {"instance_id": "Gemma-3-4B_2", "tier": "gemma-3-4b_a30", "node": "a30-5", "port": 8000},
+    {"instance_id": "Gemma-3-4B_3", "tier": "gemma-3-4b_a30", "node": "a30-6", "port": 8000},
+    {"instance_id": "Gemma-3-4B_4", "tier": "gemma-3-4b_a30", "node": "a30-7", "port": 8000},
+    {"instance_id": "Gemma-3-12B_0", "tier": "gemma-3-12b_a100", "node": "a100-0", "port": 8003},
+    {"instance_id": "Gemma-3-12B_1", "tier": "gemma-3-12b_a100", "node": "a100-0", "port": 8004},
+    {"instance_id": "Gemma-3-12B_2", "tier": "gemma-3-12b_a100", "node": "a100-1", "port": 8003},
+    {"instance_id": "Gemma-3-12B_3", "tier": "gemma-3-12b_a100", "node": "a100-1", "port": 8004},
+    {"instance_id": "Gemma-3-27B_0", "tier": "gemma-3-27b_a100", "node": "a100-0", "port": 8001},
+    {"instance_id": "Gemma-3-27B_1", "tier": "gemma-3-27b_a100", "node": "a100-1", "port": 8001}
+  ]
+}

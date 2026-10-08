@@ -1,0 +1,1224 @@
+{
+ "group": "gemma",
+ "parity": "passed",
+ "partial_skipped": 0,
+ "repeated": [
+  {
+   "config": "gemma.ap.pw053.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.04616603840323395,
+     "e2e_mean_s": 5.6424554152051645,
+     "off_instance_mean_s": 0.07521030714558523,
+     "quality": 0.5665487620010107,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.04546944921677615,
+     "e2e_mean_s": 5.395316139057055,
+     "off_instance_mean_s": 0.07290244066595314,
+     "quality": 0.5665487620010107,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.045748049519959574,
+     "e2e_mean_s": 5.5452296324997965,
+     "off_instance_mean_s": 0.07184911646140686,
+     "quality": 0.5665487620010107,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.ap.pw053.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.04628726124305205,
+     "e2e_mean_s": 8.46162463215414,
+     "off_instance_mean_s": 0.7497893291698092,
+     "quality": 0.5665487620010107,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.0457522182920667,
+     "e2e_mean_s": 7.879716237871592,
+     "off_instance_mean_s": 0.5575129785810642,
+     "quality": 0.5665487620010107,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.04590603335017685,
+     "e2e_mean_s": 8.03594283475899,
+     "off_instance_mean_s": 0.6005029070156731,
+     "quality": 0.5665487620010107,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.ap.pw053.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.046012021222839816,
+     "e2e_mean_s": 13.447414378427583,
+     "off_instance_mean_s": 4.824981169446811,
+     "quality": 0.5665487620010107,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.04569024254674078,
+     "e2e_mean_s": 13.376406230276782,
+     "off_instance_mean_s": 3.6679568024425877,
+     "quality": 0.5665487620010107,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.04574855482566953,
+     "e2e_mean_s": 13.356656426469405,
+     "off_instance_mean_s": 4.731386415037256,
+     "quality": 0.5665487620010107,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.ap.pw080.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.0655654017180394,
+     "e2e_mean_s": 5.51352217434718,
+     "off_instance_mean_s": 0.07366322519916192,
+     "quality": 0.5783729156139465,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.06577944921677614,
+     "e2e_mean_s": 5.556998731411782,
+     "off_instance_mean_s": 0.07339990845521067,
+     "quality": 0.5783729156139465,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.06573187468418393,
+     "e2e_mean_s": 5.5414276342151325,
+     "off_instance_mean_s": 0.07312254829500046,
+     "quality": 0.5783729156139465,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.ap.pw080.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.06610057099545225,
+     "e2e_mean_s": 7.1075182510864785,
+     "off_instance_mean_s": 0.2143372542471391,
+     "quality": 0.5783729156139465,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.0654577463365336,
+     "e2e_mean_s": 6.9867238833507495,
+     "off_instance_mean_s": 0.2384597034048799,
+     "quality": 0.5783729156139465,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.06582901970692269,
+     "e2e_mean_s": 7.0229578492329505,
+     "off_instance_mean_s": 0.23150410630832347,
+     "quality": 0.5783729156139465,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.ap.pw080.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.06492611419909045,
+     "e2e_mean_s": 11.078485129878198,
+     "off_instance_mean_s": 3.078141811320782,
+     "quality": 0.5783729156139465,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.0652988024254674,
+     "e2e_mean_s": 9.521262435878203,
+     "off_instance_mean_s": 1.5133300412819852,
+     "quality": 0.5783729156139465,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.06558624557857504,
+     "e2e_mean_s": 10.373168890889819,
+     "off_instance_mean_s": 2.0204205969180604,
+     "quality": 0.5783729156139465,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.br.t00.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.0215077564426478,
+     "e2e_mean_s": 1.830111118341545,
+     "off_instance_mean_s": 0.1636064252774338,
+     "quality": 0.5050530570995452,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.021776654876200098,
+     "e2e_mean_s": 1.8560379368771474,
+     "off_instance_mean_s": 0.1592648261084658,
+     "quality": 0.5050530570995452,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.02172258716523497,
+     "e2e_mean_s": 1.8403182862192904,
+     "off_instance_mean_s": 0.14983626494602884,
+     "quality": 0.5050530570995452,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.br.t00.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.021675517938352703,
+     "e2e_mean_s": 7.07420761949368,
+     "off_instance_mean_s": 5.1206466762582235,
+     "quality": 0.5050530570995452,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.02170232440626579,
+     "e2e_mean_s": 6.061503959850904,
+     "off_instance_mean_s": 4.131933665626519,
+     "quality": 0.5050530570995452,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.021727160181910055,
+     "e2e_mean_s": 7.386402506634289,
+     "off_instance_mean_s": 5.4155694204058,
+     "quality": 0.5050530570995452,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.br.t00.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.021765361293582617,
+     "e2e_mean_s": 16.91208170983779,
+     "off_instance_mean_s": 14.938527425973707,
+     "quality": 0.5050530570995452,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.02173077311773623,
+     "e2e_mean_s": 16.799819943121783,
+     "off_instance_mean_s": 14.831395130254238,
+     "quality": 0.5050530570995452,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.02160320869125821,
+     "e2e_mean_s": 16.339945193366837,
+     "off_instance_mean_s": 14.392484142558402,
+     "quality": 0.5050530570995452,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.br.t03.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.044857645275391614,
+     "e2e_mean_s": 4.685822048669517,
+     "off_instance_mean_s": 0.17169331749008943,
+     "quality": 0.5674583122789287,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.04431429004547752,
+     "e2e_mean_s": 4.62619380532446,
+     "off_instance_mean_s": 0.1836397071763703,
+     "quality": 0.5674583122789287,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.04455698837796867,
+     "e2e_mean_s": 4.649718831824768,
+     "off_instance_mean_s": 0.17156494926941143,
+     "quality": 0.5674583122789287,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.br.t03.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.04490708943911066,
+     "e2e_mean_s": 11.030191391549184,
+     "off_instance_mean_s": 5.252583231180273,
+     "quality": 0.5674583122789287,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.044567448206164734,
+     "e2e_mean_s": 9.66607953870897,
+     "off_instance_mean_s": 4.052505359935826,
+     "quality": 0.5674583122789287,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.04457356240525518,
+     "e2e_mean_s": 11.583327332195637,
+     "off_instance_mean_s": 5.877004001442912,
+     "quality": 0.5674583122789287,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.br.t03.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.04420984335522991,
+     "e2e_mean_s": 21.125754749089925,
+     "off_instance_mean_s": 15.541851860198582,
+     "quality": 0.5674583122789287,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.044769570490146536,
+     "e2e_mean_s": 19.701159850931315,
+     "off_instance_mean_s": 13.954989839697367,
+     "quality": 0.5674583122789287,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.04427207175341081,
+     "e2e_mean_s": 20.352658259909518,
+     "off_instance_mean_s": 14.724589198425916,
+     "quality": 0.5674583122789287,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.br.t05.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.10103348155634158,
+     "e2e_mean_s": 7.586300003769557,
+     "off_instance_mean_s": 0.1735360070808637,
+     "quality": 0.5844365841334008,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.10201187973724102,
+     "e2e_mean_s": 7.6277689176705925,
+     "off_instance_mean_s": 0.18918452786204776,
+     "quality": 0.5844365841334008,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.1013320919656392,
+     "e2e_mean_s": 7.536891948915635,
+     "off_instance_mean_s": 0.16546460133506558,
+     "quality": 0.5844365841334008,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.br.t05.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.10214917129863568,
+     "e2e_mean_s": 25.02160549404952,
+     "off_instance_mean_s": 3.4928212454123386,
+     "quality": 0.5844365841334008,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.10144171803941383,
+     "e2e_mean_s": 23.702760166809018,
+     "off_instance_mean_s": 4.033593763729225,
+     "quality": 0.5844365841334008,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.10191415361293583,
+     "e2e_mean_s": 24.172537237848925,
+     "off_instance_mean_s": 4.489389119684696,
+     "quality": 0.5844365841334008,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.br.t05.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.10128823143001517,
+     "e2e_mean_s": 34.418437704640716,
+     "off_instance_mean_s": 14.654501265257142,
+     "quality": 0.5844365841334008,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.10216503789792825,
+     "e2e_mean_s": 33.500104412080304,
+     "off_instance_mean_s": 12.842015704492633,
+     "quality": 0.5844365841334008,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.10240814047498736,
+     "e2e_mean_s": 32.40085766191107,
+     "off_instance_mean_s": 12.828541349316934,
+     "quality": 0.5844365841334008,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.disp.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.035234744820616476,
+     "e2e_mean_s": 2.9403874483582526,
+     "off_instance_mean_s": 0.0015433786957946025,
+     "quality": 0.5020717534108136,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.03496649823143001,
+     "e2e_mean_s": 2.9189423469680524,
+     "off_instance_mean_s": 0.0016598845324166682,
+     "quality": 0.5104092976250632,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.036054168772107126,
+     "e2e_mean_s": 3.0120756421642607,
+     "off_instance_mean_s": 0.0015989932607212117,
+     "quality": 0.5040929762506317,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.disp.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.03448646791308742,
+     "e2e_mean_s": 3.038599961784735,
+     "off_instance_mean_s": 0.0015963518362870687,
+     "quality": 0.5049014653865589,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.035375437089439105,
+     "e2e_mean_s": 3.084369413398634,
+     "off_instance_mean_s": 0.0021375819767223874,
+     "quality": 0.502678120262759,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.0347755482566953,
+     "e2e_mean_s": 3.0403211506169763,
+     "off_instance_mean_s": 0.0016945349084755276,
+     "quality": 0.5108135421930268,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.disp.lor",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.03517153612935826,
+     "e2e_mean_s": 3.2443151320919528,
+     "off_instance_mean_s": 0.0021484486416974246,
+     "quality": 0.5045477513895907,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.03631819100555836,
+     "e2e_mean_s": 3.2969159363907155,
+     "off_instance_mean_s": 0.0020212819743271764,
+     "quality": 0.5091965639211723,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.03498944416371905,
+     "e2e_mean_s": 3.1972804227736376,
+     "off_instance_mean_s": 0.002188474969724891,
+     "quality": 0.5041940373926226,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.rb-static-dec.q50l30c20",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.045816063668519445,
+     "e2e_mean_s": 4.395597207955519,
+     "off_instance_mean_s": 0.05889348723950312,
+     "quality": 0.5597271349166246,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.04609191005558362,
+     "e2e_mean_s": 4.419724316043913,
+     "off_instance_mean_s": 0.0557110655092986,
+     "quality": 0.5597271349166246,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.0458588630621526,
+     "e2e_mean_s": 4.375621937188515,
+     "off_instance_mean_s": 0.05745566400406426,
+     "quality": 0.5597271349166246,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.rb-static-dec.q50l30c20",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.04655477008590197,
+     "e2e_mean_s": 5.264244906467355,
+     "off_instance_mean_s": 0.09233637854315081,
+     "quality": 0.5597271349166246,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.046305224861040925,
+     "e2e_mean_s": 5.265275286346653,
+     "off_instance_mean_s": 0.09506339665282068,
+     "quality": 0.5597271349166246,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.046299514906518444,
+     "e2e_mean_s": 5.274053375858016,
+     "off_instance_mean_s": 0.11006389012730042,
+     "quality": 0.5597271349166246,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.rb-static-dec.q50l30c20",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.04702450227387569,
+     "e2e_mean_s": 6.019235261868122,
+     "off_instance_mean_s": 0.26085661552854367,
+     "quality": 0.5597271349166246,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.04592008084891359,
+     "e2e_mean_s": 6.0797492063911305,
+     "off_instance_mean_s": 0.3716485662759351,
+     "quality": 0.5597271349166246,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.04620297625063163,
+     "e2e_mean_s": 5.9992228362567,
+     "off_instance_mean_s": 0.339040114194029,
+     "quality": 0.5597271349166246,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.rb-static-dec.q80l10c10",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.07353568468923698,
+     "e2e_mean_s": 5.976645005897421,
+     "off_instance_mean_s": 0.05634490723191652,
+     "quality": 0.5799393633148054,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.07393192016169782,
+     "e2e_mean_s": 5.967582198582085,
+     "off_instance_mean_s": 0.05672045096561544,
+     "quality": 0.5799393633148054,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.07382421424962102,
+     "e2e_mean_s": 5.949802522867619,
+     "off_instance_mean_s": 0.05557035685749085,
+     "quality": 0.5799393633148054,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.rb-static-dec.q80l10c10",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.0742222688226377,
+     "e2e_mean_s": 7.394004671171301,
+     "off_instance_mean_s": 0.09113530188879841,
+     "quality": 0.5799393633148054,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.07352797877716018,
+     "e2e_mean_s": 7.303079839239533,
+     "off_instance_mean_s": 0.14052486483628035,
+     "quality": 0.5799393633148054,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.0739498332491157,
+     "e2e_mean_s": 7.286210717436116,
+     "off_instance_mean_s": 0.14756166297933054,
+     "quality": 0.5799393633148054,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.rb-static-dec.q80l10c10",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.07372125821121778,
+     "e2e_mean_s": 8.630604752553275,
+     "off_instance_mean_s": 0.29417273281800627,
+     "quality": 0.5799393633148054,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.07382383527033856,
+     "e2e_mean_s": 8.314416792980813,
+     "off_instance_mean_s": 0.29246298868875675,
+     "quality": 0.5799393633148054,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.07415367357251136,
+     "e2e_mean_s": 8.49733376433249,
+     "off_instance_mean_s": 0.3761379080454892,
+     "quality": 0.5799393633148054,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.rb-static-dec.uniform",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.02646041940373926,
+     "e2e_mean_s": 2.4768862868964465,
+     "off_instance_mean_s": 0.058112153182968196,
+     "quality": 0.5231430015159171,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.026304835775644263,
+     "e2e_mean_s": 2.4488265599302736,
+     "off_instance_mean_s": 0.05283273441683226,
+     "quality": 0.5231430015159171,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.026423481556341583,
+     "e2e_mean_s": 2.4594444444567687,
+     "off_instance_mean_s": 0.051923350047489415,
+     "quality": 0.5231430015159171,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.rb-static-dec.uniform",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.026434749873673575,
+     "e2e_mean_s": 2.6568930017802184,
+     "off_instance_mean_s": 0.08528015326228636,
+     "quality": 0.5231430015159171,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.026301677614957046,
+     "e2e_mean_s": 2.6595914321146523,
+     "off_instance_mean_s": 0.11459141260882658,
+     "quality": 0.5231430015159171,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.026337630116220312,
+     "e2e_mean_s": 2.6248409146059073,
+     "off_instance_mean_s": 0.08015289436789749,
+     "quality": 0.5231430015159171,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.rb-static-dec.uniform",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.026369792824658917,
+     "e2e_mean_s": 2.9292581007670444,
+     "off_instance_mean_s": 0.20147942422581205,
+     "quality": 0.5231430015159171,
+     "round_wait_mean_s": null
+    },
+    "2": {
+     "cost_per_1k": 0.026603168266801414,
+     "e2e_mean_s": 2.9003876623881415,
+     "off_instance_mean_s": 0.17374535514610007,
+     "quality": 0.5231430015159171,
+     "round_wait_mean_s": null
+    },
+    "3": {
+     "cost_per_1k": 0.02631117736230419,
+     "e2e_mean_s": 2.872007728630704,
+     "off_instance_mean_s": 0.1841059580632413,
+     "quality": 0.5231430015159171,
+     "round_wait_mean_s": null
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.rb-static.abl-round1.q50l30c20",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.0473132642748863,
+     "e2e_mean_s": 4.514616417237607,
+     "off_instance_mean_s": 0.07891776880191202,
+     "quality": 0.5626579080343608,
+     "round_wait_mean_s": 0.031140624375538804
+    },
+    "2": {
+     "cost_per_1k": 0.048481526023244056,
+     "e2e_mean_s": 4.606255070610208,
+     "off_instance_mean_s": 0.06925336067866736,
+     "quality": 0.564022233451238,
+     "round_wait_mean_s": 0.02531274951367165
+    },
+    "3": {
+     "cost_per_1k": 0.04796600808489136,
+     "e2e_mean_s": 4.565209885375409,
+     "off_instance_mean_s": 0.05814499670520572,
+     "quality": 0.5615967660434563,
+     "round_wait_mean_s": 0.01713384841864071
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.rb-static.abl-round1.q50l30c20",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.0493699646286003,
+     "e2e_mean_s": 15.732661029798214,
+     "off_instance_mean_s": 10.554505538628517,
+     "quality": 0.5649823143001517,
+     "round_wait_mean_s": 10.507438713496143
+    },
+    "2": {
+     "cost_per_1k": 0.049035679636179885,
+     "e2e_mean_s": 16.158341597501895,
+     "off_instance_mean_s": 10.82526145689088,
+     "quality": 0.5683678625568469,
+     "round_wait_mean_s": 10.777254943419651
+    },
+    "3": {
+     "cost_per_1k": 0.04791690247599798,
+     "e2e_mean_s": 16.28122348204391,
+     "off_instance_mean_s": 11.169784217176746,
+     "quality": 0.5628094997473472,
+     "round_wait_mean_s": 11.120469076050314
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.rb-static.abl-round1.q50l30c20",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.04908309752400202,
+     "e2e_mean_s": 24.611877271884556,
+     "off_instance_mean_s": 19.404481348716015,
+     "quality": 0.5663971702880243,
+     "round_wait_mean_s": 19.35734215074836
+    },
+    "2": {
+     "cost_per_1k": 0.04894112177867609,
+     "e2e_mean_s": 26.061744042006417,
+     "off_instance_mean_s": 20.796637440286613,
+     "quality": 0.5661950480040424,
+     "round_wait_mean_s": 20.74726795593055
+    },
+    "3": {
+     "cost_per_1k": 0.04814365336028297,
+     "e2e_mean_s": 26.310145900214614,
+     "off_instance_mean_s": 21.15031688363502,
+     "quality": 0.5635169277412835,
+     "round_wait_mean_s": 21.10081657007768
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.rb-static.abl-round1.q80l10c10",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.07446163719050025,
+     "e2e_mean_s": 6.056558849241379,
+     "off_instance_mean_s": 0.064745743672665,
+     "quality": 0.5800909550277918,
+     "round_wait_mean_s": 0.021291454172896258
+    },
+    "2": {
+     "cost_per_1k": 0.07323758969176351,
+     "e2e_mean_s": 5.905591756378225,
+     "off_instance_mean_s": 0.07326348506509464,
+     "quality": 0.5795856493178373,
+     "round_wait_mean_s": 0.029852006411694738
+    },
+    "3": {
+     "cost_per_1k": 0.0745722031328954,
+     "e2e_mean_s": 6.051793171064955,
+     "off_instance_mean_s": 0.08442260725742233,
+     "quality": 0.5797372410308236,
+     "round_wait_mean_s": 0.03438293468070352
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.rb-static.abl-round1.q80l10c10",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.07474735725113694,
+     "e2e_mean_s": 19.659413801526956,
+     "off_instance_mean_s": 13.137234632959014,
+     "quality": 0.5787266296109146,
+     "round_wait_mean_s": 13.084660002031681
+    },
+    "2": {
+     "cost_per_1k": 0.07417633653360282,
+     "e2e_mean_s": 15.272469638443228,
+     "off_instance_mean_s": 8.558638318502473,
+     "quality": 0.5801920161697828,
+     "round_wait_mean_s": 8.512281258161035
+    },
+    "3": {
+     "cost_per_1k": 0.07363530570995451,
+     "e2e_mean_s": 15.343255163389992,
+     "off_instance_mean_s": 8.650714399269685,
+     "quality": 0.5801920161697828,
+     "round_wait_mean_s": 8.604467152644137
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.rb-static.abl-round1.q80l10c10",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.07389165234967156,
+     "e2e_mean_s": 25.810889937230048,
+     "off_instance_mean_s": 19.19650840217564,
+     "quality": 0.5786255684689238,
+     "round_wait_mean_s": 19.148937817231975
+    },
+    "2": {
+     "cost_per_1k": 0.07414246589186457,
+     "e2e_mean_s": 28.78869469182624,
+     "off_instance_mean_s": 22.278846958054533,
+     "quality": 0.5799898938858009,
+     "round_wait_mean_s": 22.228297172206684
+    },
+    "3": {
+     "cost_per_1k": 0.07432514906518443,
+     "e2e_mean_s": 25.218106091101713,
+     "off_instance_mean_s": 18.5642832045228,
+     "quality": 0.579434057604851,
+     "round_wait_mean_s": 18.517549209119494
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.rb-static.abl-round1.uniform",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.02689021222839818,
+     "e2e_mean_s": 2.5858649929809867,
+     "off_instance_mean_s": 0.06957414191617536,
+     "quality": 0.5286508337544215,
+     "round_wait_mean_s": 0.02499290387014818
+    },
+    "2": {
+     "cost_per_1k": 0.027384431531076302,
+     "e2e_mean_s": 2.630344899739925,
+     "off_instance_mean_s": 0.053651576518787505,
+     "quality": 0.5265790803436078,
+     "round_wait_mean_s": 0.01581402571385156
+    },
+    "3": {
+     "cost_per_1k": 0.027102890348660938,
+     "e2e_mean_s": 2.596474436088718,
+     "off_instance_mean_s": 0.0633365883724117,
+     "quality": 0.5274381000505306,
+     "round_wait_mean_s": 0.020973640070844488
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.rb-static.abl-round1.uniform",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.027324300151591714,
+     "e2e_mean_s": 10.255308440804317,
+     "off_instance_mean_s": 7.568058044347328,
+     "quality": 0.5298130368873168,
+     "round_wait_mean_s": 7.524471975814771
+    },
+    "2": {
+     "cost_per_1k": 0.02722087923193532,
+     "e2e_mean_s": 14.582943903264784,
+     "off_instance_mean_s": 11.93572717742944,
+     "quality": 0.5286003031834259,
+     "round_wait_mean_s": 11.888563685695434
+    },
+    "3": {
+     "cost_per_1k": 0.027384724608388072,
+     "e2e_mean_s": 16.276517334506263,
+     "off_instance_mean_s": 13.61950671514797,
+     "quality": 0.5278423446184941,
+     "round_wait_mean_s": 13.568257507941128
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.rb-static.abl-round1.uniform",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.02729101061141991,
+     "e2e_mean_s": 19.935566490035463,
+     "off_instance_mean_s": 17.244783713921347,
+     "quality": 0.5285497726124305,
+     "round_wait_mean_s": 17.201605340615146
+    },
+    "2": {
+     "cost_per_1k": 0.02765043961596766,
+     "e2e_mean_s": 23.298869057585538,
+     "off_instance_mean_s": 20.605588644870764,
+     "quality": 0.5295603840323395,
+     "round_wait_mean_s": 20.556747697750477
+    },
+    "3": {
+     "cost_per_1k": 0.027975386558868113,
+     "e2e_mean_s": 23.857791902775684,
+     "off_instance_mean_s": 21.093382460352696,
+     "quality": 0.5293582617483578,
+     "round_wait_mean_s": 21.044964465186112
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.rb-static.q50l30c20",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.037154466902475994,
+     "e2e_mean_s": 3.2706927279085094,
+     "off_instance_mean_s": 0.10628107409448218,
+     "quality": 0.5470944921677615,
+     "round_wait_mean_s": 0.04905443569931831
+    },
+    "2": {
+     "cost_per_1k": 0.03725317331985851,
+     "e2e_mean_s": 3.3228044668762164,
+     "off_instance_mean_s": 0.10701349182925457,
+     "quality": 0.5466902475997979,
+     "round_wait_mean_s": 0.04898057202574176
+    },
+    "3": {
+     "cost_per_1k": 0.03742302678120263,
+     "e2e_mean_s": 3.22133983265746,
+     "off_instance_mean_s": 0.10548047130167891,
+     "quality": 0.5508842849924205,
+     "round_wait_mean_s": 0.049678799260655916
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.rb-static.q50l30c20",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.032751637190500255,
+     "e2e_mean_s": 2.8563455795882184,
+     "off_instance_mean_s": 0.14300845251039115,
+     "quality": 0.5407276402223344,
+     "round_wait_mean_s": 0.050993198970763313
+    },
+    "2": {
+     "cost_per_1k": 0.03209880242546741,
+     "e2e_mean_s": 2.8539500388706416,
+     "off_instance_mean_s": 0.14656066981201177,
+     "quality": 0.5435573521980799,
+     "round_wait_mean_s": 0.05116064551036958
+    },
+    "3": {
+     "cost_per_1k": 0.03267127337038908,
+     "e2e_mean_s": 2.8278938381212586,
+     "off_instance_mean_s": 0.14535334594945518,
+     "quality": 0.5438605356240526,
+     "round_wait_mean_s": 0.05067635580443958
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.rb-static.q50l30c20",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.03125068216270844,
+     "e2e_mean_s": 2.8250232214987374,
+     "off_instance_mean_s": 0.1884032208944288,
+     "quality": 0.5413845376452754,
+     "round_wait_mean_s": 0.06341393636166442
+    },
+    "2": {
+     "cost_per_1k": 0.031176255684689236,
+     "e2e_mean_s": 2.834053221831222,
+     "off_instance_mean_s": 0.19247148821428256,
+     "quality": 0.5401212733703892,
+     "round_wait_mean_s": 0.06425887865292566
+    },
+    "3": {
+     "cost_per_1k": 0.03145284992420415,
+     "e2e_mean_s": 2.7950650564244417,
+     "off_instance_mean_s": 0.1703827431354281,
+     "quality": 0.5442647801920162,
+     "round_wait_mean_s": 0.056791972521541154
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.rb-static.q80l10c10",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.06564988377968671,
+     "e2e_mean_s": 5.393108955182428,
+     "off_instance_mean_s": 0.11095318132847817,
+     "quality": 0.5793835270338555,
+     "round_wait_mean_s": 0.04955903928449373
+    },
+    "2": {
+     "cost_per_1k": 0.06668662961091461,
+     "e2e_mean_s": 5.474627965309312,
+     "off_instance_mean_s": 0.1087218766655751,
+     "quality": 0.5792319353208691,
+     "round_wait_mean_s": 0.04936738140777044
+    },
+    "3": {
+     "cost_per_1k": 0.06678309752400202,
+     "e2e_mean_s": 5.493808329474966,
+     "off_instance_mean_s": 0.10724276913485853,
+     "quality": 0.5780697321879738,
+     "round_wait_mean_s": 0.04970316479528048
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.rb-static.q80l10c10",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.06199351187468419,
+     "e2e_mean_s": 6.273257878756488,
+     "off_instance_mean_s": 0.14095248160138393,
+     "quality": 0.5777160181910055,
+     "round_wait_mean_s": 0.05038892065226225
+    },
+    "2": {
+     "cost_per_1k": 0.060262713491662456,
+     "e2e_mean_s": 6.074463816167223,
+     "off_instance_mean_s": 0.161190481474393,
+     "quality": 0.5766043456291057,
+     "round_wait_mean_s": 0.055177728068291035
+    },
+    "3": {
+     "cost_per_1k": 0.06250645275391611,
+     "e2e_mean_s": 6.359435121808484,
+     "off_instance_mean_s": 0.1580565283137826,
+     "quality": 0.5776654876200101,
+     "round_wait_mean_s": 0.054277069331484656
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.rb-static.q80l10c10",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.05929535624052552,
+     "e2e_mean_s": 6.689442539902463,
+     "off_instance_mean_s": 0.2669967984987576,
+     "quality": 0.5758969176351693,
+     "round_wait_mean_s": 0.09283047818847487
+    },
+    "2": {
+     "cost_per_1k": 0.06015250126326427,
+     "e2e_mean_s": 6.7658293892405466,
+     "off_instance_mean_s": 0.26832684625215775,
+     "quality": 0.5763011622031329,
+     "round_wait_mean_s": 0.09193143803279406
+    },
+    "3": {
+     "cost_per_1k": 0.059039004547751385,
+     "e2e_mean_s": 6.930619993897952,
+     "off_instance_mean_s": 0.5112403051056019,
+     "quality": 0.5776149570490148,
+     "round_wait_mean_s": 0.1841679366082508
+    }
+   },
+   "trace": "gl42"
+  },
+  {
+   "config": "gemma.rb-static.uniform",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.02380212228398181,
+     "e2e_mean_s": 2.048240316528531,
+     "off_instance_mean_s": 0.10865892402523371,
+     "quality": 0.5144517433046993,
+     "round_wait_mean_s": 0.0492090477645833
+    },
+    "2": {
+     "cost_per_1k": 0.02434310763011622,
+     "e2e_mean_s": 2.1079265033956247,
+     "off_instance_mean_s": 0.10764508134713627,
+     "quality": 0.5141990904497221,
+     "round_wait_mean_s": 0.04980328518846977
+    },
+    "3": {
+     "cost_per_1k": 0.02445466397170288,
+     "e2e_mean_s": 2.108136026564421,
+     "off_instance_mean_s": 0.10474643624552532,
+     "quality": 0.513188479029813,
+     "round_wait_mean_s": 0.04908499666194725
+    }
+   },
+   "trace": "gl12"
+  },
+  {
+   "config": "gemma.rb-static.uniform",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.02356817584638706,
+     "e2e_mean_s": 2.0764563200479422,
+     "off_instance_mean_s": 0.13679272111872723,
+     "quality": 0.5155128852956039,
+     "round_wait_mean_s": 0.049060899704260794
+    },
+    "2": {
+     "cost_per_1k": 0.023751445174330466,
+     "e2e_mean_s": 2.107579142415893,
+     "off_instance_mean_s": 0.14895216736382197,
+     "quality": 0.5152602324406266,
+     "round_wait_mean_s": 0.0525674958564679
+    },
+    "3": {
+     "cost_per_1k": 0.02374654876200101,
+     "e2e_mean_s": 2.097855308230407,
+     "off_instance_mean_s": 0.1387915962652698,
+     "quality": 0.5114199090449723,
+     "round_wait_mean_s": 0.04857505416726779
+    }
+   },
+   "trace": "gl30"
+  },
+  {
+   "config": "gemma.rb-static.uniform",
+   "seeds": {
+    "1": {
+     "cost_per_1k": 0.023518403233956542,
+     "e2e_mean_s": 2.219495388555835,
+     "off_instance_mean_s": 0.19666696000254766,
+     "quality": 0.5211723092470946,
+     "round_wait_mean_s": 0.06775285320524817
+    },
+    "2": {
+     "cost_per_1k": 0.023360474987367354,
+     "e2e_mean_s": 2.168258655572559,
+     "off_instance_mean_s": 0.17682077630681864,
+     "quality": 0.518544719555331,
+     "round_wait_mean_s": 0.05868685916179996
+    },
+    "3": {
+     "cost_per_1k": 0.023874754926730673,
+     "e2e_mean_s": 2.201540829750923,
+     "off_instance_mean_s": 0.16533765653412347,
+     "quality": 0.5156644770085902,
+     "round_wait_mean_s": 0.05579356902022025
+    }
+   },
+   "trace": "gl42"
+  }
+ ],
+ "report_sha256": "80272ff7d2d5c32f3f77d17306eb577bd86b6cb83092e87d1cbb6961d396e9eb",
+ "rules_sha256": "cd08ef2ec80b67e1304abe701d9682015e41adb6c02c4b6e14d1bc8195935049"
+}
