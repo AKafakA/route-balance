@@ -103,9 +103,8 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
   `routebalance-backup/archive-block-era/`; 533 of their documents migrated to `docs/archived/block-era/` here),
   `~/Code/llm/rb-exp` (the NeurIPS-era results: packs on Drive there and on CSD3 `hpc-work/llm/rb-exp-nips-packs/`),
   the lease-time run copies of `local/` (13 GB: packs `lease-local-pack-01` to `06` on CSD3
-  `route-balance-lease-20260928/operator-local-packs/`, sha256 verified; the Drive copies under
-  `routebalance-backup/lease-operator-local/` were still uploading when this was written, with the packs kept in
-  `~/data/backup-staging-rb/packs/` until each is verified there), the pip, uv and npm caches, the replay venv and
+  `route-balance-lease-20260928/operator-local-packs/` and on Drive `routebalance-backup/lease-operator-local/`,
+  both verified by sha256; the pack records stay in `~/data/backup-staging-rb/packs/`), the pip, uv and npm caches, the replay venv and
   the SWE-bench Docker images. `local/` keeps its scripts, logs, manifests, renders and calibration tables (161 MB).
   Never copy run folders here; size before copying.
 - **The GPU VM:** idle (no engine, container or proof). `~/rb-analysis-nfs` 22 GB (the final runs and the packs: keep);
