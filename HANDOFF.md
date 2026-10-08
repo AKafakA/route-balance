@@ -6,7 +6,7 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## Where the project stands
 
-- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc5 (6 Oct). The final runs (the lease of 28 Sept
+- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc6 (8 Oct). The final runs (the lease of 28 Sept
   to 5 Oct: 1,457 runs, all valid) are archived. The code is released in three branches, and the reviewer packs are
   built. Every backup was checked by sha256 on 8 Oct. Nothing is running on any machine.
 - **Before submitting: the paper's code link.** The abstract links `https://anonymous.4open.science/r/route-balance-3ECA`.
@@ -17,9 +17,10 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## The paper
 
-- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc5: commit 5033f6b,
-  tag `v1.1-rc5`, snapshot `versions/1.1.0-rc5/` (reader PDFs, the Overleaf ZIP, every check's output, the round's
-  reviews, `SHA256SUMS`). The body ends on page 10.
+- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc6 (8 Oct): commit
+  ff5d934, tag `v1.1-rc6`, snapshot `versions/1.1.0-rc6/` (reader PDFs, the Overleaf ZIP, every check's output, the
+  round's reviews, `SHA256SUMS`). The body ends on page 10. rc6 over rc5: no paragraph ends in a single-word line, ALPS
+  is cited among the request schedulers, the Testbed sentence gives the V100's reason (`reviews/2026-10-08_runts-alps/`).
 - Its `HANDOFF.md` was last updated on 5 Oct (rc2). The rounds since (rc3 to rc5: the rc2 review's fixes, the
   related-work audit, the flow rewrite, the page fit, the merged figures, Table 5 as a figure, the two-column
   appendix) are in its commit log and in `reviews/2026-10-05_related-audit/` and `reviews/2026-10-06_flow-rewrite/`.
