@@ -111,7 +111,9 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 1. The paper's code link (above), before submitting.
 2. The paper's final read and the submission, by 30 October.
-3. Drive: the old folder `route-balance-lease-backup-2026-10` at the Drive root shows empty to rclone but holds
-   something rclone did not make; check it in the browser. rclone's shared client id is being retired during 2026
-   (make an own client id when uploads start failing). vSkipper's backup folder is still at the Drive root.
+3. Drive: the old folder `route-balance-lease-backup-2026-10` at the Drive root holds nothing of the backup's any
+   more (all 82 files moved and checked); it keeps something rclone did not make, so the owner deletes it in the
+   browser after a look. rclone's shared client id is being retired during 2026 (make an own client id when uploads
+   start failing). vSkipper's backups are one folder too since 8 Oct (`project notes/vskipper`, packs 01-21; the
+   shared rule `backup_to_google_drive.md` lists both projects' folders).
 4. When no longer needed: the GPU VM's proof folders (`~/rb-ref`, `~/rb-gpu`, about 50 GB).
