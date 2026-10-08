@@ -13,8 +13,9 @@ Left out on purpose: two files that carry credentials (`cara_paper/active/APR26_
 `cara_paper/handoffs/2026-04-15_handoff_v2.md`) and the two token files; they are in the full-tree packs only.
 
 The complete trees, data, models and results are on Drive, `routebalance-backup/archive-block-era/` (the packs
-`block-pack-01-data`, `block-pack-02-code-docs-models`, `blockexp-pack-01-all`, with member lists and sha256), the git
-histories as bundles in `routebalance-backup/code-pack-02-git-bundles/`. The NeurIPS-era results (`rb-exp`) are the
+`block-pack-01-data`, `block-pack-02-code-docs-models`, `blockexp-pack-01-all`, with member lists and sha256, each
+pack holding the repository's `.git` as well), and Block's git history also as the bundle in
+`routebalance-backup/code-pack-02-git-bundles/`. The NeurIPS-era results (`rb-exp`) are the
 packs `nips-pack-01` to `03` there and on CSD3 (`hpc-work/llm/rb-exp-nips-packs/`).
 
 These documents are historical records. They are not maintained, they describe code and data that no longer exist
