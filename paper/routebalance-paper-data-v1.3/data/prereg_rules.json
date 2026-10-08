@@ -1,0 +1,43 @@
+{
+  "judge_key": "deepeval-llama3.1-8b-it_reference",
+  "equal_quality": {
+    "tolerance": 0.005,
+    "bootstrap_resamples": 1000,
+    "confidence": 0.95,
+    "bootstrap_seed": 0
+  },
+  "slo": {
+    "tight": {
+      "Qwen/Qwen2.5-3B": 10.0,
+      "Qwen/Qwen2.5-7B": 10.0,
+      "Qwen/Qwen2.5-14B": 10.0,
+      "Qwen/Qwen2.5-72B": 5.0,
+      "google/gemma-3-1b-it": 10.0,
+      "google/gemma-3-4b-it": 10.0,
+      "google/gemma-3-12b-it": 10.0,
+      "google/gemma-3-27b-it": 5.0
+    },
+    "loose": {
+      "Qwen/Qwen2.5-3B": 15.0,
+      "Qwen/Qwen2.5-7B": 15.0,
+      "Qwen/Qwen2.5-14B": 15.0,
+      "Qwen/Qwen2.5-72B": 10.0,
+      "google/gemma-3-1b-it": 15.0,
+      "google/gemma-3-4b-it": 15.0,
+      "google/gemma-3-12b-it": 15.0,
+      "google/gemma-3-27b-it": 10.0
+    },
+    "attainment_levels": [
+      0.9,
+      0.99
+    ]
+  },
+  "g1": {
+    "tier_mix_shift_min": 0.05,
+    "mean_latency_gain_l30_min": 0.1,
+    "p99_ratio_l30_max": 1.0,
+    "quality_tolerance": 0.005,
+    "l12_mean_latency_ratio_max": 1.05,
+    "presets_required": "all"
+  }
+}

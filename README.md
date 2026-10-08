@@ -6,7 +6,8 @@ see each other's assignments.
 
 `CODE_TOUR.md` walks the code in the order a request takes through it, with each file's invariants.
 `docs/reproduce/` reproduces the paper: its environment, the runs, and every number, table and figure from the
-shipped data.
+shipped data. `paper/` holds the paper data pack: the data the paper's numbers are computed from, the generator and
+the plot scripts, and every output the paper uses, with a script that rebuilds and compares them on a CPU.
 
 ## Layout
 
@@ -20,6 +21,7 @@ shipped data.
 | `scripts/` | node setup, engine and scheduler deployment, one run and a row of runs |
 | `configs/` | the fleets, the engine arguments per tier, the scheduler's launch values, the preregistered rules, and the rendered campaign the runs used (`render36/`) |
 | `vllm-sr-bench/` | the vLLM Semantic Router, deployed as its authors deploy it, as its own stack in front of the same engines, and driven by the same client |
+| `paper/` | the paper data pack (`routebalance-paper-data-v1.3/`): `data/`, `code/tools/` (the generator of every number and table, the plot scripts of every figure), `expected/`, `reproduce_results.sh` |
 
 ## Quick start
 
@@ -29,7 +31,14 @@ uv pip install --python .venv-uvicorn/bin/python -e .
 ```
 
 Then follow [`docs/reproduce/`](docs/reproduce/README.md). Its stage 3 rebuilds every number, table and figure of the
-paper from the shipped data, on a CPU.
+paper from the shipped data, on a CPU, with no run needed:
+
+```bash
+cd paper
+python3.10 -m venv pack-env && . pack-env/bin/activate
+python -m pip install -r routebalance-paper-data-v1.3/requirements.txt
+bash routebalance-paper-data-v1.3/reproduce_results.sh new-output      # ends in: PASS: 24 reference outputs match
+```
 
 ## Estimators (`routebalance/estimate/`)
 

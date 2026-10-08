@@ -1,0 +1,23 @@
+{
+  "tiers": {
+    "qwen2.5-14b_v100": {"model": "Qwen/Qwen2.5-14B", "gpu": "v100", "cost_in": 1.5e-07, "cost_out": 1.5e-07, "max_num_seqs": 256, "stop_token_ids": [151645]},
+    "qwen2.5-3b_a30": {"model": "Qwen/Qwen2.5-3B", "gpu": "a30", "cost_in": 6e-08, "cost_out": 6e-08, "max_num_seqs": 256, "stop_token_ids": [151645]},
+    "qwen2.5-72b_a100": {"model": "Qwen/Qwen2.5-72B", "gpu": "a100", "cost_in": 3.8e-07, "cost_out": 4e-07, "max_num_seqs": 256, "stop_token_ids": [151645]},
+    "qwen2.5-7b_a30": {"model": "Qwen/Qwen2.5-7B", "gpu": "a30", "cost_in": 7e-08, "cost_out": 7e-08, "max_num_seqs": 256, "stop_token_ids": [151645]}
+  },
+  "instances": [
+    {"instance_id": "Qwen-2.5-14B_0", "tier": "qwen2.5-14b_v100", "node": "v100-0", "port": 8000},
+    {"instance_id": "Qwen-2.5-14B_1", "tier": "qwen2.5-14b_v100", "node": "v100-1", "port": 8000},
+    {"instance_id": "Qwen-2.5-14B_2", "tier": "qwen2.5-14b_v100", "node": "v100-2", "port": 8000},
+    {"instance_id": "Qwen-2.5-3B_0", "tier": "qwen2.5-3b_a30", "node": "a30-0", "port": 8000},
+    {"instance_id": "Qwen-2.5-3B_1", "tier": "qwen2.5-3b_a30", "node": "a30-1", "port": 8000},
+    {"instance_id": "Qwen-2.5-3B_2", "tier": "qwen2.5-3b_a30", "node": "a30-2", "port": 8000},
+    {"instance_id": "Qwen-2.5-72B_0", "tier": "qwen2.5-72b_a100", "node": "a100-0", "port": 8000},
+    {"instance_id": "Qwen-2.5-72B_1", "tier": "qwen2.5-72b_a100", "node": "a100-1", "port": 8000},
+    {"instance_id": "Qwen-2.5-7B_0", "tier": "qwen2.5-7b_a30", "node": "a30-3", "port": 8000},
+    {"instance_id": "Qwen-2.5-7B_1", "tier": "qwen2.5-7b_a30", "node": "a30-4", "port": 8000},
+    {"instance_id": "Qwen-2.5-7B_2", "tier": "qwen2.5-7b_a30", "node": "a30-5", "port": 8000},
+    {"instance_id": "Qwen-2.5-7B_3", "tier": "qwen2.5-7b_a30", "node": "a30-6", "port": 8000},
+    {"instance_id": "Qwen-2.5-7B_4", "tier": "qwen2.5-7b_a30", "node": "a30-7", "port": 8000}
+  ]
+}

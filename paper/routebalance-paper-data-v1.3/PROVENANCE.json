@@ -1,0 +1,33 @@
+{
+ "code": {
+  "branch": "submission",
+  "commit": "984eb1a64689cf184c4d3b87efc94503e9c614ad"
+ },
+ "environment": {
+  "python": "3.10.20",
+  "requirements": "requirements.txt"
+ },
+ "not_rebuilt": {
+  "expected/generated/datasets.tex": "counts prompts whose texts are not redistributed"
+ },
+ "pack": "routebalance-paper-data-v1.3",
+ "paper": {
+  "commit": "ee71e41318e6fed1d8b937052dfd43469ff1c043",
+  "version": "1.1-rc10"
+ },
+ "release_tools": {
+  "commit": "83b1c688c554ee22d69d5d2472e6566c14209893"
+ },
+ "runs": {
+  "gemma": 135,
+  "qwen": 1322,
+  "render": "render36",
+  "reports": {
+   "gemma_report.json": "python -m analysis.report --render ../render36 --cells ../views/g1 --data-root ../inputs/gemma/data --fleet gemma=configs/fleet_gemma.json --hosts HOSTS.json --slo-base gemma=../inputs/gemma/slo_base_gemma.json --rules configs/prereg_rules.json --treatment RouteBalance-static --out ../reports/report-g1",
+   "qwen_report.json": "python -m analysis.report --render ../render36 --cells ../views/q1 --data-root ../inputs/qwen/data --fleet qwen_std=configs/fleet_qwen.json --hosts HOSTS.json --slo-base qwen=../inputs/qwen/slo_base_qwen.json --store ../inputs/qwen/budget-judge/store.s1.jsonl ../inputs/qwen/budget-judge/store.s2-zero.jsonl --rules configs/prereg_rules.json --treatment RouteBalance-static --out ../reports/report-q1",
+   "spread_gemma.json": "tools/seed_spread.py over report-gall (all 135 Gemma runs)",
+   "spread_qwen.json": "tools/seed_spread.py over report-qall (all 1,322 Qwen runs)"
+  },
+  "runs": 1457
+ }
+}

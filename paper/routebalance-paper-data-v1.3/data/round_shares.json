@@ -1,0 +1,41 @@
+{
+ "abl.qwen.rb-static.q80l10c10__l12__s1": {
+  "after_round_assignment": 1578,
+  "decisions": 3532,
+  "per_tier": {
+   "qwen2.5-14b_v100": 1284,
+   "qwen2.5-3b_a30": 731,
+   "qwen2.5-72b_a100": 1342,
+   "qwen2.5-7b_a30": 175
+  },
+  "rounds": 1954,
+  "sha256": "be8017f86f94da9768029d2b8fa68b5ca9e2348a4d09c0ab8ba3da44ac566cb8",
+  "to_instance_already_given": 26
+ },
+ "abl.qwen.rb-static.q80l10c10__l30__s1": {
+  "after_round_assignment": 2580,
+  "decisions": 3532,
+  "per_tier": {
+   "qwen2.5-14b_v100": 1355,
+   "qwen2.5-3b_a30": 841,
+   "qwen2.5-72b_a100": 1153,
+   "qwen2.5-7b_a30": 183
+  },
+  "rounds": 952,
+  "sha256": "9ecadb34f69b138819bfdd7626b4e37292a89daf76d44a46052bc114004a4e6b",
+  "to_instance_already_given": 180
+ },
+ "abl.qwen.rb-static.q80l10c10__l42__s1": {
+  "after_round_assignment": 2867,
+  "decisions": 3532,
+  "per_tier": {
+   "qwen2.5-14b_v100": 1353,
+   "qwen2.5-3b_a30": 873,
+   "qwen2.5-72b_a100": 1126,
+   "qwen2.5-7b_a30": 180
+  },
+  "rounds": 665,
+  "sha256": "da540e6359fe319500e0a34e6461b6ae76fc22a5970ce7ecbee6aa73804d1210",
+  "to_instance_already_given": 365
+ }
+}

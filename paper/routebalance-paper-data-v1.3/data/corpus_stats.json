@@ -1,0 +1,52 @@
+{
+ "gemma": {
+  "all_prompts": 1979,
+  "at_least": {
+   "google/gemma-3-12b-it>=google/gemma-3-1b-it": 0.8044466902475998,
+   "google/gemma-3-12b-it>=google/gemma-3-27b-it": 0.7165234967155129,
+   "google/gemma-3-12b-it>=google/gemma-3-4b-it": 0.7761495704901465,
+   "google/gemma-3-1b-it>=google/gemma-3-12b-it": 0.5548256695300657,
+   "google/gemma-3-1b-it>=google/gemma-3-27b-it": 0.5184436584133401,
+   "google/gemma-3-1b-it>=google/gemma-3-4b-it": 0.617988883274381,
+   "google/gemma-3-27b-it>=google/gemma-3-12b-it": 0.7498736735725113,
+   "google/gemma-3-27b-it>=google/gemma-3-1b-it": 0.8100050530570996,
+   "google/gemma-3-27b-it>=google/gemma-3-4b-it": 0.7852450732693279,
+   "google/gemma-3-4b-it>=google/gemma-3-12b-it": 0.6452753916119253,
+   "google/gemma-3-4b-it>=google/gemma-3-1b-it": 0.763011622031329,
+   "google/gemma-3-4b-it>=google/gemma-3-27b-it": 0.6240525517938352
+  },
+  "corpus": "test_gemma_scored_20261002.jsonl",
+  "means": {
+   "google/gemma-3-12b-it": 0.5720565942395117,
+   "google/gemma-3-1b-it": 0.4511874684183953,
+   "google/gemma-3-27b-it": 0.5821627084386022,
+   "google/gemma-3-4b-it": 0.514855987872663
+  },
+  "prompts": 1979
+ },
+ "qwen": {
+  "all_prompts": 3532,
+  "at_least": {
+   "Qwen/Qwen2.5-14B>=Qwen/Qwen2.5-3B": 0.7358437146092865,
+   "Qwen/Qwen2.5-14B>=Qwen/Qwen2.5-72B": 0.652321630804077,
+   "Qwen/Qwen2.5-14B>=Qwen/Qwen2.5-7B": 0.7582106455266138,
+   "Qwen/Qwen2.5-3B>=Qwen/Qwen2.5-14B": 0.6633635334088335,
+   "Qwen/Qwen2.5-3B>=Qwen/Qwen2.5-72B": 0.6027746319365799,
+   "Qwen/Qwen2.5-3B>=Qwen/Qwen2.5-7B": 0.7106455266138165,
+   "Qwen/Qwen2.5-72B>=Qwen/Qwen2.5-14B": 0.7409399773499433,
+   "Qwen/Qwen2.5-72B>=Qwen/Qwen2.5-3B": 0.7443374858437146,
+   "Qwen/Qwen2.5-72B>=Qwen/Qwen2.5-7B": 0.77519818799547,
+   "Qwen/Qwen2.5-7B>=Qwen/Qwen2.5-14B": 0.6291053227633069,
+   "Qwen/Qwen2.5-7B>=Qwen/Qwen2.5-3B": 0.6537372593431483,
+   "Qwen/Qwen2.5-7B>=Qwen/Qwen2.5-72B": 0.571347678369196
+  },
+  "corpus": "test_qwen_scored_20260928_v3.jsonl",
+  "means": {
+   "Qwen/Qwen2.5-14B": 0.3975651189128003,
+   "Qwen/Qwen2.5-3B": 0.3509626274065733,
+   "Qwen/Qwen2.5-72B": 0.4321630804077015,
+   "Qwen/Qwen2.5-7B": 0.33502265005662835
+  },
+  "prompts": 3532
+ }
+}

@@ -1,0 +1,151 @@
+{
+ "qwen.vsr.mom-balance__l12__s1": {
+  "completed": 4,
+  "rate": 12.0,
+  "requests": 3532,
+  "stop": {
+   "completed_before": 4,
+   "held": 2759,
+   "held_in_signal_phase": 2759,
+   "last_log_s": 230.36356449127197,
+   "model_choice_goroutines": 0,
+   "native_calls": {
+    "candle_instance_embedding": 4783,
+    "candle_instance_sequence": 4851
+   },
+   "native_returned": 358,
+   "native_threads": 9634,
+   "next_send_s": 230.4023884939961,
+   "stop_s": 230.3569373569917,
+   "thread_limit": 10000,
+   "threads_attached": 9635
+  },
+  "timings": {
+   "after_signals_ms_max": 8.0,
+   "after_signals_ms_mean": 4.25,
+   "envoy_s_mean": 7.0075,
+   "n": 4,
+   "signals_s_mean": 2.9587499999999998,
+   "signals_share": 0.4222261862290403
+  }
+ },
+ "qwen.vsr.mom-balance__l18__s1": {
+  "completed": 0,
+  "rate": 18.0,
+  "requests": 3532,
+  "stop": {
+   "completed_before": 0,
+   "held": 2562,
+   "held_in_signal_phase": 2562,
+   "last_log_s": 141.05509614944458,
+   "model_choice_goroutines": 0,
+   "native_calls": {
+    "candle_instance_embedding": 4809,
+    "candle_instance_sequence": 4823
+   },
+   "native_returned": 362,
+   "native_threads": 9632,
+   "next_send_s": 142.4206956709968,
+   "stop_s": 142.37311476300238,
+   "thread_limit": 10000,
+   "threads_attached": 9633
+  },
+  "timings": {
+   "n": 0
+  }
+ },
+ "qwen.vsr.mom-balance__l24__s1": {
+  "completed": 0,
+  "rate": 24.0,
+  "requests": 3532,
+  "stop": {
+   "completed_before": 0,
+   "held": 2512,
+   "held_in_signal_phase": 2512,
+   "last_log_s": 100.11942601203918,
+   "model_choice_goroutines": 0,
+   "native_calls": {
+    "candle_instance_embedding": 4837,
+    "candle_instance_sequence": 4852
+   },
+   "native_returned": 305,
+   "native_threads": 9689,
+   "next_send_s": 104.82349134801188,
+   "stop_s": 104.74477164499694,
+   "thread_limit": 10000,
+   "threads_attached": 9690
+  },
+  "timings": {
+   "n": 0
+  }
+ },
+ "qwen.vsr.mom-balance__l30__s1": {
+  "completed": 0,
+  "rate": 30.0,
+  "requests": 3532,
+  "stop": {
+   "completed_before": 0,
+   "held": 2505,
+   "held_in_signal_phase": 2505,
+   "last_log_s": 80.09467434883118,
+   "model_choice_goroutines": 0,
+   "native_calls": {
+    "candle_instance_embedding": 4832,
+    "candle_instance_sequence": 4834
+   },
+   "native_returned": 327,
+   "native_threads": 9666,
+   "next_send_s": 83.72839791799197,
+   "stop_s": 83.69665738201002,
+   "thread_limit": 10000,
+   "threads_attached": 9667
+  },
+  "timings": {
+   "n": 0
+  }
+ },
+ "qwen.vsr.mom-balance__l6__s1": {
+  "completed": 3532,
+  "rate": 6.0,
+  "requests": 3532,
+  "stop": null,
+  "timings": {
+   "after_signals_ms_max": 65.0,
+   "after_signals_ms_mean": 3.5257644394110987,
+   "envoy_s_mean": 483.9692802944507,
+   "n": 3532,
+   "signals_s_mean": 479.3297197055493,
+   "signals_share": 0.9904135225564757
+  }
+ },
+ "qwen.vsr.mom-balance__l9__s1": {
+  "completed": 16,
+  "rate": 9.0,
+  "requests": 3532,
+  "stop": {
+   "completed_before": 16,
+   "held": 2953,
+   "held_in_signal_phase": 2953,
+   "last_log_s": 327.63979625701904,
+   "model_choice_goroutines": 0,
+   "native_calls": {
+    "candle_instance_embedding": 4843,
+    "candle_instance_sequence": 4853
+   },
+   "native_returned": 295,
+   "native_threads": 9696,
+   "next_send_s": 327.9453917879946,
+   "stop_s": 327.8516273860005,
+   "thread_limit": 10000,
+   "threads_attached": 9697
+  },
+  "timings": {
+   "after_signals_ms_max": 29.0,
+   "after_signals_ms_mean": 5.4375,
+   "envoy_s_mean": 8.1888125,
+   "n": 16,
+   "signals_s_mean": 3.8346875000000002,
+   "signals_share": 0.46828371024492266
+  }
+ }
+}
