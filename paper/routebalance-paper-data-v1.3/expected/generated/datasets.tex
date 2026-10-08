@@ -1,0 +1,22 @@
+% Written by tools/gen_datasets.py from the pinned files; do not edit.
+\newcommand{\qwenTrainPrompts}{14{,}915}
+\newcommand{\gemmaTrainPrompts}{8{,}085}
+\newcommand{\qwenEvalPrompts}{3{,}532}
+\newcommand{\gemmaEvalPrompts}{1{,}979}
+\newcommand{\datasetTable}{%
+\begin{tabular}{lrrrr}
+\toprule
+ & \multicolumn{2}{c}{Qwen2.5} & \multicolumn{2}{c}{Gemma 3} \\
+Dataset & Train & Eval & Train & Eval \\
+\midrule
+BeaverTails & 2{,}316 & 582 & 809 & 231 \\
+CodeUltraFeedback & 2{,}243 & 518 & 246 & 75 \\
+GSM8K & 2{,}361 & 495 & 1{,}841 & 408 \\
+LMSYS-Chat-1M & 2{,}011 & 473 & 1{,}178 & 277 \\
+MixInstruct & 2{,}300 & 567 & 1{,}119 & 280 \\
+RewardBench & 1{,}336 & 325 & 549 & 127 \\
+SQuAD & 2{,}348 & 572 & 2{,}343 & 581 \\
+\midrule
+Total & 14{,}915 & 3{,}532 & 8{,}085 & 1{,}979 \\
+\bottomrule
+\end{tabular}}
