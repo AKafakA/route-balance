@@ -17,7 +17,8 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## The paper
 
-- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc12 (19 Oct): commit
+- Repository `~/Code/paper/routebalance` (git; `origin` = the bare hub `~/git/routebalance-paper.git` on the
+  operator, which the owner's Mac pulls over SSH since 19 Oct; push after every commit and tag; bundled on Drive, below). Version 1.1 rc12 (19 Oct): commit
   80b894d, tag `v1.1-rc12`, snapshot `versions/1.1.0-rc12/` (reader PDFs, the Overleaf ZIP, every check's output, the
   round's reviews, `SHA256SUMS`). The body ends on page 10. rc6 over rc5: no paragraph ends in a single-word line, ALPS
   is cited among the request schedulers, the Testbed sentence gives the V100's reason (`reviews/2026-10-08_runts-alps/`).
