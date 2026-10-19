@@ -42,7 +42,12 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
   scan 17 hits all allowed. The audit of the paper against the template and the measured worth of each setting
   (the float limits carry the 10-page fit; hyperref or LaTeX's own float limits break it; the 3 pt caption pad is
   free) are in `reviews/2026-10-19_single-file-export/NOTES.md`; no `\vspace` anywhere; `\looseness=-1` on seven
-  paragraphs since rc6. The paper
+  paragraphs since rc6. Later on 19 Oct: hyperref (needed for a clickable code link; rc11 has no link
+  annotation) costs the conclusion's place on page 10 when loaded before the style as the template example does
+  (each figure caption moves 6 to 12 pt); shorter-word swaps in the short-last-line paragraphs were measured and
+  cannot recover it. Loaded after the style with the style's own settings it keeps the layout identical:
+  `submission/v1.1-rc11-hyperref/` + ZIP (paper commit 8003c68) waits for the owner's decision; the paper's
+  preamble is unchanged. The paper
   repository's Drive bundle predates rc7.
 - Its `HANDOFF.md` was last updated on 5 Oct (rc2). The rounds since (rc3 to rc5: the rc2 review's fixes, the
   related-work audit, the flow rewrite, the page fit, the merged figures, Table 5 as a figure, the two-column
