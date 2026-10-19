@@ -6,7 +6,7 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## Where the project stands
 
-- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc10 (8 Oct, night). The final runs (the lease of 28 Sept
+- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc11 (19 Oct, morning; the text of rc10). The final runs (the lease of 28 Sept
   to 5 Oct: 1,457 runs, all valid) are archived. The code is released in three branches (the submission branch at b3d0c7a carries the paper data pack in
   `paper/`), and the reviewer packs are built. Every backup was checked by sha256 on 8 Oct. Nothing is running on any machine.
 - **Before submitting: the paper's code link.** The abstract links `https://anonymous.4open.science/r/route-balance-3ECA`.
@@ -17,8 +17,8 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## The paper
 
-- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc10 (8 Oct): commit
-  ee71e41, tag `v1.1-rc10`, snapshot `versions/1.1.0-rc10/` (reader PDFs, the Overleaf ZIP, every check's output, the
+- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc11 (19 Oct): commit
+  bcd216a, tag `v1.1-rc11`, snapshot `versions/1.1.0-rc11/` (reader PDFs, the Overleaf ZIP, every check's output, the
   round's reviews, `SHA256SUMS`). The body ends on page 10. rc6 over rc5: no paragraph ends in a single-word line, ALPS
   is cited among the request schedulers, the Testbed sentence gives the V100's reason (`reviews/2026-10-08_runts-alps/`).
   rc7 over rc6: the round's range measured on the archived decision logs (`tools/round_range.py`,
@@ -32,7 +32,17 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
   reference added, no Table 1 row; for the fit Figure 4 (Gemma) is drawn at 2.20 in, no `\looseness`, the body still
   ends on page 10 (`ROUND_LOG.md`, ledger rows L123 and L124). rc10 over rc9 (owner 8 Oct): Figure 4's caption in one line (his text), the keys of
   Figures 2 and 4 in two lines from the left edge with the hollow entry on one line, Figure 4 at 2.40 in (2.50 in
-  overflows; ledger rows L125 to L128). The paper data pack is rebuilt as v1.3 for rc10 (below). The paper
+  overflows; ledger rows L125 to L128). The paper data pack is rebuilt as v1.3 for rc10 (below). rc11 over rc10 (owner 19 Oct: "any adjustment against the
+  default layout of template", "a single tex file with the plain template + figures and bibtex"): the official
+  `mlsys2025.sty` byte for byte at the root (the old copy had the accepted-version notice commented out; the
+  submission build is unchanged, text identical), and `tools/export_single.py` (after servegraph's
+  `export_submission.py`) writing `submission/v1.1-rc11/` and `submission/v1.1-rc11.zip` (commit e2491ac): main.tex
+  and appendix.tex each one file, literal numbers, no comments, the seven figures, references.bib unchanged, the
+  five official template files; built alone from the ZIP to the same layout text as the reader PDFs, anonymity
+  scan 17 hits all allowed. The audit of the paper against the template and the measured worth of each setting
+  (the float limits carry the 10-page fit; hyperref or LaTeX's own float limits break it; the 3 pt caption pad is
+  free) are in `reviews/2026-10-19_single-file-export/NOTES.md`; no `\vspace` anywhere; `\looseness=-1` on seven
+  paragraphs since rc6. The paper
   repository's Drive bundle predates rc7.
 - Its `HANDOFF.md` was last updated on 5 Oct (rc2). The rounds since (rc3 to rc5: the rc2 review's fixes, the
   related-work audit, the flow rewrite, the page fit, the merged figures, Table 5 as a figure, the two-column
