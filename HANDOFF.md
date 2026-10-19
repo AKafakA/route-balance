@@ -6,7 +6,7 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## Where the project stands
 
-- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc11 (19 Oct, morning; the text of rc10). The final runs (the lease of 28 Sept
+- **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc12 (19 Oct; the text of rc10, with links). The final runs (the lease of 28 Sept
   to 5 Oct: 1,457 runs, all valid) are archived. The code is released in three branches (the submission branch at b3d0c7a carries the paper data pack in
   `paper/`), and the reviewer packs are built. Every backup was checked by sha256 on 8 Oct. Nothing is running on any machine.
 - **Before submitting: the paper's code link.** The abstract links `https://anonymous.4open.science/r/route-balance-3ECA`.
@@ -17,8 +17,8 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
 ## The paper
 
-- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc11 (19 Oct): commit
-  bcd216a, tag `v1.1-rc11`, snapshot `versions/1.1.0-rc11/` (reader PDFs, the Overleaf ZIP, every check's output, the
+- Repository `~/Code/paper/routebalance` (git, no remote; bundled on Drive, below). Version 1.1 rc12 (19 Oct): commit
+  80b894d, tag `v1.1-rc12`, snapshot `versions/1.1.0-rc12/` (reader PDFs, the Overleaf ZIP, every check's output, the
   round's reviews, `SHA256SUMS`). The body ends on page 10. rc6 over rc5: no paragraph ends in a single-word line, ALPS
   is cited among the request schedulers, the Testbed sentence gives the V100's reason (`reviews/2026-10-08_runts-alps/`).
   rc7 over rc6: the round's range measured on the archived decision logs (`tools/round_range.py`,
@@ -46,8 +46,13 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
   annotation) costs the conclusion's place on page 10 when loaded before the style as the template example does
   (each figure caption moves 6 to 12 pt); shorter-word swaps in the short-last-line paragraphs were measured and
   cannot recover it. Loaded after the style with the style's own settings it keeps the layout identical:
-  `submission/v1.1-rc11-hyperref/` + ZIP (paper commit 8003c68) waits for the owner's decision; the paper's
-  preamble is unchanged. The paper
+  rc12 (owner: "make the rc12 as reviewable and submissable versions to overleaf"): hyperref after the style in
+  both preambles (every word where rc11 has it; 274 links in the paper), and every snapshot now carries the
+  single-file Overleaf ZIP (`NAME-single.zip`) and the two PDFs built from it (`NAME-submission.pdf`,
+  `NAME-submission-appendix.pdf`), checked word by word and link by link against the reader PDFs; the exporter was
+  reviewed in three rounds (Codex and local, `reviews/2026-10-19_single-file-export/CODE_REVIEW_export.md`).
+  The current Overleaf upload and submission PDFs are copied in the paper repository's `submission/` with a README.
+  The abstract still links the old anonymous code URL: the owner will point it at the submission branch. The paper
   repository's Drive bundle predates rc7.
 - Its `HANDOFF.md` was last updated on 5 Oct (rc2). The rounds since (rc3 to rc5: the rc2 review's fixes, the
   related-work audit, the flow rewrite, the page fit, the merged figures, Table 5 as a figure, the two-column
