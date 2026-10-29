@@ -30,6 +30,6 @@
   "requests": "requests.jsonl",
   "requests_sha256": "afaa774e0ce06b077aa13253c4773e73f198d6524303cb11c3e92a8ed2266024",
   "level": 1,
-  "fit": "least squares, ttft_ms = intercept_ms + per_token_ms x prompt_tokens"
+  "fit": "least squares, ttft_ms = intercept_ms + per_token_ms x prompt_tokens (D118)"
  }
 }

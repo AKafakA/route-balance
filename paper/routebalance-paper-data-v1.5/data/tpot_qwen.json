@@ -334,6 +334,6 @@
     ]
    ]
   },
-  "curve_rule": "running max over b of the per-b medians: a TPOT curve never decreases in b"
+  "curve_rule": "running max over b of the per-b medians (D47): a TPOT curve never decreases in b"
  }
 }
