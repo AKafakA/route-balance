@@ -102,10 +102,10 @@ def check_fd_limit(max_connections: int) -> None:
 
 
 class HttpSchedulerClient:
-    """One aiohttp session and one bounded connection pool for the whole cell (a session per request churns
-    file descriptors under load and can fail whole cells). A request that finds the pool
-    full waits for a connection; each wait is counted, and a cell with any wait is invalid, because the
-    client then held back sends and the load was no longer open loop."""
+    """One aiohttp session for the whole cell, on vLLM bench's stock connector (no connection limit, keep-alive);
+    a session per request churns file descriptors under load and can fail whole cells. max_connections sizes the
+    open-file check. A request queued for a connection is counted, and a cell with any such wait is invalid,
+    because the client then held back sends and the load was no longer open loop; with no limit, none waits."""
 
     def __init__(self, base_url: str, max_connections: int, timeout_s: float):
         if max_connections < 1 or not timeout_s > 0:

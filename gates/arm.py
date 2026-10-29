@@ -14,8 +14,8 @@ Every line
   Carries the cell's config digest. A dispatched line names a fleet instance and that instance's tier.
 No connection bound was hit
   The scheduler's engine and telemetry pools never made a request wait for a connection during the cell
-  (stats_after minus stats_before): the bound is set far above any in-flight count, and a cell in which it was
-  reached is invalid, to be rerun with a larger max_connections.
+  (stats_after minus stats_before): the pools use vLLM bench's stock connector, with no connection limit, and a
+  cell in which a request waited is invalid.
 RouteBalance (mode routebalance)
   - Every line is a dispatch with its scored candidates: every fleet instance, in fleet order. With the budget
     admission filter (routebalance/schedule/assign.py Admission) the gate recomputes it from the line's

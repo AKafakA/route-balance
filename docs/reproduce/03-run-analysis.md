@@ -47,8 +47,8 @@ python -m analysis.report --render configs/render36 --cells RUNS/g1 --data-root 
 and the same over all seeds (`RUNS/qall`, `RUNS/gall`). The records carry the served texts of the budget runs and
 are not shipped here. Their parity records are keyed by the source of the gates' folder (`gate_code`
 in `tools/cell_driver.py`). This tree's `gates/` holds the run gates with the code the runs executed, its comments
-edited, and not the repository checks of development, so the key differs and each group's parity reads `not run`
-until the parity gate is rerun over the records. Every other value of the reports is the same.
+and messages edited, so the key differs and each group's parity reads `not run` until the parity gate is rerun over
+the records. Every other value of the reports is the same; only the two header comment lines of `macros.tex` differ.
 
 ## The boundary
 
