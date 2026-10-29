@@ -75,5 +75,4 @@ can hash its prompts and find their rows. The training rows are the ones the run
 from: 14,908 Qwen prompts (the 14,919 of the training prompt file the rendered campaign pins, but the 11 with an
 answer the judge could not score) and all 8,086 Gemma prompts.
 
-To go one step back, from the runs' reports to `data/`, use the meta-analysis pack. To run the experiments, use the
-code repository's `docs/reproduce/`.
+To run the experiments, use the code repository's `docs/reproduce/`.

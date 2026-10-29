@@ -27,9 +27,8 @@ maps every output to the paper.
 ## The boundary
 
 The pack recomputes every number, table and figure from `data/`. It takes as measured what `data/` holds: the
-reports `analysis/report.py` wrote over the 1,457 runs, and the calibration the runs used. The meta-analysis pack
-holds one row per run and rebuilds the seed spreads, the round shares and the round's range of `data/`. The code
-repository's `docs/reproduce/` describes the runs themselves.
+reports `analysis/report.py` wrote over the 1,457 runs, and the calibration the runs used. The code repository's
+`docs/reproduce/` describes the runs themselves.
 
 The paper's Table A1 is rebuilt from `data/dataset_rows.json`: per family and split, each prompt as the sha256 of its
 text and its source dataset. The prompts come from datasets whose licences restrict redistribution, so no file of
