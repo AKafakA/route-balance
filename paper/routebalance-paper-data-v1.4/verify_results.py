@@ -11,8 +11,6 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-NOT_REBUILT = {"generated/datasets.tex": "built from the evaluation prompts and the estimator's training rows, which "
-                                         "carry prompt texts and are not in the pack: shipped as built"}
 SKIP = {"MANIFEST.sha256"}
 
 
@@ -48,9 +46,6 @@ def compare(out: Path) -> int:
         return 1
     differ, checked = [], 0
     for rel in refs:
-        if rel in NOT_REBUILT:
-            print(f"shipped  {rel}: {NOT_REBUILT[rel]}")
-            continue
         checked += 1
         got = out / rel
         if got.is_file() and got.read_bytes() == (ref / rel).read_bytes():

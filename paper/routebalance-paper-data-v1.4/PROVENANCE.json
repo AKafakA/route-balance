@@ -1,22 +1,19 @@
 {
  "code": {
   "branch": "submission",
-  "commit": "984eb1a64689cf184c4d3b87efc94503e9c614ad"
+  "commit": "b3d0c7aae81a8701aeb7139b5724c0c2c44ba312"
  },
  "environment": {
   "python": "3.10.20",
   "requirements": "requirements.txt"
  },
- "not_rebuilt": {
-  "expected/generated/datasets.tex": "counts prompts whose texts are not redistributed"
- },
- "pack": "routebalance-paper-data-v1.3",
+ "pack": "routebalance-paper-data-v1.4",
  "paper": {
-  "commit": "ee71e41318e6fed1d8b937052dfd43469ff1c043",
-  "version": "1.1-rc10"
+  "commit": "0c54fca691fdbd5a8f76435e9a98ba4975ba3d08",
+  "version": "1.1-rc12, with Table A1's training counts and the round shares corrected"
  },
  "release_tools": {
-  "commit": "83b1c688c554ee22d69d5d2472e6566c14209893"
+  "commit": "f755c4e6467610633b61685be121d491415a958c"
  },
  "runs": {
   "gemma": 135,

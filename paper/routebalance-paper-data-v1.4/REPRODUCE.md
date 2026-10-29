@@ -7,8 +7,8 @@ Unpack the pack into a path without whitespace. In a new environment with CPytho
 ```bash
 cd /path/to/folder-holding-the-pack        # not inside the pack: its manifest admits no extra file
 python3.10 -m venv pack-env && . pack-env/bin/activate
-python -m pip install -r routebalance-paper-data-v1.3/requirements.txt
-bash routebalance-paper-data-v1.3/reproduce_results.sh new-output
+python -m pip install -r routebalance-paper-data-v1.4/requirements.txt
+bash routebalance-paper-data-v1.4/reproduce_results.sh new-output
 ```
 
 `PY=<interpreter>` selects another Python. The output folder must not exist and must lie outside the pack: the
@@ -22,10 +22,13 @@ script never writes over anything.
    `generated/results.tex` (every number the text cites, 1,017 macros), `generated/plot_points.json` (the points the
    figures draw) and the 16 generated tables. Its guards stop the build when a number the text states in words no
    longer holds, for example a count of beaten settings or the sign of a change.
-3. The plot scripts draw the six figure files from `plot_points.json`. Each PDF is written without a creation date,
+3. `code/tools/gen_datasets.py table` reads `data/dataset_rows.json`, after checking its sha256 against
+   `data/SHA256SUMS`, and writes `generated/datasets.tex` (Table A1 and the four prompt counts the text cites). It
+   stops when a prompt appears twice in a split, or in both the training and the evaluation split of a family.
+4. The plot scripts draw the six figure files from `plot_points.json`. Each PDF is written without a creation date,
    so the same input gives the same bytes.
-4. `verify_results.py compare` compares every output with its reference in `expected/`, byte for byte, and prints
-   `PASS: 24 reference outputs match` only when all do.
+5. `verify_results.py compare` compares every output with its reference in `expected/`, byte for byte, and prints
+   `PASS: 25 reference outputs match` only when all do.
 
 Tested in a new environment from `requirements.txt` on CPython 3.10.20 (Linux x86-64). The reports' bootstrap
 intervals are already in `data/`, so no random draw happens here.
@@ -44,7 +47,7 @@ intervals are already in `data/`, so no random draw happens here.
 | `figures/frontier3d.pdf`, `figures/frontier2x6.pdf` | Figure 2, the 3-D frontier above the quality-latency and quality-cost grid |
 | `figures/variants.pdf` | Figure 3, RouteBalance against RB-decoupled and RB-single |
 | `figures/frontier_gemma.pdf` | Figure 4, Gemma 3 |
-| `generated/datasets.tex` | Table A1, the datasets (shipped as built, see below) |
+| `generated/datasets.tex` | Table A1, the datasets, and the prompt counts in the text |
 | `tables/gen_shipped.tex` | Table A2, the routers as shipped |
 | `tables/gen_calib.tex` | Table A3, the TPOT calibration |
 | `tables/gen_open.tex` | Table A4, the baseline settings no preset beats |
@@ -66,10 +69,14 @@ number.
 |---|---|
 | every macro, table and figure above | the reports over the runs: per run, its quality, latency percentiles, cost, model mix and overhead, and per baseline setting, its equal-quality comparison with the bootstrap interval |
 | the counts and ranges the text states | the seed spreads, the parity record, the vLLM Semantic Router summaries |
+| the prompts per dataset and split (Table A1) | each row's source dataset and the sha256 of its prompt text (`data/dataset_rows.json`) |
 | | the fleets, the calibration tables and the preregistered rules the runs used |
 
-`generated/datasets.tex` is not rebuilt: it counts the evaluation prompts and the estimator's training rows, whose
-texts are not redistributed.
+`data/dataset_rows.json` holds no prompt text: the evaluation prompts come from datasets whose licences restrict
+redistribution. Each row is the sha256 of its prompt text and its source dataset, so whoever holds a source dataset
+can hash its prompts and find their rows. The training rows are the ones the runs' estimator and routers were built
+from: 14,908 Qwen prompts (the 14,919 of the training prompt file the rendered campaign pins, but the 11 with an
+answer the judge could not score) and all 8,086 Gemma prompts.
 
 To go one step back, from the runs' reports to `data/`, use the meta-analysis pack. To run the experiments, use the
 code repository's `docs/reproduce/`.

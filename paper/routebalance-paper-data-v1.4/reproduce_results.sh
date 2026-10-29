@@ -23,6 +23,8 @@ mkdir -p "$OUT/generated" "$OUT/tables" "$OUT/figures"
 
 # the numbers and tables (generated/results.tex, generated/plot_points.json, tables/gen_*.tex)
 PYTHONPATH="$HERE/code" "$PY" code/tools/gen_results.py --data data --out "$OUT"
+# the dataset table and the prompt counts (generated/datasets.tex), from data/dataset_rows.json
+"$PY" code/tools/gen_datasets.py table --data data --out "$OUT/generated/datasets.tex"
 
 # the figures, from the points the generator wrote
 P="$OUT/generated/plot_points.json"
