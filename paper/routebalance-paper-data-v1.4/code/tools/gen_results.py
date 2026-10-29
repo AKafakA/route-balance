@@ -8,7 +8,7 @@ Inputs (paper/data/, each listed with its sha256 in data/SHA256SUMS, checked bef
   fleet_qwen.json     the Qwen fleet (tiers, prices, instances)
   tpot_qwen.json      the pinned TPOT table (the constant RouteBalance uses per tier)
   prefill_qwen.json   the pinned prefill line per tier
-  round_shares.json   tools/round_share.py over the decision logs of Table A6's reference runs (RouteBalance 80/10/10)
+  round_shares.json   tools/round_share.py over the decision logs of RouteBalance 80/10/10, seed 1, at 12, 30, 42 req/s
   spread_qwen.json    tools/seed_spread.py over a report of Qwen's repeated configurations (seeds 1-3)
   spread_gemma.json   tools/seed_spread.py over a report of Gemma's runs at seeds 1-3
   vsr_failure.json    tools/vsr_failure.py over the vLLM Semantic Router runs' own records (Appendix K's analysis)
@@ -704,24 +704,20 @@ def mix(q: Points, out: Out, plot: dict) -> None:
             raise SystemExit(f"the text says {prefix}q80l10c10 keeps the 72B share the same at every rate")
 
 
-def round_accounting(rs: dict, fleet: dict, q: Points, out: Out) -> None:
-    """How a round's own assignments reach its later decisions (tools/round_share.py over the decision logs of Table A6's
-    reference runs): the share of decisions scored after an earlier assignment of the same round, and the share that
-    go to an instance the round has already given a request to. Each log must be the reference run's: its request count
-    and its decisions per model equal the run's model mix."""
-    for t in THREE:
-        run = f"abl.qwen.rb-static.q80l10c10__{t}__s1"
+def round_accounting(rs: dict, rr: dict, fleet: dict, q: Points, out: Out) -> None:
+    """How a round's own assignments reach its later decisions (tools/round_share.py over the decision logs of
+    RouteBalance 80/10/10 in the main comparison, seed 1, at 12, 30 and 42 req/s): the share of decisions scored after
+    an earlier assignment of the same round, and the share that go to an instance the round has already given a request
+    to. The logs are the ones Table A8 reads (round_range.json: the same sha256 and round count), so the text's shares
+    and the table's mean round size come from the same runs; each log is its run's (log_matches_run)."""
+    runs = [f"qwen.rb-static.q80l10c10__{t}__s1" for t in THREE]
+    if sorted(rs) != sorted(runs):
+        raise SystemExit(f"round_shares.json holds {sorted(rs)}, not the seed-1 runs of 80/10/10 at 12, 30 and 42 req/s")
+    for t, run in zip(THREE, runs):
         s = rs[run]
-        cell = q.cell[(t, "abl.qwen.rb-static.q80l10c10")]
-        if s["decisions"] != cell["summary"]["n_requests"]:
-            raise SystemExit(f"{run}: {s['decisions']} decisions in its log, not its run's request count")
-        per_model = {}
-        for tier, k in s["per_tier"].items():
-            per_model[fleet["tiers"][tier]["model"]] = per_model.get(fleet["tiers"][tier]["model"], 0) + k
-        mix = cell["model_mix"]
-        if set(per_model) != {m for m, f in mix.items() if f > 0} or any(
-                abs(per_model[m] - mix[m] * s["decisions"]) > 1e-6 for m in per_model):
-            raise SystemExit(f"{run}: its log's decisions per model {per_model} are not the run's model mix {mix}")
+        log_matches_run(run, s, q.cell[(t, "qwen.rb-static.q80l10c10")], fleet)
+        if s["sha256"] != rr[run]["sha256"] or s["rounds"] != rr[run]["rounds"]:
+            raise SystemExit(f"{run}: round_shares.json and round_range.json read different decision logs")
         out[f"round.{rate(t)}.after"] = share(s["after_round_assignment"] / s["decisions"])
         out[f"round.{rate(t)}.same"] = share(s["to_instance_already_given"] / s["decisions"])
 
@@ -1663,7 +1659,7 @@ def main():
     for n in ("dec.lat.lower", "single.lat.lower"):      # "faster ... in at least N of the pairs" at every seed
         out[f"{n}.min3"] = str(min(int(out.res[f"{n}.s{x}"]) for x in (1, 2, 3)))
     mix(q, out, plot)
-    round_accounting(d["round_shares.json"], d["fleet_qwen.json"], q, out)
+    round_accounting(d["round_shares.json"], d["round_range.json"], d["fleet_qwen.json"], q, out)
     zero = d["budget_judge.json"]["stores"]["store.s2-zero.jsonl"]          # the served texts the judge could not score
     out["budget.judge.zero"] = str(zero["records"])
     extras(q, g, d["vsr_summary.json"], d["corpus_stats.json"], out)
