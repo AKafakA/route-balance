@@ -1,0 +1,35 @@
+{
+ "unit": "ms",
+ "prefill": {
+  "qwen2.5-14b_v100": {
+   "intercept_ms": 33.02760041056693,
+   "per_token_ms": 0.129427848840815,
+   "n": 384,
+   "r2": 0.7879846294756636
+  },
+  "qwen2.5-3b_a30": {
+   "intercept_ms": 18.11298053373232,
+   "per_token_ms": 0.05361169051610872,
+   "n": 384,
+   "r2": 0.8606542310000062
+  },
+  "qwen2.5-72b_a100": {
+   "intercept_ms": 77.78767705145796,
+   "per_token_ms": 0.13091304330023695,
+   "n": 256,
+   "r2": 0.8568273102845119
+  },
+  "qwen2.5-7b_a30": {
+   "intercept_ms": 33.88362128522988,
+   "per_token_ms": 0.10838609588680147,
+   "n": 640,
+   "r2": 0.9264329993764369
+  }
+ },
+ "provenance": {
+  "requests": "requests.jsonl",
+  "requests_sha256": "afaa774e0ce06b077aa13253c4773e73f198d6524303cb11c3e92a8ed2266024",
+  "level": 1,
+  "fit": "least squares, ttft_ms = intercept_ms + per_token_ms x prompt_tokens"
+ }
+}
