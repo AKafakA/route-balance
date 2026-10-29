@@ -26,11 +26,10 @@ cluster.
 | | contents | reproduces |
 |---|---|---|
 | this repository | the code and scripts, the rendered campaign and the configurations the runs used, and the gates | stage 2, and the analysis of stage 3 |
-| the paper data pack (`paper/` here, and as its own archive) | the per-report summaries the paper reads, its generators and plot scripts, the expected outputs | every number, table and figure (stage 3, first route) |
-| the meta-analysis pack | one row per run for all 1,457 runs, the four reports, the rendered campaign, the fleets, rules, SLO bases and calibration tables | the paper data pack's inputs from the reports (stage 3, second route) |
+| the paper data pack (`paper/`) | the per-report summaries the paper reads, its generators and plot scripts, the expected outputs | every number, table and figure (stage 3, first route) |
 
 Prompt and answer texts are not shipped: the evaluation prompts come from datasets whose licences restrict
-redistribution, so the packs carry prompt ids and scores only.
+redistribution, so the pack carries prompt ids and scores only.
 
 ## Also here
 
