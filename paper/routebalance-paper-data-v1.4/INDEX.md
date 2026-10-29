@@ -33,6 +33,7 @@ Every file of the pack. `CONTENTS.tsv` gives the size and sha256 of each but `CO
 | `code/routebalance/config.py` | code |
 | `code/routebalance/hw.py` | code |
 | `code/routebalance/types.py` | code |
+| `code/tools/gen_datasets.py` | code |
 | `code/tools/gen_results.py` | code |
 | `code/tools/plot_frontier.py` | code |
 | `code/tools/plot_frontier3d.py` | code |
@@ -40,6 +41,7 @@ Every file of the pack. `CONTENTS.tsv` gives the size and sha256 of each but `CO
 | `data/SHA256SUMS` | data |
 | `data/budget_judge.json` | data |
 | `data/corpus_stats.json` | data |
+| `data/dataset_rows.json` | data |
 | `data/fleet_gemma.json` | data |
 | `data/fleet_qwen.json` | data |
 | `data/gemma_report.json` | data |

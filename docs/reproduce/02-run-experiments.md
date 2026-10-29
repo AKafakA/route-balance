@@ -80,6 +80,12 @@ The quality and length estimator's index is the earlier implementation's KNN ind
 training rows. This repository loads it and checks its md5 (`routebalance/estimate/knn.py`). The scheduler documents
 under `configs/render36/configs/` name the artifacts the paper's runs used.
 
+The training prompt files the plan pins (`train_qwen`, 14,919 rows, and `train_gemma`, 8,086) hold the whole training
+split, which the latency sweep sends. `filter` keeps a prompt only if every model's answer to it has a judge score:
+14,908 of the Qwen prompts (11 have an answer the judge could not score) and all 8,086 Gemma prompts. Those rows build
+the estimator's index and the routers' artifacts, and they are the training counts of the paper's Table A1
+(`paper/routebalance-paper-data-v1.4/data/dataset_rows.json`).
+
 When a rebuilt input replaces one the render pins, set its pin in `RENDER` by hand: an artifact's md5 in the
 scheduler documents that name it, a prompt file's sha256 and row count (and a budget table's sha256) in every
 `datasets` entry that names it, in both `plan.json` and `scope.json`, and a scored corpus's sha256 in `plan.json`

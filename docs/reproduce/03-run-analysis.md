@@ -7,14 +7,14 @@ reads them. Nothing is typed in by hand. This stage regenerates them with no GPU
 
 The pack holds the inputs the paper's numbers are computed from (`data/`), the code that computes them (`code/`),
 and every output the paper uses (`expected/`). It needs only CPython 3.10 and the pack's `requirements.txt`. It is
-in this repository as `paper/routebalance-paper-data-v1.3/` (the same files as the released archive), so from the
+in this repository as `paper/routebalance-paper-data-v1.4/` (the same files as the released archive), so from the
 repository's root, in a path without whitespace:
 
 ```bash
 cd paper
 python3.10 -m venv pack-env && . pack-env/bin/activate
-python -m pip install -r routebalance-paper-data-v1.3/requirements.txt
-bash routebalance-paper-data-v1.3/reproduce_results.sh new-output
+python -m pip install -r routebalance-paper-data-v1.4/requirements.txt
+bash routebalance-paper-data-v1.4/reproduce_results.sh new-output
 ```
 
 The script checks every file of the pack against `MANIFEST.sha256`, then runs the generator and the plot scripts

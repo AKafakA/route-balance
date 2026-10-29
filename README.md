@@ -21,7 +21,7 @@ the plot scripts, and every output the paper uses, with a script that rebuilds a
 | `scripts/` | node setup, engine and scheduler deployment, one run and a row of runs |
 | `configs/` | the fleets, the engine arguments per tier, the scheduler's launch values, the preregistered rules, and the rendered campaign the runs used (`render36/`) |
 | `vllm-sr-bench/` | the vLLM Semantic Router, deployed as its authors deploy it, as its own stack in front of the same engines, and driven by the same client |
-| `paper/` | the paper data pack (`routebalance-paper-data-v1.3/`): `data/`, `code/tools/` (the generator of every number and table, the plot scripts of every figure), `expected/`, `reproduce_results.sh` |
+| `paper/` | the paper data pack (`routebalance-paper-data-v1.4/`): `data/`, `code/tools/` (the generator of every number and table, the plot scripts of every figure), `expected/`, `reproduce_results.sh` |
 
 ## Quick start
 
@@ -36,8 +36,8 @@ paper from the shipped data, on a CPU, with no run needed:
 ```bash
 cd paper
 python3.10 -m venv pack-env && . pack-env/bin/activate
-python -m pip install -r routebalance-paper-data-v1.3/requirements.txt
-bash routebalance-paper-data-v1.3/reproduce_results.sh new-output      # ends in: PASS: 24 reference outputs match
+python -m pip install -r routebalance-paper-data-v1.4/requirements.txt
+bash routebalance-paper-data-v1.4/reproduce_results.sh new-output      # ends in: PASS: 25 reference outputs match
 ```
 
 ## Estimators (`routebalance/estimate/`)
