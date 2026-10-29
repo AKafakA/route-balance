@@ -97,7 +97,7 @@ class Stack:
         self.started = False       # set once this object launched a stack; only then does teardown touch one
 
     def _cli(self, args: list[str], log: Path) -> None:
-        # a clean environment, as scripts/node_ctl.sh starts every lease process: upstream forwards host variables
+        # a clean environment, as scripts/node_ctl.sh starts every process of a run: upstream forwards host variables
         # (HF_*, SR_LOG_*, VLLM_SR_*) into its containers, so none may leak in from the operator's shell
         cmd = ["env", "-i", f"HOME={os.environ['HOME']}", f"PATH={CLEAN_PATH}", "LANG=C.UTF-8",
                f"TEMPLATE_ROOT={self.template_root.resolve()}", str(self.vsr), *args]

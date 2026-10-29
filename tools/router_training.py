@@ -11,29 +11,26 @@ model, response, output_length and llm_judge_scores.<judge key>). --models lists
 size; it is the order every tie below falls back to.
 
 filter. A prompt stays only if every fleet model has a judge score on it: every builder needs all the
-models' scores on a row (v3's KNN builder would store a missing score as 0.0, its BEST-Route converter too). The
-dropped prompts are listed. The output feeds v3's KNN builder unchanged and the two commands below.
+models' scores on a row (a KNN index builder would store a missing score as 0.0). The dropped prompts are
+listed. The output feeds the KNN index builder unchanged and the two commands below.
 
 avengers-pro. The prompts are embedded with the pinned MiniLM (normalized, as the router embeds them at route
-time) and clustered once per family (k-means, 32 clusters, n_init 10, random_state 0, v3's settings); every pw
+time) and clustered once per family (k-means, 32 clusters, n_init 10, random_state 0); every pw
 shares the clustering. Each cluster's ranking is upstream AvengersPro's (balance_cluster_router.py,
 compute_balance_score), with the cost it uses: each model's average per-query cost over the cluster's prompts,
   cost = prompt tokens x the model's input price + its output tokens x its output price   (the fleet's prices),
 divided by the highest average cost in the cluster; accuracy is the mean judge score, min-max normalized within
 the cluster (1.0 for every model when they are all equal); score = pw x accuracy + (1 - pw) x (1 - cost); models
 sorted by score, ties in --models order (upstream's stable sort). Upstream's minimum-accuracy threshold is 0 by
-default and changes nothing. v3's builder used one number per model instead (its size, or its mean per-token
-price), the same in every cluster. Output per pw: <out-root>/avengers_pro_<family>_pw<pw>/ with kmeans.joblib,
+default and changes nothing. Output per pw: <out-root>/avengers_pro_<family>_pw<pw>/ with kmeans.joblib,
 cluster_rankings.json ({cluster id: [models, best first]}) and config.json, the files the router loads.
 
-best-route-data. v3's BEST-Route candidates format (its Qwen data converter: instruction, input,
-output, candidates [text, model <base>_bo1, scores.armoRM_scores = the judge score, token_num_prompt,
-token_num_responses]) for the 4-way head (v3's train_best_route_wrapper.py --num-labels 4), which labels a prompt
-with its FIRST best candidate. The candidates are ordered by each model's mean per-token price (the mean of its
+best-route-data. The BEST-Route candidates format (instruction, input, output, candidates [text, model
+<base>_bo1, scores.armoRM_scores = the judge score, token_num_prompt, token_num_responses]); a 4-way head
+(--num-labels 4) labels a prompt with its FIRST best candidate. The candidates are ordered by each model's mean per-token price (the mean of its
 input and output price), ties in --models order, so a tie goes to the cheapest model: for both families' fleets
-this is the size order (Qwen: v3's order; Gemma: its OpenRouter prices). labels.json records that order for
---label-models. The validation set is 10% of the training prompts (seed 42), never test prompts (v3 took half of the
-test split).
+this is the size order (at Qwen's prices and at Gemma's OpenRouter prices). labels.json records that order for
+--label-models. The validation set is 10% of the training prompts (seed 42), never test prompts.
 """
 from __future__ import annotations
 
@@ -52,10 +49,10 @@ from bench.schema import read_jsonl, write_new_jsonl
 from routebalance.config import ConfigError, loads_strict
 
 JUDGE_KEY = "deepeval-llama3.1-8b-it_reference"
-N_CLUSTERS = 32          # v3's AvengersPro artifacts
-KMEANS_SEED = 0          # v3's retrain_avengers_pro_qwen.py
+N_CLUSTERS = 32          # AvengersPro's clusters per family
+KMEANS_SEED = 0
 VAL_FRACTION = 0.1
-SPLIT_SEED = 42          # v3's converter shuffled with seed 42
+SPLIT_SEED = 42          # the validation split's shuffle seed
 
 
 def fleet_prices(fleet_path: Path) -> dict[str, tuple[float, float]]:
@@ -244,7 +241,7 @@ def best_route_example(row: dict, i: int, order: Sequence[str], largest: str, ju
         cands.append({"text": response_of(row, m, i), "model": f"{m.split('/')[-1]}_bo1",
                       "scores": {"armoRM_scores": score_of(row, m, judge_key)},
                       "token_num_prompt": p, "token_num_responses": o, "cost": 0.0})
-    # output: the largest model's response, as v3 recorded it (the 4-way trainer does not read it)
+    # output: the largest model's response (the 4-way trainer does not read it)
     return {"id": row_id(row, i), "instruction": row["prompt"], "input": "",
             "output": response_of(row, largest, i), "candidates": cands}
 
@@ -296,7 +293,7 @@ def main(argv: list[str]) -> int:
     av.add_argument("--pw", type=float, nargs="+", required=True)
     av.add_argument("--embedder", required=True, help="sentence-transformers/all-MiniLM-L6-v2, the KNN encoder")
     av.add_argument("--embedder-revision", required=True)
-    av.add_argument("--n-clusters", type=int, required=True, help=f"k-means clusters ({N_CLUSTERS}, as v3)")
+    av.add_argument("--n-clusters", type=int, required=True, help=f"k-means clusters ({N_CLUSTERS})")
     av.add_argument("--out-root", type=Path, required=True)
     br.add_argument("--out", type=Path, required=True)
     a = ap.parse_args(argv)

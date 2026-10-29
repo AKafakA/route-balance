@@ -164,7 +164,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--reference-cells", type=Path, required=True,
                     help="the main grid's cells root: the engines' comparison and the inputs' pairing")
     ap.add_argument("--mirror", help="the second location (rsync syntax)")
-    ap.add_argument("--max-invalid", type=int, default=3)     # scripts/run_scope.sh's --max-invalid as the lease runs it
+    ap.add_argument("--max-invalid", type=int, default=3)     # scripts/run_scope.sh's --max-invalid as the runs use it
     a = ap.parse_args(argv)
     a.render, a.cells_root, a.reference_cells = a.render.resolve(), a.cells_root.resolve(), a.reference_cells.resolve()
     if a.mirror is not None and ":" not in a.mirror:            # a local mirror: the same place for run_cell and here

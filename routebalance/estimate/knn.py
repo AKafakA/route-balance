@@ -1,7 +1,6 @@
 """Per-model quality and output length from the prompt's nearest neighbours.
 
-A port of the v3 serving path (DefaultModelEstimator.estimate_batch over a KNNEstimator index):
-unwrap the chat template, embed with the index's sentence encoder (normalised), take the k corpus
+The serving path: unwrap the chat template, embed with the index's sentence encoder (normalised), take the k corpus
 prompts with the largest inner product (faiss IndexFlatIP, so cosine similarity s), give neighbour i the
 weight w_i = 1 / (d_i + 1e-6) with d = 1 - s, normalised to sum to 1, and then for every model:
   quality         sum_i w_i q_i over the neighbours' DeepEval labels q; with prior="per_model_mean"
@@ -9,13 +8,11 @@ weight w_i = 1 / (d_i + 1e-6) with d = 1 - s, normalised to sum to 1, and then f
   length          sum_i w_i len_i over the neighbours' output lengths, in tokens
   bucket_probs    the weights histogrammed by length into 64-token buckets, the 16th open-ended
   p_under_budget  the share of the weight on neighbours with len_i <= budget_tokens
-Each float32/float64 step follows v3 operation by operation, so for the same query embeddings the
-results are bitwise equal to v3's.
 
-The index artifact is the v3 pickle <index_dir>/knn_estimator.pkl. Its md5 is checked before it is
-unpickled, its baked k must equal the configured k, and every model must carry DeepEval labels. The v3
-index builder stored a missing label as 0.0 and the pickle cannot tell those apart from real zeros, so
-they are served as 0.0, as in v3; the number of 0.0 labels per model is logged at load.
+The index artifact is the pickle <index_dir>/knn_estimator.pkl. Its md5 is checked before it is
+unpickled, its baked k must equal the configured k, and every model must carry DeepEval labels. The index
+builder stores a missing label as 0.0 and the pickle cannot tell those apart from real zeros, so they are
+served as 0.0; the number of 0.0 labels per model is logged at load.
 """
 from __future__ import annotations
 
@@ -38,10 +35,10 @@ log = logging.getLogger(__name__)
 
 INDEX_FILE = "knn_estimator.pkl"
 DEEPEVAL_KEY = "deepeval-llama3.1-8b-it_reference"   # judge key of the DeepEval labels in the index
-BUCKET_TOKENS = 64                                    # v3 served only these bucket settings
+BUCKET_TOKENS = 64                                    # the only bucket settings served
 NUM_BUCKETS = 16
 _DISTANCE_EPS = 1e-6
-_MIN_ENCODE_BATCH = 32                                # v3 encode batch_size = max(n, 32)
+_MIN_ENCODE_BATCH = 32                                # encode batch_size = max(n, 32)
 
 Prior = Literal["knn", "per_model_mean"]
 
@@ -117,7 +114,7 @@ class KnnEstimator:
             raise ArtifactError(f"configured k={k} but the index was built with k={index.k}; they describe "
                                 "different experiments")
         self.index, self.prior = index, prior
-        self.k = min(k, len(index.embeddings))    # v3: a corpus smaller than k serves all its prompts
+        self.k = min(k, len(index.embeddings))    # a corpus smaller than k serves all its prompts
         self._encoder = encoder
         self._faiss = faiss.IndexFlatIP(index.embeddings.shape[1])
         self._faiss.add(index.embeddings.astype(np.float32))
@@ -125,8 +122,8 @@ class KnnEstimator:
         self._lock = threading.Lock()
         self.batch_calls = 0
         zeros = {m: int(np.count_nonzero(index.labels[m] == 0.0)) for m in index.models}
-        log.info("KNN index: %d prompts, k=%d, prior=%s; labels equal to 0.0 per model (v3 stored missing labels "
-                 "as 0.0, so these include them): %s", len(index.embeddings), k, prior, zeros)
+        log.info("KNN index: %d prompts, k=%d, prior=%s; labels equal to 0.0 per model (the index builder stores "
+                 "missing labels as 0.0, so these include them): %s", len(index.embeddings), k, prior, zeros)
 
     @property
     def models(self) -> tuple[str, ...]:
@@ -143,7 +140,7 @@ class KnnEstimator:
         emb = self._encoder.encode(texts, normalize_embeddings=True, batch_size=max(len(texts), _MIN_ENCODE_BATCH))
         queries = np.ascontiguousarray(np.asarray(emb, dtype=np.float32)).reshape(len(texts), -1)
         sims, idx = self._faiss.search(queries, self.k)
-        return idx.astype(np.int64), (1.0 - sims).astype(np.float64)   # float32 subtraction, then widened, as v3
+        return idx.astype(np.int64), (1.0 - sims).astype(np.float64)   # float32 subtraction, then widened
 
     def estimate_batch(self, prompts: Sequence[str], budget_tokens: int) -> list[dict[str, Estimate]]:
         """One {model: Estimate} per prompt, models in index order."""
@@ -157,7 +154,7 @@ class KnnEstimator:
             raise ArtifactError(f"a neighbour's distance {float(dist.min())!r} is below -{_DISTANCE_EPS}: rows not unit")
         w = 1.0 / (dist + _DISTANCE_EPS)
         w /= w.sum()
-        w32 = w.astype(np.float32)   # v3 kept a float32 copy for the histogram and the budget share
+        w32 = w.astype(np.float32)   # a float32 copy for the histogram and the budget share
         out = {}
         for m in self.index.models:
             lengths = self.index.lengths[m][idx]
@@ -173,7 +170,7 @@ class KnnEstimator:
 
 def _bucket_probs(lengths: np.ndarray, w32: np.ndarray) -> tuple[float, ...]:
     probs = np.zeros(NUM_BUCKETS, dtype=np.float32)
-    for length, w in zip(lengths, w32, strict=True):    # float32 accumulation in rank order, as v3
+    for length, w in zip(lengths, w32, strict=True):    # float32 accumulation in rank order
         probs[min(int(length / BUCKET_TOKENS), NUM_BUCKETS - 1)] += w
     total = float(probs.sum())
     if total > 0:
@@ -182,8 +179,7 @@ def _bucket_probs(lengths: np.ndarray, w32: np.ndarray) -> tuple[float, ...]:
 
 
 def load_knn(cfg: EstimatorConfig, artifact_root: Path, fleet_models: Collection[str]) -> KnnEstimator:
-    """The configured estimator; every model the fleet serves must be in the index (v3 silently scored a
-    missing one with quality 0.5 and the maximum length)."""
+    """The configured estimator; every model the fleet serves must be in the index."""
     index = load_index(Path(artifact_root) / cfg.index_dir, cfg.index_md5)
     absent = sorted(set(fleet_models) - set(index.models))
     if absent:

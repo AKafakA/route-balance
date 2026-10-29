@@ -1,10 +1,10 @@
-"""One RouteBalance scheduling round (paper Algorithm 1; v3 _batch_scheduler_loop).
+"""One RouteBalance scheduling round (paper Algorithm 1).
 
 Input: the round's requests with their per-model estimates, the fleet, and one telemetry read (loads) taken
 when the round is scheduled. Every instance of the fleet is a candidate.
 
   1. LPT: requests are taken longest first by their LPT key, a statistic of their expected lengths over the
-     models: lpt="max" (the default v3 arm), "min" or "mean" (v3's LPT-key ablation); stable, so equal keys
+     models: lpt="max" (the default), "min" or "mean" (the LPT-key ablations); stable, so equal keys
      keep arrival order; lpt="off" keeps arrival order.
   2. For each request, in that order: estimate its latency on every instance from the instances' current
      state, score (score.py), and take the winner.
@@ -12,12 +12,12 @@ when the round is scheduled. Every instance of the fleet is a candidate.
      request's predicted decode tokens. So later requests in the round see earlier ones; later rounds see
      them through the telemetry view (record_dispatch).
   4. on_decision, if given, is called with each decision as soon as it is made, before the next request is
-     scored: the server dispatches the request then, as v3 did, so no request waits for the rest of its
+     scored: the server dispatches the request then, so no request waits for the rest of its
      round to be scored. The decisions are the same with or without it.
 
 The decode tokens recorded for an assignment are, with pending_decode="own_length", the expected length
-of the request on the chosen model; with "lpt_key" (v3), its LPT key (the configured statistic; "max" when
-LPT is off, as v3 recorded), truncated to whole tokens and at least 1 (v3 truncated and could add 0). The
+of the request on the chosen model; with "lpt_key", its LPT key (the configured statistic; "max" when
+LPT is off), truncated to whole tokens and at least 1. The
 same number goes to the telemetry view at dispatch.
 """
 from __future__ import annotations
@@ -34,7 +34,7 @@ from routebalance.types import Instance
 
 PendingDecode = Literal["own_length", "lpt_key"]
 NormalizeOver = Literal["request", "round"]   # config.SchedulerConfig.normalize_over
-NEVER = 0.0   # the last-assigned time of an instance that has not won a request yet (v3), before any clock value
+NEVER = 0.0   # the last-assigned time of an instance that has not won a request yet, before any clock value
 
 
 class Estimate(Protocol):
@@ -65,12 +65,11 @@ class RoundRequest:
 
 @dataclass(frozen=True)
 class Admission:
-    """v3's budget filter, as its budget sweep ran it (the tiered CDF filter of v3's June code): a
-    candidate is admitted when its expected cost is within the request's budget, the expected cost being the
-    prompt at the tier's input price plus the model's expected length, capped at max_tokens, at its output
-    price. When none is admitted, only the cheapest candidates by worst-case cost (the prompt plus max_tokens)
-    remain, v3's fallback for a budget rejection. Each model's own expected length is used, every cheapest
-    instance is kept, and an expected length that truncates to 0 stays 0 (v3 used 100)."""
+    """The budget filter: a candidate is admitted when its expected cost is within the request's budget, the
+    expected cost being the prompt at the tier's input price plus the model's expected length, capped at
+    max_tokens, at its output price. When none is admitted, only the cheapest candidates by worst-case cost (the
+    prompt plus max_tokens) remain. Each model's own expected length is used, every cheapest instance is kept,
+    and an expected length that truncates to 0 stays 0."""
 
 
 @dataclass(frozen=True)
@@ -93,7 +92,7 @@ def lpt_key(req: RoundRequest, lpt: Lpt) -> float:
     if lpt == "min":
         return min(lengths)
     if lpt == "mean":
-        return sum(lengths) / len(lengths)       # v3: sum(lengths) / len(lengths)
+        return sum(lengths) / len(lengths)
     return max(lengths)
 
 
@@ -102,8 +101,7 @@ def _idle(s: InstanceStats) -> InstanceStats:
 
 
 def _decode_tokens(length: float) -> int:
-    """Whole tokens, at least 1 (the telemetry view needs a positive prediction; v3 truncated and could add 0,
-    which differs only for an expectation below one token, e.g. lpt="min" over a model predicted empty)."""
+    """Whole tokens, at least 1 (the telemetry view needs a positive prediction)."""
     if not (math.isfinite(length) and length >= 0):
         raise ValueError(f"expected length must be finite and >= 0, got {length!r}")
     return max(1, int(length))

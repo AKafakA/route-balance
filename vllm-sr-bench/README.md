@@ -7,9 +7,9 @@ same evidence, so its runs compare apple to apple with the main grid.
 It is separate by design. It imports the shared pieces (`bench/`'s prompts, arrivals, sampling and records, and
 `tools/`'s engine checks) and never modifies them. Nothing under `routebalance/`, `bench/`, `gates/`, `tools/` or `configs/`
 changes for it. Under `scripts/`, only the node setup gains its role (`setup.sh --role vsr`: Docker, its data root and
-classic store on /mydata as v2 ran it, started but never enabled at boot, the CLI's venv, the pinned
+classic store on /mydata, started but never enabled at boot, the CLI's venv, the pinned
 images, the classifier weights) and `node_layout.sh` its venv path (`VSR_VENV`) and Docker's data root
-(`DOCKER_ROOT`). Nothing here runs from the lease
+(`DOCKER_ROOT`). Nothing here runs from the
 tree a running grid uses.
 
 ## Decisions it implements
@@ -17,7 +17,7 @@ tree a running grid uses.
 Each setting with its source:
 
 **Where it ran:** on the Qwen fleet, seed 1, at 6 and 9 req/s and at 12, 18, 24 and 30 req/s of the main grid. The
-lease runner holds the training-row pin for Qwen only (`vsrbench/constants.py`), so it refuses a Gemma run until
+runner holds the training-row pin for Qwen only (`vsrbench/constants.py`), so it refuses a Gemma run until
 Gemma's pin is added. The block runs any seeds it is given.
 
 **Deployment:**
@@ -48,7 +48,7 @@ one of its backends, at the experiment-network address our scheduler uses. Envoy
 passed as the CLI's `TEMPLATE_ROOT`. Its digest is recorded with every run:**
 - the listener timeout (a config field) is the client's 6 h, vLLM bench's stock timeout, as for every system.
 - the ext_proc `message_timeout` is 1 h, Envoy's maximum.
-- the circuit breakers are v2's 200,000 on the router's cluster and every model cluster (stock: Envoy's defaults,
+- the circuit breakers are 200,000 (the authors' value) on the router's cluster and every model cluster (stock: Envoy's defaults,
   1,024).
 
 **Stop:** (a) `stop: ["<|im_end|>"]` was probed and does not stop as `stop_token_ids` [151645] does: vLLM's stop strings do not

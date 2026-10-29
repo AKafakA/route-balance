@@ -3,26 +3,26 @@
 Every metric is over the cell's successful requests. A cell with a failed request is still summarised and
 counted, but it carries a problem and is invalid (analysis/validity.py adds the execution checks).
   quality     zero-safe mean judged score of the successful requests, looked up by (prompt, served model) in
-              the scored corpus (analysis/quality.py, as v2 and v3); a 0.0 counts. A budget cell's quality is
+              the scored corpus (analysis/quality.py); a 0.0 counts. A budget cell's quality is
               the judged score of each text actually served, from the score store (an empty text scores
               0): one text without a score makes the cell's quality unavailable (None, and a problem), never a
               mean over the rest. `quality_zeros_excluded` (mean over the non-zero scores) is a labelled
               secondary scale kept only to compare with older numbers; it is never used for a claim
   coverage    matched / successful. Corpus gaps are counted and not problems; unmatched prompts are problems,
               and so is a served model that the corpus scores for no prompt (a model-name mismatch)
-  budget_exhausted   budget cells only: the successful requests whose budget ran out, as v3 counted them (its
+  budget_exhausted   budget cells only: the successful requests whose budget ran out (its
               budget could not pay for the prompt on the served tier, or the served reply's cost, prompt
               included, reached the budget to within 1e-9 USD); None for every other cell
   cost_total  the report's Cost: sum(prompt_tokens * input price + output_tokens * output price of the served
-              model) / successful * 1000, USD per 1k successful requests (as v2 priced it; the objective prices the
-              prompt the same way)
-  cost        DecodeCost, beside it: sum(output_tokens * output price of the served model) / successful * 1000, as
-              v3 counted it; prices from the fleet config (USD per token)
+              model) / successful * 1000, USD per 1k successful requests (the objective prices the prompt the
+              same way)
+  cost        DecodeCost, beside it: sum(output_tokens * output price of the served model) / successful * 1000;
+              prices from the fleet config (USD per token)
   throughput  successful requests / duration_s
   e2e         client end-to-end latency, mean / p50 / p99 in ms (numpy, linear-interpolated percentiles)
   slo         the share of the cell's requests that met the SLO at each level, tight and loose (analysis/slo.py:
               TTFT and TPOT within k times the served tier's single-request values); a failed request never
-              does. None only for the re-aggregated v3 cells, whose records carry no scheduler-side TTFT
+              does. None only for records that carry no scheduler-side TTFT
   overhead    for each scheduler timing (timings_ms): mean / p50 / p99 in ms; and the off-instance residual
               e2e - server_latency (client, network, scheduler queueing and decision time)
   prompt tokens   a request whose backend-reported prompt_tokens differs from the count the client sent is a
@@ -30,9 +30,7 @@ counted, but it carries a problem and is invalid (analysis/validity.py adds the 
               estimates were fed a wrong prefill length
 A cell record is summarised against the fleet it ran on: the fleet's digest must be the cell's, and the prices
 are that fleet's.
-Sums of scores and costs are math.fsum (exactly rounded, whatever the order or the Python version). The v3
-analysis ran on a Python whose sum() is compensated, and its quality column equals the fsum mean on every
-banked row; a plain sequential sum differs from it by ~1e-14.
+Sums of scores and costs are math.fsum (exactly rounded, whatever the order or the Python version).
 """
 from __future__ import annotations
 
@@ -153,7 +151,7 @@ def request_values(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
             raise ConfigError(f"cell {cell.cell_id}: request {r.index} is {outcome} or unpriced; only a valid cell "
                               "has request values")
         if o.prompt_tokens_served is None:
-            raise ConfigError(f"cell {cell.cell_id}: request {r.index} has no served prompt token count (D117)")
+            raise ConfigError(f"cell {cell.cell_id}: request {r.index} has no served prompt token count")
         rows.append((r.index, r.prompt_id, score if outcome == "matched" else math.nan, o.e2e_s,
                      o.output_tokens * prices[o.model],
                      *(slo.met(lvl, o.instance_id, o.first_token_s, o.server_latency_s, o.ttft_s, o.output_tokens)
@@ -191,7 +189,7 @@ def decode_prices(tiers: Iterable[Tier]) -> dict[str, float]:
 
 
 def spread(values: Sequence[float], scale: float) -> Spread:
-    """mean / p50 / p99 of values * scale, in the order v3 computed them (numpy, then scaled)."""
+    """mean / p50 / p99 of values * scale (numpy, then scaled)."""
     return Spread(float(np.mean(values) * scale), float(np.percentile(values, 50) * scale),
                   float(np.percentile(values, 99) * scale))
 
@@ -235,7 +233,7 @@ def summarize_cell(cell: CellRecord, quality: ScoredCorpus | ScoreStore, fleet: 
 
 
 def budget_exhausted(cell: CellRecord, fleet: Sequence[Instance]) -> tuple[Optional[int], Optional[str]]:
-    """v3's count: successful requests whose budget could not pay for the prompt on the served tier, or whose
+    """The count of successful requests whose budget could not pay for the prompt on the served tier, or whose
     served cost (the prompt at the input price plus the output at the output price, as sent and as served)
     reached the budget to within 1e-9 USD. (None, the reason) when a request carries no budget or was served
     by an instance outside the fleet given (a wrong fleet is a problem of its own, never a crash)."""
@@ -286,7 +284,7 @@ def summarize(cell_id: str, outcomes: Sequence[Outcome], duration_s: float, qual
             scores.append(score)
     if found["unscored"]:
         problems.append(f"{found['unscored']}/{len(ok)} served texts have no judged score: the cell's quality is "
-                        "unavailable until they are judged (D67)")
+                        "unavailable until they are judged")
         scores = []                        # never a mean over the scored rest
     if found["unmatched"]:
         problems.append(f"{found['unmatched']}/{len(ok)} {NO_QUALITY[0]}")

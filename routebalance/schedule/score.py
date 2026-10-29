@@ -7,17 +7,17 @@ For request r and candidate instance i (serving model m on GPU g), all three ter
     Q_i = (q_i - min_j q_j) / (max_j q_j - min_j q_j + eps)    predicted quality, min-max over the candidates
     C_i = 1 - c_i / (max_j c_j + eps)                          predicted cost: prompt tokens x input price
                                                                + expected length x output price
-    L_i = 1 - l_i / (max_j l_j + eps)                          "max_divide" (the v3 normalization), or
+    L_i = 1 - l_i / (max_j l_j + eps)                          "max_divide", or
     L_i = min_j l0_j / l_i                                     "fixed_ref": against the request's best UNLOADED latency
 
 l_i is the latency model's estimate on the instance as it is now; l0_i is the same estimate on an idle
 instance. Under max_divide the slowest candidate scores 0 however loaded it is, so load only moves traffic
 within the faster tiers; fixed_ref keeps every tier's load visible.
 
-The sum is taken in v3's order (quality, cost, latency; v3's fourth term had weight 0 in every cell), so
-the scores are bitwise v3's: float addition is not associative, and exact ties decide instances.
+The sum is taken in a fixed order (quality, cost, latency): float addition is not associative, and exact
+ties decide instances.
 The winner is the highest score; exact ties go to the shorter queue (running + waiting, including this
-round's earlier assignments), then to the least recently assigned instance, then to fleet order (v3).
+round's earlier assignments), then to the least recently assigned instance, then to fleet order.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ import math
 from dataclasses import dataclass
 from typing import Literal, Optional, Sequence
 
-EPS = 1e-8   # v3
+EPS = 1e-8
 
 Normalization = Literal["fixed_ref", "max_divide"]
 
@@ -45,7 +45,7 @@ class Candidate:
 @dataclass(frozen=True)
 class Scales:
     """In-batch normalization: the round's quality range and cost maximum over every request x fleet instance
-    (when the round opens, before any budget filter: v3's tracked context), and
+    (when the round opens, before any budget filter), and
     the largest load-aware latency of every candidate the round has scored so far (this request's included)."""
     q_min: float
     q_max: float
@@ -74,7 +74,7 @@ def _check(c: Candidate, normalization: Normalization) -> None:
 
 def score(cands: Sequence[Candidate], *, w_quality: float, w_cost: float, w_latency: float,
           normalization: Normalization, scales: Optional[Scales] = None) -> list[Scored]:
-    """scales None: each term over this request's own candidates (v3); given: over the round. fixed_ref's
+    """scales None: each term over this request's own candidates; given: over the round. fixed_ref's
     latency term is a ratio to the request's own unloaded reference either way."""
     if not cands:
         raise ValueError("no candidates to score")

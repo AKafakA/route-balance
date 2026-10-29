@@ -1,24 +1,20 @@
 """The evaluation prompts in send order, and the prompt token count every system receives.
 
-Send order. v3 read the JSONL in file order and then ran `random.seed(0); random.shuffle(rows)` (the vLLM
-fork's CustomDataset), with seed 0 for every run whatever the run's --seed: the dataset loader was never
-given the seed. A shuffle depends only on the list length, so the v3 order is the permutation
-Random(0).shuffle(range(n_rows)); a run of n requests sends its first n entries (no oversampling).
-  fixed     that order for every seed; reproduces every banked v3 cell
-  per_seed  run seed s uses Random(s - 1): seed 1 is the v3 order, seeds 2, 3, ... permute it
+Send order. The rows are read in file order and permuted by Random(0).shuffle(range(n_rows)), as
+`random.seed(0); random.shuffle(rows)` would; a run of n requests sends its first n entries (no oversampling).
+  fixed     that order for every seed
+  per_seed  run seed s uses Random(s - 1): seed 1 is the fixed order, seeds 2, 3, ... permute it
             (the paper's runs: seeds vary the prompt order as well as the arrivals)
 
 Templating. The client sends the RAW prompt; the scheduler passes it to vLLM's
-chat endpoint as the single user message and vLLM applies the chat template once. v3 templated in the client
-and again on the server, which added 19 prompt tokens to every request with the Qwen2.5 template.
+chat endpoint as the single user message and vLLM applies the chat template once.
 
 Prompt token count. `prompt_tokens` is the number of tokens the serving engine prefills for that message:
     len(tokenizer.apply_chat_template([{"role": "user", "content": prompt}], add_generation_prompt=True,
                                       tokenize=True))
 with the dataset's reference tokenizer (named in the scope). It is computed once before the run and sent with
 every request; the scheduler's latency and cost estimates read it and no system counts tokens itself, so
-every system sees the same number. With the Qwen2.5 tokenizer it equals v3's recorded input_len on all 3534
-prompts (v3 counted the once-templated text), and it is now also what the backend prefills. The backend's own
+every system sees the same number, and it is what the backend prefills. The backend's own
 count (vLLM usage.prompt_tokens) comes back in every reply, so the analysis can check that the two agree.
 """
 from __future__ import annotations
@@ -124,8 +120,8 @@ def load_hf_tokenizer(tokenizer_id: str) -> ChatTokenizer:
 
 def attach_budgets(prompts: PromptSet, budgets: Path, dataset: Path) -> PromptSet:
     """Each prompt's cost budget (USD) from a budget table: JSONL, one line per prompt of the dataset, in the
-    dataset's order, {"id": <the row's id>, "budget_cost": USD > 0, ...} (v3's budget_table_cal_<mix>.jsonl;
-    its other fields document how the budget was built and are not read). A table that does not cover exactly
+    dataset's order, {"id": <the row's id>, "budget_cost": USD > 0, ...} (its other
+    fields document how the budget was built and are not read). A table that does not cover exactly
     the dataset's ids, in its order, or a budget that is not a positive finite number, is refused."""
     ids = [rid for rid, _ in read_rows(dataset)]
     table: list[tuple[str, float]] = []

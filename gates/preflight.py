@@ -90,7 +90,7 @@ def engine_problems(inst: Instance, replies: dict[str, Reply]) -> list[str]:
     if version is not None:
         got = version["version"] if isinstance(version, dict) and "version" in version else None
         if got != VLLM_VERSION:
-            problems.append(f"{where}: runs vLLM {got!r}, the campaign runs {VLLM_VERSION} (D24)")
+            problems.append(f"{where}: runs vLLM {got!r}, the campaign runs {VLLM_VERSION}")
     models = _json(f"{where}: /v1/models", replies["/v1/models"], problems)
     if models is not None:
         data = models["data"] if isinstance(models, dict) and "data" in models else None
@@ -112,7 +112,7 @@ def engine_problems(inst: Instance, replies: dict[str, Reply]) -> list[str]:
         else:
             if snap.num_running + snap.num_waiting != 0:
                 problems.append(f"{where}: not drained ({snap.num_running} running, {snap.num_waiting} waiting); "
-                                "only the scheduler may send to an engine (D30)")
+                                "only the scheduler may send to an engine")
     return problems
 
 

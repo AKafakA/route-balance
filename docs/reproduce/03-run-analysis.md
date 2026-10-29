@@ -7,20 +7,19 @@ reads them. Nothing is typed in by hand. This stage regenerates them with no GPU
 
 The pack holds the inputs the paper's numbers are computed from (`data/`), the code that computes them (`code/`),
 and every output the paper uses (`expected/`). It needs only CPython 3.10 and the pack's `requirements.txt`. It is
-in this repository as `paper/routebalance-paper-data-v1.4/` (the same files as the released archive), so from the
-repository's root, in a path without whitespace:
+in this repository as `paper/routebalance-paper-data-v1.5/`, so from the repository's root, in a path without
+whitespace:
 
 ```bash
 cd paper
 python3.10 -m venv pack-env && . pack-env/bin/activate
-python -m pip install -r routebalance-paper-data-v1.4/requirements.txt
-bash routebalance-paper-data-v1.4/reproduce_results.sh new-output
+python -m pip install -r routebalance-paper-data-v1.5/requirements.txt
+bash routebalance-paper-data-v1.5/reproduce_results.sh new-output
 ```
 
-The script checks every file of the pack against `MANIFEST.sha256`, then runs the generator and the plot scripts
-on `data/` into the new folder, and compares every output with `expected/`: the generated TeX (every macro and
-table of the paper and its appendix) and the figures. It prints one line per output and `PASS` only when all
-match. The pack's `REPRODUCE.md` maps each output to the paper's tables and figures.
+The script runs the generator and the plot scripts on `data/` into the new folder, and compares every output with
+`expected/`: the generated TeX (every macro and table of the paper and its appendix) and the figures. It prints one
+line per output and `PASS` only when all match. The pack's `REPRODUCE.md` maps each output to the paper's tables and figures.
 
 ## Route 2: the meta-analysis pack
 
@@ -46,7 +45,7 @@ python -m analysis.report --render configs/render36 --cells RUNS/g1 --data-root 
 ```
 
 and the same over all seeds (`RUNS/qall`, `RUNS/gall`). The records carry the served texts of the budget runs and
-are not part of the reviewer packs. Their parity records are keyed by the source of the gates' folder (`gate_code`
+are not shipped here. Their parity records are keyed by the source of the gates' folder (`gate_code`
 in `tools/cell_driver.py`). This tree's `gates/` holds the run gates with the code the runs executed, its comments
 edited, and not the repository checks of development, so the key differs and each group's parity reads `not run`
 until the parity gate is rerun over the records. Every other value of the reports is the same.

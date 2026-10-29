@@ -75,7 +75,7 @@ def build(requests: Path, level: int) -> dict:
     sha = hashlib.sha256(requests.read_bytes()).hexdigest()
     return {"unit": "ms", "prefill": out,
             "provenance": {"requests": requests.name, "requests_sha256": sha, "level": level,
-                           "fit": "least squares, ttft_ms = intercept_ms + per_token_ms x prompt_tokens (D118)"}}
+                           "fit": "least squares, ttft_ms = intercept_ms + per_token_ms x prompt_tokens"}}
 
 
 def main(argv: list[str]) -> int:

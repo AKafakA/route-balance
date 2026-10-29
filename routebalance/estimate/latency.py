@@ -8,9 +8,9 @@ TPOT sources, per tier (the fleet's tier_id; an unknown tier raises, nothing is 
                   what the scheduler knows at serving time (InstanceState below)
 
 Envelopes, in seconds. L is the candidate model's expected output length in tokens (the estimator's).
-  own_length   tpot * L                                                  (v3 static arm: queue-blind)
+  own_length   tpot * L                                                  (queue-blind)
   queue_aware  own = max(1, int(L)); if running < max_num_seqs and waiting == 0: own * tpot,
-               else (pending_decode / max(running, 1) + own) * tpot      (v3 learned arm, verbatim)
+               else (pending_decode / max(running, 1) + own) * tpot
   batch_aware  b = running + waiting; if b < max_num_seqs: TPOT(b + 1) * L,
                else TPOT(max_num_seqs) * (L + pending_decode / max(running, 1))
 The supported (source, envelope) pairs are routebalance.config.LATENCY_PAIRS; batch_aware reads a constant
@@ -18,8 +18,7 @@ source as a flat curve (TPOT(b) = the constant), the control that isolates the c
 
 Constant and curve tables are JSON documents written by tools/calibrate_tpot_curve.py:
   {"unit": "ms_per_token", "constant": {tier: ms}, "curve": {tier: [[b, ms], ...]}, "provenance": {...}}
-Values are ms per output token and at least 1 ms (v3 floored every TPOT at 1 ms, so a smaller value
-would have been served differently); curve points have integer b >= 1, strictly increasing, and a curve never
+Values are ms per output token and at least 1 ms; curve points have integer b >= 1, strictly increasing, and a curve never
 decreases in b (a physical TPOT(b) does not fall with the batch; a measured dip is sampling noise, and it
 would make a fixed_ref latency term exceed 1). tools/calibrate_tpot_curve.py writes its curves as a running
 max over b.
@@ -141,7 +140,7 @@ class ProfiledCurveTPOT:
             drop = next((i for i in range(1, len(ms)) if ms[i] < ms[i - 1]), None)
             if drop is not None:
                 raise LatencyError(f"curve[{tier!r}] decreases from {ms[drop - 1]} ms at b={bs[drop - 1]} to "
-                                   f"{ms[drop]} ms at b={bs[drop]}: a TPOT curve never decreases in b (D47)")
+                                   f"{ms[drop]} ms at b={bs[drop]}: a TPOT curve never decreases in b")
 
     @property
     def tiers(self) -> frozenset[str]:
@@ -234,7 +233,7 @@ def load_prefill(path: Path, md5: str) -> Prefill:
 
 
 def _check_slots(state: InstanceState) -> None:
-    if state.max_num_seqs < 1:   # v3 read a missing or zero max_num_seqs as 256; it is always configured
+    if state.max_num_seqs < 1:   # max_num_seqs is always configured
         raise LatencyError(f"max_num_seqs={state.max_num_seqs} is not a batch capacity")
 
 
@@ -287,7 +286,7 @@ class LatencyModel:
         if self.envelope == "batch_aware":
             out = [batch_aware(self.source.curve(t), s, L) for t, s, L in zip(tiers, states, own, strict=True)]
         else:
-            # v3 fed the booster one output length for every tier: the largest expectation over all models
+            # the booster gets one output length for every tier: the largest expectation over all models
             tpots = self.source.tpots(tiers, states, num_prompt_tokens, max(1, int(max(lengths.values()))))
             if self.envelope == "own_length":
                 out = [own_length(t, L) for t, L in zip(tpots, own, strict=True)]

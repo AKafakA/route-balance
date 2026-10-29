@@ -11,7 +11,7 @@ judged as served (every other cell's quality is the lookup of its prompt and mod
 successful request of every budget cell (a record with a budget table) under the cells roots
 (<root>/<cell_id>/<cell_id>.cell.json); other cells are skipped and counted. A text is a (prompt, model,
 sha256(text)) key; one already scored under the judge key is skipped, and each remaining key is written once. An
-empty text is not sent (the judge scores no empty response): the store scores it 0 (as v2 and v3). The
+empty text is not sent (the judge scores no empty response): the store scores it 0. The
 prompt's reference answer comes from the scored corpora the render's plan pins (scored_corpora.<family>: path
 under the data root and sha256, checked); the judge is reference-grounded, and a prompt without a reference
 answer fails the collection.

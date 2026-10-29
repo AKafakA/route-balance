@@ -1,6 +1,6 @@
 """Judged quality of a served response: the DeepEval score of (prompt, model) in the scored corpus.
 
-As in v2 and v3, each model answered each prompt once offline and the judge scored that answer; a served
+Each model answered each prompt once offline and the judge scored that answer; a served
 request is looked up by (prompt, model), whatever text was served (the score is taken as load-independent):
   matched     the prompt is in a corpus and that model has a score under the judge key. 0.0 is a real score.
   corpus_gap  the prompt is present but that model has no score: counted, never averaged, not a failure
@@ -47,7 +47,7 @@ class ScoredCorpus:
         return len(self._scores)
 
     def lookup(self, prompt: str, model: str, text: Optional[str]) -> tuple[Outcome, Optional[float]]:
-        del text                          # the pair was scored, whatever text was served (as v2 and v3)
+        del text                          # the pair was scored, whatever text was served
         per_model = self._scores.get(prompt)
         if per_model is None:
             return "unmatched", None
@@ -118,8 +118,8 @@ class ScoreStore:
       {"prompt": str, "model": str, "text_sha256": <hex of the text's UTF-8 bytes>, "text": str,
        "scores": {<judge_key>: score in [0, 1], ...}}
     A served text is
-      matched   scored under the judge key (0.0 is a real score); an empty text scores 0 without a line, as in
-                v2 and v3 (the judge scores no empty response)
+      matched   scored under the judge key (0.0 is a real score); an empty text scores 0 without a line (the
+                judge scores no empty response)
       unscored  not scored: no other text's score stands in, and the cell's quality is unavailable until it is
     A key scored twice under one judge key across the loaded files is an error, and so is a line whose text does
     not hash to its text_sha256."""

@@ -40,5 +40,5 @@ def integrity_problems(cell: CellRecord) -> list[str]:
     mismatched = sum(r.reply is not None and r.reply.prompt_tokens != r.prompt_tokens for r in reqs)
     if mismatched:   # checked when the cell runs, not only in the analysis
         problems.append(f"{mismatched} requests: the backend prefilled a different number of prompt tokens than the "
-                        "client sent (D34)")
+                        "client sent")
     return problems

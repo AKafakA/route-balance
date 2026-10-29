@@ -1,7 +1,7 @@
 """The per-cell result record: everything one benchmark run of one cell produced.
 
 One JSON file per cell, `<cell_id>.cell.json`. Only files with that suffix are cells; logs, decision logs and
-sidecars never carry it, so they can never be counted as cells (v3 counted provenance sidecars).
+sidecars never carry it, so they can never be counted as cells.
 In a campaign every cell has its own directory under the cells root, named by its id: `<root>/<cell_id>/`
 holds exactly one record, `<cell_id>.cell.json`, beside the evidence the driver collected for the cell
 (scripts/run_cell.sh: the configuration posted, the decision-log slice, scheduler stats and manifests, gates).
@@ -44,7 +44,7 @@ class Reply(Strict):
     server_latency_s: float = Field(ge=0)
     timings_ms: dict[str, float]
     # the scheduler's clock, from the request's arrival to the first backend token (its wait, routing and scheduling,
-    # then the engine's first token), as v2's client_ttft; the SLO's TTFT. None in records made before it
+    # then the engine's first token); the SLO's TTFT. None in records made before it
     first_token_s: Optional[float] = Field(default=None, ge=0)
 
     @field_validator("timings_ms")

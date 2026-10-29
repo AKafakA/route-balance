@@ -35,4 +35,3 @@ redistribution, so the packs carry prompt ids and scores only.
 ## Also here
 
 - [`gates.md`](gates.md): the gates that decide whether a run counts as a measurement.
-- [`decisions.md`](decisions.md): the rulings the code comments refer to, restated.

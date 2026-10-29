@@ -10,10 +10,9 @@ One run of one cell:
      before the wait over every request is built (a full collection there had delayed the last send by up
      to 204 ms); a cell's records are acyclic and bounded, freed by reference counting;
   4. return one CellRecord (bench/records.py).
-The runner sends no warm-up or ready-check requests (v3 sent six through the scheduler, into its decision
-log and counters); warming the fleet is the driver's job. A failure is recorded with its error and never
-retried. duration_s runs from the start of the arrival loop until the last reply (v3's benchmark
-duration), so throughput is successful requests / duration_s. e2e_s is measured on the client, from handing
+The runner sends no warm-up or ready-check requests; warming the fleet is the driver's job. A failure is recorded with its error and never
+retried. duration_s runs from the start of the arrival loop until the last reply, so
+throughput is successful requests / duration_s. e2e_s is measured on the client, from handing
 the request to the HTTP client until the reply body has been read.
 
 Usage: python -m bench.runner --scope <rendered scope.json> --cell <cell_id> --scheduler-url http://HOST:PORT

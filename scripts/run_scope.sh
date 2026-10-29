@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run the cells of some lease rows in the plan's order, resuming: a cell already published is never run again
-# (valid ones are done; invalid or ungated ones are reported and left for the owner to account for or retire).
+# Run the cells of some plan rows in the plan's order, resuming: a cell already published is never run again
+# (valid ones are done; invalid or ungated ones are reported and left for the operator to account for or retire).
 #
 #   scripts/run_scope.sh --render DIR --rows G1,W2,... --max-invalid N [--restart "CMD"] [--fresh-scheduler RUN_DIR] \
 #                        --scheduler URL --scheduler-log-dir DIR --fleet FLEET.json --hosts HOSTS.json \
@@ -13,7 +13,7 @@
 # cell the scheduler's code on disk must be the code it started with (its manifest reports both): after an
 # rsync of the code the scheduler must be restarted. With --restart the command is run (it must restart the
 # scheduler and return once it is launched) and the check repeated; without it the run stops.
-# With --fresh-scheduler (as v3's per-cell runner), every cell runs on a fresh scheduler process: before each
+# With --fresh-scheduler, every cell runs on a fresh scheduler process: before each
 # cell, scripts/restart_scheduler.sh restarts it from RUN_DIR (the deploy.sh scheduler run directory on this node)
 # with a new log directory, SCHED_LOG_DIR/<cell>.<stamp>, which that cell's driver reads.
 # A cell that could not run (exit 2) or whose mirror failed (exit 3) stops the run; an invalid cell (exit 1)

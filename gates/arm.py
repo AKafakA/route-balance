@@ -18,7 +18,7 @@ No connection bound was hit
   reached is invalid, to be rerun with a larger max_connections.
 RouteBalance (mode routebalance)
   - Every line is a dispatch with its scored candidates: every fleet instance, in fleet order. With the budget
-    admission filter (v3's, routebalance/schedule/assign.py Admission) the gate recomputes it from the line's
+    admission filter (routebalance/schedule/assign.py Admission) the gate recomputes it from the line's
     request (prompt tokens, max_tokens, budget), its expected lengths and the manifest's prices: the candidates
     are the admitted instances, or, when none is admitted, the instances at the cheapest worst-case cost, in
     fleet order, with admitted_all saying which.
@@ -38,7 +38,7 @@ RouteBalance (mode routebalance)
     request's expected lengths over every model the estimator returned (the line's lengths). Unless lpt is
     off, within a round in position order the lpt_keys do not increase.
   - feature_tokens (the learned heads' length feature) is the largest expected length, in whole tokens.
-  - decode_tokens: with own_length, the expected length on the chosen model; with lpt_key (v3), the line's
+  - decode_tokens: with own_length, the expected length on the chosen model; with lpt_key, the line's
     lpt_key (the configured statistic). Both in whole tokens and at least 1.
 Pipeline (mode pipeline)
   - Every line is a dispatch carrying the router's reason, prefixed by the configured router type, and a finite
@@ -178,7 +178,7 @@ def _lpt_key(p: Problems, rid: str, line: dict, lpt: str, lengths: dict) -> floa
         want = sum(values) / len(values)
         ok = abs(key - want) <= MEAN_RTOL * want
     else:
-        want = min(values) if lpt == "min" else max(values)    # "off" writes the max (v3)
+        want = min(values) if lpt == "min" else max(values)    # "off" writes the max
         ok = key == want
     if not ok:
         name = "max (lpt off)" if lpt == "off" else lpt
@@ -200,7 +200,7 @@ def _decode(p: Problems, rid: str, line: dict, cfg: SchedulerConfig, fleet_model
 
 
 def _admission(line: dict, fleet: list[FleetEntry], lengths: dict) -> tuple[list[str], bool]:
-    """(the candidates v3's budget filter keeps, in fleet order; whether any was admitted), from the line's
+    """(the candidates the budget filter keeps, in fleet order; whether any was admitted), from the line's
     request as sent and the fleet's prices, with the scheduler's arithmetic (routebalance/schedule/budget.py)."""
     req = _get(line, "request")
     if not isinstance(req, dict) or set(req) != {"prompt_tokens", "max_tokens", "budget_cost"} \
@@ -243,12 +243,12 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
             else:
                 want, fits = _admission(line, fleet, _lengths(line, models))
                 if insts != want or admitted_all is not fits:
-                    p.add("the candidates are not v3's budget filter's (admitted, else the cheapest by worst-case "
+                    p.add("the candidates are not the budget filter's (admitted, else the cheapest by worst-case "
                           "cost)", f"{rid}: {insts} (admitted_all {admitted_all}) != {want} ({fits})")
             _scores(p, rid, line, cands, w)
             scales = _get(line, "scales")
             if (cfg.normalize_over == "round") != (scales is not None):
-                p.add("the round's scales are logged exactly when the score normalizes over the round (D137)",
+                p.add("the round's scales are logged exactly when the score normalizes over the round",
                       f"{rid}: normalize_over {cfg.normalize_over}, scales {scales}")
             if scales is not None and not _valid_scales(scales):
                 raise _Malformed(f"scales {scales!r} are not four finite numbers q_min <= q_max, c_max, l_max > 0")

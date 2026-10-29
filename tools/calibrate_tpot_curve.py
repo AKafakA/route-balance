@@ -43,7 +43,7 @@ from routebalance.estimate.latency import MIN_TPOT_MS, ConstantTPOT, LatencyErro
 from routebalance.config import loads_strict
 
 MIN_SAMPLES = 30
-CURVE_RULE = "running max over b of the per-b medians (D47): a TPOT curve never decreases in b"
+CURVE_RULE = "running max over b of the per-b medians: a TPOT curve never decreases in b"
 MIN_ITLS = 4
 
 

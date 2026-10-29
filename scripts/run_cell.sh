@@ -61,7 +61,7 @@ echo "$(ts) [run_cell] $CELL: config $CONFIG_ID ($CONFIG_DIGEST), group $GROUP, 
 
 # ---- 1. drain  2. POST the configuration  3. preflight
 drv drain --render "$RENDER" --cell "$CELL" --fleet "$FLEET" --hosts "$HOSTS" --scheduler "$URL" || fail "drain"
-drv fresh --scheduler "$URL" || fail "the scheduler is not a fresh process (D132: run_scope.sh --fresh-scheduler)"
+drv fresh --scheduler "$URL" || fail "the scheduler is not a fresh process (run_scope.sh --fresh-scheduler)"
 drv post-config --scheduler "$URL" --attempt "$ATTEMPT" --config-digest "$CONFIG_DIGEST" \
     --fleet-digest "$FLEET_DIGEST" || fail "POST /v1/config"
 "$PY" -m gates.preflight --scheduler "$URL" --fleet "$FLEET" --hosts "$HOSTS" \

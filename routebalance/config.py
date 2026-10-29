@@ -232,9 +232,9 @@ class Rounds(_Strict):
 
 
 # The (TPOT source, envelope) pairs that exist (routebalance/estimate/latency.py defines each):
-#   constant + own_length        v3 static arm (Q1): queue-blind
-#   constant + queue_aware       v2 static arm: the v3 queue envelope with a constant TPOT
-#   xgboost + queue_aware        v3 learned arm
+#   constant + own_length        queue-blind: the request's own decode at a constant TPOT
+#   constant + queue_aware       the queue envelope with a constant TPOT
+#   xgboost + queue_aware        the learned TPOT heads in the queue envelope
 #   profiled_curve + batch_aware TPOT as a function of the running batch, plus a waiting term when full
 #   constant + batch_aware       the same envelope on a flat TPOT: the control that isolates the curve
 LATENCY_PAIRS = frozenset({("constant", "own_length"), ("constant", "queue_aware"), ("xgboost", "queue_aware"),
@@ -252,7 +252,7 @@ class Latency(_Strict):
     normalization: Literal["fixed_ref", "max_divide"]
     table: ArtifactPath  # calibration table (curve or constants) or XGBoost dir
     table_md5: str = Field(pattern=r"^[0-9a-f]{32}$")   # of the table file, or of the XGBoost dir's md5s.json
-    # the prompt's prefill, added to every envelope; null: no prefill term (v2 and v3)
+    # the prompt's prefill, added to every envelope; null: no prefill term
     prefill: Optional[Prefill]
 
     @model_validator(mode="after")
@@ -273,7 +273,7 @@ class Estimator(_Strict):
 
 
 class Budget(_Strict):
-    admission_filter: bool                # v3's budget filter (routebalance/schedule/assign.py Admission)
+    admission_filter: bool                # the budget filter (routebalance/schedule/assign.py Admission)
 
 
 class Telemetry(_Strict):
@@ -323,7 +323,7 @@ LOAD_READING_DISPATCHERS = ("least_outstanding", "po2")    # the dispatchers who
 
 
 class Dispatch(_Strict):
-    # no shortest_queue: v3's shortest queue is least_outstanding on the engines' counts
+    # no shortest_queue: the shortest queue is least_outstanding on the engines' counts
     type: Literal["round_robin", "po2", "least_outstanding", "random", "lowest_latency"]
     seed: int = Field(ge=0, lt=2**32)
     # lowest_latency only (required there, rejected elsewhere): latency samples kept per instance
@@ -361,7 +361,7 @@ class SchedulerConfig(_Strict):
     telemetry_read: Literal["per_round", "per_request", "poll"]
     # what RouteBalance's score normalizes over. "round": quality and cost by the round's range
     # over every request x instance (known when the round opens), latency (max_divide) by the round's running
-    # maximum; "request": each request's own candidates (v3's scoring). Required in routebalance mode, taken by no
+    # maximum; "request": each request's own candidates. Required in routebalance mode, taken by no
     # pipeline system (they score one request at a time)
     normalize_over: Optional[Literal["request", "round"]] = None
     latency: Latency
@@ -388,7 +388,7 @@ class SchedulerConfig(_Strict):
             raise ValueError("normalize_over is required in routebalance mode and taken by no pipeline system")
         if self.mode != "routebalance" and self.pending_decode not in (None, "own_length"):
             raise ValueError("a pipeline system records max_tokens as pending decode, or with pending_decode "
-                             "own_length (the D38 latency sweep only) the estimator's length; lpt_key is RB-only")
+                             "own_length (the latency sweep only) the estimator's length; lpt_key is RB-only")
         if self.mode == "routebalance" and self.telemetry_read == "per_request":
             raise ValueError("RouteBalance reads load per round or from the pollers' cache, never per request")
         if self.mode != "routebalance" and self.telemetry_read == "per_round":
@@ -396,7 +396,7 @@ class SchedulerConfig(_Strict):
         sweep = self.mode != "routebalance" and self.pending_decode == "own_length"   # the latency sweep
         if self.mode != "routebalance" and self.dead_reckoning and not sweep:
             raise ValueError("dead reckoning is RouteBalance's own mechanism: a pipeline system's dispatcher reads "
-                             "the engines' own gauges or counts in-flight requests (owner 09-25, D84)")
+                             "the engines' own gauges or counts in-flight requests")
         if sweep and not self.dead_reckoning:
             raise ValueError("the latency sweep logs the learned heads' training features, which RouteBalance serves "
                              "on dead-reckoned counts: it runs with dead reckoning (its random dispatch reads no load)")

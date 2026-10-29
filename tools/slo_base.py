@@ -1,4 +1,4 @@
-"""Each tier's single-request TTFT and TPOT on the lease stack, from W1: the bases of the SLO.
+"""Each tier's single-request TTFT and TPOT on the serving stack, from the plan's row W1: the bases of the SLO.
 
     python -m tools.slo_base --requests W1_OUT/requests.jsonl --table TPOT_TABLE.json --out SLO_BASE.json
 

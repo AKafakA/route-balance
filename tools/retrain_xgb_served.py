@@ -7,24 +7,23 @@ scheduler logs under official vLLM (--sweep, tools/tpot_sweep.py): each record c
 feature_values() built at dispatch, pending_decode_tokens computed RouteBalance's way and the expected output
 length, so heads use all FEATURES. A head never trains on a feature that is constant in its training rows (it
 could learn nothing from it and the value would only move at serving), nor on fewer than MIN_ROWS usable
-records (v3 skipped such a tier; here a fleet tier without a head is an error): the tool fails instead.
+records (a fleet tier without a head is an error): the tool fails instead.
 
-Everything else is the v3 procedure (offline_training/train_xgboost.py --target tpot):
+The procedure:
   records  per tier, in file order; failed requests and missing or non-positive targets are dropped
   target   TPOT in s/token (tpot_s)
   split    per tier, RandomState(42).permutation; the last 20% is the validation set
   booster  reg:squarederror, max_depth 6, eta 0.1, subsample 0.8, colsample_bytree 0.8,
            min_child_weight 5, seed 42; 500 rounds, early stopping after 30 on validation RMSE.
-           Predictions use every tree, as v3 served them. Only nthread is added (the host's CPU cap).
+           Predictions use every tree. nthread is the host's CPU cap.
 Every tier in the records is trained.
 
 Output (--out): <tier>.xgb (UBJSON), feature_names.json, metrics.json, and md5s.json (the md5 of every
 other file; md5s.json's own md5 is what a config pins as latency.table_md5). It is written to <out>.partial
 and renamed to <out> only after the heads reload, through the scheduler's own loader, to the trained ones.
 
-metrics.json, per tier and split (train, validation): the new heads' n, MAE (s/token), MAPE (%, v3's
-definition |err| / max(y, 1e-6)), median APE (%) and under-prediction rate, on raw booster outputs as v3
-reported them.
+metrics.json, per tier and split (train, validation): the new heads' n, MAE (s/token), MAPE (%,
+|err| / max(y, 1e-6)), median APE (%) and under-prediction rate, on raw booster outputs.
 
 Usage: python -m tools.retrain_xgb_served --sweep SWEEP.jsonl --threads 8 --out DIR
 """
@@ -46,7 +45,7 @@ from tools.tpot_sweep import read_sweep
 V3_PARAMS = {"objective": "reg:squarederror", "eval_metric": ["mae", "rmse"], "max_depth": 6, "learning_rate": 0.1,
              "subsample": 0.8, "colsample_bytree": 0.8, "min_child_weight": 5, "seed": 42}
 ROUNDS, EARLY_STOP, VAL_SHARE, SPLIT_SEED = 500, 30, 0.2, 42
-MIN_ROWS = 50                 # v3 skipped a tier with fewer usable records (train_xgboost.py)
+MIN_ROWS = 50                 # a tier needs at least this many usable records
 
 
 def sweep_rows(paths: list[Path]) -> tuple[dict[str, dict[str, list]], dict]:

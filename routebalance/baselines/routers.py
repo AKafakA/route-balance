@@ -1,17 +1,16 @@
 """Baseline routers: each picks a MODEL for a request; a dispatcher then picks the instance.
 
-  passthrough   no model choice: the dispatcher sees every instance (the v3 "__ALL__" sentinel)
-  best_route    v3's 4-way DeBERTa classifier for BEST-Route: argmax, with an optional confidence floor (the
+  passthrough   no model choice: the dispatcher sees every instance
+  best_route    a 4-way DeBERTa classifier for BEST-Route: argmax, with an optional confidence floor (the
                 backup of best_route_upstream)
   best_route_upstream  BEST-Route as its authors ship it (microsoft/best-route-llm): upstream's ranker and
                 its routing rule, loaded from the pinned checkout
-  avengers_pro  the upstream AvengersPro cluster router, wrapped as v3 wrapped it
+  avengers_pro  the upstream AvengersPro cluster router
   rb_decoupled  RouteBalance's own predictors pick the model from UNLOADED latency (no telemetry),
                 so a dispatcher places it afterwards: "router in front of a load balancer"
 
-Decisions replay v3 exactly. What changed is execution: every model call (tokenizer, forward pass,
-embedding, estimator) runs on one bounded thread pool shared by all routers, never on the event
-loop, as RouteBalance's own estimator does. No router falls back silently: every failure raises.
+Every model call (tokenizer, forward pass, embedding, estimator) runs on one bounded thread pool shared by
+all routers, never on the event loop, as RouteBalance's own estimator does. No router falls back silently: every failure raises.
 """
 from __future__ import annotations
 
@@ -53,15 +52,15 @@ def router_executor() -> ThreadPoolExecutor:
 #   1   as shipped: one request at a time (RouteLLM's server calls router.route() synchronously in its request
 #       handler; NVIDIA's LLM Router sends each prompt to one Triton instance with no dynamic batching)
 #   32  the main setting: as many calls at once as RouteBalance's largest round
-#       (schedule/rounds.py ADAPTIVE_LIMITS), also v2's concurrent-scoring
-#       variant (asyncio's default pool, 32 threads on the 96-CPU scheduler node)
+#       (schedule/rounds.py ADAPTIVE_LIMITS), and asyncio's default pool on the 96-CPU
+#       scheduler node (32 threads)
 def router_lane(threads: int) -> ThreadPoolExecutor:
     return ThreadPoolExecutor(max_workers=threads, thread_name_prefix="router-lane")
 
 
 @dataclass(frozen=True)
 class RouterRequest:
-    prompt: str          # the user's text (estimate.prompt.unwrap_chat_prompt), as v3 handed it to routers
+    prompt: str          # the user's text (estimate.prompt.unwrap_chat_prompt)
     request_id: str
     prompt_tokens: Optional[int] = None   # the templated prompt's tokens as the client counted them (= vLLM's);
     #                                       RB-decoupled's cost needs them, the other routers ignore them
@@ -101,7 +100,7 @@ Classify = Callable[[str], tuple[int, float]]   # prompt -> (argmax label, its s
 
 
 class BestRouteRouter(Router):
-    """v3 decision order: a label outside the pool goes to the fallback even at threshold 0; then a
+    """Decision order: a label outside the pool goes to the fallback even at threshold 0; then a
     probability strictly below the threshold goes to the fallback. The fallback is never inferred."""
 
     def __init__(self, classify: Classify, label_to_model: Mapping[int, str], *, threshold: float,
@@ -137,7 +136,7 @@ class BestRouteRouter(Router):
 
 
 class _DebertaClassifier:
-    """The checkpoint exactly as v3 ran it: slow SentencePiece tokenizer, one unpadded prompt truncated
+    """The checkpoint as served: slow SentencePiece tokenizer, one unpadded prompt truncated
     at max_length, float32 on the CPU (the scheduler node's GPU serves a model instance)."""
 
     def __init__(self, checkpoint: Path, max_length: int):
@@ -216,7 +215,7 @@ class BestRouteUpstreamRouter(Router):
 
 
 def _names_the_model(head: str, fleet_model: str) -> bool:
-    """The candidate names of v3's converters into upstream's data format: a fleet model's repository name, or that
+    """The candidate names of the data converters into upstream's data format: a fleet model's repository name, or that
     name without its "-it" suffix, then "_bo1" (one sample per model)."""
     base, short = head.removesuffix("_bo1"), fleet_model.split("/")[-1]
     return head.endswith("_bo1") and short in (base, f"{base}-it")
@@ -325,7 +324,7 @@ class AvengersProRouter(Router):
 
 class _LocalEmbedder:
     """Stands in for upstream's HTTP embedding client: a local sentence-transformers model pinned to
-    the CPU and to one Hub revision, with the one method upstream calls, get(text) -> 1-D embedding (as v3)."""
+    the CPU and to one Hub revision, with the one method upstream calls, get(text) -> 1-D embedding."""
 
     def __init__(self, name: str, revision: str):
         from sentence_transformers import SentenceTransformer
@@ -373,7 +372,7 @@ def _check_recorded(artifact: Mapping, key: str, ours: object) -> None:
 
 
 def _rankings(raw: object, models: Sequence[str]) -> dict[int, dict[str, list[str]]]:
-    """cluster id -> {"ranking": [model, ...]}, from either layout v3 accepted (a list, or {"ranking": list}).
+    """cluster id -> {"ranking": [model, ...]}, from either layout (a list, or {"ranking": list}).
     Every ranking must be non-empty and name only artifact models: upstream scores an unranked model 0,
     so empty or misnamed rankings would route every request to the first model without an error."""
     if not isinstance(raw, dict) or not raw:
@@ -389,12 +388,12 @@ def _rankings(raw: object, models: Sequence[str]) -> dict[int, dict[str, list[st
 
 def load_avengers_pro(artifact_dir: Path, upstream_repo: Path, *, beta: float, top_k: int, embedder: str,
                       embedder_revision: str, upstream_sha256: str, max_tokens: int, max_workers: int):
-    """Build upstream's SimpleClusterRouter from an artifact directory, as v3 did.
+    """Build upstream's SimpleClusterRouter from an artifact directory.
 
     Upstream's __init__ opens an HTTP embedding client, so the object is built with __new__ and its
     route-time attributes are set directly. Every route-time field is the configuration's, never
-    upstream's default: top_k and beta (the presets state upstream's defaults, 1 and 9.0; v3 ran top_k 4 for
-    the Qwen artifacts and beta 5.0), and max_tokens and max_workers (upstream's 7500 and 4, which v3 also ran). The
+    upstream's default: top_k and beta (the presets state upstream's defaults, 1 and 9.0), and max_tokens and
+    max_workers (upstream's 7500 and 4). The
     embedder is loaded at the pinned Hub revision, and the upstream checkout must have the pinned digest.
     """
     paths = {n: artifact_dir / n for n in ("config.json", "kmeans.joblib", "cluster_rankings.json")}
@@ -509,7 +508,7 @@ class RBDecoupledRouter(Router):
     async def choose_model(self, request: RouterRequest, pool: Sequence[str]) -> RouterDecision:
         _require_pool(pool)
         if request.prompt_tokens is None or request.prompt_tokens < 1:
-            raise ValueError(f"rb_decoupled: request {request.request_id} carries no prompt token count (D117)")
+            raise ValueError(f"rb_decoupled: request {request.request_id} carries no prompt token count")
         tier, score = await _off_loop(self._executor, self._decide, request.prompt, request.prompt_tokens, tuple(pool))
         return RouterDecision(tier.model, score, f"rb_decoupled:tier={tier.tier_id}:score={score:.6f}")
 
@@ -541,8 +540,8 @@ class _BestRouteUpstreamOptions(_Options):
 
 class _AvengersProOptions(_Options):
     artifact_dir: ArtifactPath
-    beta: float = Field(gt=0)            # upstream's default 9.0 (v3: 5.0)
-    top_k: int = Field(ge=1)             # upstream's default 1 (v3: 4 for Qwen, 3 for Gemma)
+    beta: float = Field(gt=0)            # upstream's default 9.0
+    top_k: int = Field(ge=1)             # upstream's default 1
     embedder: str                        # sentence-transformers model the artifact was clustered with
     embedder_revision: str = Field(pattern=r"^[0-9a-f]{40}$")   # its Hub commit
     upstream_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")     # upstream_digest() of the pinned checkout

@@ -4,11 +4,9 @@ Serving runs official vLLM, so an instance's state is the latency.InstanceState 
 num_waiting (Prometheus /metrics), kv_cache_utilization (the KV-cache usage gauge), max_num_seqs (the
 deployment config) and pending_decode_tokens (the scheduler's own sum of remaining predicted decode tokens
 of its in-flight requests). A head may read only FEATURES: those state fields, the request's prompt
-tokens and expected output tokens, and the two v3 features derived from the request alone. The heads
+tokens and expected output tokens, and the two features derived from the request alone. The heads
 come from tools/retrain_xgb_served.py, which builds its training vectors with feature_values() below, so
 training and serving vectors are identical by construction; target TPOT in seconds per token.
-
-The v3 heads read 25 features from the vLLM fork's /instance_stats and cannot be served from this state.
 
 Model dir: feature_names.json and <tier>.xgb, with md5s.json {file: md5} pinning every file (the config
 pins md5s.json itself). A booster file is named by the fleet tier_id it serves.
@@ -28,7 +26,7 @@ from routebalance.estimate.artifacts import ArtifactError, read_verified
 from routebalance.estimate.features import FEATURES, feature_values   # noqa: F401  (re-exported)
 from routebalance.estimate.latency import InstanceState
 
-TPOT_FLOOR_S = 0.001       # v3 clamped every booster output to at least 1 ms/token
+TPOT_FLOOR_S = 0.001       # every booster output is clamped to at least 1 ms/token
 MANIFEST = "md5s.json"
 
 
@@ -106,7 +104,7 @@ class XGBoostTPOT:
 
     def tpots(self, tier_ids: Sequence[str], states: Sequence[InstanceState], num_prompt_tokens: int,
               output_tokens: int) -> list[float]:
-        """TPOT (s/token) per candidate: one booster call per tier over that tier's candidates, as v3."""
+        """TPOT (s/token) per candidate: one booster call per tier over that tier's candidates."""
         rows: dict[str, list[int]] = {}
         for i, tier in enumerate(tier_ids):
             if tier not in self._boosters:

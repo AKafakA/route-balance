@@ -114,7 +114,7 @@ class SystemKeys(Strict):
     def _read_follows_mode(self):
         allowed = ("per_round", "poll") if self.mode == "routebalance" else ("per_request", "poll")
         if self.telemetry_read not in allowed:
-            raise ValueError(f"a {self.mode} system cannot read telemetry '{self.telemetry_read}' (D53, D55)")
+            raise ValueError(f"a {self.mode} system cannot read telemetry '{self.telemetry_read}'")
         return self
 
 
@@ -163,7 +163,7 @@ class Cpus(Strict):
 
 
 class HttpServer(Strict):
-    """The scheduler's HTTP server as it runs (uvicorn, as v3 and vLLM)."""
+    """The scheduler's HTTP server as it runs (uvicorn, as vLLM's server)."""
     server: str
     http: str
     backlog: int
@@ -175,7 +175,7 @@ class HttpServer(Strict):
 
 
 class OpenFiles(Strict):
-    """RLIMIT_NOFILE as the scheduler runs with it (v3's set_ulimit, soft 65535)."""
+    """RLIMIT_NOFILE as the scheduler runs with it (soft 65535, vLLM's set_ulimit target)."""
     soft: int
     hard: int
 

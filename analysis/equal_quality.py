@@ -12,12 +12,12 @@ seed fixes the arrivals, and with per_seed order also the prompt order, for ever
                    that are Pareto-efficient in quality (up) and mean E2E latency (down), by increasing quality;
                    at q_B the configuration lies between the two frontier presets around q_B, at weight
                    w = (q_B - q_lo) / (q_hi - q_lo), and every metric is read there: m_lo + w (m_hi - m_lo);
-       per_metric  v2/v3's reading: each metric on the treatment's own quality-metric frontier (Pareto-efficient
+       per_metric  each metric on the treatment's own quality-metric frontier (Pareto-efficient
                    in quality up and that metric down), read the same way at q_B.
      Past the high end of a frontier the end preset is used if its quality is within the tolerance of q_B;
      otherwise there is no equal-quality point (never extrapolated). Past the low end the lowest-quality frontier
      preset is used: within the tolerance as at the high end; further below, the treatment is compared at
-     higher quality than the baseline's, as v3's dominance reading counted it, and the value is marked
+     higher quality than the baseline's, and the value is marked
      `at_higher_quality` (per seed too; `higher_resamples` counts such resamples; the tables mark them).
   4. delta = treatment - baseline (negative: the treatment is faster or cheaper); relative = treatment/baseline - 1.
   5. The range over the seeds (the main text): steps 3-4 on each seed of S alone, B's cell at that seed

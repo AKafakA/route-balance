@@ -254,7 +254,7 @@ def container_problems(containers: list[dict]) -> list[str]:
         res = c.get("resources") or {}
         if (res.get("DeviceRequests") or res.get("Devices") or res.get("Privileged")
                 or res.get("Runtime") not in (None, "runc")):
-            out.append(f"{c['name']} is given devices or privileges {res} (D162: the stack runs on CPU)")
+            out.append(f"{c['name']} is given devices or privileges {res} (the stack runs on CPU)")
         if not c["running"] or c["restart_count"]:
             out.append(f"{c['name']}: running {c['running']}, restarts {c['restart_count']}")
         image = _hub(c["image"])

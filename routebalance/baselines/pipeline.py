@@ -4,10 +4,10 @@ Every baseline (and rb_decoupled) selects an instance this way:
   1. the router picks a model from the fleet's models (unique, fleet order), given the user's text;
   2. the candidates are that model's instances in fleet order (every instance for passthrough);
   3. their loads come from the shared TelemetryView, which raises rather than report an idle instance: from
-     the pollers' cache, or (probe, v3's per-request arm) from a fetch made now of the candidates the
+     the pollers' cache, or (probe, the per-request variant) from a fetch made now of the candidates the
      dispatcher compares (every candidate; power of two's drawn pair);
   4. the dispatcher picks one candidate on its count (the engines' own gauges in the main grid; the in-flight
-     count the view keeps, as a production balancer counts at the proxy, in the appendix row W12; dead reckoning is
+     count the view keeps, as a production balancer counts at the proxy, in the plan's row W12; dead reckoning is
      RouteBalance's own), and the dispatch is recorded in the view at once (no await in between): its pending
      decode tokens and in-flight count are tracked for every system, so on the engine gauges concurrent
      selections see each other only through the least-recently-assigned tie-break, as a balancer reading scraped
@@ -65,7 +65,7 @@ async def select_instance(router: Router, dispatcher: Dispatcher, instances: Seq
                           decode_tokens: Mapping[str, int], probe: bool) -> Selection:
     """`request.prompt` is the prompt as the client sent it; the router gets the unwrapped text.
     `decode_tokens` maps every fleet model to the decode length recorded with the dispatch: the request's
-    max_tokens for a baseline, as in v3, since baselines predict no length (the latency sweep records the
+    max_tokens for a baseline, since baselines predict no length (the latency sweep records the
     estimator's length on each model instead)."""
     if not instances:
         raise ValueError("no instances")

@@ -4,7 +4,7 @@
 #   stop_engines.sh --fleet F --hosts H --engine-args E [--ssh-user U]
 #
 # Each engine's process group gets SIGTERM, then SIGKILL after 60 s. Then, per node, anything still computing
-# on the fleet's GPUs of that node is killed (v3: retitled engine workers survived name-based pkill), and the
+# on the fleet's GPUs of that node is killed (retitled engine workers survive a name-based pkill), and the
 # GPUs must be idle. Exits 1 if any instance or GPU could not be freed.
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

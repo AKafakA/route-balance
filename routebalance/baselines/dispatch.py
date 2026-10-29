@@ -3,19 +3,19 @@
 A dispatcher reads only the loads the pipeline hands it, taken from the shared TelemetryView. The two
 load-reading dispatchers count, per instance (config `count`):
   engine     the engines' own num_running + num_waiting gauges, from the pollers' 50 ms cache (as llm-d's
-             endpoint picker reads them; the main grid) or fetched for the request (v3's per-request probe);
+             endpoint picker reads them; the main grid) or fetched for the request (the per-request probe);
   in_flight  the requests this scheduler has sent to it and not yet seen complete (Load.in_flight), as the
              production balancers count at the proxy: Envoy's LEAST_REQUEST (power of two over its active
              requests when host weights are equal), NGINX least_conn, the AIBrix gateway's least-request, the
-             SGLang router, LiteLLM least-busy. Only the appendix row W12.
+             SGLang router, LiteLLM least-busy. Only the plan's row W12.
 Dead reckoning (the split of the in-flight count by the engine's gauge, and the pending decode tokens) is
 RouteBalance's own mechanism and no dispatcher uses it. A dispatcher never fetches anything itself;
 lowest_latency also learns from the completions and timeouts the server reports. Candidates arrive in fleet order,
-and order is behaviour. least_outstanding with the engine count is v3's shortest queue (one rule, no
+and order is behaviour. least_outstanding with the engine count is the shortest queue (one rule, no
 separate shortest-queue dispatcher).
 Ties: least_outstanding gives them to the least recently assigned candidate, then to fleet order (as
 RouteBalance's own tie-break, and like the round robin among ties of stock least-connection balancers;
-v3's first-candidate rule biased the first instance); po2 keeps the first drawn (v3); lowest_latency
+a first-candidate rule would bias the first instance); po2 keeps the first drawn; lowest_latency
 draws among them (LiteLLM).
 
 Randomised dispatchers own a random.Random seeded from the config. A dispatcher is built for every
@@ -75,7 +75,7 @@ def _queue(load: Load, count: str) -> int:
 
 
 class RoundRobin(Dispatcher):
-    """One rotation per model, keyed by the first candidate's model as in v3; under passthrough that
+    """One rotation per model, keyed by the first candidate's model; under passthrough that
     is a single rotation over the whole fleet."""
 
     def __init__(self):
@@ -90,7 +90,7 @@ class RoundRobin(Dispatcher):
 
 class LeastOutstanding(Dispatcher):
     """The fewest outstanding requests by the configured count: in flight (NGINX least_conn) or the engine's own
-    running + waiting (v3's shortest queue). Among equal counts the candidate assigned least recently (never
+    running + waiting (the shortest queue). Among equal counts the candidate assigned least recently (never
     assigned = 0.0), then the earliest in fleet order."""
 
     def __init__(self, count: str, clock: Callable[[], float] = time.monotonic):
@@ -106,8 +106,8 @@ class LeastOutstanding(Dispatcher):
 
 
 class PowerOfTwo(Dispatcher):
-    """Two distinct candidates drawn uniformly (random.sample, as v3), the one with the lower count wins (in flight:
-    Envoy's LEAST_REQUEST with equal weights and its default two choices; engine: v3's po2 queue), the first
+    """Two distinct candidates drawn uniformly (random.sample), the one with the lower count wins (in flight:
+    Envoy's LEAST_REQUEST with equal weights and its default two choices; engine: the engines' own queues), the first
     drawn on a tie. A single candidate is taken without drawing, so it consumes no randomness. With the probe
     the pair is drawn first and only its two instances are fetched: the same draws as the cache form in every run
     whose load reads succeed. A failed read fails its request, and a run with a failed request enters no

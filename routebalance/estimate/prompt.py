@@ -1,10 +1,10 @@
 """The estimator reads the user's text, not the chat template around it.
 
 The KNN index was built from raw prompts, while served prompts arrive chat-templated; embedding the
-template destroys neighbour discrimination (in v3 it inverted the 3B/14B ordering). This is the only
+template destroys neighbour discrimination. This is the only
 place served text is turned back into estimator text, so no caller can reach the index with a template.
 
-Same rules as v3 (knn_estimator.unwrap_chat_prompt): only the first user turn is kept and the system
+The rules: only the first user turn is kept and the system
 turn is dropped; if the first user turn has no end tag the whole text is used; the result is stripped.
 Idempotent on raw prompts.
 """

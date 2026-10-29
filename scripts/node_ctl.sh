@@ -117,8 +117,7 @@ cmd_launch() {
   # run's warm-up calls to start from an empty prefix cache (tools/direct.py).
   # VLLM_HTTP_TIMEOUT_KEEP_ALIVE (vLLM's own setting, stock 5 s) above the clients' keep-alive (vLLM bench's stock
   # connector, 60 s): at 5 s an engine could close an idle connection just as the scheduler reused it ("Can not write
-  # request body", 2 of 4 runs at the 32-call setting); v3 met the same race on its scheduler's inbound hop and raised
-  # that server's keep-alive to 600 s, and the engines' is raised to 600 s too.
+  # request body", 2 of 4 runs at the 32-call setting), so the engines' keep-alive is 600 s, as the scheduler's.
   # A new session per engine: its pid is its process group, which holds every worker it spawns.
   # (SC2016: the inner script expands in the child; SC2094: $log is recorded in the pid file, not read.)
   # shellcheck disable=SC2016,SC2094
@@ -233,9 +232,9 @@ cmd_sched_start() {
   local argv=(--fleet "$run/fleet.json" --hosts "$run/hosts.json" --config "$run/scheduler.json"
               --artifacts "$art" --avengers-repo "$AP_DIR" --best-route-repo "$BR_DIR" --host "$host" --port "$port"
               --request-timeout-s "$timeout" --max-connections "$conns" --log-dir "$logdir")
-  [ "$threads" = none ] || argv+=(--torch-threads "$threads")   # none: torch's default thread count (v3)
+  [ "$threads" = none ] || argv+=(--torch-threads "$threads")   # none: torch's default thread count
   printf '%s\n' "CUDA_VISIBLE_DEVICES= $SCHED_VENV/bin/python -u -m routebalance.server ${argv[*]}" > "$run/scheduler.cmd"
-  # the open-file limit: the scheduler raises its own soft limit at start as v3's did (set_ulimit, 65535)
+  # the open-file limit: the scheduler raises its own soft limit at start (set_ulimit, 65535, as vLLM's server)
   # shellcheck disable=SC2016,SC2094
   (cd "$tree" && setsid --fork bash -c "$RECORD_AND_EXEC"'; exec "$@"' _ "$pidf" "$log" "$BOOT_ID" \
     env -i HOME="$HOME" PATH="$RB_PATH" LANG=C.UTF-8 CUDA_VISIBLE_DEVICES= HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 \

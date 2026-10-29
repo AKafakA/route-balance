@@ -14,7 +14,7 @@ publishes them with completed engine steps and they are scraped every poll_ms), 
 dispatch, or during a long first prefill, a scrape can still show an idle engine, and right after a
 completion it can still show the finished request; the in-flight count covers both without any
 timing assumption. Dead reckoning is RouteBalance's own mechanism; the baselines' views run with it off and their
-load-reading dispatchers read the engine's gauges; only the appendix row W12 counts the in-flight
+load-reading dispatchers read the engine's gauges; only the plan's row W12 counts the in-flight
 requests themselves (Load.in_flight, the count production proxies keep).
 
 Three ways to read (config telemetry_read):
@@ -22,14 +22,13 @@ Three ways to read (config telemetry_read):
               cache: the pipeline systems (router + dispatcher, deciding per request), and RouteBalance's cache control;
   per_round   RouteBalance's own: every instance fetched once per batch, at each round's start (fetch_round), and
               the whole round scheduled from that fetch;
-  per_request v3's baselines: each request fetches its candidates (fetch) and reads the engine's own counts.
+  per_request each request fetches its candidates (fetch) and reads the engine's own counts.
 A fetch scrapes every instance it asks for; an instance whose scrape failed, timed out or was malformed is read from
 its last good snapshot, and only an instance never read fails the round or the request.
 
 Freshness is measured from when a scrape was SENT, so a slow reply cannot pass for fresh data. A failed, slow or
-malformed scrape leaves the last good snapshot in use, as a production balancer's scraped cache does (v5's
-refusal of a snapshot older than 500 ms is removed; v2 used the last snapshot too). Every Load carries its
-snapshot's age and its last scrape's error, and every decision logs both. Nothing falls back to an idle default.
+malformed scrape leaves the last good snapshot in use, as a production balancer's scraped cache does. Every Load
+carries its snapshot's age and its last scrape's error, and every decision logs both. Nothing falls back to an idle default.
 """
 from __future__ import annotations
 
@@ -50,7 +49,7 @@ METRICS = {
     "vllm:kv_cache_usage_perc": "kv_cache_utilization",
     "vllm:num_preemptions_total": "num_preemptions",
 }
-AUTO_EXTEND_TOKENS = 10   # a request reaching its predicted length is extended by this many tokens (v3 fork rule)
+AUTO_EXTEND_TOKENS = 10   # a request reaching its predicted length is extended by this many tokens
 
 
 class InstanceStateUnavailable(RuntimeError):

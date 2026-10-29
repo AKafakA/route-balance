@@ -2,12 +2,12 @@
 
 A request may carry budget_cost, in dollars; 0 means no budget. Two rules use it:
 
-  clamp (every system, after the instance is chosen; v3 formula): on the chosen tier,
+  clamp (every system, after the instance is chosen): on the chosen tier,
       remaining  = budget_cost - prompt_tokens * cost_in
       affordable = 1 if remaining <= 0 (the budget cannot pay for the prompt: "exhausted"),
                    else max(1, floor(remaining / cost_out))
       max_tokens = min(requested max_tokens, affordable)
-  admission (RouteBalance only, when configured; v3's budget filter, routebalance/schedule/assign.py
+  admission (RouteBalance only, when configured; the budget filter, routebalance/schedule/assign.py
       Admission): a candidate is admitted when prompt_tokens * cost_in + min(expected length, max_tokens) *
       cost_out <= budget_cost; when none is, the cheapest candidates by worst-case cost (max_tokens) remain.
 

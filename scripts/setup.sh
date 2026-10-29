@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2015
 # (SC2015: `a && b || die` is meant: die when either a or b fails.)
-# One lease node's environment, from the v3 recipe (driver + CUDA 12.8.0 local repo) adapted to official
+# One cluster node's environment (driver + CUDA 12.8.0 local repo) for official
 # vLLM in a fresh venv. Runs on the node itself; idempotent, fail-loud, resumable across the driver reboot.
 #
 #   setup.sh --role engine    --hf-token-file PATH --model ORG/NAME@REV [--model ...] [--data-disk DEV]
@@ -9,7 +9,7 @@
 #                             [--data-disk DEV] [--with-tests]
 #   setup.sh --role vsr       --vsr-models DIR
 #
-#   /mydata goes on the node type's scratch disk (c4130 /dev/sdb, d7525/d8545 /dev/nvme0n1, as v3). Some d7525
+#   /mydata goes on the node type's scratch disk (c4130 /dev/sdb, d7525/d8545 /dev/nvme0n1). Some d7525
 #   have no NVMe disk: then --data-disk must name one, and without it setup fails and lists the candidates (whole
 #   disks without partitions, mounts or the root filesystem). A disk with any of those is always refused.
 #
@@ -22,7 +22,7 @@
 #              --with-tests also builds $TEST_VENV: this repository with the dev extras (pytest), for running the
 #              test suite on the node against the same pins and Hub snapshots; nothing serves from it.
 #   vsr        (the scheduler's node, after its scheduler role) Docker from Ubuntu's archive (docker.io
-#              $DOCKER_IO_VERSION), the lease user in the docker group, $VSR_VENV with vllm-sr and
+#              $DOCKER_IO_VERSION), the node's user in the docker group, $VSR_VENV with vllm-sr and
 #              the versions it was tested with (vllm-sr-bench/requirements-vsr.txt), the four images vLLM-SR 0.4.0 runs,
 #              pulled by their pinned digests and tagged as its CLI names them (vllm-sr-bench/vsrbench/constants.py),
 #              and the router's classifier weights at --vsr-models checked file by file (vllm-sr-bench/models.sha256).
@@ -50,14 +50,14 @@ AP_URL=https://github.com/ZhangYiqun018/AvengersPro.git
 AP_COMMIT=dfb60b156c4b6011b89edfc8516aa16d8e4f4d38
 AP_FILE=simple_cluster_router.py
 AP_UPSTREAM_MD5=a845b36763db4ba4c22f87d78753c4bb  # $AP_FILE at $AP_COMMIT
-AP_PATCHED_MD5=658d5d1a874d71a6dcb77700e1f2a2c4   # after the local patch below (the copy v3 served)
+AP_PATCHED_MD5=658d5d1a874d71a6dcb77700e1f2a2c4   # after the local patch below (the copy the runs served)
 BR_URL=https://github.com/microsoft/best-route-llm.git
 BR_COMMIT=fc9b896a814acf7c00565fbea0803a8c20812702  # BEST-Route's authors' code, unpatched
-LLM_BLENDER_COMMIT=33204d2712944b6b17996f7c079e74cd963ccc7c   # == the pyproject pin (tests check)
+LLM_BLENDER_COMMIT=33204d2712944b6b17996f7c079e74cd963ccc7c   # == the pyproject pin
 SPEC_RE='^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*@[0-9a-f]{40}$'
 
 # PCI device id of the node's GPUs -> GPU class, CloudLab hardware type, GPUs per node, driver flavour,
-# /mydata disk. Must agree with routebalance/hw.py (tests/unit/test_scripts.py checks it).
+# /mydata disk. Must agree with routebalance/hw.py.
 gpu_row() {
   case "$1" in
     1db1) echo "v100 c4130 4 volta /dev/sdb" ;;          # Tesla V100-SXM2-16GB
@@ -80,7 +80,7 @@ step() { echo; echo "===== [$(ts)] $* ====="; }
 die() { echo "[$(ts)] SETUP FAILED: $*" >&2; exit 1; }
 
 ROLE="" TOKEN_FILE="" MODELS=() TOKENIZERS=() DATA_DISK="" WITH_TESTS=0 VSR_MODELS_SRC=""
-# Ubuntu 22.04's docker.io (jammy-updates) as the lease nodes' archive offered it on 30 Sep
+# Ubuntu 22.04's docker.io (jammy-updates), as the nodes' archive offered it
 DOCKER_IO_VERSION="29.1.3-0ubuntu3~22.04.2"
 
 parse_args() {
@@ -131,7 +131,7 @@ preflight() {
   # shellcheck source=/dev/null
   . /etc/os-release
   [ "${ID:-}" = ubuntu ] && [ "${VERSION_ID:-}" = 22.04 ] || die "Ubuntu 22.04 expected (found ${ID:-?} ${VERSION_ID:-?})"
-  [ "$(id -u)" -ne 0 ] || die "run as the lease user, not root (sudo is used where needed)"
+  [ "$(id -u)" -ne 0 ] || die "run as the node's user, not root (sudo is used where needed)"
   sudo -n true 2>/dev/null || die "passwordless sudo is required"
   say "role=$ROLE repo=$REPO kernel=$(uname -r) models=${MODELS[*]} tokenizers=${TOKENIZERS[*]:-none}"
 }
@@ -163,7 +163,7 @@ detect_gpu() {
   echo "$lines"
   ids=$(echo "$lines" | grep -oE '\[10de:[0-9a-f]{4}\]' | cut -c7-10 | sort -u)
   [ "$(echo "$ids" | wc -l)" -eq 1 ] || die "mixed GPU models on one node: $(echo "$ids" | tr '\n' ' ')"
-  row=$(gpu_row "$ids") || die "GPU device id 10de:$ids is not one of this lease's (V100/A30/A100); see gpu_row"
+  row=$(gpu_row "$ids") || die "GPU device id 10de:$ids is not one of this cluster's (V100/A30/A100); see gpu_row"
   read -r GPU_CLASS HW_TYPE GPU_COUNT ARCH MYDATA_DEV <<< "$row"
   [ "$(echo "$lines" | wc -l)" -eq "$GPU_COUNT" ] || die "$HW_TYPE should have $GPU_COUNT GPU(s), lspci shows $(echo "$lines" | wc -l)"
   if [ -n "$DATA_DISK" ]; then
@@ -196,7 +196,7 @@ mount_mydata() {
   elif [ -s "$STATE_DIR/mydata.uuid" ]; then     # after a reboot: remount, never format again
     uuid=$(cat "$STATE_DIR/mydata.uuid")
     sudo mkdir -p "$MYDATA" && sudo mount "UUID=$uuid" "$MYDATA" || die "cannot remount $MYDATA (UUID=$uuid)"
-  else                                           # first run: format the scratch disk, as v3 did
+  else                                           # first run: format the scratch disk
     [ -b "$MYDATA_DEV" ] || die "$MYDATA_DEV is not a block device"
     [ "$(lsblk -dnro TYPE "$MYDATA_DEV")" = disk ] || die "$MYDATA_DEV is not a whole disk"
     if lsblk -nro MOUNTPOINT "$MYDATA_DEV" | grep -q .; then
@@ -298,7 +298,7 @@ mig_off() {
 new_venv() {
   local dir="$1" spec="$2" marker="$1/rb-setup.spec"
   if [ -e "$dir" ]; then
-    [ -f "$marker" ] || die "$dir exists but was not created by this script; it is never touched (R1)"
+    [ -f "$marker" ] || die "$dir exists but was not created by this script; it is never touched"
     if [ "$(cat "$marker")" = "complete $spec" ]; then say "$dir is complete for: $spec"; return 1; fi
     if [ "$(cat "$marker")" = "installing $spec" ]; then     # this script's own interrupted install
       say "removing the interrupted install at $dir"
@@ -376,22 +376,21 @@ docker_engine() {
   step "Docker: docker.io=$DOCKER_IO_VERSION (Ubuntu's archive), data root $DOCKER_ROOT, $USER in the docker group"
   local have conf sim changed
   have=$(dpkg-query -W -f '${Version}' docker.io 2>/dev/null || true)
-  [ -z "$have" ] || installed docker.io || die "docker.io $have is not fully installed (unpacked or half-configured): R1"
-  # v2's vLLM-SR deployment guide (2026-05-03: "Always set data-root: /mydata/docker before starting Docker"; the root
-  # disk is 63 GB), written before the package's first start of the daemon; as v2's storage: Docker 29's
-  # containerd image store off, so images and layers stay under the data root in Docker's classic store, as v2 ran
+  [ -z "$have" ] || installed docker.io || die "docker.io $have is not fully installed (unpacked or half-configured)"
+  # Docker's data root on /mydata (the root disk is 63 GB), written before the package's first start of the daemon;
+  # Docker 29's containerd image store off, so images and layers stay under the data root in Docker's classic store
   conf='{"data-root":"'"$DOCKER_ROOT"'","features":{"containerd-snapshotter":false}}'
   if [ "$have" != "$DOCKER_IO_VERSION" ]; then
-    [ -z "$have" ] || die "docker.io $have is installed, not $DOCKER_IO_VERSION: it is never replaced here (R1)"
+    [ -z "$have" ] || die "docker.io $have is installed, not $DOCKER_IO_VERSION: it is never replaced here"
     sudo apt-get update || die "apt-get update"
     # nothing installed is changed here: apt's own dry run first (before anything is written), refused if it would
     # upgrade, downgrade or remove any installed package ("Inst <pkg> [<installed version>] ..." or "Remv")
     sim=$(apt-get -s install --no-remove "docker.io=$DOCKER_IO_VERSION") || die "apt-get -s install docker.io"
     changed=$(printf '%s\n' "$sim" | grep -E '^(Inst [^ ]+ \[|Remv )' || true)
-    [ -z "$changed" ] || die "installing docker.io would change installed packages (R1): $changed"
+    [ -z "$changed" ] || die "installing docker.io would change installed packages: $changed"
     say "new packages: $(printf '%s\n' "$sim" | awk '/^Inst /{printf "%s=%s ", $2, substr($3, 2)}')"
     if [ -e /etc/docker/daemon.json ]; then
-      [ "$(cat /etc/docker/daemon.json)" = "$conf" ] || die "/etc/docker/daemon.json exists and is not $conf (R1)"
+      [ "$(cat /etc/docker/daemon.json)" = "$conf" ] || die "/etc/docker/daemon.json exists and is not $conf"
     else
       sudo mkdir -p /etc/docker "$DOCKER_ROOT" || die "mkdir /etc/docker $DOCKER_ROOT"
       printf '%s\n' "$conf" | sudo tee /etc/docker/daemon.json >/dev/null || die "writing /etc/docker/daemon.json"
@@ -401,7 +400,7 @@ docker_engine() {
   fi
   [ "$(cat /etc/docker/daemon.json)" = "$conf" ] || die "/etc/docker/daemon.json is not $conf"
   # Docker runs only during the vLLM-SR blocks, so never at boot: started here, its units disabled (and
-  # ubuntu-fan's, a package apt's default install brings with docker.io, as v2's install did)
+  # ubuntu-fan's, a package apt's default install brings with docker.io)
   local u
   for u in docker.service docker.socket containerd.service ubuntu-fan.service; do
     systemctl cat "$u" >/dev/null 2>&1 || continue
@@ -461,7 +460,7 @@ self_check_vsr() {
   local fail=0 ref digest
   installed docker.io && [ "$(dpkg-query -W -f '${Version}' docker.io)" = "$DOCKER_IO_VERSION" ] || { say "docker.io is not fully installed at $DOCKER_IO_VERSION"; fail=1; }
   [ "$(sudo docker info --format '{{.DockerRootDir}}')" = "$DOCKER_ROOT" ] || { say "Docker's data root is not $DOCKER_ROOT"; fail=1; }
-  [ "$(sudo docker info --format '{{.Driver}}')" = overlay2 ] || { say "Docker's storage is not overlay2 under $DOCKER_ROOT (D168)"; fail=1; }
+  [ "$(sudo docker info --format '{{.Driver}}')" = overlay2 ] || { say "Docker's storage is not overlay2 under $DOCKER_ROOT"; fail=1; }
   local u state
   for u in docker.service docker.socket containerd.service ubuntu-fan.service; do     # never started at boot
     state=$(systemctl is-enabled "$u" 2>&1) || :      # disabled (and a missing unit) exit nonzero; the case reads it
@@ -486,7 +485,7 @@ self_check_vsr() {
 
 # ---------------------------------------------------------------- AvengersPro (scheduler only)
 
-ap_patch() {   # v3's one local edit: upstream imports `datasets` for training only; routing never uses it
+ap_patch() {   # the one local edit: upstream imports `datasets` for training only; routing never uses it
   git -C "$AP_DIR" apply --whitespace=nowarn - <<'PATCH'
 diff --git a/simple_cluster_router.py b/simple_cluster_router.py
 --- a/simple_cluster_router.py
@@ -518,7 +517,7 @@ avengers_pro() {
   [ "$(git -C "$AP_DIR" rev-parse HEAD)" = "$AP_COMMIT" ] || die "$AP_DIR is at $(git -C "$AP_DIR" rev-parse HEAD), not $AP_COMMIT"
   local md5; md5=$(md5sum "$AP_DIR/$AP_FILE" | cut -d' ' -f1)
   if [ "$md5" = "$AP_UPSTREAM_MD5" ]; then ap_patch || die "the local patch does not apply"; fi
-  [ "$(md5sum "$AP_DIR/$AP_FILE" | cut -d' ' -f1)" = "$AP_PATCHED_MD5" ] || die "$AP_FILE md5 is not the patched v3 copy"
+  [ "$(md5sum "$AP_DIR/$AP_FILE" | cut -d' ' -f1)" = "$AP_PATCHED_MD5" ] || die "$AP_FILE md5 is not the patched copy"
   [ "$(git -C "$AP_DIR" status --porcelain --untracked-files=no)" = " M $AP_FILE" ] \
     || die "$AP_DIR has changes beyond the patch: $(git -C "$AP_DIR" status --porcelain | tr '\n' ' ')"
 }

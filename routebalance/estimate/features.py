@@ -18,5 +18,5 @@ def feature_values(state: InstanceState, num_prompt_tokens: int, output_tokens: 
             "pending_decode_tokens": float(state.pending_decode_tokens),
             "kv_cache_utilization": float(state.kv_cache_utilization),
             "num_prompt_tokens": float(p), "num_predicted_output_tokens": float(o),
-            "req_decode_ctx_avg": float(p + (o - 1) / 2),      # the v3 definitions: mean and last decode context
+            "req_decode_ctx_avg": float(p + (o - 1) / 2),      # the mean and the last decode context
             "req_decode_ctx_max": float(p + o - 1)}

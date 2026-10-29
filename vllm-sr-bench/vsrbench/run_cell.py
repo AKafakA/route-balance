@@ -59,8 +59,8 @@ from vsrbench.stack import Docker, Stack, tree_digest
 
 MODULE = Path(__file__).resolve().parents[1]
 REPO = MODULE.parent
-SCHEDULER_PORT = 8200          # our scheduler's port on the lease (scripts/run_scope.sh --scheduler)
-LEASE_ROOT = "/mydata"         # the lease nodes' data disk: a test run never writes there
+SCHEDULER_PORT = 8200          # our scheduler's port on the cluster (scripts/run_scope.sh --scheduler)
+LEASE_ROOT = "/mydata"         # the cluster nodes' data disk: a test run never writes there
 SHARED = ("scripts/mirror.sh",)   # besides every shared Python module loaded (harness_record reads sys.modules)
 SHARED_PACKAGES = ("analysis", "bench", "gates", "routebalance", "tools")
 # the environment scripts/run_cell.sh gives the bench runner (env -i), and the interpreter's module path
@@ -195,7 +195,7 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--seed", type=int, help="the seed this run sends, if not the template's: the arrivals and the prompt "
                                              "order follow from the trace and the seed (bench.scope.ExpectedCell), as "
                                              "every system of that rate and seed is sent; the main grid renders no seeds "
-                                             "2-3 now (D157, D166: revised after the draft)")
+                                             "2-3")
     ap.add_argument("--family", choices=sorted(C.LADDER), required=True)
     ap.add_argument("--fleet", type=Path, required=True)
     ap.add_argument("--hosts", type=Path, required=True)
@@ -213,7 +213,7 @@ def _parser() -> argparse.ArgumentParser:
     ap.add_argument("--models-cache", type=Path, required=True)
     ap.add_argument("--work", type=Path, required=True, help="where each run's CLI state directory is created")
     ap.add_argument("--connect", choices=("published", "envoy"), default="envoy",
-                    help="the client's path to Envoy: its container address on the stack's network (D161, the default: "
+                    help="the client's path to Envoy: its container address on the stack's network (the default: "
                          "direct, as our client reaches our scheduler) or the CLI's published port (through docker-proxy)")
     ap.add_argument("--docker-sg", action="store_true")
     ap.add_argument("--test-trace", help="test profile only: N,RATE (a short trace in place of the template's)")
@@ -226,7 +226,7 @@ def main(argv: list[str]) -> int:
     a = _parser().parse_args(argv)
     test = a.profile == "test"
     if not test and a.connect != "envoy":
-        raise ConfigError("a lease run connects to Envoy directly (D161)")
+        raise ConfigError("a lease run connects to Envoy directly")
     if (a.test_trace or a.test_pair) and not test:
         raise ConfigError("--test-trace and --test-pair are the test profile's")
     if test and (any(str(Path(x).resolve()).startswith(LEASE_ROOT) for x in (a.cells_root, a.work))

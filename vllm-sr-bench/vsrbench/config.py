@@ -81,7 +81,7 @@ def test_bindings() -> dict:
 
 
 def test_pair_bindings() -> dict:
-    """The test machine's two-model test profile: the pools' selection between two models (the lease's path)."""
+    """The test machine's two-model test profile: the pools' selection between two models (the lease profile's path)."""
     return {"simple": [{"model": "m-small"}], "medium": [{"model": "m-small"}, {"model": "m-large"}],
             "reasoning": [{"model": "m-large"}]}
 
@@ -193,7 +193,7 @@ def sha256_file(path: Path) -> str:
 
 def _cli(vsr: Path, args: Iterable[str], cwd: Path) -> str:
     env = {"HOME": os.environ["HOME"], "PATH": "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-           "LANG": "C.UTF-8"}         # a clean environment, as every lease process starts
+           "LANG": "C.UTF-8"}         # a clean environment, as every process of a run starts
     proc = subprocess.run([str(vsr), *args], cwd=cwd, capture_output=True, text=True, env=env)
     if proc.returncode != 0:
         raise ConfigError(f"vllm-sr {' '.join(args)} failed ({proc.returncode}): {(proc.stderr or proc.stdout)[-1500:]}")

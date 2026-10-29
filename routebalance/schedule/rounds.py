@@ -1,4 +1,4 @@
-"""Scheduling rounds (v3 BatchQueue).
+"""Scheduling rounds.
 
 A round opens with the first waiting request and closes when it holds max_batch requests or timeout_ms
 after it opened, whichever comes first. Requests that arrive while a round is being scheduled wait for the
@@ -8,8 +8,8 @@ Adaptive limits follow the busy-instance ratio, the share of instances whose eng
 (the engine's own gauge: work it has received but cannot run yet). The ratio is read with each round's
 loads and sets the limits of the rounds after it:
     ratio < 0.3: 4 requests / 50 ms      ratio < 0.7: 16 / 100 ms      otherwise: 32 / 200 ms
-A run starts at the idle limits (v3 used a configured 8 / 100 ms until its first adaptation). With
-adaptive off, the configured max_batch and timeout_ms apply to every round (the round-size ablations).
+A run starts at the idle limits. With adaptive off, the configured max_batch and timeout_ms apply to every
+round (the round-size ablations).
 
 The scheduler's own backlog: an adaptive round may also take every request already waiting in the
 scheduler when it opens, up to the largest adaptive size (32); its time window stays the ratio's. The engines'

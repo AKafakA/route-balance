@@ -4,7 +4,7 @@ One JSON object per request, written by the server:
   {"tier": <tier_id>, "features": {<exactly the learned heads' features, as xgboost_tpot.feature_values built
    them from the dispatch-time InstanceStats and the request>}, "tpot_s": <realized decode TPOT, s/token>,
    "output_tokens": <int>, "success": <bool>}
-Every record must have exactly this shape, or reading fails. As in the v3 procedure, failed requests and
+Every record must have exactly this shape, or reading fails. Failed requests and
 missing (null) or non-positive targets are dropped, and counted.
 """
 from __future__ import annotations

@@ -71,7 +71,7 @@ from routebalance.types import Instance, Tier
 
 log = logging.getLogger("routebalance.server")
 
-P_UNDER_BUDGET_TOKENS = 256   # the estimator also reports P(length <= this); nothing here reads it (v3 passed 256)
+P_UNDER_BUDGET_TOKENS = 256   # the estimator also reports P(length <= this); nothing here reads it
 MANIFEST_FORMAT = "rb-manifest/1"
 PACKAGE_DIR = Path(__file__).resolve().parent
 # Environment variables that size native thread pools (OpenMP, BLAS, the tokenizers' Rayon pool): recorded,
@@ -135,7 +135,7 @@ def _tiers(fleet: list[Instance]) -> list[Tier]:
 
 def longest(estimates) -> int:
     """The output length the latency model feeds every learned head: the largest expectation over the
-    models (v3's convention, estimate/latency.py)."""
+    models (estimate/latency.py)."""
     return max(1, int(max(e.length for e in estimates.values())))
 
 
@@ -254,13 +254,12 @@ def native_threadpools() -> dict[str, int]:
     return out
 
 
-NOFILE_SOFT = 65535          # v3's open-file target (its set_ulimit, as vLLM's)
+NOFILE_SOFT = 65535          # the open-file target of vLLM's set_ulimit
 
 
 def set_ulimit(target_soft_limit: int = NOFILE_SOFT) -> None:
-    """v3's set_ulimit, as vLLM's: the soft open-file
-    limit raised to the target when it is lower, the hard limit unchanged; a refusal is logged as v3 logged it, and
-    the manifest records the limit the process runs with."""
+    """vLLM's set_ulimit: the soft open-file limit raised to the target when it is lower, the hard limit
+    unchanged; a refusal is logged, and the manifest records the limit the process runs with."""
     soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
     if soft < target_soft_limit:
         try:
@@ -385,8 +384,8 @@ class RouteBalance:
                              errors={i: ld.error for i, ld in loads.items() if ld.error is not None})
 
                 def decided(d: Decision, rnd: _Round = rnd) -> None:
-                    """On the pool's thread, right after each decision: dispatch it on the loop now (v3's
-                    per-pick dispatch), while the rest of the round is still being scored."""
+                    """On the pool's thread, right after each decision: dispatch it on the loop now, while
+                    the rest of the round is still being scored."""
                     n_feature = longest(d.request.estimates)   # may raise: this request is then not dispatched
                     loop.call_soon_threadsafe(self._dispatch, rnd, d, n_feature, time.perf_counter())
 
@@ -582,7 +581,7 @@ class Service:
             self._swapping = False
 
     async def complete(self, c: Completion) -> dict:
-        arrived = time.perf_counter()           # the request's arrival, for its first-token time (as v2's client_ttft)
+        arrived = time.perf_counter()           # the request's arrival, for its first-token time
         if self.failure is not None:
             raise RuntimeError(f"the scheduler has failed: {self.failure}")
         if self._swapping or self.cfg is None:
@@ -617,7 +616,7 @@ class Service:
             feature_tokens = longest(est)
             lengths = {"lengths": {m: e.length for m, e in est.items()}}
         else:
-            decode = {m: c.max_tokens for m in self._models}     # v3: baselines record max_tokens
+            decode = {m: c.max_tokens for m in self._models}     # baselines record max_tokens
             feature_tokens = c.max_tokens
             lengths = {}
         sel = await select_instance(self._comps.router, self._comps.dispatcher, self.fleet, self.view,
@@ -713,7 +712,7 @@ class Service:
         if self._swapping or self.cfg is None:
             raise Busy("a configuration is being applied")
         cfg, view, comps, rb = self.cfg, self.view, self._comps, self._rb       # one consistent snapshot
-        lane = self.router_lane                                                  # with it (Codex review)
+        lane = self.router_lane                                                  # with it
         pollers = view.polling
         loop = asyncio.get_running_loop()
         torch = sys.modules.get("torch")      # imported by main() before serving; measured on a pool thread
@@ -786,10 +785,10 @@ class ServeError(RuntimeError):
 
 
 # ---------------------------------------------------------------- HTTP
-# v3's scheduler served FastAPI through uvicorn (its run_server -> serve_http, a
-# copy of vLLM's launcher), as vLLM's own server does: uvicorn.Config with the host, the port and v3's
-# keep-alive; every other setting is uvicorn's stock (a 2048 listen backlog, httptools, the access log).
-TIMEOUT_KEEP_ALIVE_S = 600    # v3's (its TIMEOUT_KEEP_ALIVE: "Was 5 -- caused localhost RST race vs bench keepalive=60s")
+# FastAPI through uvicorn, as vLLM's own server runs (its serve_http launcher): uvicorn.Config with the host,
+# the port and the keep-alive; every other setting is uvicorn's stock (a 2048 listen backlog, httptools, the
+# access log).
+TIMEOUT_KEEP_ALIVE_S = 600    # above the benchmark client's 60 s keep-alive, so the server never closes first
 
 
 def http_server(app: FastAPI, host: str, port: int) -> uvicorn.Server:
@@ -797,9 +796,8 @@ def http_server(app: FastAPI, host: str, port: int) -> uvicorn.Server:
 
 
 async def serve_http(server: uvicorn.Server) -> None:
-    """v3's launcher (its serve_http, a copy of vLLM's): SIGINT and SIGTERM cancel the serving
-    task, and the server then shuts down gracefully, so the caller's cleanup runs (v3's debug-only report of the
-    process holding the port is left out)."""
+    """vLLM's launcher (its serve_http, without its debug report of the process holding the port): SIGINT and
+    SIGTERM cancel the serving task, and the server then shuts down gracefully, so the caller's cleanup runs."""
     loop = asyncio.get_running_loop()
     task = loop.create_task(server.serve())
     loop.add_signal_handler(signal.SIGINT, task.cancel)
@@ -893,15 +891,15 @@ def main(argv=None) -> None:
     p.add_argument("--request-timeout-s", type=float, required=True)
     p.add_argument("--max-connections", type=int, required=True, help="engine connection bound, above peak in flight")
     p.add_argument("--torch-threads", type=int, default=None,
-                   help="intra-op threads for every model call; unset: torch's default (D134, as v3)")
+                   help="intra-op threads for every model call; unset: torch's default")
     p.add_argument("--log-dir", type=Path, required=True)
     a = p.parse_args(argv)
     if not (a.request_timeout_s > 0 and math.isfinite(a.request_timeout_s)) or a.max_connections < 1 \
             or (a.torch_threads is not None and a.torch_threads < 1):
         p.error("timeouts, connection bound and thread count must be positive")
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
-    set_ulimit()                      # v3's, before anything opens a file
-    if a.torch_threads is not None:   # unset: torch's default, as v3; the manifest records the effective count
+    set_ulimit()                      # before anything opens a file
+    if a.torch_threads is not None:   # unset: torch's default; the manifest records the effective count
         import torch
         torch.set_num_threads(a.torch_threads)
     import uvloop
@@ -920,7 +918,7 @@ def main(argv=None) -> None:
             await serve_http(server)
         finally:
             await service.stop()
-    asyncio.run(serve())      # on uvloop, installed above (v3: uvloop's event-loop policy, then asyncio.run)
+    asyncio.run(serve())      # on uvloop, installed above (uvloop's event-loop policy, then asyncio.run)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""The paper's numbers, from the lease's cells (a number reaches the paper only through this tool's
+"""The paper's numbers, from the runs' records (a number reaches the paper only through this tool's
 output, which the paper \\input{}s).
 
     python -m analysis.report --render DIR --cells ROOT --data-root DIR --fleet NAME=FLEET.json [...]
@@ -29,7 +29,7 @@ Output, a new directory:
                (analysis/equal_quality.py, each seed's value, the range over the seeds and the request-bootstrap
                interval) by both readings: "equal_quality" (one_config: one treatment
                configuration for every metric) and "equal_quality_per_metric" (per_metric: each metric on its own
-               frontier, as v2/v3), each with its "_appendix" rows; and every baseline configuration it could not
+               frontier), each with its "_appendix" rows; and every baseline configuration it could not
                compare, with the
                reason (`not_compared`: an ablation group, whose variants are read against its reference in its
                systems table; no treatment configuration at that group and trace; or no treatment preset with
@@ -87,7 +87,7 @@ from tools.campaign import load_plan
 
 SLO_LEVELS = ("tight", "loose")
 MACRO_METRICS = {"e2e_mean_ms": "Mean", "e2e_p99_ms": "Tail", "cost_total_per_1k": "Cost",
-                 "cost_decode_per_1k": "DecodeCost"}   # Cost is prompt + output (as v2); DecodeCost as v3
+                 "cost_decode_per_1k": "DecodeCost"}   # Cost is prompt + output; DecodeCost the output only
 TABLE_METRICS = {**MACRO_METRICS, "slo_miss_tight": "SLO tight (pp)", "slo_miss_loose": "SLO loose (pp)"}
 ATTAINMENT = ("slo_miss_tight", "slo_miss_loose")        # shown as the change of attainment, in points
 APPENDIX_SYSTEMS = frozenset({"dispatcher-inflight"})  # compared in the appendix only (equal_appendix.*)
@@ -428,9 +428,9 @@ def macro_name(*parts: str, prefix: str = "eq") -> str:
 
 def macros(report: dict) -> str:
     lines = ["% Written by analysis/report.py. Ranges over the baseline configurations with an equal-quality point;",
-             "% eq* read one RouteBalance configuration for every metric, eqpm* each metric on its own frontier (D86).",
+             "% eq* read one RouteBalance configuration for every metric, eqpm* each metric on its own frontier.",
              "% ...Min/...Max: at equal quality only; ...MinAll/...MaxAll: also the comparisons read at RouteBalance's",
-             "% frontier low end, at higher quality than the baseline's (D87; the tables mark them)."]
+             "% frontier low end, at higher quality than the baseline's (the tables mark them)."]
     for key, _, prefix in READING_OUT.values():
         lines += _macros(report, key, prefix)
     return "\n".join(lines) + "\n"
@@ -520,7 +520,7 @@ def main(argv: list[str]) -> int:
                 for d in r["deltas"]:
                     if d["outside_range"]:
                         print(f"  NOTE ({reading}) {t} vs {r['group']}|{r['trace_id']}|{r['config_id']} {d['metric']}: "
-                              "the value at the seed means lies outside the range over the seeds (D81)")
+                              "the value at the seed means lies outside the range over the seeds")
     complete = cov["complete"] and not report["failures"] and all(s == "passed" for s in report["parity"].values())
     return 0 if complete else 1         # the report is written either way; 1: a cell or a group's parity is not done
 

@@ -87,7 +87,7 @@ class _Hub(Strict):
 class _Launch(Strict):
     host: str = Field(min_length=1)
     port: int = Field(gt=0, lt=65536)
-    torch_threads: Optional[int] = Field(default=None, ge=1)   # null = torch's default (v3), nothing set
+    torch_threads: Optional[int] = Field(default=None, ge=1)   # null = torch's default, nothing set
     max_connections: int = Field(ge=1)
     request_timeout_s: float = Field(gt=0)
 
@@ -171,7 +171,7 @@ def load_launch(path: Path) -> _Launch:
     if isinstance(raw, dict):
         unset = sorted(k for k, v in raw.items() if v == "OWNER-MUST-SET")
         if unset:
-            raise ConfigError(f"{path}: {unset} are OWNER-MUST-SET; the owner sets them (D44), nobody else")
+            raise ConfigError(f"{path}: {unset} are OWNER-MUST-SET; they must be set before a run")
     return parse(_Launch, raw, f"scheduler launch file {path}")
 
 

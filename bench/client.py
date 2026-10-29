@@ -102,8 +102,8 @@ def check_fd_limit(max_connections: int) -> None:
 
 
 class HttpSchedulerClient:
-    """One aiohttp session and one bounded connection pool for the whole cell (v3's backend client opened a
-    session per request, and descriptor churn under load failed whole cells). A request that finds the pool
+    """One aiohttp session and one bounded connection pool for the whole cell (a session per request churns
+    file descriptors under load and can fail whole cells). A request that finds the pool
     full waits for a connection; each wait is counted, and a cell with any wait is invalid, because the
     client then held back sends and the load was no longer open loop."""
 

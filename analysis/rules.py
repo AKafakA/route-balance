@@ -1,4 +1,4 @@
-"""Preregistered analysis rules (configs/prereg_rules.json), fixed before the lease and read by the analysis.
+"""Preregistered analysis rules (configs/prereg_rules.json), fixed before the runs and read by the analysis.
 
   judge_key       the quality metric of record: the key of the DeepEval score in the scored corpora
   equal_quality   tolerance: a treatment preset is "at equal quality" with a baseline when their mean
@@ -9,8 +9,9 @@
   slo             after SOLA (analysis/slo.py): the multiplier k of each level, by served model, on the
                   served tier's single-request TTFT and TPOT (tight, loose); attainment_levels, the attainment
                   shares at which goodput is read (the largest rate that keeps them)
-  g1              the thesis gate, decided from the G1 cells (configs/render36/scope.json) as soon as they
-                  finish. RB-new (the profiled-curve arm) is compared with RB-decoupled on the same preset:
+  g1              the preregistered gate on the scope's G1 configurations (configs/render36/scope.json), decided
+                  when they finish. RB-new (RouteBalance with the profiled latency curve) is compared with
+                  RB-decoupled on the same preset:
                     tier_mix_shift_min            RB-new's tier mix moves with load: the largest change of any
                                                   tier's request share from lambda 12 to lambda 30 is at least this
                                                   (share units, 0..1)
@@ -97,7 +98,7 @@ def placeholders(data: Any, path: str = "") -> list[str]:
 def parse_rules(data: Any) -> Rules:
     unset = placeholders(data)
     if unset:
-        raise ConfigError(f"preregistered values not set yet (the owner must fill them): {unset}")
+        raise ConfigError(f"preregistered values not set yet (they must be filled in): {unset}")
     return parse(Rules, data, "rules")
 
 

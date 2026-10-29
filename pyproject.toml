@@ -7,7 +7,7 @@ name = "routebalance"
 version = "0.1.0"
 description = "RouteBalance: a unified router and load balancer for heterogeneous LLM serving"
 requires-python = "==3.10.*"
-# Scheduler host. Versions are the v3 campaign head environment (pip freeze, 2026-08-04): the packages this
+# Scheduler host. Versions are one pinned environment: the packages this
 # code or upstream AvengersPro imports, and the libraries those import (scipy, tokenizers, huggingface_hub,
 # safetensors, pydantic_core, requests, PyYAML), pinned so the resolver cannot move them.
 dependencies = [
@@ -30,14 +30,14 @@ dependencies = [
   "loguru==0.7.3",
   "openai==2.52.0",
   # baselines: upstream BEST-Route (microsoft/best-route-llm) runs on LLM-Blender, pinned at the commit its
-  # ranker was trained with, and the three packages LLM-Blender imports at run time (the versions verified 09-26)
+  # ranker was trained with, and the three packages LLM-Blender imports at run time
   "llm-blender @ git+https://github.com/yuchenlin/LLM-Blender.git@33204d2712944b6b17996f7c079e74cd963ccc7c",
   "accelerate==1.15.0",
   "dataclasses-json==0.6.7",
   "protobuf==7.36.2",
   "uvloop==0.22.1",
-  # the HTTP server: v3's scheduler served FastAPI through uvicorn (its copy of vLLM's launcher, serve_http),
-  # as vLLM's own server does; uvicorn loads httptools for HTTP/1.1 when it is installed, as in v3
+  # the HTTP server: FastAPI through uvicorn, as vLLM's own server runs (its launcher, serve_http); uvicorn
+  # loads httptools for HTTP/1.1 when it is installed
   "fastapi==0.141.1",
   "starlette==1.3.1",
   "uvicorn==0.32.1",
@@ -51,8 +51,7 @@ dependencies = [
   "typing_extensions==4.16.0",
   "exceptiongroup==1.3.1",
   "annotated-doc==0.0.5",
-  # the libraries the pins above import that were left to the resolver (it moved them after v3), at the v3 head
-  # freeze's versions (the uvicorn audit): aiohttp's URL and header libraries, the tokenizers' regex, the Hub client's, requests' and openai's
+  # the libraries the pins above import, pinned so the resolver cannot move them: aiohttp's URL and header libraries, the tokenizers' regex, the Hub client's, requests' and openai's
   "yarl==1.24.5",
   "multidict==6.7.1",
   "propcache==0.5.2",
@@ -81,7 +80,7 @@ dependencies = [
   "sympy==1.14.0",
   "mpmath==1.3.0",
   "networkx==3.4.2",
-  # dataclasses-json's (LLM-Blender) libraries: not in v3's environment; the versions the 28 Sep venv resolved
+  # dataclasses-json's (LLM-Blender) libraries, at the versions the resolver chose
   "marshmallow==3.26.2",
   "mypy_extensions==1.1.0",
   "typing-inspect==0.9.0",
@@ -96,7 +95,7 @@ dependencies = [
 [project.optional-dependencies]
 # Serving hosts: official vLLM. It needs torch 2.10.0, this package pins 2.9.0, so the two never share
 # an environment: scripts/setup.sh installs exactly this requirement, alone, in the engine venv. This entry is
-# the record of the pin (tests check setup.sh and the engine args files against it), not an installable extra.
+# the record of the pin, not an installable extra.
 serve = [
   "vllm==0.18.1",
 ]
