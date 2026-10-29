@@ -4,7 +4,24 @@ For the next session. Read it with the project rules (`.claude/CLAUDE.md`), the 
 `~/.claude/shared-experimental-rules/`) and the memory index. Machines are named as in the global rules: the
 operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
-## Where the project stands
+## 29 October 2026 (latest)
+
+- **The paper's text is now the owner's Overleaf version.** His upload of 29 Oct is the base, byte for byte, in the paper
+  repository's `submission/` (commit f25ef3a), with `submission/CHECK.md`: the factual check against the data and the
+  code. Every number but one matches the data (Table A1's Gemma total reads 8,085, should be 8,086). Fourteen findings
+  wait for him in Overleaf (facts 1 to 10, his own style rules 11 to 14). The root `sections/` keep the rc12 text, and
+  the numbers still come from the root's generators.
+- **Two data fixes, in the code repository's data pack v1.4** (submission a25b6da, ref 8e2377e, dev 648c26f, all pushed):
+  - Table A1 now counts the rows the runs' estimator and routers were built from: 14,908 Qwen and 8,086 Gemma (the paper
+    had the 26 Sep rows, 14,915 and 8,085). The config's 14,919 and 8,086 are the training prompt files.
+  - The round shares are now counted on Table A8's runs: 74, 82, 6 and 13%, from 73, 81, 5 and 10%.
+  - The pack rebuilds Table A1 from a text-free per-row file. A fresh `git archive a25b6da` passes "PASS: 25 reference
+    outputs match" on the GPU VM. Release record: release-private `RELEASE_LOG.md`, 29 Oct.
+- **The anonymous link** serves the submission branch (owner's change), but still at b3d0c7a after the push: the
+  anonymizer needs a refresh to show a25b6da.
+- **Open:** the meta-analysis pack v1.3 (its builder is updated, the archive not built; it is not uploaded).
+
+## Where the project stands (8 October)
 
 - **MLSys 2027, due 30 October 2026.** The paper is at version 1.1 rc12 (19 Oct; the text of rc10, with links). The final runs (the lease of 28 Sept
   to 5 Oct: 1,457 runs, all valid) are archived. The code is released in three branches (the submission branch at b3d0c7a carries the paper data pack in
