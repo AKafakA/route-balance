@@ -19,7 +19,7 @@ the plot scripts, and every output the paper uses, with a script that rebuilds a
 | `tools/` | the drivers of a run and of the calibration, the learned heads, router training, judging, the engine plan |
 | `scripts/` | node setup, engine and scheduler deployment, one run and a row of runs, building the inputs, the judge pool, BEST-Route's training |
 | `configs/` | the fleets, the engine arguments per tier, the scheduler's launch values, the preregistered rules, the rendered campaign the runs used (`render36/`), the CloudLab profile (`cloudlab/`) and BEST-Route's labels files and training environment (`best_route/`) |
-| `data/labels/` | the paper's judged labels and output lengths per prompt, without any text (`tools/labels.py`; `tools/fetch_prompts.py` fetches the prompts back from the public datasets) |
+| `data/labels/`, `data/prompt_files/` | the paper's judged labels and output lengths per prompt, and the four prompt files the runs sent, without any text (`tools/labels.py`, `tools/prompt_files.py`; `tools/fetch_prompts.py` fetches the prompts and reference answers back from the public datasets) |
 | `vllm-sr-bench/` | the vLLM Semantic Router, deployed as its authors deploy it, as its own stack in front of the same engines, and driven by the same client |
 | `paper/` | the paper data pack (`routebalance-paper-data-v1.5/`): `data/`, `code/tools/` (the generator of every number and table, the plot scripts of every figure), `expected/`, `reproduce_results.sh` |
 

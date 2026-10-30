@@ -30,7 +30,8 @@ cluster.
 | the paper data pack (`paper/`) | the per-report summaries the paper reads, its generators and plot scripts, the expected outputs | every number, table and figure (stage 3, first route) |
 
 Prompt and answer texts are not shipped: the evaluation prompts come from datasets whose licences restrict
-redistribution, so the pack and `data/labels/` carry prompt ids and scores only.
+redistribution, so the pack, `data/labels/` and `data/prompt_files/` carry prompt ids, checksums, lengths and scores, and
+no text.
 
 ## Also here
 

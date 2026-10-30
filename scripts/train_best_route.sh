@@ -17,6 +17,8 @@
 # The arguments are the runs': the base model microsoft/deberta-v3-small, the family's four candidates in ladder order,
 # the loss prob_nlabels and the quality metric armoRM_scores (tools/best_route_upstream.py puts the DeepEval score
 # under that key). Every other setting is upstream's default; its collator lengths (128 and 128) are the labels file's.
+# Upstream loads the backbone by name through the Hugging Face cache: with the snapshot configs/scheduler_hub.json pins
+# in the cache (scripts/setup.sh's scheduler role), run it with HF_HUB_OFFLINE=1, as the runs did.
 set -euo pipefail
 die() { echo "train_best_route.sh: $*" >&2; exit 1; }
 
@@ -44,7 +46,7 @@ esac
 [ -s "$DATA/train.jsonl" ] && [ -s "$DATA/val.jsonl" ] || die "$DATA has no train.jsonl and val.jsonl"
 [ ! -e "$OUT" ] || die "$OUT exists: give a new folder"
 DATA="$(cd "$DATA" && pwd)"
-case "$PY" in */*) PY="$(realpath "$PY")" ;; esac      # the trainer runs from the checkout
+case "$PY" in */*) PY="$(realpath -s -- "$PY")" ;; esac   # absolute, symlinks kept (a venv's python is one)
 mkdir -p "$OUT"; OUT="$(cd "$OUT" && pwd)"
 
 (cd "$UPSTREAM" && CUDA_VISIBLE_DEVICES="$GPU" "$PY" -u train_router.py \

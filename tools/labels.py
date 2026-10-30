@@ -3,8 +3,8 @@
     python -m tools.labels extract --rows ROWS.jsonl --out LABELS.jsonl
     python -m tools.labels join --labels LABELS.jsonl --prompts PROMPTS.jsonl [--references REFS.jsonl] --out ROWS.jsonl
 
-extract keeps, for every line of a scored corpus or training rows file: request_id, source (the public dataset's row id,
-"<dataset>/<id>"), dataset, is_harmful when present, input_len, prompt_sha256 (the sha256 of the prompt's UTF-8 text,
+extract keeps, for every line of a scored corpus or training rows file: request_id, source (the row's id in its public
+dataset, as the corpus's loader formed it: "gsm8k/4222", or the dataset's own id for MixInstruct and reward-bench), dataset, is_harmful when present, input_len, prompt_sha256 (the sha256 of the prompt's UTF-8 text,
 as the paper data pack's dataset_rows.json), reference_sha256 (the sha256 of the reference answer the judge compares
 with) and, for every model, its output_length and its judged scores (llm_judge_scores). The prompt, the reference answer
 and every answer's text are dropped: the datasets' licences restrict redistributing them. data/labels/ holds the paper's

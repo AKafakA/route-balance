@@ -63,7 +63,7 @@ class KNNEstimator:
         # Per-model arrays: model_name -> (N,) array
         self.output_lengths: Dict[str, np.ndarray] = {}
         self.similarity_scores: Dict[str, np.ndarray] = {}
-        self.llm_judge_scores: Dict[str, np.ndarray] = {}  # legacy: averaged judges
+        self.llm_judge_scores: Dict[str, np.ndarray] = {}  # legacy: one judge's scores (build_index picks it)
         self.reference_similarity_scores: Dict[str, np.ndarray] = {}
         # Per-judge score arrays: {model_name: {judge_key: np.ndarray}}
         self.per_judge_scores: Dict[str, Dict[str, np.ndarray]] = {}
@@ -140,7 +140,7 @@ class KNNEstimator:
             self.per_judge_scores[model] = {
                 jk: np.array(vals, dtype=np.float32) for jk, vals in per_judge.items()
             }
-            # Legacy: llm_judge_scores = Qwen blind judge (backward compat)
+            # Legacy: llm_judge_scores = the first Qwen judge whose key is not a blind one (backward compat)
             qwen_key = next((k for k in all_judge_keys if "Qwen" in k and "blind" not in k.lower()), None)
             if qwen_key and qwen_key in self.per_judge_scores[model]:
                 self.llm_judge_scores[model] = self.per_judge_scores[model][qwen_key]

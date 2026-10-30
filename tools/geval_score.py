@@ -153,9 +153,6 @@ def main():
 
         logger.info(f"Chunk {chunk_idx+1}/{n_chunks}: {chunk_start}-{chunk_end} ({len(chunk_cases)} cases)")
 
-        chunk_scored = 0
-        chunk_failed = 0
-        score_map = {}
         try:
             results = evaluate(
                 test_cases=chunk_cases,

@@ -11,7 +11,7 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY=${PY:-python3}
-case "$PY" in */*) PY=$(realpath "$PY") ;; esac
+case "$PY" in */*) PY=$(realpath -s -- "$PY") ;; esac   # absolute, symlinks kept (a venv's python is one)
 SH=$1; OUT=$2; shift 2
 bad=0
 for s in "$SH"/shard_*.jsonl; do

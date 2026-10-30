@@ -1,6 +1,7 @@
 """Every prompt of the paper's corpora fetched back from its public dataset, by the row id the labels record.
 
-    python -m tools.fetch_prompts --labels data/labels/qwen_train.jsonl [LABELS.jsonl ...] --out PROMPTS.jsonl
+    python -m tools.fetch_prompts --labels data/labels/*.jsonl data/prompt_files/*.jsonl --out PROMPTS.jsonl
+                                  [--references-out REFS.jsonl]
 
 The loaders below are the ones that built the paper's corpus, unchanged: each reads its dataset from the Hugging Face
 Hub, forms the prompt as the corpus did (SQuAD and GSM8K in fixed templates, MixInstruct as instruction and input,
@@ -13,8 +14,8 @@ not found (a dataset changed on the Hub) is reported and fails the run. With --r
 answer (the judge compares each answer with it) is rebuilt as the corpus built it, from the same datasets, and checked
 against the label's reference_sha256: needed only to judge answers again. LMSYS-Chat-1M is gated: the Hub token's account must have accepted its
 licence. It needs pandas, pyarrow, datasets and huggingface_hub, in an environment of its own (the scheduler's pins an
-older huggingface_hub); it fetched all 18,498 prompts of data/labels/ with pandas 2.3.3, pyarrow 25.0.1, datasets 5.1.0
-and huggingface_hub 2.4.0.
+older huggingface_hub); it fetched all 18,505 prompts of data/labels/ and data/prompt_files/, and rebuilt all 28,505
+reference answers, with pandas 2.3.3, pyarrow 25.0.1, datasets 5.1.0 and huggingface_hub 2.4.0.
 """
 import argparse
 import hashlib
@@ -283,11 +284,7 @@ REFUSAL_TEMPLATE = (
 
 
 def load_references_from_hf(sources: List[str]) -> Dict[str, str]:
-    """Load full reference texts from HuggingFace datasets.
-
-    Unlike add_reference_similarity.py which extracts just numbers/scores,
-    this loads the FULL reference text for use by LLM judges.
-    """
+    """Load full reference texts from Hugging Face datasets for LLM judging."""
     from datasets import load_dataset
 
     by_dataset = defaultdict(list)
@@ -438,7 +435,8 @@ def main(argv: List[str]) -> int:
         with open(path) as f:
             for line in f:
                 lab = json.loads(line)
-                want.setdefault(lab["prompt_sha256"], lab["dataset"])
+                if "prompt_sha256" in lab:          # a prompt-file manifest's first line is its header
+                    want.setdefault(lab["prompt_sha256"], lab["dataset"])
     found, bad = {}, 0
     for ds in sorted(set(want.values())):
         if ds not in LOADERS:
@@ -468,7 +466,7 @@ def main(argv: List[str]) -> int:
 def references(label_paths: List[str], out: str) -> int:
     """Every label's reference answer: its source's reference if the builder has one, the refusal for a harmful
     prompt, and an empty reference otherwise (as the corpus assigned them), each checked against reference_sha256."""
-    labels = [json.loads(line) for path in label_paths for line in open(path)]
+    labels = [lab for path in label_paths for lab in map(json.loads, open(path)) if "reference_sha256" in lab]
     refs = load_references_from_hf([lab["source"] for lab in labels if lab.get("source")])
     found, bad = {}, 0
     for lab in labels:

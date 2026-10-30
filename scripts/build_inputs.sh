@@ -12,10 +12,13 @@
 #   DIR/br_data/             BEST-Route's labels and split (router_training best-route-data)
 #   DIR/br_upstream/         the same examples in upstream's format (tools/best_route_upstream.py), which
 #                            scripts/train_best_route.sh trains on (on a GPU)
-#   DIR/knn/                 the k-NN index, k = 50 (tools/knn_index.py); for Qwen also the ablations' indexes: 75, 50
-#                            and 25% of the labels (knn_q75, knn_half, knn_q25) and every dataset left out in turn
-#                            (knn_lodo_<dataset>), each from its rows subset (tools/row_subsets.py)
+#   DIR/knn/knn/             the k-NN index, k = 50 (tools/knn_index.py); for Qwen also the ablations' indexes, each
+#                            from its rows subset (tools/row_subsets.py): DIR/knn/knn_q75, knn_half and knn_q25 (75, 50 and
+#                            25% of the labels) and DIR/knn/knn_lodo_<dataset> (every dataset left out in turn)
 #   DIR/ap/                  AvengersPro at its five settings (router_training avengers-pro)
+#
+# The encoders are read through the Hugging Face cache by name. On the scheduler's node, whose cache scripts/setup.sh
+# filled at the revisions configs/scheduler_hub.json pins, run it with HF_HUB_OFFLINE=1, as the runs did.
 #
 # Every output's md5 is printed at the end. A configuration names an artifact by path and md5, so built artifacts are
 # pinned as docs/reproduce/02-run-experiments.md (step 2) describes.
