@@ -4,7 +4,23 @@ For the next session. Read it with the project rules (`.claude/CLAUDE.md`), the 
 `~/.claude/shared-experimental-rules/`) and the memory index. Machines are named as in the global rules: the
 operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
 
-## 29 October 2026 (latest)
+## 30 October 2026 (latest)
+
+- **The submission's system name is F-MRLB** (MLSys asks for a name and title unlike the public version's). The title
+  is "F-MRLB: Multi-LLM Serving on Heterogeneous Cluster by Fusing Model Routing and Load Balancing" and the variants
+  are F-decoupled and F-single. The renamed paper (from the owner's third upload, 04:04) is in the paper repository's
+  `submission/F-MRLB_MLSys2027/` (e35ef01) and in the owner's Drive folder `paper`; its check and the two review
+  agents' reports are in `submission/CHECK.md` and `reviews/2026-10-30_rename/`.
+- **The code for reviewers is the branch `anno-sub`** (ec57de7, pushed; worktree `~/Code/llm/route-balance-anno-sub`):
+  submission b0d3a9a with the name replaced one for one (package `fmrlb`, class `FMRLB`, text `F-MRLB`), proven by
+  the inverse map (byte for byte but the four regenerated pack figures and the scope's recomputed digests), the AST
+  check, the pack's 25 outputs from a fresh archive and dev's tests (same outcome for every test). Tools and record:
+  release-private `rename_anno.py`, `RELEASE_LOG.md` (30 Oct). The paper's link
+  https://anonymous.4open.science/r/F-MRLB-CABA must be created by the owner from `anno-sub`.
+- **Any later change to the submission code** goes to submission first, then is renamed into anno-sub with the same
+  tool and proofs.
+
+## 29 October 2026
 
 - **The paper's text is now the owner's Overleaf version.** His upload of 29 Oct is the base, byte for byte, in the paper
   repository's `submission/` (commit f25ef3a), with `submission/CHECK.md`: the factual check against the data and the
