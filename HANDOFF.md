@@ -19,6 +19,12 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
   https://anonymous.4open.science/r/F-MRLB-CABA must be created by the owner from `anno-sub`.
 - **Any later change to the submission code** goes to submission first, then is renamed into anno-sub with the same
   tool and proofs.
+- **Every input is rebuildable from a CloudLab reservation** (submission ee845ee, anno-sub ebbf1b2, the anonymous
+  repository `AKafakA/F-MRLB` at 290489b, all pushed; dev 5cb8d74): the CloudLab profile, the G-Eval judging as it ran,
+  the k-NN index builder, BEST-Route's conversion and training with the runs' labels files, one build script per
+  family, and the paper's labels and prompt files without text with a fetcher from the public datasets. Each is proven
+  against the runs' artifacts (release-private `RELEASE_LOG.md`, 30 Oct later). Open: the judge environment's
+  DeepEval version, recorded only on dev-gpu (unreachable on 30 Oct). The ref branch does not carry these tools yet.
 
 ## 29 October 2026
 
