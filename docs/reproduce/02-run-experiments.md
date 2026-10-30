@@ -91,21 +91,35 @@ the estimator's index and the routers' artifacts, and they are the training coun
 
 ### Reusing the paper's labels
 
-`data/labels/` holds the paper's judged labels without any text (`tools/labels.py extract`): for every training row
-and every evaluation prompt of each family, its public source (`source`, the dataset and its row id), the sha256 of
-its prompt, and every model's output length and judged score. `tools/fetch_prompts.py` fetches every prompt back from
-its public dataset with the loaders that built the corpus, each checked against its sha256 (all 18,498 are found),
-and `tools/labels.py join` rebuilds the rows: the training labels give the rows `build_inputs.sh` indexes and the
-evaluation labels give the scored corpora the analysis reads, each equal to the paper's in every prompt, output length
-and score, so neither needs the answers collected or judged again:
+`data/labels/` holds the paper's judged labels without any text (`tools/labels.py extract`): for every retained training
+row and every evaluation prompt of each family, its public source (`source`, the dataset and its row id), the sha256 of
+its prompt and of its reference answer, and every model's output length and judged score. `tools/fetch_prompts.py`
+fetches the prompts back from their public datasets with the loaders that built the corpus, each checked against its
+sha256 (all 18,498 are found), in an environment of its own:
 
 ```bash
-python -m tools.fetch_prompts --labels data/labels/*.jsonl --out PROMPTS.jsonl     # its own environment
-python -m tools.labels join --labels data/labels/qwen_train.jsonl --prompts PROMPTS.jsonl --out qwen_train_rows.jsonl
-python -m tools.labels join --labels data/labels/qwen_eval.jsonl --prompts PROMPTS.jsonl --out qwen_eval_scored.jsonl
+python -m tools.fetch_prompts --labels data/labels/*.jsonl --out PROMPTS.jsonl --references-out REFS.jsonl
 ```
 
-BEST-Route's data holds the answers' texts, which are not shipped: for it, collect and judge the answers as above.
+- **Without judging again.** `tools/labels.py join` rebuilds the rows from the labels and the prompts: the training
+  labels give the rows `scripts/build_inputs.sh --no-best-route` builds the k-NN indexes and AvengersPro from, and the
+  evaluation labels give the scored corpora the analysis reads, each equal to the paper's in every prompt, output
+  length and score. BEST-Route's data holds the answers' texts, which are not shipped: it needs the answers collected.
+
+  ```bash
+  python -m tools.labels join --labels data/labels/qwen_train.jsonl --prompts PROMPTS.jsonl --out qwen_train_rows.jsonl
+  python -m tools.labels join --labels data/labels/qwen_eval.jsonl --prompts PROMPTS.jsonl --out qwen_eval_scored.jsonl
+  ```
+
+- **Judging new answers.** The judge compares each answer with the prompt's reference answer, which `--references-out`
+  rebuilds as the corpus built it, each checked against its sha256. Joined with `--references`, the labels give the
+  corpus `tools/collect_answers.py merge` starts from (`--corpus`); the collected answers merged into it are judged as
+  the table above describes.
+
+  ```bash
+  python -m tools.labels join --labels data/labels/qwen_train.jsonl --prompts PROMPTS.jsonl --references REFS.jsonl \
+    --out qwen_train_corpus.jsonl
+  ```
 
 When a rebuilt input replaces one the render pins, set its pin in `RENDER` by hand: an artifact's md5 in the
 scheduler documents that name it, a prompt file's sha256 and row count (and a budget table's sha256) in every

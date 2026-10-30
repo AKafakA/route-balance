@@ -9,7 +9,8 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY=${JUDGE_PY:-python3}
-IN=$1; OUT=$2; LOG=$3; URL=$4; shift 4
+IN=$(realpath "$1"); OUT=$(realpath -m "$2"); LOG=$(realpath -m "$3"); URL=$4; shift 4
+case "$PY" in */*) PY=$(realpath "$PY") ;; esac        # the scorer runs from the output folder
 OD=$(dirname "$OUT"); mkdir -p "$OD"
 export OPENAI_API_KEY=dummy DEEPEVAL_TELEMETRY_OPT_OUT=YES
 exec >> "$LOG" 2>&1

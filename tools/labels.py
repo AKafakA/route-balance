@@ -1,18 +1,21 @@
 """The judged labels without any text, and the rows rebuilt from them once the prompts are back.
 
     python -m tools.labels extract --rows ROWS.jsonl --out LABELS.jsonl
-    python -m tools.labels join --labels LABELS.jsonl --prompts PROMPTS.jsonl --out ROWS.jsonl
+    python -m tools.labels join --labels LABELS.jsonl --prompts PROMPTS.jsonl [--references REFS.jsonl] --out ROWS.jsonl
 
 extract keeps, for every line of a scored corpus or training rows file: request_id, source (the public dataset's row id,
 "<dataset>/<id>"), dataset, is_harmful when present, input_len, prompt_sha256 (the sha256 of the prompt's UTF-8 text,
-as the paper data pack's dataset_rows.json) and, for every model, its output_length and its judged scores
-(llm_judge_scores). The prompt, the reference answer and every answer's text are dropped: the datasets' licences restrict
-redistributing them. data/labels/ holds the paper's labels made this way.
+as the paper data pack's dataset_rows.json), reference_sha256 (the sha256 of the reference answer the judge compares
+with) and, for every model, its output_length and its judged scores (llm_judge_scores). The prompt, the reference answer
+and every answer's text are dropped: the datasets' licences restrict redistributing them. data/labels/ holds the paper's
+labels made this way.
 
 join puts the prompts back. PROMPTS is JSONL with a "prompt" on every line (other fields are ignored); each label line
 takes the prompt whose sha256 is its prompt_sha256, and a label whose prompt is missing fails the join. The output keeps
 the labels' order, in the format tools/knn_index.py, tools/router_training.py and the analysis read; no model carries a
-"response", so BEST-Route's training data (which holds the answers' texts) still needs the answers collected.
+"response", so BEST-Route's training data (which holds the answers' texts) still needs the answers collected. With
+--references (tools/fetch_prompts.py --references-out), every row also gets its reference_text, matched by
+reference_sha256: the corpus tools/collect_answers.py merge starts from to judge new answers.
 """
 from __future__ import annotations
 
@@ -35,6 +38,8 @@ def extract(rows_path: str, out_path: str) -> int:
             r = json.loads(line)
             lab = {k: r[k] for k in TOP if k in r}
             lab["prompt_sha256"] = sha256_text(r["prompt"])
+            if "reference_text" in r:
+                lab["reference_sha256"] = sha256_text(r["reference_text"])
             lab["models"] = {m: {"output_length": d.get("output_length"), "llm_judge_scores": d.get("llm_judge_scores") or {}}
                              for m, d in r["models"].items()}
             fout.write(json.dumps(lab) + "\n")
@@ -43,12 +48,18 @@ def extract(rows_path: str, out_path: str) -> int:
     return 0
 
 
-def join(labels_path: str, prompts_path: str, out_path: str) -> int:
+def join(labels_path: str, prompts_path: str, out_path: str, refs_path: str = None) -> int:
     by_sha = {}
     with open(prompts_path) as f:
         for line in f:
             p = json.loads(line)["prompt"]
             by_sha[sha256_text(p)] = p
+    refs = {}
+    if refs_path:
+        with open(refs_path) as f:
+            for line in f:
+                r = json.loads(line)["reference_text"]
+                refs[sha256_text(r)] = r
     n = missing = 0
     with open(labels_path) as fin, open(out_path, "x") as fout:
         for line in fin:
@@ -60,11 +71,16 @@ def join(labels_path: str, prompts_path: str, out_path: str) -> int:
             row = {k: lab[k] for k in ("request_id",) if k in lab}
             row["prompt"] = prompt
             row.update({k: lab[k] for k in TOP[1:] if k in lab})
+            if refs_path:
+                if lab.get("reference_sha256") not in refs:
+                    missing += 1
+                    continue
+                row["reference_text"] = refs[lab["reference_sha256"]]
             row["models"] = lab["models"]
             fout.write(json.dumps(row) + "\n")
             n += 1
     if missing:
-        print(f"{missing} labels have no prompt in {prompts_path}", file=sys.stderr)
+        print(f"{missing} labels have no prompt (or no reference) in the files given", file=sys.stderr)
         return 1
     print(f"{out_path}: {n} rows")
     return 0
@@ -79,9 +95,10 @@ def main(argv: list[str]) -> int:
     jo = sub.add_parser("join")
     jo.add_argument("--labels", required=True)
     jo.add_argument("--prompts", required=True)
+    jo.add_argument("--references")
     jo.add_argument("--out", required=True)
     a = ap.parse_args(argv)
-    return extract(a.rows, a.out) if a.cmd == "extract" else join(a.labels, a.prompts, a.out)
+    return extract(a.rows, a.out) if a.cmd == "extract" else join(a.labels, a.prompts, a.out, a.references)
 
 
 if __name__ == "__main__":

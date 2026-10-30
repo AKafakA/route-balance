@@ -41,9 +41,8 @@ class KNNEstimator:
     At inference: embed query prompt, find k nearest neighbors, return
     distance-weighted aggregation of neighbor values.
 
-    Supports both old schema (quality_score float) and new schema
-    (similarity_score + llm_judge_scores dict). For the new schema,
-    quality is computed as: 0.5 * similarity_score + 0.5 * mean(llm_judge_scores).
+    Each judge's scores are kept in their own array (per_judge_scores) and averaged
+    over the neighbours separately; the scheduler reads the DeepEval judge's.
     """
 
     def __init__(
@@ -278,12 +277,8 @@ class KNNEstimator:
                           deepeval_score?}}
 
         `deepeval_score` is present only for models that carry a DeepEval array.
-        v3 FIX: the docstring previously advertised a `quality_score` key that
-        this method has never returned, so every consumer reading
-        `pred.get("quality_score", 0.0)` silently scored a constant zero — which
-        made best-model accuracy an insertion-order artifact rather than a
-        measurement. Callers that need DeepEval must read `deepeval_score` and
-        treat its absence as an error, never default it.
+        Callers that need DeepEval must read `deepeval_score` and treat its absence
+        as an error, never default it.
         """
         indices, distances = self._find_neighbors(prompt)
         weights = self._distance_weights(distances)
@@ -507,16 +502,8 @@ def evaluate(estimator: KNNEstimator, test_data: list) -> dict:
             pred_len = pred["length_mean"]
             length_errors[model_name].append(abs(true_len - pred_len))
 
-            # Quality — deepeval, the metric of record.
-            # v3 FIX: the v1 chain was
-            #   judge.get(deepeval) or true_vals.get("reference_score")
-            #   or judge.get("Qwen_Qwen2.5-7B-Instruct") or 0.0
-            # which does NOT merely drop zeros — it SUBSTITUTES A DIFFERENT
-            # METRIC. Measured on the real corpus (14,536 pairs): 24.72% of
-            # values substituted, mean 0.5412 vs 0.3762, and the ground-truth
-            # best model flips on 34.76% of prompts. This feeds
-            # results["quality"]["best_model_accuracy"]. Explicit None check,
-            # and no cross-metric fallback.
+            # Quality: the DeepEval score only, never another judge's score or a
+            # reference score in its place.
             judge_scores = true_vals.get("llm_judge_scores", {})
             true_q = judge_scores.get("deepeval-llama3.1-8b-it_reference")
             if true_q is None:
@@ -526,14 +513,7 @@ def evaluate(estimator: KNNEstimator, test_data: list) -> dict:
                     "another judge — that silently changes the metric."
                 )
             true_q = float(true_q)
-            # v3 FIX: this read `pred.get("quality_score", 0.0)`, but
-            # predict_all_models has never returned a `quality_score` key (it
-            # returns reference_score / judge_score / deepeval_score). Every
-            # predicted quality was therefore a constant 0.0, which made
-            # quality MAE just the mean true score and best_model_accuracy an
-            # insertion-order tie — i.e. the k=10 vs k=50 comparison and the
-            # artifact validation were measuring nothing. Read the DeepEval
-            # prediction explicitly and refuse to default it.
+            # The DeepEval prediction, read explicitly and never defaulted.
             if "deepeval_score" not in pred:
                 raise RuntimeError(
                     f"train_knn_estimator: predict_all_models returned no "

@@ -9,7 +9,9 @@ CodeUltraFeedback's instructions), and the corpus kept each prompt with its surr
 label's prompt is found by its prompt_sha256 among its dataset's prompts (the
 labels' `source` names the row, but a few rows of the Gemma corpus carry another row's id, so the sha256 decides).
 PROMPTS holds one {"prompt_sha256", "prompt"} line per distinct prompt, for `tools/labels.py join`. A prompt that is
-not found (a dataset changed on the Hub) is reported and fails the run. LMSYS-Chat-1M is gated: the Hub token's account must have accepted its
+not found (a dataset changed on the Hub) is reported and fails the run. With --references-out, every label's reference
+answer (the judge compares each answer with it) is rebuilt as the corpus built it, from the same datasets, and checked
+against the label's reference_sha256: needed only to judge answers again. LMSYS-Chat-1M is gated: the Hub token's account must have accepted its
 licence. It needs pandas, pyarrow, datasets and huggingface_hub, in an environment of its own (the scheduler's pins an
 older huggingface_hub); it fetched all 18,498 prompts of data/labels/ with pandas 2.3.3, pyarrow 25.0.1, datasets 5.1.0
 and huggingface_hub 2.4.0.
@@ -19,7 +21,11 @@ import hashlib
 import json
 import sys
 from types import SimpleNamespace
-from typing import List, Optional
+import logging
+from collections import defaultdict
+from typing import Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 import pandas as pd
 
@@ -96,7 +102,7 @@ def load_mix_instruct(sample_n: Optional[int] = None, seed: int = 1) -> pd.DataF
     path: str = datapath.MIX_INSTRUCT_TRAIN_PATH
     df = pd.read_json(path, lines=True)
     sdf = df[["id", "instruction", "input"]].copy()
-    # Concatenate with a space like the notebook
+    # the instruction and the input, joined by a space
     sdf["prompt"] = sdf["instruction"].fillna("") + " " + sdf["input"].fillna("")
     sdf = sdf[["id", "prompt"]]
     if sample_n is not None and sample_n > 0:
@@ -268,6 +274,154 @@ def load_squad(sample_n: Optional[int] = None, seed: int = 1, split: str = "trai
         df = df.sample(n=min(sample_n, len(df)), random_state=seed)
     return df
 
+# the reference answers, built as the corpus built them (by each row's source id)
+REFUSAL_TEMPLATE = (
+    "I'm sorry, but I can't help with that request. "
+    "It involves potentially harmful or dangerous content. "
+    "If you have other questions I can help with, please feel free to ask."
+)
+
+
+def load_references_from_hf(sources: List[str]) -> Dict[str, str]:
+    """Load full reference texts from HuggingFace datasets.
+
+    Unlike add_reference_similarity.py which extracts just numbers/scores,
+    this loads the FULL reference text for use by LLM judges.
+    """
+    from datasets import load_dataset
+
+    by_dataset = defaultdict(list)
+    for s in sources:
+        parts = s.split("/", 1)
+        if len(parts) == 2:
+            by_dataset[parts[0]].append((s, parts[1]))
+
+    references = {}
+
+    # GSM8K: FULL step-by-step answer (not just final number)
+    if "gsm8k" in by_dataset:
+        logger.info(f"Loading GSM8K references ({len(by_dataset['gsm8k'])} entries)...")
+        ds = load_dataset("openai/gsm8k", "main", split="train")
+        for source_id, idx_str in by_dataset["gsm8k"]:
+            idx = int(idx_str)
+            if idx < len(ds):
+                references[source_id] = ds[idx].get("answer", "")
+        logger.info(f"  Loaded {sum(1 for s in references if s.startswith('gsm8k'))} GSM8K")
+
+    # SQuAD: answer spans
+    if "squad" in by_dataset:
+        logger.info(f"Loading SQuAD references ({len(by_dataset['squad'])} entries)...")
+        ds = load_dataset("rajpurkar/squad", split="train")
+        for source_id, idx_str in by_dataset["squad"]:
+            idx = int(idx_str)
+            if idx < len(ds):
+                answers = ds[idx].get("answers", {})
+                texts = answers.get("text", [])
+                if texts:
+                    references[source_id] = texts[0]
+        logger.info(f"  Loaded {sum(1 for s in references if s.startswith('squad'))} SQuAD")
+
+    # LMSYS: original assistant response
+    if "lmsys" in by_dataset:
+        logger.info(f"Loading LMSYS references ({len(by_dataset['lmsys'])} entries)...")
+        try:
+            from huggingface_hub import hf_hub_download, list_repo_files
+            all_files = list_repo_files("lmsys/lmsys-chat-1m", repo_type="dataset")
+            parquet_files = [f for f in all_files if f.endswith(".parquet")]
+
+            import pandas as pd
+            conv_ids_needed = {idx_str for _, idx_str in by_dataset["lmsys"]}
+
+            for pf in parquet_files:
+                local = hf_hub_download(
+                    repo_id="lmsys/lmsys-chat-1m", filename=pf, repo_type="dataset"
+                )
+                df = pd.read_parquet(local)
+                for _, row in df.iterrows():
+                    cid = str(row.get("conversation_id", ""))
+                    if cid in conv_ids_needed:
+                        convs = row.get("conversation", [])
+                        for msg in convs:
+                            if isinstance(msg, dict) and msg.get("role") == "assistant":
+                                references[f"lmsys/{cid}"] = msg.get("content", "")
+                                break
+                        conv_ids_needed.discard(cid)
+                if not conv_ids_needed:
+                    break
+            logger.info(f"  Loaded {sum(1 for s in references if s.startswith('lmsys/'))} LMSYS")
+        except Exception as e:
+            logger.warning(f"  Could not load LMSYS: {e}")
+
+    # reward_bench: chosen response
+    rb_subsets = [
+        "xstest-should-respond", "xstest-should-refuse", "donotanswer",
+        "refusals-offensive", "refusals-dangerous",
+        "hep-python", "hep-go", "hep-cpp", "hep-java", "hep-js", "hep-rust"
+    ]
+    if any(ds_name in by_dataset for ds_name in rb_subsets):
+        logger.info("Loading reward_bench references...")
+        try:
+            ds = load_dataset("allenai/reward-bench", split="filtered")
+            rb_index = {}
+            for row in ds:
+                key = f"{row['subset']}/{row['id']}"
+                rb_index[key] = row.get("chosen", "")
+            for ds_name in by_dataset:
+                if ds_name.startswith(("xstest", "donotanswer", "refusals", "hep-")):
+                    for source_id, idx_str in by_dataset[ds_name]:
+                        ref = rb_index.get(source_id, "")
+                        if ref:
+                            references[source_id] = ref
+            logger.info(f"  Loaded reward_bench references")
+        except Exception as e:
+            logger.warning(f"  Could not load reward_bench: {e}")
+
+    # code_ultra_feedback: highest-rated response
+    if "code_ultra_feedback" in by_dataset:
+        logger.info(f"Loading code_ultra_feedback references...")
+        try:
+            ds = load_dataset("coseal/CodeUltraFeedback", split="train")
+            for source_id, idx_str in by_dataset["code_ultra_feedback"]:
+                idx = int(idx_str)
+                if idx < len(ds):
+                    row = ds[idx]
+                    responses = row.get("responses", [])
+                    annotations = row.get("annotations", [])
+                    if responses and annotations:
+                        best_idx = max(range(len(annotations)),
+                                       key=lambda i: int(annotations[i].get("rating", 0)))
+                        references[source_id] = responses[best_idx].get("response", "")
+                    elif responses:
+                        references[source_id] = responses[0].get("response", "")
+            logger.info(f"  Loaded {sum(1 for s in references if s.startswith('code_ultra'))} code_ultra")
+        except Exception as e:
+            logger.warning(f"  Could not load code_ultra_feedback: {e}")
+
+    # mix_instruct: output field
+    mix_subsets = ["unified_chip2", "dolly_15k", "itwgpt4", "sharegpt", "laion"]
+    if any(ds_name in by_dataset for ds_name in mix_subsets):
+        logger.info("Loading mix_instruct references...")
+        try:
+            ds = load_dataset("llm-blender/mix-instruct", split="train")
+            id_to_output = {str(row.get("id", "")): row.get("output", "") for row in ds}
+            for ds_name in mix_subsets:
+                if ds_name in by_dataset:
+                    for source_id, idx_str in by_dataset[ds_name]:
+                        ref = id_to_output.get(source_id, "")
+                        if ref:
+                            references[source_id] = ref
+            logger.info(f"  Loaded mix_instruct references")
+        except Exception as e:
+            logger.warning(f"  Could not load mix_instruct: {e}")
+
+    # beaver_tails: use standard refusal template
+    for source_id, _ in by_dataset.get("beaver_tails", []):
+        references[source_id] = REFUSAL_TEMPLATE
+
+    logger.info(f"Total references loaded: {len(references)} / {len(sources)}")
+    return references
+
+
 LOADERS = {"reward_bench": load_reward_bench, "code_ultra_feedback": load_code_ultra_feedback,
            "mix_instruct": load_mix_instruct, "beaver_tails": load_beaver_tails, "lmsys": load_lmsys,
            "gsm8k": load_gsm8k, "squad": load_squad}
@@ -277,6 +431,7 @@ def main(argv: List[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--labels", required=True, nargs="+", help="label files (tools/labels.py extract)")
     ap.add_argument("--out", required=True, help="a new JSONL file")
+    ap.add_argument("--references-out", help="also every label's reference answer, into this new JSONL file")
     a = ap.parse_args(argv)
     want = {}          # prompt sha256 -> dataset
     for path in a.labels:
@@ -305,6 +460,37 @@ def main(argv: List[str]) -> int:
         for sha, p in found.items():
             f.write(json.dumps({"prompt_sha256": sha, "prompt": p}) + "\n")
     print(f"{a.out}: {len(found)} prompts")
+    if a.references_out:
+        return references(a.labels, a.references_out)
+    return 0
+
+
+def references(label_paths: List[str], out: str) -> int:
+    """Every label's reference answer: its source's reference if the builder has one, the refusal for a harmful
+    prompt, and an empty reference otherwise (as the corpus assigned them), each checked against reference_sha256."""
+    labels = [json.loads(line) for path in label_paths for line in open(path)]
+    refs = load_references_from_hf([lab["source"] for lab in labels if lab.get("source")])
+    found, bad = {}, 0
+    for lab in labels:
+        source = lab.get("source")
+        if source and source in refs:
+            text = refs[source]
+        elif lab.get("is_harmful"):
+            text = REFUSAL_TEMPLATE
+        else:
+            text = ""
+        sha = hashlib.sha256(text.encode()).hexdigest()
+        if sha != lab["reference_sha256"]:
+            bad += 1
+            continue
+        found[sha] = text
+    print(f"references: {len(labels) - bad} of {len(labels)} label lines rebuilt, {len(found)} distinct, {bad} differ")
+    if bad:
+        return 1
+    with open(out, "x") as f:
+        for sha, text in found.items():
+            f.write(json.dumps({"reference_sha256": sha, "reference_text": text}) + "\n")
+    print(f"{out}: {len(found)} references")
     return 0
 
 

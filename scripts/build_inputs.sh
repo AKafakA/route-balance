@@ -2,7 +2,10 @@
 # Every estimator and router input built from one family's judged training corpus, as the paper's runs built them.
 # CPU only; run it in the scheduler's environment (stage 1) from the repository's root.
 #
-#   build_inputs.sh --family qwen|gemma --corpus SCORED_TRAIN.jsonl --out DIR [--python PY]
+#   build_inputs.sh --family qwen|gemma --corpus SCORED_TRAIN.jsonl --out DIR [--python PY] [--no-best-route]
+#
+#   --no-best-route  skip BEST-Route's data, which needs the answers' texts: for rows rebuilt from data/labels/
+#                    (tools/labels.py join), which carry none
 #
 #   DIR/train_rows.jsonl     the training rows: every prompt whose answers all carry a judged score
 #                            (router_training filter); Table A1's training counts
@@ -19,8 +22,9 @@
 set -euo pipefail
 die() { echo "build_inputs.sh: $*" >&2; exit 1; }
 
-FAMILY="" CORPUS="" OUT="" PY=python3
+FAMILY="" CORPUS="" OUT="" PY=python3 BEST_ROUTE=1
 while [ $# -gt 0 ]; do
+  [ "$1" = --no-best-route ] && { BEST_ROUTE=0; shift; continue; }
   [ $# -ge 2 ] || die "$1 needs a value"
   case "$1" in
     --family) FAMILY="$2" ;; --corpus) CORPUS="$2" ;; --out) OUT="$2" ;; --python) PY="$2" ;;
@@ -29,7 +33,7 @@ while [ $# -gt 0 ]; do
   shift 2
 done
 [ -n "$FAMILY" ] && [ -n "$CORPUS" ] && [ -n "$OUT" ] \
-  || die "usage: build_inputs.sh --family qwen|gemma --corpus SCORED_TRAIN.jsonl --out DIR [--python PY]"
+  || die "usage: build_inputs.sh --family qwen|gemma --corpus SCORED_TRAIN.jsonl --out DIR [--python PY] [--no-best-route]"
 case "$FAMILY" in
   qwen)  MODELS="Qwen/Qwen2.5-3B Qwen/Qwen2.5-7B Qwen/Qwen2.5-14B Qwen/Qwen2.5-72B" ;;
   gemma) MODELS="google/gemma-3-1b-it google/gemma-3-4b-it google/gemma-3-12b-it google/gemma-3-27b-it" ;;
@@ -46,11 +50,13 @@ ROWS=$OUT/train_rows.jsonl
 
 echo "$(ts) training rows"
 "$PY" -m tools.router_training filter --corpus "$CORPUS" --fleet "$FLEET" --judge-key $KEY --out "$ROWS"
-echo "$(ts) BEST-Route data and upstream's format"
-# shellcheck disable=SC2086
-"$PY" -m tools.router_training best-route-data --corpus "$ROWS" --fleet "$FLEET" --judge-key $KEY --models $MODELS \
-  --out "$OUT/br_data"
-"$PY" -m tools.best_route_upstream --family "$FAMILY" --rows "$ROWS" --split "$OUT/br_data" --out "$OUT/br_upstream"
+if [ $BEST_ROUTE = 1 ]; then
+  echo "$(ts) BEST-Route data and upstream's format"
+  # shellcheck disable=SC2086
+  "$PY" -m tools.router_training best-route-data --corpus "$ROWS" --fleet "$FLEET" --judge-key $KEY --models $MODELS \
+    --out "$OUT/br_data"
+  "$PY" -m tools.best_route_upstream --family "$FAMILY" --rows "$ROWS" --split "$OUT/br_data" --out "$OUT/br_upstream"
+fi
 echo "$(ts) k-NN index, k = 50"
 "$PY" -m tools.knn_index --input "$ROWS" --k 50 --output-dir "$OUT/knn/knn" --device cpu 2>&1 | grep -v Batches | tail -4
 if [ "$FAMILY" = qwen ]; then
@@ -72,5 +78,9 @@ echo "$(ts) AvengersPro at five settings"
 "$PY" -m tools.router_training avengers-pro --corpus "$ROWS" --fleet "$FLEET" --judge-key $KEY --models $MODELS \
   --family "$FAMILY" --pw 0.25 0.39 0.53 0.70 0.80 --embedder sentence-transformers/all-MiniLM-L6-v2 \
   --embedder-revision 1110a243fdf4706b3f48f1d95db1a4f5529b4d41 --n-clusters 32 --out-root "$OUT/ap" 2>&1 | grep -v Batches | tail -6
-(cd "$OUT" && find knn ap br_data br_upstream -type f ! -name 'rows_*.jsonl' -exec md5sum {} + | sort -k2)
-echo "$(ts) done; next: scripts/train_best_route.sh --family $FAMILY --data $OUT/br_upstream"
+(cd "$OUT" && find knn ap $([ $BEST_ROUTE = 1 ] && echo br_data br_upstream) -type f ! -name 'rows_*.jsonl' -exec md5sum {} + | sort -k2)
+if [ $BEST_ROUTE = 1 ]; then
+  echo "$(ts) done; next: scripts/train_best_route.sh --family $FAMILY --upstream <best-route-llm checkout> --data $OUT/br_upstream --out <new folder>"
+else
+  echo "$(ts) done"
+fi

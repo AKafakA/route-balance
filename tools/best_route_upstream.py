@@ -6,8 +6,8 @@ Every training row (`router_training filter`'s output) becomes one upstream exam
 family's reference model's answer as the output, and one candidate per model of the family's ladder, in ladder order,
 with its answer, its judged score under the key upstream reads as the quality metric (armoRM_scores holds the DeepEval
 score: the key is upstream's, the numbers are the judge's), the prompt's and the answer's token counts, and a cost of 0
-(upstream recomputes the cost from the token counts and its own price table). A row without a prompt, or without an
-answer from every model of the ladder, is skipped. The conversion is the one the paper's runs used, for both families.
+(upstream recomputes the cost from the token counts and its own price table). A row without a prompt, or missing an
+entry for any model of the ladder, is skipped (an entry without a response gives an empty candidate text). The conversion is the one the paper's runs used, for both families.
 
 DIR/_all.jsonl holds every example in row order. DIR/train.jsonl and DIR/val.jsonl split them by the ids of
 `router_training best-route-data`'s split (BR_DATA/train.jsonl and BR_DATA/val.jsonl), which must cover the examples
