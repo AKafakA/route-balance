@@ -16,7 +16,7 @@ prompt's reference answer comes from the scored corpora the render's plan pins (
 under the data root and sha256, checked); the judge is reference-grounded, and a prompt without a reference
 answer fails the collection.
 
-The judge is the DeepEval G-Eval scorer on the analysis machine (not in this repository; Llama-3.1-8B-Instruct
+The judge is the DeepEval G-Eval scorer (tools/geval_score.py, run by scripts/judge_one.sh; Llama-3.1-8B-Instruct
 served by vLLM, judge key deepeval-llama3.1-8b-it_reference). Its input is JSONL, one entry per line:
   {"request_id": str, "prompt": str, "reference_text": str,
    "models": {<name>: {"response": str, ...}, ...}, ...}

@@ -25,11 +25,12 @@ cluster.
 
 | | contents | reproduces |
 |---|---|---|
-| this repository | the code and scripts, the rendered campaign and the configurations the runs used, and the gates | stage 2, and the analysis of stage 3 |
+| this repository | the code and scripts, the rendered campaign and the configurations the runs used, the gates, the CloudLab profile, and every tool that built the runs' inputs (answer collection, G-Eval judging, the k-NN indexes, the routers' artifacts) | stage 2, and the analysis of stage 3 |
+| `data/labels/` | the paper's judged labels and output lengths for every training and evaluation prompt, keyed by the prompt's public source and sha256, without any text | the indexes, AvengersPro and the scored corpora without judging again (stage 2, step 2) |
 | the paper data pack (`paper/`) | the per-report summaries the paper reads, its generators and plot scripts, the expected outputs | every number, table and figure (stage 3, first route) |
 
 Prompt and answer texts are not shipped: the evaluation prompts come from datasets whose licences restrict
-redistribution, so the pack carries prompt ids and scores only.
+redistribution, so the pack and `data/labels/` carry prompt ids and scores only.
 
 ## Also here
 

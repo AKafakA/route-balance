@@ -10,8 +10,9 @@ __pycache__/
 /results/
 *.log
 
-# large artifacts live outside git (paths are given by config)
-/data/
+# large artifacts live outside git (paths are given by config); the judged labels without text are tracked
+/data/*
+!/data/labels/
 /models/
 
 # the guides' local environment

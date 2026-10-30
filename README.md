@@ -17,8 +17,9 @@ the plot scripts, and every output the paper uses, with a script that rebuilds a
 | `analysis/` | per-run metrics, the run manifest, frontiers, the equal-quality comparison, the SLO, the report |
 | `gates/` | the gates that decide whether a run counts (`docs/reproduce/gates.md`) |
 | `tools/` | the drivers of a run and of the calibration, the learned heads, router training, judging, the engine plan |
-| `scripts/` | node setup, engine and scheduler deployment, one run and a row of runs |
-| `configs/` | the fleets, the engine arguments per tier, the scheduler's launch values, the preregistered rules, and the rendered campaign the runs used (`render36/`) |
+| `scripts/` | node setup, engine and scheduler deployment, one run and a row of runs, building the inputs, the judge pool, BEST-Route's training |
+| `configs/` | the fleets, the engine arguments per tier, the scheduler's launch values, the preregistered rules, the rendered campaign the runs used (`render36/`), the CloudLab profile (`cloudlab/`) and BEST-Route's labels files and training environment (`best_route/`) |
+| `data/labels/` | the paper's judged labels and output lengths per prompt, without any text (`tools/labels.py`; `tools/fetch_prompts.py` fetches the prompts back from the public datasets) |
 | `vllm-sr-bench/` | the vLLM Semantic Router, deployed as its authors deploy it, as its own stack in front of the same engines, and driven by the same client |
 | `paper/` | the paper data pack (`routebalance-paper-data-v1.5/`): `data/`, `code/tools/` (the generator of every number and table, the plot scripts of every figure), `expected/`, `reproduce_results.sh` |
 
@@ -60,6 +61,11 @@ bash routebalance-paper-data-v1.5/reproduce_results.sh new-output      # ends in
 | `tools/judge_served.py` | the budget runs' judge loop: the texts they served go to the DeepEval judge once |
 | `tools/engines.py` | each engine as it reports itself, read before and after every run: a restart invalidates the run |
 | `tools/router_training.py` | the baselines' training inputs, built for both model families: AvengersPro's artifacts and BEST-Route's candidates |
+| `tools/knn_index.py`, `tools/row_subsets.py` | the estimator's k-NN index, built from the training rows, and the rows behind the ablations' indexes |
+| `tools/best_route_upstream.py`, `scripts/train_best_route.sh` | BEST-Route's data in upstream's format, and its ranker trained by upstream's trainer |
+| `tools/collect_answers.py` | every model's answer to every prompt of a prompt set, directly on the engines |
+| `tools/judge_shards.py`, `scripts/judge_pool.sh`, `tools/geval_score.py`, `scripts/judge_assemble.sh`, `tools/judge_gapfill.py` | the G-Eval judging of the collected answers on the judge fleet (`configs/fleet_judge.json`) |
+| `scripts/build_inputs.sh` | every estimator and router input of a family from its judged training corpus |
 | `scripts/run_cell.sh`, `scripts/run_scope.sh` | one run end to end, and the rows of a render in order, resuming |
 
 A run's quality is the mean DeepEval score of its successful requests, looked up by (prompt, served model) in the

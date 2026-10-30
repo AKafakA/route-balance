@@ -71,20 +71,41 @@ run directory to step 4's `--fresh-scheduler`.
 | the benchmark prompt files the plan pins (`datasets`) | `tools/prompt_set.py`, from a corpus's prompts: the evaluation set, and the training split, which it refuses if it holds an evaluation prompt (`--exclude`) |
 | the TPOT table and the prefill table | row W1 of the plan (W8-cal for Gemma), closed-loop TPOT at fixed batch sizes on every tier (`tools/calibrate_driver.py`), then `tools/calibrate_tpot_curve.py` and `tools/fit_prefill.py` |
 | the SLO bases | `tools/slo_base.py`, each tier's single-request TTFT and TPOT from the same calibration |
-| the baselines' training data and AvengersPro's artifacts | `tools/router_training.py` (`filter`, `avengers-pro`, `best-route-data`) |
-| BEST-Route's checkpoint | upstream best-route-llm's training, at the commit `scripts/setup.sh` pins, on `best-route-data`'s output |
+| the training rows, the k-NN indexes (the ablations' too), BEST-Route's data and AvengersPro's artifacts | `scripts/build_inputs.sh` on a family's judged training corpus: `tools/router_training.py` (`filter`, `best-route-data`, `avengers-pro`), `tools/best_route_upstream.py`, `tools/knn_index.py` and `tools/row_subsets.py` |
+| BEST-Route's checkpoint | `scripts/train_best_route.sh` on `build_inputs.sh`'s `br_upstream/`: upstream best-route-llm's trainer, at the commit `scripts/setup.sh` pins, with the runs' arguments; the checkpoint folder gets the family's labels file from `configs/best_route/` |
 | the learned TPOT heads (the learned variant only) | `tools/retrain_xgb_served.py`, on the latency sweep the scheduler itself logs |
-| the scored corpora | each prompt with every model's answer (`tools/collect_answers.py`, directly on the engines) and its judged score |
+| the scored corpora | every model's answer to each prompt (`tools/collect_answers.py collect`, directly on the engines, then `merge`: the unscored corpus) and the G-Eval judge's score of each answer: the judges deployed as a fleet (`configs/fleet_judge.json`), the corpus cut into shards of 200 rows (`tools/judge_shards.py`), scored by `scripts/judge_pool.sh` (one worker per judge, each shard by `scripts/judge_one.sh` running `tools/geval_score.py`, `--max-concurrent 64 --chunk-size 200`) and joined back in shard order (`scripts/judge_assemble.sh`, checked by `tools/judge_validate.py`); the few pairs the judge leaves unscored are judged again on one judge (`tools/judge_gapfill.py`, on a copy of the joined corpus) |
 
-The quality and length estimator's index is the earlier implementation's KNN index format, built over the same
-training rows. This repository loads it and checks its md5 (`routebalance/estimate/knn.py`). The scheduler documents
-under `configs/render36/configs/` name the artifacts the paper's runs used.
+The quality and length estimator's index is built by `tools/knn_index.py`, the builder the paper's runs used, over the
+training rows, and the scheduler checks its md5 when it loads it (`routebalance/estimate/knn.py`). The embeddings' last
+bits depend on the machine, so a rebuilt index has another md5 and is pinned again (below): an index rebuilt from the
+paper's Gemma rows on another machine holds the same labels and lengths, and the same 50 nearest neighbours for all but
+one of its 8,086 prompts. The scheduler documents under `configs/render36/configs/` name the artifacts the paper's runs
+used.
 
 The training prompt files the plan pins (`train_qwen`, 14,919 rows, and `train_gemma`, 8,086) hold the whole training
 split, which the latency sweep sends. `filter` keeps a prompt only if every model's answer to it has a judge score:
 14,908 of the Qwen prompts (11 have an answer the judge could not score) and all 8,086 Gemma prompts. Those rows build
 the estimator's index and the routers' artifacts, and they are the training counts of the paper's Table A1
 (`paper/routebalance-paper-data-v1.5/data/dataset_rows.json`).
+
+### Reusing the paper's labels
+
+`data/labels/` holds the paper's judged labels without any text (`tools/labels.py extract`): for every training row
+and every evaluation prompt of each family, its public source (`source`, the dataset and its row id), the sha256 of
+its prompt, and every model's output length and judged score. `tools/fetch_prompts.py` fetches every prompt back from
+its public dataset with the loaders that built the corpus, each checked against its sha256 (all 18,498 are found),
+and `tools/labels.py join` rebuilds the rows: the training labels give the rows `build_inputs.sh` indexes and the
+evaluation labels give the scored corpora the analysis reads, each equal to the paper's in every prompt, output length
+and score, so neither needs the answers collected or judged again:
+
+```bash
+python -m tools.fetch_prompts --labels data/labels/*.jsonl --out PROMPTS.jsonl     # its own environment
+python -m tools.labels join --labels data/labels/qwen_train.jsonl --prompts PROMPTS.jsonl --out qwen_train_rows.jsonl
+python -m tools.labels join --labels data/labels/qwen_eval.jsonl --prompts PROMPTS.jsonl --out qwen_eval_scored.jsonl
+```
+
+BEST-Route's data holds the answers' texts, which are not shipped: for it, collect and judge the answers as above.
 
 When a rebuilt input replaces one the render pins, set its pin in `RENDER` by hand: an artifact's md5 in the
 scheduler documents that name it, a prompt file's sha256 and row count (and a budget table's sha256) in every

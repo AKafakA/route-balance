@@ -24,7 +24,9 @@ GPU, and the fleet files place every instance:
 | c4130 (3 nodes) | 4x V100 | Qwen2.5-14B, one instance per node | |
 | d7525 (8 nodes) | 1x A30 | Qwen2.5-7B (5) and Qwen2.5-3B (3) | Gemma 3 4B and 1B |
 
-The scheduler runs on one of the fleet's nodes, on its CPUs. Every node runs Ubuntu 22.04.
+The scheduler runs on one of the fleet's nodes, on its CPUs. Every node runs Ubuntu 22.04. The CloudLab profile
+`configs/cloudlab/profile.py` requests these 13 nodes on one LAN: create a profile from it on the CloudLab portal and
+instantiate it at Wisconsin.
 
 ### Hosts
 
@@ -58,5 +60,15 @@ PY=.venv-uvicorn/bin/python scripts/setup_fleet.sh --fleet configs/fleet_qwen.js
 
 Every role ends with a self-check that prints the versions and exits non-zero on any mismatch. A node whose driver
 needs a reboot exits 3: reboot it and run the same command again.
+
+### Building the inputs (stage 2, step 2)
+
+- **The judges:** the G-Eval judge is Llama-3.1-8B-Instruct served by vLLM on the cluster's own nodes between
+  measurements (`configs/fleet_judge.json`, `configs/engine_args_judge.json`, deployed like any fleet); the scorer
+  (`tools/geval_score.py`) runs on any machine that reaches them, in an environment with the DeepEval library.
+- **BEST-Route's training:** one GPU, Python 3.12 with `configs/best_route/requirements-train.txt`, and the
+  best-route-llm checkout the scheduler role installs (`scripts/train_best_route.sh`).
+- **Everything else** (the training rows, the k-NN indexes, the routers' data and AvengersPro) runs on a CPU in the
+  scheduler's environment (`scripts/build_inputs.sh`).
 
 Next: [run the experiments](02-run-experiments.md).
