@@ -10,7 +10,7 @@ POST /v1/completions   one request, JSON body, non-streaming
   max_tokens           int    the output cap
   temperature, repetition_penalty, frequency_penalty    float, passed to vLLM unchanged
   budget_cost          float  the request's cost budget in USD, only in budget cells (the scheduler clamps the
-                              output to it, routebalance/schedule/budget.py); null otherwise
+                              output to it, fmrlb/schedule/budget.py); null otherwise
 Reply: HTTP 200 with {"success": true} plus exactly the fields of bench.records.Reply:
   request_id           the echo of the request's id
   model                the served model (HF id, as priced in the fleet config and scored in the corpora)
@@ -25,7 +25,7 @@ Anything else is a failed request: a non-200 status, success false, a missing, e
 different request_id, a transport error or a timeout. It is recorded with its error text and never retried.
 
 GET /v1/config returns the live configuration including config_digest and fleet_digest
-(routebalance.config.config_digest / fleet_digest). The runner reads only those two.
+(fmrlb.config.config_digest / fleet_digest). The runner reads only those two.
 """
 from __future__ import annotations
 
@@ -38,9 +38,9 @@ from pydantic import ValidationError
 
 from bench.dataset import Prompt
 from bench.records import Reply, Sampling, SchedulerIdentity
-from routebalance.backend import stock_connector
+from fmrlb.backend import stock_connector
 from bench.schema import parse
-from routebalance.config import ConfigError, loads_strict
+from fmrlb.config import ConfigError, loads_strict
 
 _JSON = {"Content-Type": "application/json"}
 _FD_HEADROOM = 256            # descriptors kept free for everything that is not a scheduler connection

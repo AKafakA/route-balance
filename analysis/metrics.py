@@ -44,8 +44,8 @@ from analysis.quality import ScoredCorpus, ScoreStore
 from analysis.slo import LEVELS, CellSlo
 from analysis.validity import integrity_problems
 from bench.records import CellRecord
-from routebalance.config import ConfigError, fleet_digest
-from routebalance.types import Instance, Tier
+from fmrlb.config import ConfigError, fleet_digest
+from fmrlb.types import Instance, Tier
 
 
 @dataclass(frozen=True)

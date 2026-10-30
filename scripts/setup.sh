@@ -57,7 +57,7 @@ LLM_BLENDER_COMMIT=33204d2712944b6b17996f7c079e74cd963ccc7c   # == the pyproject
 SPEC_RE='^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*@[0-9a-f]{40}$'
 
 # PCI device id of the node's GPUs -> GPU class, CloudLab hardware type, GPUs per node, driver flavour,
-# /mydata disk. Must agree with routebalance/hw.py.
+# /mydata disk. Must agree with fmrlb/hw.py.
 gpu_row() {
   case "$1" in
     1db1) echo "v100 c4130 4 volta /dev/sdb" ;;          # Tesla V100-SXM2-16GB
@@ -332,7 +332,7 @@ engine_venv() {
 }
 
 scheduler_venv() {
-  [ -f "$REPO/pyproject.toml" ] && [ -d "$REPO/routebalance" ] || die "$REPO is not the route-balance tree"
+  [ -f "$REPO/pyproject.toml" ] && [ -d "$REPO/fmrlb" ] || die "$REPO is not the f-mrlb tree"
   local spec
   spec="scheduler $REPO pyproject.sha256=$(sha256sum "$REPO/pyproject.toml" | cut -c1-16)"
   step "venv $SCHED_VENV: pip install -e $REPO"
@@ -364,9 +364,9 @@ test_venv() {
     || die "the test venv differs from the scheduler venv: remove $TEST_VENV deliberately and rerun"
   local where
   where=$(cd / && env -i HOME="$HOME" PATH="$RB_PATH" "$TEST_VENV/bin/python" -c \
-    'import os, pytest, routebalance; print(os.path.realpath(routebalance.__file__), pytest.__version__)') \
-    || die "the test venv cannot import pytest and routebalance"
-  [[ "$where" == "$(cd "$REPO" && pwd -P)"/* ]] || die "the test venv imports routebalance from $where, not $REPO"
+    'import os, pytest, fmrlb; print(os.path.realpath(fmrlb.__file__), pytest.__version__)') \
+    || die "the test venv cannot import pytest and fmrlb"
+  [[ "$where" == "$(cd "$REPO" && pwd -P)"/* ]] || die "the test venv imports fmrlb from $where, not $REPO"
   say "SELF-CHECK OK: tests ($TEST_VENV: $where)"
 }
 
@@ -663,14 +663,14 @@ self_check_scheduler() {
 import importlib.metadata as md, json, os, platform, re, sys
 repo, ap, br, blender_commit = sys.argv[1:5]
 fail = []
-import routebalance, routebalance.server, routebalance.estimate.knn, routebalance.baselines.routers  # noqa: F401
+import fmrlb, fmrlb.server, fmrlb.estimate.knn, fmrlb.baselines.routers  # noqa: F401
 import torch
-print(f"python {platform.python_version()}  routebalance {md.version('routebalance')} from {routebalance.__file__}  "
+print(f"python {platform.python_version()}  fmrlb {md.version('fmrlb')} from {fmrlb.__file__}  "
       f"torch {torch.__version__}")
 if not platform.python_version().startswith("3.10."):
     fail.append("python is not 3.10")
-if not os.path.realpath(routebalance.__file__).startswith(os.path.realpath(repo) + os.sep):
-    fail.append(f"routebalance is imported from {routebalance.__file__}, not {repo}")
+if not os.path.realpath(fmrlb.__file__).startswith(os.path.realpath(repo) + os.sep):
+    fail.append(f"fmrlb is imported from {fmrlb.__file__}, not {repo}")
 text = open(os.path.join(repo, "pyproject.toml")).read()
 deps = re.search(r"^dependencies = \[(.*?)^\]", text, re.S | re.M).group(1)
 pins = re.findall(r'^\s*"([A-Za-z0-9_.-]+)==([^"]+)"', deps, re.M)

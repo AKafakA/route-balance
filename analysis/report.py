@@ -52,7 +52,7 @@ Output, a new directory:
   macros.tex   per treatment, group and stationary trace: the range over the baseline configurations of the
                relative change of mean E2E, P99 E2E and cost at equal quality (...Min/...Max), and including the
                comparisons read at higher quality (...MinAll/...MaxAll)
-A value read at RouteBalance's frontier low end, above the baseline's quality beyond the tolerance, carries
+A value read at F-MRLB's frontier low end, above the baseline's quality beyond the tolerance, carries
 a dagger in the tables. Every equal* table and macro is written for both readings: the one_config names as above,
 the per_metric ones with the prefix equal_pm (tables) and eqpm (macros). The paper's framing picks one after the
 runs.
@@ -81,8 +81,8 @@ from analysis.rules import Rules, load_rules
 from analysis.slo import CellSlo, SloBase, goodputs
 from bench.records import CellRecord, cell_dir, cell_path, read_cell
 from bench.scope import ExpectedCell, GroupSpec, Scope, expected_cells, load_scope
-from routebalance.config import ConfigError, load_fleet
-from routebalance.types import Instance
+from fmrlb.config import ConfigError, load_fleet
+from fmrlb.types import Instance
 from tools.campaign import load_plan
 
 SLO_LEVELS = ("tight", "loose")
@@ -350,7 +350,7 @@ def systems_table(configs: Sequence[ConfigPoint]) -> str:
     return "\n".join(rows) + "\n"
 
 
-HIGHER = r"$^\dagger$"     # read at RouteBalance's frontier low end, above the baseline's quality
+HIGHER = r"$^\dagger$"     # read at F-MRLB's frontier low end, above the baseline's quality
 
 
 def _change(metric: str, relative: Optional[float], delta: Optional[float],
@@ -428,8 +428,8 @@ def macro_name(*parts: str, prefix: str = "eq") -> str:
 
 def macros(report: dict) -> str:
     lines = ["% Written by analysis/report.py. Ranges over the baseline configurations with an equal-quality point;",
-             "% eq* read one RouteBalance configuration for every metric, eqpm* each metric on its own frontier.",
-             "% ...Min/...Max: at equal quality only; ...MinAll/...MaxAll: also the comparisons read at RouteBalance's",
+             "% eq* read one F-MRLB configuration for every metric, eqpm* each metric on its own frontier.",
+             "% ...Min/...Max: at equal quality only; ...MinAll/...MaxAll: also the comparisons read at F-MRLB's",
              "% frontier low end, at higher quality than the baseline's (the tables mark them)."]
     for key, _, prefix in READING_OUT.values():
         lines += _macros(report, key, prefix)

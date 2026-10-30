@@ -220,8 +220,8 @@ cmd_sched_start() {
   [ "$(cat "$SCHED_VENV/rb-setup.spec")" = "$spec" ] \
     || fail "$SCHED_VENV was built as '$(cat "$SCHED_VENV/rb-setup.spec")', not '$spec' (rerun setup.sh --role scheduler from $tree)"
   where=$(cd / && env -i HOME="$HOME" PATH="$RB_PATH" "$SCHED_VENV/bin/python" -c \
-    'import os, routebalance; print(os.path.realpath(routebalance.__file__))') || fail "the scheduler venv cannot import routebalance"
-  [[ "$where" == "$tree"/* ]] || fail "the scheduler venv imports routebalance from $where, not $tree"
+    'import os, fmrlb; print(os.path.realpath(fmrlb.__file__))') || fail "the scheduler venv cannot import fmrlb"
+  [[ "$where" == "$tree"/* ]] || fail "the scheduler venv imports fmrlb from $where, not $tree"
   hub_pins_ok "$SCHED_VENV/rb-setup.hub"
   alive "$(pid_of "$pidf")" && fail "a scheduler is already running (pid $(pid_of "$pidf")); stop_scheduler.sh first"
   port_free "$port" || fail "port $port is in use"
@@ -233,13 +233,13 @@ cmd_sched_start() {
               --artifacts "$art" --avengers-repo "$AP_DIR" --best-route-repo "$BR_DIR" --host "$host" --port "$port"
               --request-timeout-s "$timeout" --max-connections "$conns" --log-dir "$logdir")
   [ "$threads" = none ] || argv+=(--torch-threads "$threads")   # none: torch's default thread count
-  printf '%s\n' "CUDA_VISIBLE_DEVICES= $SCHED_VENV/bin/python -u -m routebalance.server ${argv[*]}" > "$run/scheduler.cmd"
+  printf '%s\n' "CUDA_VISIBLE_DEVICES= $SCHED_VENV/bin/python -u -m fmrlb.server ${argv[*]}" > "$run/scheduler.cmd"
   # the open-file limit: the scheduler raises its own soft limit at start (set_ulimit, 65535, as vLLM's server)
   # shellcheck disable=SC2016,SC2094
   (cd "$tree" && setsid --fork bash -c "$RECORD_AND_EXEC"'; exec "$@"' _ "$pidf" "$log" "$BOOT_ID" \
     env -i HOME="$HOME" PATH="$RB_PATH" LANG=C.UTF-8 CUDA_VISIBLE_DEVICES= HF_HOME="$RB_HF_HOME" HF_HUB_OFFLINE=1 \
     TIKTOKEN_CACHE_DIR="$RB_TIKTOKEN" \
-    "$SCHED_VENV/bin/python" -u -m routebalance.server "${argv[@]}" > "$log" 2>&1 < /dev/null)
+    "$SCHED_VENV/bin/python" -u -m fmrlb.server "${argv[@]}" > "$log" 2>&1 < /dev/null)
   local i
   for i in $(seq 1 20); do [ -s "$pidf" ] && break; sleep 0.25; done
   alive "$(pid_of "$pidf")" || fail "the scheduler did not start; log $log: $(tail -5 "$log" 2>/dev/null | tr '\n' ' ')"

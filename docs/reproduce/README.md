@@ -1,6 +1,6 @@
 # Reproducing the paper
 
-RouteBalance schedules each request of a heterogeneous LLM fleet onto a (model, instance) pair, scoring predicted
+F-MRLB schedules each request of a heterogeneous LLM fleet onto a (model, instance) pair, scoring predicted
 quality, load-aware latency and cost together, over rounds of requests. This repository holds the scheduler, every
 baseline it is compared with (the routers and dispatchers in the same server, on the same telemetry and dispatch
 path, and the vLLM Semantic Router as its own stack in front of the same engines), the benchmark client, the

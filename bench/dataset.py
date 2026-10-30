@@ -28,7 +28,7 @@ from typing import Any, Literal, Optional, Protocol
 from pydantic import Field
 
 from bench.schema import Strict, read_jsonl
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 Order = Literal["fixed", "per_seed"]
 

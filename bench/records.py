@@ -19,7 +19,7 @@ from pydantic import Field, field_validator, model_validator
 from bench.arrivals import Trace
 from bench.dataset import Order
 from bench.schema import Strict, parse, read_json
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 FORMAT = "rb-cell/1"
 CELL_SUFFIX = ".cell.json"

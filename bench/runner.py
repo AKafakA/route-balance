@@ -39,7 +39,7 @@ from bench.records import (FORMAT, CellRecord, RequestRecord, Sampling, Schedule
                            records_in, write_cell)
 from bench.schema import Strict
 from bench.scope import ExpectedCell, expected_cells, load_scope
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 
 class CellSpec(Strict):

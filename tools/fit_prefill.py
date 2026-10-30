@@ -25,7 +25,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 MIN_REQUESTS = 20
 MIN_R2 = 0.5

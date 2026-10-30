@@ -43,7 +43,7 @@ from bench.dataset import file_sha256
 from analysis.quality import parse_store_line, text_sha256
 from bench.schema import read_jsonl, write_new_jsonl
 from bench.records import CELL_SUFFIX, read_cell, records_in
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 from tools.campaign import load_plan
 
 SLOT = "served"

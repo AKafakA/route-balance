@@ -1,10 +1,10 @@
 """Retrain the per-tier TPOT heads on what the scheduler knows at serving time.
 
-Serving runs official vLLM, so a head may read only routebalance.estimate.xgboost_tpot.FEATURES (the
+Serving runs official vLLM, so a head may read only fmrlb.estimate.xgboost_tpot.FEATURES (the
 instance's running and waiting counts, KV-cache utilization and pending decode tokens, the request's prompt
 and expected output tokens, and two features derived from the request alone). The input is the sweep the
 scheduler logs under official vLLM (--sweep, tools/tpot_sweep.py): each record carries the feature vector
-feature_values() built at dispatch, pending_decode_tokens computed RouteBalance's way and the expected output
+feature_values() built at dispatch, pending_decode_tokens computed F-MRLB's way and the expected output
 length, so heads use all FEATURES. A head never trains on a feature that is constant in its training rows (it
 could learn nothing from it and the value would only move at serving), nor on fewer than MIN_ROWS usable
 records (a fleet tier without a head is an error): the tool fails instead.
@@ -39,7 +39,7 @@ from pathlib import Path
 import numpy as np
 import xgboost as xgb
 
-from routebalance.estimate.xgboost_tpot import FEATURES, XGBoostTPOT
+from fmrlb.estimate.xgboost_tpot import FEATURES, XGBoostTPOT
 from tools.tpot_sweep import read_sweep
 
 V3_PARAMS = {"objective": "reg:squarederror", "eval_metric": ["mae", "rmse"], "max_depth": 6, "learning_rate": 0.1,

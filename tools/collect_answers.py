@@ -34,9 +34,9 @@ from typing import Sequence
 
 from bench.records import Sampling
 from bench.schema import read_jsonl, write_new_jsonl
-from routebalance.backend import BackendClient
-from routebalance.config import ConfigError
-from routebalance.types import Instance
+from fmrlb.backend import BackendClient
+from fmrlb.config import ConfigError
+from fmrlb.types import Instance
 from tools import direct
 from tools.campaign import load_plan
 

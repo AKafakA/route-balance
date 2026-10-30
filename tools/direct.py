@@ -2,7 +2,7 @@
 
 Used for what must not enter the scheduler's decision log or counters: waiting for idle engines (drain),
 warming the engines up before a cell, and the closed-loop runs of W1 (calibration).
-Every request goes through the scheduler's own backend client (routebalance.backend), so it is sent exactly as
+Every request goes through the scheduler's own backend client (fmrlb.backend), so it is sent exactly as
 a served request is: the raw prompt as the single user message, templated once by vLLM, with the scope's
 sampling. Engine load is read from the same Prometheus /metrics the telemetry view scrapes.
 
@@ -34,10 +34,10 @@ import aiohttp
 from bench.client import check_fd_limit
 from bench.dataset import file_sha256, read_rows
 from bench.records import Sampling
-from routebalance.backend import BackendClient, GenerationRequest, GenerationResult
-from routebalance.config import ConfigError, fleet_digest, load_fleet
-from routebalance.telemetry import fetch_metrics, parse_metrics
-from routebalance.types import Instance
+from fmrlb.backend import BackendClient, GenerationRequest, GenerationResult
+from fmrlb.config import ConfigError, fleet_digest, load_fleet
+from fmrlb.telemetry import fetch_metrics, parse_metrics
+from fmrlb.types import Instance
 
 POLL_S = 0.5                       # how often a drain re-reads the engines
 SCRAPE_TIMEOUT_S = 5.0             # one /metrics read (a failure bound, as the drain timeout)

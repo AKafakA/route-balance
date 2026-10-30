@@ -5,7 +5,7 @@ Usage: python -m gates.preflight --scheduler URL --fleet FLEET.json --hosts HOST
 (exit 0 on pass, 1 on fail; one reason per line)
 
 The fleet files
-  load (routebalance.config.load_fleet) into the fleet whose digest is F: the engines probed below are the
+  load (fmrlb.config.load_fleet) into the fleet whose digest is F: the engines probed below are the
   deployment the cell expects.
 Every engine of the fleet
   GET /health        200
@@ -34,9 +34,9 @@ from typing import Optional
 import aiohttp
 
 from gates.cell import GateError, parse_manifest, parse_stats, run
-from routebalance.config import ConfigError, fleet_digest, load_fleet, loads_strict
-from routebalance.telemetry import InstanceStateUnavailable, parse_metrics
-from routebalance.types import Instance
+from fmrlb.config import ConfigError, fleet_digest, load_fleet, loads_strict
+from fmrlb.telemetry import InstanceStateUnavailable, parse_metrics
+from fmrlb.types import Instance
 
 VLLM_VERSION = "0.18.1"            # official vLLM, no fork
 PROBE_TIMEOUT_S = 10.0             # per HTTP request of this gate (not an experiment parameter)

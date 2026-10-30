@@ -47,8 +47,8 @@ from bench.runner import CellSpec, _check_before_sending, run_cell
 from bench.scope import ConfigEntry, ExpectedCell, expected_cells
 from gates.cell import GateError, engine_changes, open_cell, reset_problems, traffic_problems
 from gates.preflight import ENGINE_PATHS, engine_problems, fetch
-from routebalance.backend import BackendClient
-from routebalance.config import ConfigError, fleet_digest, load_fleet
+from fmrlb.backend import BackendClient
+from fmrlb.config import ConfigError, fleet_digest, load_fleet
 from tools import cell_driver, direct, engines
 from vsrbench import constants as C
 from vsrbench import config as vc
@@ -62,7 +62,7 @@ REPO = MODULE.parent
 SCHEDULER_PORT = 8200          # our scheduler's port on the cluster (scripts/run_scope.sh --scheduler)
 LEASE_ROOT = "/mydata"         # the cluster nodes' data disk: a test run never writes there
 SHARED = ("scripts/mirror.sh",)   # besides every shared Python module loaded (harness_record reads sys.modules)
-SHARED_PACKAGES = ("analysis", "bench", "gates", "routebalance", "tools")
+SHARED_PACKAGES = ("analysis", "bench", "gates", "fmrlb", "tools")
 # the environment scripts/run_cell.sh gives the bench runner (env -i), and the interpreter's module path
 CLIENT_ENV = ("HOME", "PATH", "LANG", "HF_HOME", "HF_HUB_OFFLINE", "PYTHONPATH")
 
@@ -90,7 +90,7 @@ def scheduler_processes() -> list[int]:
                 cmd = (d / "cmdline").read_bytes().replace(b"\0", b" ")
             except OSError:
                 continue
-            if b"routebalance.server" in cmd or b"routebalance/server.py" in cmd:
+            if b"fmrlb.server" in cmd or b"fmrlb/server.py" in cmd:
                 out.append(int(d.name))
     return out
 

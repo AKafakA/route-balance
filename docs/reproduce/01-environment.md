@@ -15,7 +15,7 @@ that, not this repository.
 
 ## Serving cluster (stage 2 only)
 
-The runs used 13 bare-metal CloudLab nodes of three types. `routebalance/hw.py` is the only map from node type to
+The runs used 13 bare-metal CloudLab nodes of three types. `fmrlb/hw.py` is the only map from node type to
 GPU, and the fleet files place every instance:
 
 | node type | GPUs | Qwen fleet (`configs/fleet_qwen.json`) | Gemma fleet (`configs/fleet_gemma.json`) |

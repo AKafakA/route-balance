@@ -10,7 +10,7 @@ fields vLLM-SR v0.4.0 accepts (constants.REQUEST_FIELDS: no stop), the request i
   first_token_s            the SLO's TTFT: set by the join, from Envoy's own request start (vLLM-SR's front
                            door) to this first token, as our scheduler's runs from its handler; the client's send-to-first
                            value until then, and the first token's wall-clock time is kept (self.first_wall)
-The stream is parsed chunk by chunk as it arrives, as routebalance/backend.py parses vLLM's and as vLLM bench's own client
+The stream is parsed chunk by chunk as it arrives, as fmrlb/backend.py parses vLLM's and as vLLM bench's own client
 does (a burst of parsing at a stream's end would delay the other requests' timestamps on the same loop). The
 scheduler's loop-lag probe runs on the client's loop (self.lag) as the record of the client's own work.
   server_latency_s  the client's clock from the send to the end of the stream
@@ -29,9 +29,9 @@ import aiohttp
 
 from bench.client import check_fd_limit
 from bench.records import SchedulerIdentity
-from routebalance.backend import _SSEParser, stock_connector
-from routebalance.config import ConfigError, loads_strict
-from routebalance.decision_log import LagProbe
+from fmrlb.backend import _SSEParser, stock_connector
+from fmrlb.config import ConfigError, loads_strict
+from fmrlb.decision_log import LagProbe
 from vsrbench import constants as C
 
 ROUTING_HEADERS = ("x-vsr-selected-model", "x-vsr-selected-decision", "x-vsr-selected-recipe",
@@ -126,7 +126,7 @@ def _fail(error: str) -> bytes:
 
 
 class _Stream:
-    """One reply's stream, read as routebalance/backend.py reads vLLM's: the first event with choices (vLLM's role
+    """One reply's stream, read as fmrlb/backend.py reads vLLM's: the first event with choices (vLLM's role
     chunk) is the first token, timed when its bytes were read; the usage-only event (choices == []) ends it; an error
     event is a failed request."""
 
@@ -141,7 +141,7 @@ class _Stream:
         if "error" in event:
             raise RuntimeError(f"server error: {str(event['error'])[:300]}")
         self.model = event.get("model", self.model)
-        choices = event.get("choices")     # as routebalance/backend.py: a list of objects, [] in the usage-only event
+        choices = event.get("choices")     # as fmrlb/backend.py: a list of objects, [] in the usage-only event
         if not isinstance(choices, list) or not all(isinstance(c, dict) for c in choices):
             raise ValueError(f"malformed choices {choices!r:.80}")
         if not choices:

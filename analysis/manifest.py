@@ -30,7 +30,7 @@ from analysis.validity import failed_requests, integrity_problems
 from bench.records import CELL_SUFFIX, CellRecord, cell_dir, cell_path, read_cell, records_in
 from bench.scope import BenchParams, ExpectedCell, Scope, expected_cells, load_scope
 from gates.cell import isolation_problems
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 _REASON_CHARS = 500
 

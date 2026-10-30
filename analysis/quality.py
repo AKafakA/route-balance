@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Literal, Optional, Sequence
 
 from bench.schema import read_jsonl
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 Outcome = Literal["matched", "corpus_gap", "unmatched", "unscored"]
 

@@ -1,7 +1,7 @@
 """Strict schemas for the files the benchmark and the analysis read and write.
 
 Every key is required, unknown keys are rejected, nothing is coerced (no "1" for 1, no true for 1), and
-non-finite numbers are refused. JSON text goes through routebalance.config.loads_strict, which also
+non-finite numbers are refused. JSON text goes through fmrlb.config.loads_strict, which also
 rejects duplicate keys.
 """
 from __future__ import annotations
@@ -12,7 +12,7 @@ from typing import Iterator, Sequence
 
 from pydantic import BaseModel, ConfigDict
 
-from routebalance.config import ConfigError, loads_strict, parse, read_json   # noqa: F401 (re-exported)
+from fmrlb.config import ConfigError, loads_strict, parse, read_json   # noqa: F401 (re-exported)
 
 
 class Strict(BaseModel):

@@ -17,7 +17,7 @@ groups they belong to, and each group its fleet: the Qwen fleet (`qwen_std`, `co
 fleet (`gemma`, `configs/fleet_gemma.json`). Every run of a row must run on that fleet, and the driver refuses another.
 
 The render pins the deployment the runs used. Each fleet's digest covers each instance's tier, node and port (the
-fleet file) and its addresses (the hosts file), as `fleet_digest` in `routebalance/config.py` computes it, and
+fleet file) and its addresses (the hosts file), as `fleet_digest` in `fmrlb/config.py` computes it, and
 `scope.json` pins each configuration's digest. Every driver checks these pins, the calibration and the answer
 collection of step 2 included. So for a new cluster, first copy the render:
 
@@ -32,7 +32,7 @@ fleet and configuration digests in place:
 .venv-uvicorn/bin/python - RENDER HOSTS.json <<'EOF'
 import json, sys
 from pathlib import Path
-from routebalance.config import config_digest, fleet_digest, load_fleet, load_scheduler
+from fmrlb.config import config_digest, fleet_digest, load_fleet, load_scheduler
 render, hosts = Path(sys.argv[1]), Path(sys.argv[2])
 fleets = {"qwen_std": Path("configs/fleet_qwen.json"), "gemma": Path("configs/fleet_gemma.json")}
 plan = json.loads((render / "plan.json").read_text())
@@ -77,14 +77,14 @@ run directory to step 4's `--fresh-scheduler`.
 | the scored corpora | each prompt with every model's answer (`tools/collect_answers.py`, directly on the engines) and its judged score |
 
 The quality and length estimator's index is the earlier implementation's KNN index format, built over the same
-training rows. This repository loads it and checks its md5 (`routebalance/estimate/knn.py`). The scheduler documents
+training rows. This repository loads it and checks its md5 (`fmrlb/estimate/knn.py`). The scheduler documents
 under `configs/render36/configs/` name the artifacts the paper's runs used.
 
 The training prompt files the plan pins (`train_qwen`, 14,919 rows, and `train_gemma`, 8,086) hold the whole training
 split, which the latency sweep sends. `filter` keeps a prompt only if every model's answer to it has a judge score:
 14,908 of the Qwen prompts (11 have an answer the judge could not score) and all 8,086 Gemma prompts. Those rows build
 the estimator's index and the routers' artifacts, and they are the training counts of the paper's Table A1
-(`paper/routebalance-paper-data-v1.5/data/dataset_rows.json`).
+(`paper/fmrlb-paper-data-v1.5/data/dataset_rows.json`).
 
 When a rebuilt input replaces one the render pins, set its pin in `RENDER` by hand: an artifact's md5 in the
 scheduler documents that name it, a prompt file's sha256 and row count (and a budget table's sha256) in every

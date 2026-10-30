@@ -34,7 +34,7 @@ from analysis.manifest import cell_problems
 from bench.records import cell_dir
 from gates.cell import GateError, open_cell, reset_problems, traffic_problems
 from bench.scope import expected_cells
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 from tools import cell_driver
 from vsrbench.run_cell import CLIENT_ENV, _sha, input_problems, inputs_reference, shared_tree_check, versions, vsr_cell
 from vsrbench.stack import Docker

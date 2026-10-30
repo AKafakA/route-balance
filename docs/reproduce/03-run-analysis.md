@@ -7,14 +7,14 @@ reads them. Nothing is typed in by hand. This stage regenerates them with no GPU
 
 The pack holds the inputs the paper's numbers are computed from (`data/`), the code that computes them (`code/`),
 and every output the paper uses (`expected/`). It needs only CPython 3.10 and the pack's `requirements.txt`. It is
-in this repository as `paper/routebalance-paper-data-v1.5/`, so from the repository's root, in a path without
+in this repository as `paper/fmrlb-paper-data-v1.5/`, so from the repository's root, in a path without
 whitespace:
 
 ```bash
 cd paper
 python3.10 -m venv pack-env && . pack-env/bin/activate
-python -m pip install -r routebalance-paper-data-v1.5/requirements.txt
-bash routebalance-paper-data-v1.5/reproduce_results.sh new-output
+python -m pip install -r fmrlb-paper-data-v1.5/requirements.txt
+bash fmrlb-paper-data-v1.5/reproduce_results.sh new-output
 ```
 
 The script runs the generator and the plot scripts on `data/` into the new folder, and compares every output with
@@ -30,10 +30,10 @@ input of the reports. The paper's four reports were made from them with this rep
 python -m analysis.report --render configs/render36 --cells RUNS/q1 --data-root INPUTS/qwen/data \
   --fleet qwen_std=configs/fleet_qwen.json --hosts HOSTS.json --slo-base qwen=INPUTS/qwen/slo_base_qwen.json \
   --store INPUTS/qwen/budget-judge/store.s1.jsonl INPUTS/qwen/budget-judge/store.s2-zero.jsonl \
-  --rules configs/prereg_rules.json --treatment RouteBalance-static --out report-q1
+  --rules configs/prereg_rules.json --treatment F-MRLB-static --out report-q1
 python -m analysis.report --render configs/render36 --cells RUNS/g1 --data-root INPUTS/gemma/data \
   --fleet gemma=configs/fleet_gemma.json --hosts HOSTS.json --slo-base gemma=INPUTS/gemma/slo_base_gemma.json \
-  --rules configs/prereg_rules.json --treatment RouteBalance-static --out report-g1
+  --rules configs/prereg_rules.json --treatment F-MRLB-static --out report-g1
 ```
 
 and the same over all seeds (`RUNS/qall`, `RUNS/gall`). The records carry the served texts of the budget runs and

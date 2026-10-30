@@ -5,7 +5,7 @@ A request meets its SLO at a level ("tight" or "loose") when
 with k the level's value for the served model (configs/prereg_rules.json "slo") and the single-request values
 measured on the serving stack in the plan's row W1 at b = 1 (tools/slo_base.py). On the record's clocks:
   TTFT  first_token_s, the scheduler's clock from the request's arrival to its first token (its queue and decision,
-        RouteBalance's round wait, then the engine's TTFT); the reply's delivery after the last
+        F-MRLB's round wait, then the engine's TTFT); the reply's delivery after the last
         token is no longer counted
   TPOT  (server_latency - ttft) / (output_tokens - 1), the engine's time per output token; a one-token reply
         has no TPOT and is judged on its TTFT alone (vLLM's benchmark defines TPOT from two tokens on)
@@ -24,8 +24,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Mapping, Optional, Sequence
 
 from bench.schema import Strict, parse, read_json
-from routebalance.config import ConfigError
-from routebalance.types import Instance
+from fmrlb.config import ConfigError
+from fmrlb.types import Instance
 
 if TYPE_CHECKING:
     from analysis.frontier import ConfigPoint

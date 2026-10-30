@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 from vsrbench import constants as C
 
 CLEAN_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"   # the CLI's own tools (docker) only

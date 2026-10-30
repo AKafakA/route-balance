@@ -46,7 +46,7 @@ import numpy as np
 
 from bench.dataset import file_sha256
 from bench.schema import read_jsonl, write_new_jsonl
-from routebalance.config import ConfigError, loads_strict
+from fmrlb.config import ConfigError, loads_strict
 
 JUDGE_KEY = "deepeval-llama3.1-8b-it_reference"
 N_CLUSTERS = 32          # AvengersPro's clusters per family

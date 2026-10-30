@@ -8,7 +8,7 @@
                           "budgets": null | {"path": "<relative to the data root>", "sha256": "<hex>"}}},
   "traces":   {"<trace_id>": {"burstiness": float, "segments": [{"n_requests": int, "rate": float}, ...]}},
   "configs":  {"<config_id>": {"system": str, "knob": str, "dispatch": str,
-                               "config_digest": "<routebalance.config.config_digest of its scheduler config>"}},
+                               "config_digest": "<fmrlb.config.config_digest of its scheduler config>"}},
   "blocks":   [{"name": str, "group": str, "dataset": "<name>", "configs": [...], "traces": [...],
                 "seeds": [int, ...], "prompt_order": "fixed" | "per_seed"}],
   "groups":   {"<group>": {"reference": null | "<config_id>",
@@ -46,7 +46,7 @@ from bench.arrivals import Trace, arrival_times, schedule_digest
 from bench.dataset import Order, order_digest, prompt_order
 from bench.records import Sampling
 from bench.schema import Strict, parse, read_json
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 _ID = re.compile(r"[A-Za-z0-9.-]+(_[A-Za-z0-9.-]+)*")   # no "__": it separates the parts of a cell id
 _SHA256 = r"^[0-9a-f]{64}$"

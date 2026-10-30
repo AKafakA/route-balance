@@ -56,10 +56,10 @@ import aiohttp
 from bench.schema import read_jsonl
 from bench.dataset import prompt_order
 from bench.records import Sampling
-from routebalance.backend import BackendClient
-from routebalance.config import ConfigError
-from routebalance.telemetry import fetch_metrics, parse_metrics
-from routebalance.types import Instance
+from fmrlb.backend import BackendClient
+from fmrlb.config import ConfigError
+from fmrlb.telemetry import fetch_metrics, parse_metrics
+from fmrlb.types import Instance
 from tools import direct
 from tools.campaign import load_plan, plan_row
 

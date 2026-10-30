@@ -24,7 +24,7 @@ REPLAY_TABLE = "public.router_replay_records"   # the only table a fresh 0.4.0 s
 
 # the policy: the built-in Mixture-of-Models Balance, as shipped, behind one entrypoint name
 BUNDLE, RECIPE = "mom-v1", "balance"
-ENTRYPOINT = "routebalance/mom-balance"
+ENTRYPOINT = "fmrlb/mom-balance"
 SHIPPED_INDICES = ("vllm-sr/general@1.0.0", "vllm-sr/reasoning@1.0.0")   # the pools' quality.index as shipped
 POOLS = ("simple", "medium", "reasoning")
 
@@ -40,8 +40,8 @@ LADDER = {
 
 # the quality evidence: our DeepEval score on the training split (tuning on training data is allowed,
 # as for BEST-Route; "yes" to our DeepEval index), through v0.4.0's documented custom evaluation
-BENCHMARK_ID = "routebalance/deepeval-train@1.0.0"
-INDEX_ID = "routebalance/deepeval-quality@1.0.0"
+BENCHMARK_ID = "fmrlb/deepeval-train@1.0.0"
+INDEX_ID = "fmrlb/deepeval-quality@1.0.0"
 PROFILE = "train-split"
 JUDGE_KEY = "deepeval-llama3.1-8b-it_reference"         # the corpus's judge (the labels every estimator trains on)
 # the training split's judged rows each family's means come from, pinned: Qwen's;
@@ -62,7 +62,7 @@ REQUEST_FIELDS = ("model", "messages", "temperature", "repetition_penalty", "fre
 
 # the test profile (the test machine) is marked, and a lease config carrying any mark is refused
 # (the test setup is isolated from the evaluation)
-TEST_MARK = "routebalance-test-profile"
+TEST_MARK = "fmrlb-test-profile"
 # Docker's default bridge gateway (a Docker constant, not a host of ours): the test machine as the test stack
 # reaches its engines; assembled from parts, so that no private address is written in the tree
 TEST_GATEWAY = ".".join(("172", "17", "0", "1"))

@@ -19,7 +19,7 @@ import numpy as np
 from analysis.manifest import Coverage
 from analysis.metrics import CellSummary
 from bench.scope import ExpectedCell
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 METRICS = ("e2e_mean_ms", "e2e_p99_ms", "cost_decode_per_1k", "cost_total_per_1k", "slo_miss_tight",
            "slo_miss_loose")   # lower is better; total cost (prompt + output) beside the decode cost

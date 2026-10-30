@@ -25,7 +25,7 @@ print(l["host"], l["port"], "none" if l.get("torch_threads") is None else l["tor
 art=$(grep -o -- '--artifacts [^ ]*' "$run/scheduler.cmd" | cut -d' ' -f2)
 [ -n "$art" ] || { echo "$run/scheduler.cmd records no --artifacts" >&2; exit 2; }
 want=$(cd "$REPO" && "$PY" -c 'import sys
-from routebalance.config import config_digest, fleet_digest, load_fleet, load_scheduler
+from fmrlb.config import config_digest, fleet_digest, load_fleet, load_scheduler
 print(config_digest(load_scheduler(sys.argv[3])), fleet_digest(load_fleet(sys.argv[1], sys.argv[2])))' \
   "$run/fleet.json" "$run/hosts.json" "$run/scheduler.json")
 ctl sched-stop

@@ -10,7 +10,7 @@
 #   with exactly the plan's arguments (python -m tools.engine_plan engines ...) and waited for: /health, then
 #   GET /v1/models must name the tier's model. Any failure exits 1 and leaves the other engines as they are
 #   (stop them with stop_engines.sh). A running engine, a busy port or a busy GPU is refused, never killed.
-# scheduler: python -m routebalance.server on node N with the fleet, hosts and scheduler config copied to
+# scheduler: python -m fmrlb.server on node N with the fleet, hosts and scheduler config copied to
 #   the node (sha256-checked), and the scheduler's launch parameters from L (configs/scheduler_launch.example.json
 #   documents them; OWNER-MUST-SET values are refused). --artifacts, --tree and --log-dir are paths on the
 #   node (--tree: the repository copy the scheduler venv was installed from; --log-dir must be new or empty).
@@ -96,7 +96,7 @@ deploy_scheduler() {
   launch=$(plan launch --launch "$LAUNCH") || die "invalid launch file $LAUNCH"
   IFS=$'\t' read -r host port threads conns rtimeout <<< "$launch"
   want=$(cd "$RB_REPO" && "$PY" -c 'import sys
-from routebalance.config import config_digest, fleet_digest, load_fleet, load_scheduler
+from fmrlb.config import config_digest, fleet_digest, load_fleet, load_scheduler
 print(config_digest(load_scheduler(sys.argv[3])), fleet_digest(load_fleet(sys.argv[1], sys.argv[2])))' \
     "$FLEET" "$HOSTS" "$CONFIG") || die "invalid fleet, hosts or scheduler config"
   addr=$(plan nodes --fleet "$FLEET" --hosts "$HOSTS" | awk -F'\t' -v n="$NODE" '$1 == n {print $2}') \

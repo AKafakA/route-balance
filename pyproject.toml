@@ -3,9 +3,9 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "routebalance"
+name = "fmrlb"
 version = "0.1.0"
-description = "RouteBalance: a unified router and load balancer for heterogeneous LLM serving"
+description = "F-MRLB: a unified router and load balancer for heterogeneous LLM serving"
 requires-python = "==3.10.*"
 # Scheduler host. Versions are one pinned environment: the packages this
 # code or upstream AvengersPro imports, and the libraries those import (scipy, tokenizers, huggingface_hub,
@@ -105,7 +105,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["routebalance*", "bench*", "analysis*", "gates*", "tools*"]
+include = ["fmrlb*", "bench*", "analysis*", "gates*", "tools*"]
 
 [tool.ruff]
 line-length = 125

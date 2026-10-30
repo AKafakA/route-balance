@@ -50,7 +50,7 @@ import numpy as np
 from analysis.frontier import METRICS, CellPoint, by_config, pareto
 from analysis.metrics import RequestValues
 from analysis.rules import EqualQuality
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 FRONTIER_METRIC = "e2e_mean_ms"
 READINGS = ("one_config", "per_metric")

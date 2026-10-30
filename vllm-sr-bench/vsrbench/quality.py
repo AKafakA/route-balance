@@ -1,5 +1,5 @@
 """Each model's quality evidence for vLLM-SR: its mean judged score on the training split, the labels
-RouteBalance's estimator and the other baselines train on."""
+F-MRLB's estimator and the other baselines train on."""
 from __future__ import annotations
 
 import hashlib

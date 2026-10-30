@@ -1,11 +1,11 @@
-# vllm-sr-bench: vLLM Semantic Router in the RouteBalance main grid
+# vllm-sr-bench: vLLM Semantic Router in the F-MRLB main grid
 
 vLLM-SR runs outside our scheduler, as its authors deploy it: Envoy with vLLM-SR's router behind an ext_proc filter, in
 front of the same engines. This module drives it with the same client inputs as every other system and records the
 same evidence, so its runs compare apple to apple with the main grid.
 
 It is separate by design. It imports the shared pieces (`bench/`'s prompts, arrivals, sampling and records, and
-`tools/`'s engine checks) and never modifies them. Nothing under `routebalance/`, `bench/`, `gates/`, `tools/` or `configs/`
+`tools/`'s engine checks) and never modifies them. Nothing under `fmrlb/`, `bench/`, `gates/`, `tools/` or `configs/`
 changes for it. Under `scripts/`, only the node setup gains its role (`setup.sh --role vsr`: Docker, its data root and
 classic store on /mydata, started but never enabled at boot, the CLI's venv, the pinned
 images, the classifier weights) and `node_layout.sh` its venv path (`VSR_VENV`) and Docker's data root
@@ -35,7 +35,7 @@ neighbouring pairs:
 
 **Quality evidence (our DeepEval score):**
 - Each model's mean judged score on the training split (`deepeval-llama3.1-8b-it_reference`), the labels
-  RouteBalance's estimator and the other baselines train on (training-split tuning is allowed, as for BEST-Route).
+  F-MRLB's estimator and the other baselines train on (training-split tuning is allowed, as for BEST-Route).
 - Supplied through v0.4.0's documented custom evaluation: an operator benchmark, per-model records, an operator index.
 - Each pool's `quality.index` points to it: the one edit to the shipped policy, made on upstream's generated text and
   checked to change nothing else (`config.patch_indices`).
@@ -95,9 +95,9 @@ Each run is fresh and isolated, checked by execution (a check reads the live sys
    proof, the traffic check, the engines unchanged), the engines launched as for the paired main-grid run (a lease run's
    `--reference-cells`), `gates/verdict.json`. Publish. Mirror. `vsr/harness.json` records the code that ran.
 
-**TTFT (as RouteBalance's):** the SLO's TTFT (`first_token_s`) runs from Envoy's own request start
+**TTFT (as F-MRLB's):** the SLO's TTFT (`first_token_s`) runs from Envoy's own request start
 (vLLM-SR's front door, `%START_TIME%` in its access log, millisecond resolution) to the first streamed message with
-choices reaching the client (timed as `routebalance/backend.py` times it), and the client connects to Envoy's container
+choices reaching the client (timed as `fmrlb/backend.py` times it), and the client connects to Envoy's container
 address directly, not through docker-proxy: the same start as every system on our scheduler, whose TTFT runs from the
 request's arrival at our scheduler's handler (its front door, reached directly on the node) to the scheduler's receipt of
 the backend's first chunk. Both start after the client-to-system hop and include everything the system does before
@@ -127,7 +127,7 @@ checks no container is given a device.
 ## Profile
 
 A run takes the fleet file, the experiment network and the training means. A configuration carrying the test
-profile's mark (`routebalance-test-profile`) or any test token is refused, before the stack starts and again in the
+profile's mark (`fmrlb-test-profile`) or any test token is refused, before the stack starts and again in the
 live configuration.
 
 ## Layout

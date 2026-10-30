@@ -3,7 +3,7 @@
 scripts/run_cell.sh writes, per cell, <cells_root>/<cell_id>/:
   <cell_id>.cell.json     the bench record (bench/records.py)
   config.json             the exact scheduler document POSTed for the cell
-  decisions.jsonl         the scheduler's decision lines (routebalance/server.py) that carry the cell's config
+  decisions.jsonl         the scheduler's decision lines (fmrlb/server.py) that carry the cell's config
                           digest, from the cell's window only
   stats_before.json       GET /v1/stats before the first request, read once no decision line is buffered
   stats_after.json        GET /v1/stats after the last reply, read once the decision log is flushed
@@ -32,7 +32,7 @@ from pydantic import Field, ValidationError, field_validator, model_validator
 
 from bench.records import CELL_SUFFIX, CellRecord, read_cell
 from bench.schema import Strict, read_json
-from routebalance.config import ConfigError, loads_strict
+from fmrlb.config import ConfigError, loads_strict
 
 MANIFEST_FORMAT = "rb-manifest/1"
 _MD5 = r"^[0-9a-f]{32}$"
@@ -98,7 +98,7 @@ class FleetEntry(Strict):
 
 class SystemKeys(Strict):
     """The system-defining settings: the only ones that may differ between the systems of a group."""
-    mode: Literal["routebalance", "pipeline"]
+    mode: Literal["fmrlb", "pipeline"]
     telemetry_read: Literal["per_round", "per_request", "poll"]   # part of the system
     weights: Optional[dict[str, float]]
     rounds: dict[str, Any]
@@ -112,7 +112,7 @@ class SystemKeys(Strict):
 
     @model_validator(mode="after")
     def _read_follows_mode(self):
-        allowed = ("per_round", "poll") if self.mode == "routebalance" else ("per_request", "poll")
+        allowed = ("per_round", "poll") if self.mode == "fmrlb" else ("per_request", "poll")
         if self.telemetry_read not in allowed:
             raise ValueError(f"a {self.mode} system cannot read telemetry '{self.telemetry_read}'")
         return self
@@ -140,14 +140,14 @@ class Loaded(Strict):
 
 class Code(Strict):
     """Digests of the code at the scheduler's start, and of the files on disk when the manifest was read."""
-    routebalance: str = Field(pattern=_SHA256)
-    routebalance_now: str = Field(pattern=_SHA256)
+    fmrlb: str = Field(pattern=_SHA256)
+    fmrlb_now: str = Field(pattern=_SHA256)
     avengers_pro: Optional[str]
     avengers_pro_now: Optional[str]
 
     def changed(self) -> list[str]:
         """'<tree>: <digest at start> -> <digest on disk now>' for every code tree that changed since start."""
-        return [f"{k}: {getattr(self, k)} -> {getattr(self, f'{k}_now')}" for k in ("routebalance", "avengers_pro")
+        return [f"{k}: {getattr(self, k)} -> {getattr(self, f'{k}_now')}" for k in ("fmrlb", "avengers_pro")
                 if getattr(self, k) != getattr(self, f"{k}_now")]
 
 

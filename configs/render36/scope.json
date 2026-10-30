@@ -302,73 +302,73 @@
  },
  "configs": {
   "g1.qwen.rb.q50l30c20": {
-   "system": "RouteBalance",
+   "system": "F-MRLB",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "663fdd876f78dc0f540e2bb2d5369e228ce3e64dfdaa20a2a82f57cc65d08007"
+   "config_digest": "c5af613332b19bf159bf640ff41ce5e222fdee9753b8d8c8c6d27a158b088874"
   },
   "g1.qwen.rb.uniform": {
-   "system": "RouteBalance",
+   "system": "F-MRLB",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "58141e07d0eb754a857fdf07b49afb4e68ea0415467ac4291c3584c4f0527b6f"
+   "config_digest": "f8df9a40de483337c7ce6a4c09684faf273cbe2f5b029166e147bf5f5a0ba8ea"
   },
   "g1.qwen.rb-poll.q50l30c20": {
-   "system": "RouteBalance-poll",
+   "system": "F-MRLB-poll",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "7baf561f691a7526c4f5d514d390b75d412d6026b23a3dcb1dbcc5ee90222b16"
+   "config_digest": "f7a9e422a979858a37bd81622ac10f601d06c3d40de0868b68fda76877a04df3"
   },
   "g1.qwen.rb-poll.uniform": {
-   "system": "RouteBalance-poll",
+   "system": "F-MRLB-poll",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "7a9edbcfaa89af03b43f63e362cf67e0cecc43a8f45d41e42199e13f9cec4c97"
+   "config_digest": "298af2e80107adcd22e2f838abdc2073f42e113c84cc2bbbeef12f4d73ab6128"
   },
   "g1.qwen.rb-static.q50l30c20": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "18451af6206765ee44dafb0eddbc476041ee6985e52a39664a973190f0969188"
+   "config_digest": "4b03d6fdfccc85cb376569012a478416cd7655d0d42d43529e01d6c3c81fc04c"
   },
   "g1.qwen.rb-static.uniform": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "254c45ae02a0ee93c39f95243b2edc01f13010a1c0469fad61039e1befce590a"
+   "config_digest": "caffe3d8ea4e85258cf99f5d298314df479011d334ba67eed708183186aba9c5"
   },
   "g1.qwen.rb-static-poll.q50l30c20": {
-   "system": "RouteBalance-static-poll",
+   "system": "F-MRLB-static-poll",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "e19f4723cdc6c07d82b1f385ebf5d586473d5cc97fe533aa75d1f481d77a684b"
+   "config_digest": "e83f91c93961c909707624aea89efd4963da13fab2adcfa17ff654a3f76e2182"
   },
   "g1.qwen.rb-static-poll.uniform": {
-   "system": "RouteBalance-static-poll",
+   "system": "F-MRLB-static-poll",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "148e24a86ec864363fde7afe2afa1bd8a41b00fcb30580883dc4b1469d35f7d1"
+   "config_digest": "a35231d6cdd780cefb7c6fd67ea4f1eaa944fcd2de50853a535d08bb95fcdfb3"
   },
   "g1.qwen.rb-dec.q50l30c20": {
-   "system": "RB-decoupled",
+   "system": "F-decoupled",
    "knob": "q50l30c20",
    "dispatch": "lor",
    "config_digest": "ad5e389a21bea075390817f856179acabca8e19b660c431bf18e657ed9feea5a"
   },
   "g1.qwen.rb-dec.uniform": {
-   "system": "RB-decoupled",
+   "system": "F-decoupled",
    "knob": "uniform",
    "dispatch": "lor",
    "config_digest": "a82d30cfc68c574c3443c841d65ceead9aaf7840b33bfc4c6f002bcbd6b174c1"
   },
   "g1.qwen.rb-dec-probe.q50l30c20": {
-   "system": "RB-decoupled-probe",
+   "system": "F-decoupled-probe",
    "knob": "q50l30c20",
    "dispatch": "lor",
    "config_digest": "c123d4fc62f50858e1c68996cdf82fdb87bb694f11ea3b2a315250a6f5b01586"
   },
   "g1.qwen.rb-dec-probe.uniform": {
-   "system": "RB-decoupled-probe",
+   "system": "F-decoupled-probe",
    "knob": "uniform",
    "dispatch": "lor",
    "config_digest": "e5007d768d312e7cb35378bd143d29b3d7ee301776670428bab56e11ba045619"
@@ -440,76 +440,76 @@
    "config_digest": "d1d9625ffaf012e434767ede38eab36cacf849aa12a5788e0f2e080160fc44d3"
   },
   "g1.qwen.rb-learned.q50l30c20": {
-   "system": "RouteBalance-learned",
+   "system": "F-MRLB-learned",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "224d034b2fba68643b40f4ff9d0e64ea611df22963abcf14ff6c08351cfa6ed6"
+   "config_digest": "2976073815132ddb4f81ee13307245f76aae3f8662817fba848aebcc3174c7e6"
   },
   "g1.qwen.rb-learned.uniform": {
-   "system": "RouteBalance-learned",
+   "system": "F-MRLB-learned",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "0c5b7b7bd9cf4e543673088611b1144b7bfb2bda1c39ac4f5d0bdd8ce2177a2a"
+   "config_digest": "e767423792d31a73cc7eb52fff20206cbb680e593962b4c744bc8d8251f7e3d5"
   },
   "fix.qwen.rb.q50l30c20": {
-   "system": "RouteBalance",
+   "system": "F-MRLB",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "663fdd876f78dc0f540e2bb2d5369e228ce3e64dfdaa20a2a82f57cc65d08007"
+   "config_digest": "c5af613332b19bf159bf640ff41ce5e222fdee9753b8d8c8c6d27a158b088874"
   },
   "fix.qwen.rb.uniform": {
-   "system": "RouteBalance",
+   "system": "F-MRLB",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "58141e07d0eb754a857fdf07b49afb4e68ea0415467ac4291c3584c4f0527b6f"
+   "config_digest": "f8df9a40de483337c7ce6a4c09684faf273cbe2f5b029166e147bf5f5a0ba8ea"
   },
   "fix.qwen.rb-poll.q50l30c20": {
-   "system": "RouteBalance-poll",
+   "system": "F-MRLB-poll",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "7baf561f691a7526c4f5d514d390b75d412d6026b23a3dcb1dbcc5ee90222b16"
+   "config_digest": "f7a9e422a979858a37bd81622ac10f601d06c3d40de0868b68fda76877a04df3"
   },
   "fix.qwen.rb-poll.uniform": {
-   "system": "RouteBalance-poll",
+   "system": "F-MRLB-poll",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "7a9edbcfaa89af03b43f63e362cf67e0cecc43a8f45d41e42199e13f9cec4c97"
+   "config_digest": "298af2e80107adcd22e2f838abdc2073f42e113c84cc2bbbeef12f4d73ab6128"
   },
   "fix.qwen.rb-static.q50l30c20": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "18451af6206765ee44dafb0eddbc476041ee6985e52a39664a973190f0969188"
+   "config_digest": "4b03d6fdfccc85cb376569012a478416cd7655d0d42d43529e01d6c3c81fc04c"
   },
   "fix.qwen.rb-static.uniform": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "254c45ae02a0ee93c39f95243b2edc01f13010a1c0469fad61039e1befce590a"
+   "config_digest": "caffe3d8ea4e85258cf99f5d298314df479011d334ba67eed708183186aba9c5"
   },
   "fix.qwen.rb-static-poll.q50l30c20": {
-   "system": "RouteBalance-static-poll",
+   "system": "F-MRLB-static-poll",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "e19f4723cdc6c07d82b1f385ebf5d586473d5cc97fe533aa75d1f481d77a684b"
+   "config_digest": "e83f91c93961c909707624aea89efd4963da13fab2adcfa17ff654a3f76e2182"
   },
   "fix.qwen.rb-static-poll.uniform": {
-   "system": "RouteBalance-static-poll",
+   "system": "F-MRLB-static-poll",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "148e24a86ec864363fde7afe2afa1bd8a41b00fcb30580883dc4b1469d35f7d1"
+   "config_digest": "a35231d6cdd780cefb7c6fd67ea4f1eaa944fcd2de50853a535d08bb95fcdfb3"
   },
   "fix.qwen.rb-learned.q50l30c20": {
-   "system": "RouteBalance-learned",
+   "system": "F-MRLB-learned",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "224d034b2fba68643b40f4ff9d0e64ea611df22963abcf14ff6c08351cfa6ed6"
+   "config_digest": "2976073815132ddb4f81ee13307245f76aae3f8662817fba848aebcc3174c7e6"
   },
   "fix.qwen.rb-learned.uniform": {
-   "system": "RouteBalance-learned",
+   "system": "F-MRLB-learned",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "0c5b7b7bd9cf4e543673088611b1144b7bfb2bda1c39ac4f5d0bdd8ce2177a2a"
+   "config_digest": "e767423792d31a73cc7eb52fff20206cbb680e593962b4c744bc8d8251f7e3d5"
   },
   "qwen.ap.pw025.lor": {
    "system": "AvengersPro",
@@ -596,76 +596,76 @@
    "config_digest": "9773e182d1ace90b2e21e792645cb7fa03eb7f041136364a867befa27beb290c"
   },
   "qwen.rb-static-dec.q80l10c10": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q80l10c10",
    "dispatch": "lor",
    "config_digest": "8080298aad271b20de158a332bbd23eb706f438bfa4ee80d2c3e2c5ef4d792bf"
   },
   "qwen.rb-static-dec.q60l20c20": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q60l20c20",
    "dispatch": "lor",
    "config_digest": "dc3f8c9291aed8443908021aacf73a148af2c017e8f2b2eb5f766e7d69153e10"
   },
   "qwen.rb-static-dec.q50l30c20": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q50l30c20",
    "dispatch": "lor",
    "config_digest": "5c9f8d34e18f38b79486ed6c5a572d0951fe1af83febbbce12d9a4bf462a4725"
   },
   "qwen.rb-static-dec.uniform": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "uniform",
    "dispatch": "lor",
    "config_digest": "935741c34725c1d130b1648db458ca71cf53194c827811ee22e584a8346b5e24"
   },
   "qwen.rb-static.q10l10c80": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q10l10c80",
    "dispatch": "joint",
-   "config_digest": "b411cc7f847d15532be50aa03b8a0409023bcdeabc585da2d3db515bd1c0e3a4"
+   "config_digest": "a5daa099616233a183b7e417702d77f1d8977f01493fbec5c88210f0731439fc"
   },
   "qwen.rb-static.q10l80c10": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q10l80c10",
    "dispatch": "joint",
-   "config_digest": "3b8628139d21c189506723c9e3169ab0788cbd087bfd5f2a72d2d26e3b13c734"
+   "config_digest": "0cb8d4c6f03b85501b1f86f57da2c0502cb204dbc1794265ff89c1d4f3e20cf3"
   },
   "qwen.rb-static.q20l20c60": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q20l20c60",
    "dispatch": "joint",
-   "config_digest": "e8d5f1f15474051d59af53c3176515b28e1715b7dc6d477410ec3c1ab64c72e9"
+   "config_digest": "21f2bc4be9fa382a18652e81f02ea16292ceb377defb38214ed3141e8de2e8d6"
   },
   "qwen.rb-static.q20l60c20": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q20l60c20",
    "dispatch": "joint",
-   "config_digest": "96f3b9b8999145fe2a568737cc0f0ab01b0b5626390f3b7d0a58865a77b16af4"
+   "config_digest": "f80bef9b22b832c7ac716cb5d70d3d28d6443cf08182da9bebea506dc430f8ca"
   },
   "qwen.rb-static.uniform": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "254c45ae02a0ee93c39f95243b2edc01f13010a1c0469fad61039e1befce590a"
+   "config_digest": "caffe3d8ea4e85258cf99f5d298314df479011d334ba67eed708183186aba9c5"
   },
   "qwen.rb-static.q50l30c20": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "18451af6206765ee44dafb0eddbc476041ee6985e52a39664a973190f0969188"
+   "config_digest": "4b03d6fdfccc85cb376569012a478416cd7655d0d42d43529e01d6c3c81fc04c"
   },
   "qwen.rb-static.q60l20c20": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q60l20c20",
    "dispatch": "joint",
-   "config_digest": "4aafd069c49b82b6e730e6e9ec7b420f0febf8ceb938a897dca33605e30f11aa"
+   "config_digest": "d68a4029b34c5c1644081dc3f8ba6620a3b36dbf64602c1949d96b77bcae144f"
   },
   "qwen.rb-static.q80l10c10": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "5e5b76df83c78999113e57c43a34ebc7099cba189063fbef95144befebf7263b"
+   "config_digest": "266b2616896af6b755749d4219eece1f15be71d3956a520732aa328e3a880ee9"
   },
   "qwen.ap.pw025.lor-shipped": {
    "system": "AvengersPro-shipped",
@@ -722,25 +722,25 @@
    "config_digest": "9b270475b9dec0e89ab0b50cdb3b882288016bb2fb139cc6361bd5b95540cf5c"
   },
   "qwen.rb-static-dec.q80l10c10-shipped": {
-   "system": "RB-decoupled-static-shipped",
+   "system": "F-decoupled-static-shipped",
    "knob": "q80l10c10",
    "dispatch": "lor",
    "config_digest": "8805a769acda217ca72775c3dde793b9f33bc4b7104b36922c1ba16e89f54ce4"
   },
   "qwen.rb-static-dec.q60l20c20-shipped": {
-   "system": "RB-decoupled-static-shipped",
+   "system": "F-decoupled-static-shipped",
    "knob": "q60l20c20",
    "dispatch": "lor",
    "config_digest": "3177f9df672336f30df80941716127f29ae305ee4d26684fd2366a05c72d0994"
   },
   "qwen.rb-static-dec.q50l30c20-shipped": {
-   "system": "RB-decoupled-static-shipped",
+   "system": "F-decoupled-static-shipped",
    "knob": "q50l30c20",
    "dispatch": "lor",
    "config_digest": "ad33ada2c3755b1ac08ccde66d3b56b1b24a626722a9b51cfef034a240e3c9b1"
   },
   "qwen.rb-static-dec.uniform-shipped": {
-   "system": "RB-decoupled-static-shipped",
+   "system": "F-decoupled-static-shipped",
    "knob": "uniform",
    "dispatch": "lor",
    "config_digest": "a5912a151335284911d2f161b1706366fde7971425c452e0e3c63b02c3a930de"
@@ -806,52 +806,52 @@
    "config_digest": "e306b29308739f24c2a989e828acb99d8cac877ecbe901b4ccd563b83be53f46"
   },
   "qwen.rb-static-reqnorm.q10l10c80": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q10l10c80",
    "dispatch": "joint",
-   "config_digest": "347083048aff7cb66494143abe898da1a95cc2f648eb489136fabf1fa4b44464"
+   "config_digest": "4c2647deb88de9a7c1b5e7d43b96475876fa8aff73771eaee1a0fee6b7ce0cd1"
   },
   "qwen.rb-static-reqnorm.q10l80c10": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q10l80c10",
    "dispatch": "joint",
-   "config_digest": "ac8ac0999b3803e6c344a450708d470654721539c10131a8806c14c0a1c26459"
+   "config_digest": "1c6e9d0e10ae7baec271baea2fd18101421691edc4b816e862a668b6840c0dcf"
   },
   "qwen.rb-static-reqnorm.q20l20c60": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q20l20c60",
    "dispatch": "joint",
-   "config_digest": "cae0412620e7d9b6b9ceabf28cd2024078a25906fbc1c603b0cf4ac94d95a080"
+   "config_digest": "1a76134f47e7a03f1944ef8a2416434dd787c455003ddf10ccfbb7b2b569c2c6"
   },
   "qwen.rb-static-reqnorm.q20l60c20": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q20l60c20",
    "dispatch": "joint",
-   "config_digest": "9f7b9f0f48bf5d3676999632b1b45b17cc5316f97476f48f2d8d85d97ce73f7f"
+   "config_digest": "f253e6fe8a818c727f77823c046f67e3df1cf24d268d10863bf9d7bfdfacabb1"
   },
   "qwen.rb-static-reqnorm.uniform": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "f0247c40a48e85f0add6c2b5b7f98ab487bfbf9d6a1cadf9dc7891158a503e5d"
+   "config_digest": "737cb46578416c5781cc85efaec9d34f1ef979aa7dbcc49a9da8066ae551daa4"
   },
   "qwen.rb-static-reqnorm.q50l30c20": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "bce6e46bc0d25e152784074d3597cb95972b8819f3ea5039d9da8bdb17db5d0b"
+   "config_digest": "5ac34972b41929bfcc4c911b9ebb25ed0e786a325ccd034c210c06972de4cfdd"
   },
   "qwen.rb-static-reqnorm.q60l20c20": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q60l20c20",
    "dispatch": "joint",
-   "config_digest": "d1972f49661f2fa71bd30664e1772091600407347ab942b9da18ebd55c44cd8b"
+   "config_digest": "9e0a5f07c8ba3cf3fd8fca7cf1a1ee858f9b98733950844dcbc4769d62d37635"
   },
   "qwen.rb-static-reqnorm.q80l10c10": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "15eb9315f7d27b058b2e1e50494271c51775e77f37999fba7f8f6e7093867da3"
+   "config_digest": "5461516b149523ec7043f9b88d9d71fb18be2b141b0483c92b893b74d2658447"
   },
   "qwen.ap.pw025.rr": {
    "system": "AvengersPro",
@@ -956,259 +956,259 @@
    "config_digest": "0c51205b0650a190a4bac751a4a19fef4ba8a487a1b1d7210cccdabe9a9f2437"
   },
   "qwen.rb-static.q90l05c05": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q90l05c05",
    "dispatch": "joint",
-   "config_digest": "3f237ba27ab4e45853254402b8a7d7b995b35ca495f1f33b974ee21d5c377ee5"
+   "config_digest": "91659ba7638ed136df07adfe20098cd457518c6428b7f4fa628413df25fd82af"
   },
   "qwen.rb-static.q30l10c60": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q30l10c60",
    "dispatch": "joint",
-   "config_digest": "ea32fc803ac5cbcd4aa36cf1865be0816df2ee9c81b4426b83d9f4c91d84a6ad"
+   "config_digest": "2a522de8b84fcce352290a0b9e7b3788e0f8eaccb57e81e1b935964572824033"
   },
   "qwen.rb-static.q05l25c70": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q05l25c70",
    "dispatch": "joint",
-   "config_digest": "a04fb06570f79859b314ca6c4da3a4ec2310733598761bd3cb98a1f550867aaa"
+   "config_digest": "d3e55bac8e5da561acbe654a50edc8633dc0a1c4ca5cc386ff306e69dfcfa580"
   },
   "qwen.rb-static-reqnorm.q90l05c05": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q90l05c05",
    "dispatch": "joint",
-   "config_digest": "fb10c3711f15cc7f9b6088cca6cf5c6fdf139951303435699a2be1b0c0f564a3"
+   "config_digest": "b778a4915714c25c9561b97b0b3608f211556ebb4a5b0fbad439a599b651ea7b"
   },
   "qwen.rb-static-reqnorm.q30l10c60": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q30l10c60",
    "dispatch": "joint",
-   "config_digest": "21ababaf32a2946342a7a9054f2106eaa618a2db572fe46c03f68593e19c6b3a"
+   "config_digest": "4edc22f1b358a22c2ee59ba126a944c5c5850ec9142bb8a19edaf56249f0c403"
   },
   "qwen.rb-static-reqnorm.q05l25c70": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q05l25c70",
    "dispatch": "joint",
-   "config_digest": "9750846d4c634c12be435c67536764e7024c941eeab764e96803ffd64f3243bb"
+   "config_digest": "b042265158f0993f5e34ee1407bfbaf71e31f9229d30abdd30aac26d8e8d06ac"
   },
   "qwen.rb-static-dec.q90l05c05": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q90l05c05",
    "dispatch": "lor",
    "config_digest": "ecb94c102da3544776ea52acaa2c7d1b3fbcaa8b39661eee471a10396b3d32cb"
   },
   "qwen.rb-static-dec.q30l10c60": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q30l10c60",
    "dispatch": "lor",
    "config_digest": "c68e05998ecbaeee898ed0c1ce079a29f66d90136bf177f23e5baa0938402d28"
   },
   "qwen.rb-static-dec.q05l25c70": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q05l25c70",
    "dispatch": "lor",
    "config_digest": "30c3470bc86ef99dfed2f96b60db6764b059216975f3308673cd2d7173ac0d59"
   },
   "qwen.rb-static.q25l15c60": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q25l15c60",
    "dispatch": "joint",
-   "config_digest": "922bc8a7711ef9e229639ad635802d31a70fd9b672e50cf151cdf9f1b1761b33"
+   "config_digest": "e3d811384e1082e8be7914d2d387ce12653ccad27e6cf7e59571319204ba8b30"
   },
   "qwen.rb-static.q05l45c50": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q05l45c50",
    "dispatch": "joint",
-   "config_digest": "a8609b4e5a43f5dc08692a65acda909aeb142502530f5c0ca78b0c9a8ea77cf7"
+   "config_digest": "dd85e7ab3588ec3a98a34c3084f9412549dbe034976de9bbd64a9007bc764222"
   },
   "qwen.rb-static.q05l35c60": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q05l35c60",
    "dispatch": "joint",
-   "config_digest": "0b0b5fe312322de29ca33081b2d4abd5f545504ff85a78fed5271e42c625970c"
+   "config_digest": "55e78fedcd038994024179f329a1b2976914013a85deeff3813ded21cda08253"
   },
   "qwen.rb-static.q22l18c60": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q22l18c60",
    "dispatch": "joint",
-   "config_digest": "7e3f3997041aa80b1379f0d38c29846f1fda7fef05d86d58d5de211309a28a43"
+   "config_digest": "3ca073474996f2fabe6c8fc5efa87a1d8aa1f44bbda706cc9a68ddf50b272982"
   },
   "qwen.rb-static.q25l10c65": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q25l10c65",
    "dispatch": "joint",
-   "config_digest": "fe5496d4158345d831e9eaaf7355ad56a695c7ed923af547d31b00921c58fe29"
+   "config_digest": "a4a47439c62cdc2e16b7b6f01e38209913d74f66c93c24d13dc490c96d64e5cf"
   },
   "qwen.rb-static.q05l40c55": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q05l40c55",
    "dispatch": "joint",
-   "config_digest": "03200f5590dc639993453fd9956f874e6c91ae0668c2d42afbc9009d9ff2d15b"
+   "config_digest": "cdaf4adb729d86aef6a2f0e88527759e8491e30d7680ff28cebe49162061e15f"
   },
   "qwen.rb-static.q20l50c30": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q20l50c30",
    "dispatch": "joint",
-   "config_digest": "45d466e810f773f1968f61caf007c38a60966d1fa60a3c4b38fe5caa953d97f1"
+   "config_digest": "c649e238bb07cc59bc2afc484018573b7d5652b4efe7a48c5d779a7d1e30915d"
   },
   "qwen.rb-static.q25l05c70": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q25l05c70",
    "dispatch": "joint",
-   "config_digest": "1df354c52b492f7983433e2dba6726f69dba46b957cc1e3e9716f56bb49abbce"
+   "config_digest": "947d4d595670b2703cdaf48898105652830bdbf0458a9f68edfe6fee9e14bef6"
   },
   "qwen.rb-static-reqnorm.q22l18c60": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q22l18c60",
    "dispatch": "joint",
-   "config_digest": "7230ba54f05878c851a17730994a660b899fd663c37af29ead7cf588f895e3bd"
+   "config_digest": "2dd8c7f7f595c1cf16973d3103053b2598f44c4d051d92333527dc78613218ca"
   },
   "qwen.rb-static-dec.q22l18c60": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q22l18c60",
    "dispatch": "lor",
    "config_digest": "cc5f1109f9b6c18e403092532a504def47924cefbe1dd30fd40de528124d4401"
   },
   "qwen.rb-static-reqnorm.q25l05c70": {
-   "system": "RouteBalance-reqnorm",
+   "system": "F-MRLB-reqnorm",
    "knob": "q25l05c70",
    "dispatch": "joint",
-   "config_digest": "b5f8a378358ff1342242701c163ffa44aa49e92a44328d84758a2ca1bdb6aefa"
+   "config_digest": "98001a033a03db832dce4724fad149dbd1279ff8b32de95f87291d88b693571c"
   },
   "qwen.rb-static-dec.q25l05c70": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q25l05c70",
    "dispatch": "lor",
    "config_digest": "1ed92ee31581ce3ea92897e13302c7b887e325a0e02fec651b4ebd0c5d63d3d7"
   },
   "abl.qwen.rb-static.q80l10c10": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "5e5b76df83c78999113e57c43a34ebc7099cba189063fbef95144befebf7263b"
+   "config_digest": "266b2616896af6b755749d4219eece1f15be71d3956a520732aa328e3a880ee9"
   },
   "abl.qwen.rb-static.abl-wlat0.q80l10c10": {
-   "system": "RouteBalance-abl-wlat0",
+   "system": "F-MRLB-abl-wlat0",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "3f8be224c0a4fe1f80a79ba897b07997fa601c7ea2b719b4abf877bcb31e185b"
+   "config_digest": "2ed6cef1e8c109f1dad4ea94acc5ba7c07940e3e7af0649518a12cbcb393f35f"
   },
   "abl.qwen.abl-static-prior.q80l10c10": {
-   "system": "RouteBalance-abl-static-prior",
+   "system": "F-MRLB-abl-static-prior",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "700ba0ab193690eb0ba4a9acf0669e3fe42e4f4770f1269b0b62b2bf04f73c73"
+   "config_digest": "11775c707b4a275e3274db85c9193610906a4c941d0b5da1b4e0f5aaf5133755"
   },
   "abl.qwen.rb-static.abl-lpt-off.q80l10c10": {
-   "system": "RouteBalance-abl-lpt-off",
+   "system": "F-MRLB-abl-lpt-off",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "1634b27a29c2d84a4c1926986abcb2c2851db117966be16d5005e72a5fb0c55d"
+   "config_digest": "5d294c3cbae89b9ce428fb63977c019a24e3ded1074cde873225522e15c59ab2"
   },
   "abl.qwen.rb-static.abl-round1.q80l10c10": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "ae76b0daf72aed0c371338af3062ec9eae959e8c7138850e176cff47b27f19f8"
+   "config_digest": "4f1202b3a27b47a836ed12642267b80d82f5caaf868daccbfe9c79fc1b2320a8"
   },
   "abl.qwen.rb-static.abl-round32.q80l10c10": {
-   "system": "RouteBalance-abl-round32",
+   "system": "F-MRLB-abl-round32",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "7e271bc21ddc34b23677822dadc6302c633aaaf0e3d4bb46e73556ba84ef0563"
+   "config_digest": "aa0b55fc349ddb2399f3d410e46a819605d276071db88fe6992cfa2c7410d432"
   },
   "abl.qwen.rb-static.abl-prompt-blind.q80l10c10": {
-   "system": "RouteBalance-abl-prompt-blind",
+   "system": "F-MRLB-abl-prompt-blind",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "758ea92917112c9ceff72fcd80e8e5bf7869e332e5746c0c4acdf66ea5ce7e0d"
+   "config_digest": "e2418ce2b03b05a45b32d1772b0166d6522cb533e4438c842465ee9b1f2655f7"
   },
   "abl.qwen.rb-static.abl-half-labels.q80l10c10": {
-   "system": "RouteBalance-abl-half-labels",
+   "system": "F-MRLB-abl-half-labels",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "79ce068bd3b191519ab2dce46d22828cddf1cfec7cd65239b14e45ada63f004e"
+   "config_digest": "2d21186d25fd716ecd915449c2414d3b9b25a613678d26baf762fe29b7d10bd6"
   },
   "abl.qwen.rb-static.abl-labels75.q80l10c10": {
-   "system": "RouteBalance-abl-labels75",
+   "system": "F-MRLB-abl-labels75",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "82eee1fe502e8a4025a316394d1babe87dc5613fc542cc5ed65225a7389558a7"
+   "config_digest": "093b7f5017b6fa4e04b814da5c64358391baaeff97707a1e164fa25c0800c4a0"
   },
   "abl.qwen.rb-static.abl-labels25.q80l10c10": {
-   "system": "RouteBalance-abl-labels25",
+   "system": "F-MRLB-abl-labels25",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "18ccfe79462f0130ffe3a66d1c85268f2976f5ac1d6fed39d05a498cd6d03167"
+   "config_digest": "1cb3b6588d8a36ffecb8bc1f9772a6d14153af8767ae4cc63fe84854f5c4c8fb"
   },
   "abl.qwen.rb-static.abl-dr-off.q80l10c10": {
-   "system": "RouteBalance-abl-dr-off",
+   "system": "F-MRLB-abl-dr-off",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "efd1dae0de6855098e5a29dfc783a747660ef5ac745d5ef6b4cce5ef960a9061"
+   "config_digest": "596c35ffde61dcac3c7878d8f33eaa9da6cdc37938fcdbb645596d070d3938e1"
   },
   "abl.qwen.rb-static.abl-lpt-min.q80l10c10": {
-   "system": "RouteBalance-abl-lpt-min",
+   "system": "F-MRLB-abl-lpt-min",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "8388c56d359091256c44051eb218ca0c41f368327d7ce9d9c4712c576526f83c"
+   "config_digest": "0a021e1ea69335f2edf915f0e6c5f3a4b5e8a8655f3d8ad985f13ad3c88af4ee"
   },
   "abl.qwen.rb-static.abl-lpt-mean.q80l10c10": {
-   "system": "RouteBalance-abl-lpt-mean",
+   "system": "F-MRLB-abl-lpt-mean",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "d110591f5ce8c62f11fbe1835542bd9e602bee400289830c9e7491973f034641"
+   "config_digest": "ff13845e1adc13af219e99e1ebd4a36eaca432ee3a4612bd7d0216efa4854da4"
   },
   "abl.qwen.rb-static.abl-lodo-lmsys.q80l10c10": {
-   "system": "RouteBalance-abl-lodo-lmsys",
+   "system": "F-MRLB-abl-lodo-lmsys",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "627b64ffd1cec78930ae841122a5da6964e30b358b2ea65e22037404ac194a13"
+   "config_digest": "ca6fdb75c6d97400d233064f99d18a2e4ab9a26ba7739f5dd54441fce9558d3e"
   },
   "abl.qwen.rb-static.abl-lodo-gsm8k.q80l10c10": {
-   "system": "RouteBalance-abl-lodo-gsm8k",
+   "system": "F-MRLB-abl-lodo-gsm8k",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "aa5b5f2c67cfa9e8ef93cabee456ce70b1a9d154db5d1045042160f853be9077"
+   "config_digest": "bcb997a4892e31bd042a6721f17a6a18e47cac9fecc6893e30e79bcd3cb8aeb5"
   },
   "abl.qwen.rb-learned-retrained.q80l10c10": {
-   "system": "RouteBalance-learned-retrained",
+   "system": "F-MRLB-learned-retrained",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "ffcd7b90450fc30837a8821fb2fd1316e302a4b1b39de2646084425b7d514e15"
+   "config_digest": "8f6f1ec1923f465fa2e926705bb9e55d2796c387f73e1b0a90ca08d7be8688c0"
   },
   "gemma.rb-static.q50l30c20": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "ab440d4af5ba8295eb189ed90f472b53f6a3b375acb5c9e5f5490d669df53294"
+   "config_digest": "3d0f7b05836818c059dc500f196241be58e92cde8df206c0ed5a2a9e9ded1e0d"
   },
   "gemma.rb-static.q80l10c10": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "ba6d78adcd4b1f60c928b4a1784682a25a37be422a0ae5049d7a01a68d795d11"
+   "config_digest": "ebd604f2f78eff7aa955ccbb6dd6c5d740e7d711bb1d3cc42de38af3b23b0a1f"
   },
   "gemma.rb-static.uniform": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "b4d5f22579e904c4c771c63c4dab4c448af71d2cda1cead9e8d9735c143daaa1"
+   "config_digest": "4f7b7afc877de1605bd99e24e9ee91154de70a5a8abfb1b7c1bfde398792d90d"
   },
   "gemma.rb-static-dec.q50l30c20": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q50l30c20",
    "dispatch": "lor",
    "config_digest": "57f4f41f238c68cf0309294e572e92803b87751b5584b5ca5bd3db8a2646469f"
   },
   "gemma.rb-static-dec.q80l10c10": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "q80l10c10",
    "dispatch": "lor",
    "config_digest": "35e98ea9017a25861ffe32d6bc4009cf38d04d1e75c4324215094d4684df8891"
   },
   "gemma.rb-static-dec.uniform": {
-   "system": "RB-decoupled-static",
+   "system": "F-decoupled-static",
    "knob": "uniform",
    "dispatch": "lor",
    "config_digest": "28e16a7533d0025a9fe53c2f941c745dfab63e25df8d89182234fd409fe43e8f"
@@ -1250,82 +1250,82 @@
    "config_digest": "a617111e1552d556f512d4b3cdd56c4b0a580f83dbd15388748307455e820c95"
   },
   "qwen.rb-static.abl-round1.uniform": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "dc6b56e171ed67ac45ed913e88e8263e9db55638bd0932fd7e727ab6e1d2f7bd"
+   "config_digest": "73d0ccb3697b40604ae4ed7e4f8f2042080d4d818277acf6a4922fcbc50770fa"
   },
   "qwen.rb-static.abl-round1.q60l20c20": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q60l20c20",
    "dispatch": "joint",
-   "config_digest": "0689b471ada1d023bbdb930188c7f22b858ab6ef220ad4471c2fac4250b863ec"
+   "config_digest": "a36aac016e42c833305adffe459791449da4b6f1f809f5f5312974b51d49a3dd"
   },
   "qwen.rb-static.abl-round1.q80l10c10": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "ae76b0daf72aed0c371338af3062ec9eae959e8c7138850e176cff47b27f19f8"
+   "config_digest": "4f1202b3a27b47a836ed12642267b80d82f5caaf868daccbfe9c79fc1b2320a8"
   },
   "qwen.rb-static.abl-round1.q90l05c05": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q90l05c05",
    "dispatch": "joint",
-   "config_digest": "ecaf53b22c48a68872bb03964c6ae1a7f90b63e2bba4ff3455726dcf6c204568"
+   "config_digest": "7c2d43576ab393f1eef96fe807dce22cbe2b0214aa214f0c94257f87d32f6cdf"
   },
   "qwen.rb-static.abl-round1.q05l25c70": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q05l25c70",
    "dispatch": "joint",
-   "config_digest": "639cfd027fe0e7db3abf3edc372859791c73856cd5aeb99fe2af5e51686385cb"
+   "config_digest": "ebc5333c93eedc66db043e71cf0cf60f2aba565f97cc318cead62770a0ee67c5"
   },
   "qwen.rb-static.abl-round1.q22l18c60": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q22l18c60",
    "dispatch": "joint",
-   "config_digest": "e18b969f9310d903ee97c5f6a806b9d5f6f630a390dc1b621e1f2097f93872d1"
+   "config_digest": "ed8fd51ab820d0358e12907a26136d39232d5566692665fbf060bdc04c45bb4f"
   },
   "qwen.rb-static.abl-round1.q25l05c70": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q25l05c70",
    "dispatch": "joint",
-   "config_digest": "414208dc122edcc1428a86ae907e62417662adfad8aabaaab57b5fcd155d816d"
+   "config_digest": "11e3ecbfa4332b4ced03ce5ea94e7d8f8427756b0f7c448a621730c97ff5248f"
   },
   "qwen.rb-static.abl-round1.q50l30c20": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "aebb2619a80c36adefaa445e62169bb5afcd3517cbde78c86fc6bf4c0d5341f3"
+   "config_digest": "430af6e88fd83d7331583f95a5d824ed1883dff6b0449168f2af82580d9b5bca"
   },
   "gemma.rb-static.abl-round1.q50l30c20": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q50l30c20",
    "dispatch": "joint",
-   "config_digest": "751397e18e4ba203067b992833b90e4d6c078a930e8d0c4f3857a2814bafb562"
+   "config_digest": "769d0a7abb028dbe2b693bd137fecd1e892f716c925a95bd03638965a23835bb"
   },
   "gemma.rb-static.abl-round1.q80l10c10": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "q80l10c10",
    "dispatch": "joint",
-   "config_digest": "c9718c44d03f05738efdca13a147c5a57fbd087f3e96915f7041e685c9118dee"
+   "config_digest": "b1e6215ba12024b7457ec963c8896e97205264906809b899507edaccc545b8a2"
   },
   "gemma.rb-static.abl-round1.uniform": {
-   "system": "RouteBalance-abl-round1",
+   "system": "F-MRLB-abl-round1",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "08194ff2e5eb2f3a70126dc25dbeb0d8aa4d249cde5b04f74532c3c0e3c28584"
+   "config_digest": "bcd41bc776dbd3807bc569ad0b0fb8bce13bf49fe9f8d28cbfb0a3e942dee1d7"
   },
   "b75.qwen.rb-static-budget.uniform": {
-   "system": "RouteBalance-static-budget",
+   "system": "F-MRLB-static-budget",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "3fa491b42c2ec858d2f3f506b41b508bcf1766ec151958cfe0ca82bb43411544"
+   "config_digest": "1a9206fd672eabf368b68359a7627cc1bf638bdfbf4da6fa655ae19524aaa240"
   },
   "b75.qwen.rb-static.uniform": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "254c45ae02a0ee93c39f95243b2edc01f13010a1c0469fad61039e1befce590a"
+   "config_digest": "caffe3d8ea4e85258cf99f5d298314df479011d334ba67eed708183186aba9c5"
   },
   "b75.qwen.br.t00.lor": {
    "system": "BEST-Route",
@@ -1334,16 +1334,16 @@
    "config_digest": "2dfc340a6d166f65e69bd1d7be4542d0af38957698fe273cdecc0945a223d9bb"
   },
   "b45.qwen.rb-static-budget.uniform": {
-   "system": "RouteBalance-static-budget",
+   "system": "F-MRLB-static-budget",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "3fa491b42c2ec858d2f3f506b41b508bcf1766ec151958cfe0ca82bb43411544"
+   "config_digest": "1a9206fd672eabf368b68359a7627cc1bf638bdfbf4da6fa655ae19524aaa240"
   },
   "b45.qwen.rb-static.uniform": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "254c45ae02a0ee93c39f95243b2edc01f13010a1c0469fad61039e1befce590a"
+   "config_digest": "caffe3d8ea4e85258cf99f5d298314df479011d334ba67eed708183186aba9c5"
   },
   "b45.qwen.br.t00.lor": {
    "system": "BEST-Route",
@@ -1352,16 +1352,16 @@
    "config_digest": "2dfc340a6d166f65e69bd1d7be4542d0af38957698fe273cdecc0945a223d9bb"
   },
   "b30.qwen.rb-static-budget.uniform": {
-   "system": "RouteBalance-static-budget",
+   "system": "F-MRLB-static-budget",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "3fa491b42c2ec858d2f3f506b41b508bcf1766ec151958cfe0ca82bb43411544"
+   "config_digest": "1a9206fd672eabf368b68359a7627cc1bf638bdfbf4da6fa655ae19524aaa240"
   },
   "b30.qwen.rb-static.uniform": {
-   "system": "RouteBalance-static",
+   "system": "F-MRLB-static",
    "knob": "uniform",
    "dispatch": "joint",
-   "config_digest": "254c45ae02a0ee93c39f95243b2edc01f13010a1c0469fad61039e1befce590a"
+   "config_digest": "caffe3d8ea4e85258cf99f5d298314df479011d334ba67eed708183186aba9c5"
   },
   "b30.qwen.br.t00.lor": {
    "system": "BEST-Route",

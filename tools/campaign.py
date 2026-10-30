@@ -27,7 +27,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from bench.schema import read_json
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 PLAN_FORMAT = "rb-plan/1"
 

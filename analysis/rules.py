@@ -10,18 +10,18 @@
                   served tier's single-request TTFT and TPOT (tight, loose); attainment_levels, the attainment
                   shares at which goodput is read (the largest rate that keeps them)
   g1              the preregistered gate on the scope's G1 configurations (configs/render36/scope.json), decided
-                  when they finish. RB-new (RouteBalance with the profiled latency curve) is compared with
-                  RB-decoupled on the same preset:
+                  when they finish. RB-new (F-MRLB with the profiled latency curve) is compared with
+                  F-decoupled on the same preset:
                     tier_mix_shift_min            RB-new's tier mix moves with load: the largest change of any
                                                   tier's request share from lambda 12 to lambda 30 is at least this
                                                   (share units, 0..1)
-                    mean_latency_gain_l30_min     at lambda 30, 1 - mean E2E(RB-new) / mean E2E(RB-decoupled) is at
+                    mean_latency_gain_l30_min     at lambda 30, 1 - mean E2E(RB-new) / mean E2E(F-decoupled) is at
                                                   least this
-                    p99_ratio_l30_max             at lambda 30, p99 E2E(RB-new) / p99 E2E(RB-decoupled) is at most
+                    p99_ratio_l30_max             at lambda 30, p99 E2E(RB-new) / p99 E2E(F-decoupled) is at most
                                                   this ("p99 no worse")
-                    quality_tolerance             at lambda 30, quality(RB-decoupled) - quality(RB-new) is at most
+                    quality_tolerance             at lambda 30, quality(F-decoupled) - quality(RB-new) is at most
                                                   this (absolute score units)
-                    l12_mean_latency_ratio_max    the lambda-12 guard: mean E2E(RB-new) / mean E2E(RB-decoupled) at
+                    l12_mean_latency_ratio_max    the lambda-12 guard: mean E2E(RB-new) / mean E2E(F-decoupled) at
                                                   lambda 12 is at most this
                     presets_required              "all": G1 passes when both G1 presets pass; "any": when one does
 
@@ -36,7 +36,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from bench.schema import Strict, parse, read_json
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 PLACEHOLDER = "OWNER-MUST-SET"
 

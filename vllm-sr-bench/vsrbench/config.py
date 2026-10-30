@@ -21,7 +21,7 @@ from typing import Iterable
 
 import yaml
 
-from routebalance.config import ConfigError, load_fleet
+from fmrlb.config import ConfigError, load_fleet
 from vsrbench import constants as C
 
 
@@ -119,7 +119,7 @@ def provider_document(models: list[Model], means: dict[str, float], *, test: boo
                                     "capabilities": ["chat"]} for m in models]},
         "evaluation": {
             "benchmarks": [{"id": C.BENCHMARK_ID, "display_name": "DeepEval on the training split",
-                            "domain": "general_reasoning", "source": "https://example.invalid/route-balance",
+                            "domain": "general_reasoning", "source": "https://example.invalid/f-mrlb",
                             "default_profile": C.PROFILE, "profiles": [profile],
                             "metrics": [{"id": "score", "unit": "proportion", "direction": "higher_is_better",
                                          "range": [0, 1]}]}],

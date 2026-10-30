@@ -28,8 +28,8 @@ from typing import Sequence
 import aiohttp
 
 from bench.dataset import file_sha256
-from routebalance.config import ConfigError
-from routebalance.types import Instance
+from fmrlb.config import ConfigError
+from fmrlb.types import Instance
 from tools import direct
 
 START = "process_start_time_seconds"

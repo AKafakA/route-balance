@@ -18,7 +18,7 @@ from pathlib import Path
 
 from bench.schema import read_jsonl
 from bench.dataset import file_sha256, read_rows
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 
 
 def corpus_rows(path: Path) -> list[tuple[str, str]]:

@@ -1,4 +1,4 @@
-"""Arm gate: the values a cell actually used, read from its decision lines (routebalance/server.py).
+"""Arm gate: the values a cell actually used, read from its decision lines (fmrlb/server.py).
 
 Usage: python -m gates.arm --cell DIR --config CONFIG.json   (exit 0 on pass, 1 on fail; one reason per line)
 
@@ -16,9 +16,9 @@ No connection bound was hit
   The scheduler's engine and telemetry pools never made a request wait for a connection during the cell
   (stats_after minus stats_before): the pools use vLLM bench's stock connector, with no connection limit, and a
   cell in which a request waited is invalid.
-RouteBalance (mode routebalance)
+F-MRLB (mode fmrlb)
   - Every line is a dispatch with its scored candidates: every fleet instance, in fleet order. With the budget
-    admission filter (routebalance/schedule/assign.py Admission) the gate recomputes it from the line's
+    admission filter (fmrlb/schedule/assign.py Admission) the gate recomputes it from the line's
     request (prompt tokens, max_tokens, budget), its expected lengths and the manifest's prices: the candidates
     are the admitted instances, or, when none is admitted, the instances at the cheapest worst-case cost, in
     fleet order, with admitted_all saying which.
@@ -58,8 +58,8 @@ from pathlib import Path
 from typing import Optional
 
 from gates.cell import Cell, FleetEntry, Problems, open_cell, run
-from routebalance.config import SchedulerConfig, config_digest, load_scheduler
-from routebalance.schedule.score import EPS
+from fmrlb.config import SchedulerConfig, config_digest, load_scheduler
+from fmrlb.schedule.score import EPS
 
 # The adaptive round limits (max_batch, timeout_ms) of the paper, written out here so that a changed constant
 # in schedule/rounds.py fails this gate.
@@ -132,7 +132,7 @@ def arm_problems(cell: Cell, cfg: SchedulerConfig) -> tuple[list[str], str]:
                 p.add("a line names an instance outside the fleet", f"{rid}: {line['instance_id']!r}")
             elif "tier" not in line or line["tier"] != inst.tier:
                 p.add("a line's tier is not its instance's", rid)
-    check = _routebalance if cfg.mode == "routebalance" else _pipeline
+    check = _fmrlb if cfg.mode == "fmrlb" else _pipeline
     check(p, cfg, fleet, lines, rec.sampling.max_tokens)
     return p.lines(), f"{cell.cell_id}: {len(lines)} {cfg.mode} decision lines use config {digest[:12]} as configured"
 
@@ -201,7 +201,7 @@ def _decode(p: Problems, rid: str, line: dict, cfg: SchedulerConfig, fleet_model
 
 def _admission(line: dict, fleet: list[FleetEntry], lengths: dict) -> tuple[list[str], bool]:
     """(the candidates the budget filter keeps, in fleet order; whether any was admitted), from the line's
-    request as sent and the fleet's prices, with the scheduler's arithmetic (routebalance/schedule/budget.py)."""
+    request as sent and the fleet's prices, with the scheduler's arithmetic (fmrlb/schedule/budget.py)."""
     req = _get(line, "request")
     if not isinstance(req, dict) or set(req) != {"prompt_tokens", "max_tokens", "budget_cost"} \
             or not _num(req["budget_cost"]) or type(req["prompt_tokens"]) is not int or type(req["max_tokens"]) is not int:
@@ -216,7 +216,7 @@ def _admission(line: dict, fleet: list[FleetEntry], lengths: dict) -> tuple[list
     return [f.instance_id for f in fleet if worst[f.instance_id] == cheapest], False
 
 
-def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], lines: list[dict], max_tokens: int) -> None:
+def _fmrlb(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], lines: list[dict], max_tokens: int) -> None:
     ids = [f.instance_id for f in fleet]
     by_id = {f.instance_id: f for f in fleet}
     model_of = {f.instance_id: f.model for f in fleet}
@@ -226,11 +226,11 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
     for line in lines:
         rid = line["request_id"] if "request_id" in line else "<no request_id>"
         if "candidates" not in line or "instance_id" not in line:
-            p.add("a RouteBalance request was never dispatched", f"{rid} ({line['error'] if 'error' in line else ''})")
+            p.add("a F-MRLB request was never dispatched", f"{rid} ({line['error'] if 'error' in line else ''})")
             continue
         try:
             if "reason" in line:
-                p.add("a RouteBalance line carries a router reason", rid)
+                p.add("a F-MRLB line carries a router reason", rid)
             cands = _get(line, "candidates")
             insts = [c["inst"] for c in cands]
             filter_ran = cfg.budget.admission_filter and _get(line, "budget") is not None
@@ -239,7 +239,7 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
                 if admitted_all is not True:
                     p.add("admitted_all is false but no budget filter ran", rid)
                 if insts != ids:
-                    p.add("the RouteBalance candidates are not every fleet instance in fleet order", f"{rid}: {insts}")
+                    p.add("the F-MRLB candidates are not every fleet instance in fleet order", f"{rid}: {insts}")
             else:
                 want, fits = _admission(line, fleet, _lengths(line, models))
                 if insts != want or admitted_all is not fits:
@@ -265,7 +265,7 @@ def _routebalance(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], li
                 raise _Malformed("round_timeout_ms is not a number")
             rounds.setdefault(line["round"], []).append(line)   # default-ok: grouping
         except (_Malformed, KeyError, TypeError, ValueError) as e:
-            p.add("a RouteBalance decision line is malformed", f"{rid}: {e}")
+            p.add("a F-MRLB decision line is malformed", f"{rid}: {e}")
     for r, members in sorted(rounds.items()):
         _round(p, cfg, r, members)
         complete = len(members) == members[0]["round_size"]
@@ -387,7 +387,7 @@ def _pipeline(p: Problems, cfg: SchedulerConfig, fleet: list[FleetEntry], lines:
             continue
         try:
             if "candidates" in line or "round" in line:
-                p.add("a pipeline line carries RouteBalance round evidence", rid)
+                p.add("a pipeline line carries F-MRLB round evidence", rid)
             reason = line["reason"]
             if not (isinstance(reason, str) and reason.startswith(REASON_PREFIX[rtype])):
                 p.add(f"the router reason is not the {rtype} router's", f"{rid}: {reason!r}")

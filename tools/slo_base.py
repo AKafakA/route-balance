@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 from bench.schema import read_jsonl
-from routebalance.config import ConfigError, loads_strict
+from fmrlb.config import ConfigError, loads_strict
 
 
 def md5(path: Path) -> str:

@@ -23,7 +23,7 @@
   "table_md5": "37616b1748c0a9fd741b30e39af84489"
  },
  "lpt": "max",
- "mode": "routebalance",
+ "mode": "fmrlb",
  "normalize_over": "round",
  "pending_decode": "own_length",
  "pipeline": null,

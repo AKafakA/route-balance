@@ -13,7 +13,7 @@ the fleet instance) and --max-num-seqs (the fleet tier's max_num_seqs, which the
 are added here and may not appear in "args"; --tokenizer-revision is left to vLLM, which takes the model's
 revision (vllm/config/model.py). --dtype, --tensor-parallel-size, --gpu-memory-utilization and
 --max-model-len are required; the tensor-parallel size must equal the instance's GPU count, the GPUs must
-exist on the node (routebalance.hw) and no two instances of a node may share one. `true` is a switch
+exist on the node (fmrlb.hw) and no two instances of a node may share one. `true` is a switch
 (--enforce-eager); there is no false: an absent switch is vLLM's default and the engine's resolved config
 is the record of it.
 
@@ -45,9 +45,9 @@ from typing import Optional, Union
 from pydantic import Field, StrictBool, StrictFloat, StrictInt, StrictStr, field_validator
 
 from bench.schema import Strict, parse, read_json
-from routebalance.config import ConfigError, load_fleet
-from routebalance.hw import gpu_of, gpus_per_node
-from routebalance.types import Instance
+from fmrlb.config import ConfigError, load_fleet
+from fmrlb.hw import gpu_of, gpus_per_node
+from fmrlb.types import Instance
 
 REQUIRED_FLAGS = ("--dtype", "--tensor-parallel-size", "--gpu-memory-utilization", "--max-model-len")
 PLAN_FLAGS = frozenset({"--model", "--revision", "--port", "--max-num-seqs",           # added by this module

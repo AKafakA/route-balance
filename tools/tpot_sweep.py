@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
-from routebalance.config import loads_strict
+from fmrlb.config import loads_strict
 
 KEYS = frozenset({"tier", "features", "tpot_s", "output_tokens", "success"})
 

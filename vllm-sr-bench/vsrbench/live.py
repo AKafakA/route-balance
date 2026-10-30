@@ -16,7 +16,7 @@ import json
 from dataclasses import dataclass
 from typing import Iterable
 
-from routebalance.config import ConfigError
+from fmrlb.config import ConfigError
 from vsrbench import constants as C
 from vsrbench.config import Model, test_tokens_in
 from vsrbench.stack import Docker

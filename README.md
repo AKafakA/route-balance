@@ -1,4 +1,4 @@
-# RouteBalance
+# F-MRLB
 
 A serving-layer scheduler for heterogeneous LLM fleets. For each request it picks a (model, instance) pair, weighing
 predicted quality, load-aware latency and cost, and it schedules requests in rounds so that the requests of a round
@@ -12,7 +12,7 @@ the plot scripts, and every output the paper uses, with a script that rebuilds a
 
 | path | contents |
 |---|---|
-| `routebalance/` | the scheduler: configuration, telemetry, estimators, scheduling rounds, the baselines, the server |
+| `fmrlb/` | the scheduler: configuration, telemetry, estimators, scheduling rounds, the baselines, the server |
 | `bench/` | the open-loop load generator and benchmark client, and the per-run record |
 | `analysis/` | per-run metrics, the run manifest, frontiers, the equal-quality comparison, the SLO, the report |
 | `gates/` | the gates that decide whether a run counts (`docs/reproduce/gates.md`) |
@@ -20,7 +20,7 @@ the plot scripts, and every output the paper uses, with a script that rebuilds a
 | `scripts/` | node setup, engine and scheduler deployment, one run and a row of runs |
 | `configs/` | the fleets, the engine arguments per tier, the scheduler's launch values, the preregistered rules, and the rendered campaign the runs used (`render36/`) |
 | `vllm-sr-bench/` | the vLLM Semantic Router, deployed as its authors deploy it, as its own stack in front of the same engines, and driven by the same client |
-| `paper/` | the paper data pack (`routebalance-paper-data-v1.5/`): `data/`, `code/tools/` (the generator of every number and table, the plot scripts of every figure), `expected/`, `reproduce_results.sh` |
+| `paper/` | the paper data pack (`fmrlb-paper-data-v1.5/`): `data/`, `code/tools/` (the generator of every number and table, the plot scripts of every figure), `expected/`, `reproduce_results.sh` |
 
 ## Quick start
 
@@ -35,11 +35,11 @@ paper from the shipped data, on a CPU, with no run needed:
 ```bash
 cd paper
 python3.10 -m venv pack-env && . pack-env/bin/activate
-python -m pip install -r routebalance-paper-data-v1.5/requirements.txt
-bash routebalance-paper-data-v1.5/reproduce_results.sh new-output      # ends in: PASS: 25 reference outputs match
+python -m pip install -r fmrlb-paper-data-v1.5/requirements.txt
+bash fmrlb-paper-data-v1.5/reproduce_results.sh new-output      # ends in: PASS: 25 reference outputs match
 ```
 
-## Estimators (`routebalance/estimate/`)
+## Estimators (`fmrlb/estimate/`)
 
 | module | what it predicts |
 |---|---|

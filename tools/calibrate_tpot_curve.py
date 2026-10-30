@@ -11,7 +11,7 @@ One sample per request: the mean of its inter-token latencies after the first (r
 are skipped), or its tpot_s (every record: defined from 2 output tokens on). The
 constant is the median over ALL of a tier's samples, every batch size included; for W1 that is all six
 concurrency levels with a fixed number of requests each. Output (--out), the table
-routebalance.estimate.latency reads:
+fmrlb.estimate.latency reads:
   {"unit": "ms_per_token",
    "constant": {tier: median of all the tier's samples},
    "curve": {tier: [[b, running max over b of the medians at b], ...]},   b >= 1 with at least MIN_SAMPLES samples
@@ -39,8 +39,8 @@ from pathlib import Path
 
 import numpy as np
 
-from routebalance.estimate.latency import MIN_TPOT_MS, ConstantTPOT, LatencyError, ProfiledCurveTPOT
-from routebalance.config import loads_strict
+from fmrlb.estimate.latency import MIN_TPOT_MS, ConstantTPOT, LatencyError, ProfiledCurveTPOT
+from fmrlb.config import loads_strict
 
 MIN_SAMPLES = 30
 CURVE_RULE = "running max over b of the per-b medians: a TPOT curve never decreases in b"

@@ -30,7 +30,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The thesis check at 12, 30 and 42 req/s, seed 1. RouteBalance with the measured TPOT curve and with the constant TPOT per tier, and RB-decoupled, each at the presets 50/30/20 and uniform, AvengersPro 0.7 and 0.8 on least-outstanding and on power of two, and power of two alone. Each is read two ways: RouteBalance once per round and from the pollers' cache, the others from the pollers' cache and with a per-request probe of the engines (power of two probes its two drawn instances)",
+   "about": "The thesis check at 12, 30 and 42 req/s, seed 1. F-MRLB with the measured TPOT curve and with the constant TPOT per tier, and F-decoupled, each at the presets 50/30/20 and uniform, AvengersPro 0.7 and 0.8 on least-outstanding and on power of two, and power of two alone. Each is read two ways: F-MRLB once per round and from the pollers' cache, the others from the pollers' cache and with a per-request probe of the engines (power of two probes its two drawn instances)",
    "plan": "66 runs",
    "cells": [
     "g1.qwen.rb.q50l30c20__l12__s1",
@@ -112,7 +112,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The latency sweep for the learned TPOT heads: each run sends all 14,919 training prompts in six segments at 6, 12, 18, 24, 30 and 36 req/s, dispatched at random over every instance, with pending decode counted RouteBalance's way. The scheduler logs every request's latency features (latency.<digest>.jsonl), and run_cell.sh collects each run's part",
+   "about": "The latency sweep for the learned TPOT heads: each run sends all 14,919 training prompts in six segments at 6, 12, 18, 24, 30 and 36 req/s, dispatched at random over every instance, with pending decode counted F-MRLB's way. The scheduler logs every request's latency features (latency.<digest>.jsonl), and run_cell.sh collects each run's part",
    "plan": "24 runs",
    "cells": [
     "qwen.sweep.random__sweep6-36__s1",
@@ -174,7 +174,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RouteBalance with the learned TPOT heads at the presets 50/30/20 and uniform, at 12, 30 and 42 req/s, seed 1, beside the thesis check's runs with the measured curve and the constant TPOT",
+   "about": "F-MRLB with the learned TPOT heads at the presets 50/30/20 and uniform, at 12, 30 and 42 req/s, seed 1, beside the thesis check's runs with the measured curve and the constant TPOT",
    "plan": "6 runs",
    "cells": [
     "g1.qwen.rb-learned.q50l30c20__l12__s1",
@@ -196,7 +196,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The check of adaptive rounds that also take the scheduler's backlog (up to 32 requests), at the presets 50/30/20 and uniform, seed 1: RouteBalance with the measured curve and with the constant TPOT, each reading the load once per round and from the pollers' cache, and with the learned heads reading it once per round, at 42 req/s, and the three that read it once per round at 30 req/s",
+   "about": "The check of adaptive rounds that also take the scheduler's backlog (up to 32 requests), at the presets 50/30/20 and uniform, seed 1: F-MRLB with the measured curve and with the constant TPOT, each reading the load once per round and from the pollers' cache, and with the learned heads reading it once per round, at 42 req/s, and the three that read it once per round at 30 req/s",
    "plan": "16 runs",
    "cells": [
     "fix.qwen.rb.q50l30c20__l42__s1",
@@ -228,7 +228,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The main grid at 12, 18, 24, 30, 36 and 42 req/s, seed 1: RouteBalance at eight presets, RB-decoupled at four, AvengersPro at five settings and BEST-Route at four thresholds on least-outstanding, and the dispatchers alone (round robin, power of two, least-outstanding, random, lowest latency). The per-request routers (AvengersPro, BEST-Route, RB-decoupled) run up to 32 router calls at once, RouteBalance's largest round",
+   "about": "The main grid at 12, 18, 24, 30, 36 and 42 req/s, seed 1: F-MRLB at eight presets, F-decoupled at four, AvengersPro at five settings and BEST-Route at four thresholds on least-outstanding, and the dispatchers alone (round robin, power of two, least-outstanding, random, lowest latency). The per-request routers (AvengersPro, BEST-Route, F-decoupled) run up to 32 router calls at once, F-MRLB's largest round",
    "plan": "156 runs",
    "cells": [
     "qwen.ap.pw025.lor__l30__s1",
@@ -400,7 +400,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The per-request routers as shipped, one router call at a time: AvengersPro at five settings and BEST-Route at four thresholds on least-outstanding, and RB-decoupled at four presets, at 12, 30 and 42 req/s, seed 1, in the main grid's comparison group (an appendix result)",
+   "about": "The per-request routers as shipped, one router call at a time: AvengersPro at five settings and BEST-Route at four thresholds on least-outstanding, and F-decoupled at four presets, at 12, 30 and 42 req/s, seed 1, in the main grid's comparison group (an appendix result)",
    "plan": "39 runs",
    "cells": [
     "qwen.ap.pw025.lor-shipped__l30__s1",
@@ -491,7 +491,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "Every RouteBalance preset of the main grid with per-request normalization (each request's own candidates) in place of the normalization over the round, at the main grid's six rates, seed 1. A fixed rule on the complete main grid picks the ablations' normalization from the two",
+   "about": "Every F-MRLB preset of the main grid with per-request normalization (each request's own candidates) in place of the normalization over the round, at the main grid's six rates, seed 1. A fixed rule on the complete main grid picks the ablations' normalization from the two",
    "plan": "48 runs",
    "cells": [
     "qwen.rb-static-reqnorm.q10l10c80__l30__s1",
@@ -713,7 +713,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "Three more RouteBalance presets (q90l05c05, q30l10c60 and q05l25c70), each with normalization over the round and per request, and as RB-decoupled, at the main grid's six rates, seed 1",
+   "about": "Three more F-MRLB presets (q90l05c05, q30l10c60 and q05l25c70), each with normalization over the round and per request, and as F-decoupled, at the main grid's six rates, seed 1",
    "plan": "54 runs",
    "cells": [
     "qwen.rb-static.q90l05c05__l30__s1",
@@ -783,7 +783,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RouteBalance at two more presets, seed 1: q25l15c60 at 12 and 30 req/s, and q05l45c50 at 24 and 30 req/s",
+   "about": "F-MRLB at two more presets, seed 1: q25l15c60 at 12 and 30 req/s, and q05l45c50 at 24 and 30 req/s",
    "plan": "4 runs",
    "cells": [
     "qwen.rb-static.q25l15c60__l30__s1",
@@ -803,7 +803,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RouteBalance at q05l35c60 (24 and 30 req/s) and q22l18c60 (30 req/s), seed 1",
+   "about": "F-MRLB at q05l35c60 (24 and 30 req/s) and q22l18c60 (30 req/s), seed 1",
    "plan": "3 runs",
    "cells": [
     "qwen.rb-static.q05l35c60__l30__s1",
@@ -822,7 +822,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RouteBalance at q22l18c60 at 18, 24, 36 and 42 req/s, seed 1",
+   "about": "F-MRLB at q22l18c60 at 18, 24, 36 and 42 req/s, seed 1",
    "plan": "4 runs",
    "cells": [
     "qwen.rb-static.q22l18c60__l18__s1",
@@ -842,7 +842,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RouteBalance at q25l10c65 at 18, 24, 30, 36 and 42 req/s, seed 1",
+   "about": "F-MRLB at q25l10c65 at 18, 24, 30, 36 and 42 req/s, seed 1",
    "plan": "5 runs",
    "cells": [
     "qwen.rb-static.q25l10c65__l30__s1",
@@ -863,7 +863,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RouteBalance at q05l40c55 at 24 req/s, seed 1",
+   "about": "F-MRLB at q05l40c55 at 24 req/s, seed 1",
    "plan": "1 run",
    "cells": [
     "qwen.rb-static.q05l40c55__l24__s1"
@@ -880,7 +880,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RouteBalance at q25l15c60 at 18, 24, 36 and 42 req/s, seed 1",
+   "about": "F-MRLB at q25l15c60 at 18, 24, 36 and 42 req/s, seed 1",
    "plan": "4 runs",
    "cells": [
     "qwen.rb-static.q25l15c60__l18__s1",
@@ -900,7 +900,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RouteBalance at q20l50c30 at 12 and 18 req/s, seed 1",
+   "about": "F-MRLB at q20l50c30 at 12 and 18 req/s, seed 1",
    "plan": "2 runs",
    "cells": [
     "qwen.rb-static.q20l50c30__l12__s1",
@@ -918,7 +918,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RouteBalance at q25l05c70 at the main grid's six rates, seed 1",
+   "about": "F-MRLB at q25l05c70 at the main grid's six rates, seed 1",
    "plan": "6 runs",
    "cells": [
     "qwen.rb-static.q25l05c70__l30__s1",
@@ -940,7 +940,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The presets q22l18c60 and q25l05c70 completed in the main grid, seed 1: RouteBalance at the rate not run before (q22l18c60 at 12 req/s), and both presets with per-request normalization and as RB-decoupled at the main grid's six rates",
+   "about": "The presets q22l18c60 and q25l05c70 completed in the main grid, seed 1: F-MRLB at the rate not run before (q22l18c60 at 12 req/s), and both presets with per-request normalization and as F-decoupled at the main grid's six rates",
    "plan": "25 runs",
    "cells": [
     "qwen.rb-static.q22l18c60__l12__s1",
@@ -981,7 +981,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The ablations at the preset 80/10/10 (the RouteBalance preset that dominates the most baselines on the complete main grid) with normalization over the round, at 12, 30 and 42 req/s, seed 1, each paired with that preset's run: latency weight 0 (with the shortest-queue tie-break), the static prior (TPOT times the request's own length, no queue term), LPT off, LPT keyed by the minimum and by the mean, rounds of 1 and of a fixed 32, prompt-blind quality, the kNN with 75%, 50% and 25% of the labels, the kNN without lmsys and without gsm8k, and dead reckoning off",
+   "about": "The ablations at the preset 80/10/10 (the F-MRLB preset that dominates the most baselines on the complete main grid) with normalization over the round, at 12, 30 and 42 req/s, seed 1, each paired with that preset's run: latency weight 0 (with the shortest-queue tie-break), the static prior (TPOT times the request's own length, no queue term), LPT off, LPT keyed by the minimum and by the mean, rounds of 1 and of a fixed 32, prompt-blind quality, the kNN with 75%, 50% and 25% of the labels, the kNN without lmsys and without gsm8k, and dead reckoning off",
    "plan": "45 runs",
    "cells": [
     "abl.qwen.rb-static.q80l10c10__l12__s1",
@@ -1061,7 +1061,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The burst sweep (vLLM bench's burstiness: gamma inter-arrival times of shape alpha at a fixed mean rate, alpha 1 being Poisson) at alpha 0.25, 0.5 and 2.0 and at 12, 30 and 42 req/s, seed 1: RouteBalance 80/10/10, RB-decoupled 80/10/10 and AvengersPro 0.8 on least-outstanding. At alpha 1.0 the main grid's run of each configuration and rate is read",
+   "about": "The burst sweep (vLLM bench's burstiness: gamma inter-arrival times of shape alpha at a fixed mean rate, alpha 1 being Poisson) at alpha 0.25, 0.5 and 2.0 and at 12, 30 and 42 req/s, seed 1: F-MRLB 80/10/10, F-decoupled 80/10/10 and AvengersPro 0.8 on least-outstanding. At alpha 1.0 the main grid's run of each configuration and rate is read",
    "plan": "27 runs",
    "cells": [
     "qwen.rb-static.q80l10c10__ga025-l12__s1",
@@ -1127,7 +1127,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "Gemma, the generality check on a second model family, at OpenRouter's prices. The settings are fixed on Qwen's seed-1 results and none is tuned on Gemma: RouteBalance and RB-decoupled at 50/30/20, uniform and 80/10/10, AvengersPro 0.53 and 0.8, and BEST-Route 0.3 and 0.5, every router on least-outstanding, and least-outstanding alone. The eleven settings at 30 req/s, seed 1",
+   "about": "Gemma, the generality check on a second model family, at OpenRouter's prices. The settings are fixed on Qwen's seed-1 results and none is tuned on Gemma: F-MRLB and F-decoupled at 50/30/20, uniform and 80/10/10, AvengersPro 0.53 and 0.8, and BEST-Route 0.3 and 0.5, every router on least-outstanding, and least-outstanding alone. The eleven settings at 30 req/s, seed 1",
    "plan": "11 runs",
    "cells": [
     "gemma.rb-static.q50l30c20__gl30__s1",
@@ -1299,7 +1299,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The vLLM Semantic Router study's runs on this scheduler at low load, Qwen: round robin (each vLLM-SR run's input template, vllm-sr-bench's block.py) and RouteBalance 80/10/10 at 6 and 9 req/s, seed 1, in the main group. vLLM-SR's own runs are vllm-sr-bench's",
+   "about": "The vLLM Semantic Router study's runs on this scheduler at low load, Qwen: round robin (each vLLM-SR run's input template, vllm-sr-bench's block.py) and F-MRLB 80/10/10 at 6 and 9 req/s, seed 1, in the main group. vLLM-SR's own runs are vllm-sr-bench's",
    "plan": "4 runs",
    "cells": [
     "qwen.disp.rr__l6__s1",
@@ -1319,7 +1319,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The repetitions of the main grid, seeds 2 and 3, at the six rates. RouteBalance (normalization over the round and per request) and RB-decoupled run at the eight presets (q05l25c70, q22l18c60, q25l05c70, q50l30c20, q60l20c20, q80l10c10, q90l05c05, uniform). The baselines run at the points of the complete seed-1 grid's overall frontier and one knee per system and rate: AvengersPro 0.53 and BEST-Route 0.3 on every dispatcher, BEST-Route 0 on round robin, power of two and lowest latency where it is on the frontier, and the five dispatchers alone",
+   "about": "The repetitions of the main grid, seeds 2 and 3, at the six rates. F-MRLB (normalization over the round and per request) and F-decoupled run at the eight presets (q05l25c70, q22l18c60, q25l05c70, q50l30c20, q60l20c20, q80l10c10, q90l05c05, uniform). The baselines run at the points of the complete seed-1 grid's overall frontier and one knee per system and rate: AvengersPro 0.53 and BEST-Route 0.3 on every dispatcher, BEST-Route 0 on round robin, power of two and lowest latency where it is on the frontier, and the five dispatchers alone",
    "plan": "458 runs",
    "cells": [
     "qwen.ap.pw053.lor__l30__s2",
@@ -1817,7 +1817,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RB-single (RouteBalance with one request per round, the ablations' round of 1) at W9's eight presets (q05l25c70, q22l18c60, q25l05c70, q50l30c20, q60l20c20, q80l10c10, q90l05c05, uniform) and the main grid's six rates, seed 1, in the main grid's comparison group",
+   "about": "F-single (F-MRLB with one request per round, the ablations' round of 1) at W9's eight presets (q05l25c70, q22l18c60, q25l05c70, q50l30c20, q60l20c20, q80l10c10, q90l05c05, uniform) and the main grid's six rates, seed 1, in the main grid's comparison group",
    "plan": "48 runs",
    "cells": [
     "qwen.rb-static.abl-round1.uniform__l30__s1",
@@ -1881,7 +1881,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "The repetitions of RB-single at W9's eight presets and the six rates, seeds 2 and 3",
+   "about": "The repetitions of F-single at W9's eight presets and the six rates, seeds 2 and 3",
    "plan": "96 runs",
    "cells": [
     "qwen.rb-static.abl-round1.uniform__l30__s2",
@@ -1993,7 +1993,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RB-single 80/10/10 on the nine burst traces, seed 1, beside the burst sweep",
+   "about": "F-single 80/10/10 on the nine burst traces, seed 1, beside the burst sweep",
    "plan": "9 runs",
    "cells": [
     "qwen.rb-static.abl-round1.q80l10c10__ga025-l12__s1",
@@ -2018,7 +2018,7 @@
    "prio": "must",
    "enabled": true,
    "why": null,
-   "about": "RB-single on Gemma at RB-decoupled's settings of the generality check (50/30/20, 80/10/10 and uniform), at 12, 30 and 42 req/s, seeds 1, 2 and 3",
+   "about": "F-single on Gemma at F-decoupled's settings of the generality check (50/30/20, 80/10/10 and uniform), at 12, 30 and 42 req/s, seeds 1, 2 and 3",
    "plan": "27 runs",
    "cells": [
     "gemma.rb-static.abl-round1.q50l30c20__gl12__s1",
@@ -2061,7 +2061,7 @@
    "prio": "should",
    "enabled": true,
    "why": null,
-   "about": "The repetitions of the burst sweep, seeds 2 and 3 on the nine burst traces: RouteBalance 80/10/10, AvengersPro 0.8 on least-outstanding, RB-decoupled 80/10/10 and RB-single 80/10/10",
+   "about": "The repetitions of the burst sweep, seeds 2 and 3 on the nine burst traces: F-MRLB 80/10/10, AvengersPro 0.8 on least-outstanding, F-decoupled 80/10/10 and F-single 80/10/10",
    "plan": "72 runs",
    "cells": [
     "qwen.rb-static.q80l10c10__ga025-l12__s2",
@@ -2149,7 +2149,7 @@
    "prio": "should",
    "enabled": true,
    "why": null,
-   "about": "The budget sweep (appendix) at 16 req/s, seed 1. Each prompt's budget comes from the previous implementation's tables (every budget admits at least the 3B model, and four tiers progressively admit 7B, 14B and 72B), with 75%, 45% and 30% of the prompts budget-constrained. RouteBalance (the constant TPOT, uniform) with and without the admission filter, and BEST-Route at threshold 0. Every system clamps its output to the request's budget, quality is the judged score of the served text (a truncated reply is judged as served), and exhaustion is counted as the previous implementation counted it",
+   "about": "The budget sweep (appendix) at 16 req/s, seed 1. Each prompt's budget comes from the previous implementation's tables (every budget admits at least the 3B model, and four tiers progressively admit 7B, 14B and 72B), with 75%, 45% and 30% of the prompts budget-constrained. F-MRLB (the constant TPOT, uniform) with and without the admission filter, and BEST-Route at threshold 0. Every system clamps its output to the request's budget, quality is the judged score of the served text (a truncated reply is judged as served), and exhaustion is counted as the previous implementation counted it",
    "plan": "9 runs",
    "cells": [
     "b75.qwen.rb-static-budget.uniform__l16__s1",
