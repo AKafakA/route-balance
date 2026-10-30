@@ -34,7 +34,12 @@ def extract(a) -> int:
     if a.datasets:
         datasets.update(json.load(open(a.datasets)))
     raw = open(a.prompts_file, "rb").read()
-    lines = [line for line in raw.decode("utf-8").split("\n") if line]
+    text = raw.decode("utf-8")
+    if not text.endswith("\n") or "\n\n" in text:
+        print(f"{a.prompts_file}: not one line per object, each ending in a newline: build could not rebuild it",
+              file=sys.stderr)
+        return 1
+    lines = text[:-1].split("\n")
     objs = [json.loads(line) for line in lines]
     ascii_ok = all(json.dumps(o) == line for o, line in zip(objs, lines))
     utf8_ok = all(json.dumps(o, ensure_ascii=False) == line for o, line in zip(objs, lines))

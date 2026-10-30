@@ -18,7 +18,8 @@
 # the loss prob_nlabels and the quality metric armoRM_scores (tools/best_route_upstream.py puts the DeepEval score
 # under that key). Every other setting is upstream's default; its collator lengths (128 and 128) are the labels file's.
 # Upstream loads the backbone by name through the Hugging Face cache: with the snapshot configs/scheduler_hub.json pins
-# in the cache (scripts/setup.sh's scheduler role), run it with HF_HUB_OFFLINE=1, as the runs did.
+# in the cache (scripts/setup.sh's scheduler role fills /mydata/hf), run it with HF_HOME=/mydata/hf HF_HUB_OFFLINE=1, as
+# the runs read their cache.
 set -euo pipefail
 die() { echo "train_best_route.sh: $*" >&2; exit 1; }
 

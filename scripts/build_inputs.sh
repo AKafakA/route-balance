@@ -18,7 +18,8 @@
 #   DIR/ap/                  AvengersPro at its five settings (router_training avengers-pro)
 #
 # The encoders are read through the Hugging Face cache by name. On the scheduler's node, whose cache scripts/setup.sh
-# filled at the revisions configs/scheduler_hub.json pins, run it with HF_HUB_OFFLINE=1, as the runs did.
+# filled at the revisions configs/scheduler_hub.json pins (/mydata/hf, scripts/node_layout.sh), run it with
+# HF_HOME=/mydata/hf HF_HUB_OFFLINE=1, as the runs read their cache.
 #
 # Every output's md5 is printed at the end. A configuration names an artifact by path and md5, so built artifacts are
 # pinned as docs/reproduce/02-run-experiments.md (step 2) describes.

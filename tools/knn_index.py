@@ -508,7 +508,7 @@ def evaluate(estimator: KNNEstimator, test_data: list) -> dict:
             true_q = judge_scores.get("deepeval-llama3.1-8b-it_reference")
             if true_q is None:
                 raise RuntimeError(
-                    f"train_knn_estimator: no deepeval score for model "
+                    f"tools.knn_index: no deepeval score for model "
                     f"{model_name!r}. Refusing to substitute reference_score or "
                     "another judge — that silently changes the metric."
                 )
@@ -516,7 +516,7 @@ def evaluate(estimator: KNNEstimator, test_data: list) -> dict:
             # The DeepEval prediction, read explicitly and never defaulted.
             if "deepeval_score" not in pred:
                 raise RuntimeError(
-                    f"train_knn_estimator: predict_all_models returned no "
+                    f"tools.knn_index: predict_all_models returned no "
                     f"'deepeval_score' for {model_name!r} (keys: "
                     f"{sorted(pred)}). The index carries no DeepEval array for "
                     "this model — rebuild it rather than scoring against a "
