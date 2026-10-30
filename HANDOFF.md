@@ -23,8 +23,10 @@ operator (the VPS that holds the repositories), the GPU VM, the HPC cluster.
   repository `AKafakA/F-MRLB` at 290489b, all pushed; dev 5cb8d74): the CloudLab profile, the G-Eval judging as it ran,
   the k-NN index builder, BEST-Route's conversion and training with the runs' labels files, one build script per
   family, and the paper's labels and prompt files without text with a fetcher from the public datasets. Each is proven
-  against the runs' artifacts (release-private `RELEASE_LOG.md`, 30 Oct later). Open: the judge environment's
-  DeepEval version, recorded only on dev-gpu (unreachable on 30 Oct). The ref branch does not carry these tools yet.
+  against the runs' artifacts (release-private `RELEASE_LOG.md`, 30 Oct later). The judge's environment is pinned
+  (`configs/judge/requirements-judge.txt`, DeepEval 4.0.6, from the package list D236 saved; submission ac49feb,
+  anno-sub 35c619d, F-MRLB 30017ba). dev-gpu's scratch lives under /tmp and is cleared at boot. The ref branch does not
+  carry these tools yet.
 
 ## 29 October 2026
 
