@@ -1,0 +1,17 @@
+{
+ "candidate_models": [
+  "Qwen2.5-3B_bo1",
+  "Qwen2.5-7B_bo1",
+  "Qwen2.5-14B_bo1",
+  "Qwen2.5-72B_bo1"
+ ],
+ "fleet_models": [
+  "Qwen/Qwen2.5-3B",
+  "Qwen/Qwen2.5-7B",
+  "Qwen/Qwen2.5-14B",
+  "Qwen/Qwen2.5-72B"
+ ],
+ "trained_with": "microsoft/best-route-llm fc9b896 train_router.py, loss prob_nlabels, its default collator lengths (the run script passes none)",
+ "source_maxlength": 128,
+ "candidate_maxlength": 128
+}

@@ -1,0 +1,14 @@
+# The environment upstream's BEST-Route trainer ran in for the paper's rankers (Python 3.12), with
+# microsoft/best-route-llm at the commit scripts/setup.sh pins. Used by scripts/train_best_route.sh.
+torch==2.11.0      # the runs' build was +cu130 (an NVIDIA driver for CUDA 13); another CUDA build of 2.11.0 serves an older driver
+transformers==4.39.3
+tokenizers==0.15.2
+accelerate==0.29.3
+datasets==4.8.5
+huggingface_hub==0.36.2
+safetensors==0.7.0
+sentencepiece==0.2.1
+protobuf==7.34.1
+numpy==2.4.4
+torch-geometric==2.7.0
+llm-blender @ git+https://github.com/yuchenlin/LLM-Blender.git@33204d2712944b6b17996f7c079e74cd963ccc7c

@@ -11,7 +11,9 @@ __pycache__/
 *.log
 
 # large artifacts live outside git (paths are given by config)
-/data/
+/data/*
+!/data/labels/
+!/data/prompt_files/
 /models/
 
 # agent worktrees and tool state (never tracked)
