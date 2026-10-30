@@ -5,7 +5,7 @@
 #
 #   judge_one.sh INPUT OUTPUT LOGFILE BASE_URL [extra scorer args...]
 #
-# JUDGE_PY names the judge environment's python (default python3).
+# JUDGE_PY names the judge environment's python (configs/judge/requirements-judge.txt; default python3).
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PY=${JUDGE_PY:-python3}

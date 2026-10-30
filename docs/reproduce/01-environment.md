@@ -65,10 +65,12 @@ needs a reboot exits 3: reboot it and run the same command again.
 
 - **The judges:** the G-Eval judge is Llama-3.1-8B-Instruct served by vLLM on the cluster's own nodes between
   measurements (`configs/fleet_judge.json`, `configs/engine_args_judge.json`, deployed like any fleet); the scorer
-  (`tools/geval_score.py`) runs on any machine that reaches them, in an environment with the DeepEval library.
+  (`tools/geval_score.py`) runs on any machine that reaches them, in the environment the paper's labels were judged in
+  (`configs/judge/requirements-judge.txt`: Python 3.12, DeepEval 4.0.6).
 - **BEST-Route's training:** one GPU, Python 3.12 with `configs/best_route/requirements-train.txt`, and the
   best-route-llm checkout the scheduler role installs (`scripts/train_best_route.sh`).
 - **Everything else** (the training rows, the k-NN indexes, the routers' data and AvengersPro) runs on a CPU in the
-  scheduler's environment (`scripts/build_inputs.sh`).
+  scheduler's environment (`scripts/build_inputs.sh`), whose pins are the versions that built the runs' inputs (with
+  torch's CPU build).
 
 Next: [run the experiments](02-run-experiments.md).
